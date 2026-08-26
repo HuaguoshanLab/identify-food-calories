@@ -322,11 +322,11 @@ Alembic autogenerate 只能生成候选 revision，必须手审；`alembic check
 
 ```text
 GET  /api/v1/dishes?query=<1..50 chars>&limit=<1..20>
-200  {"items":[{"dishId","name","matchedAlias","typicalServingGrams","dataStatus"}]}
+200  {"items":[{"dishId","name","matchedAlias","typicalServingGrams","dataStatus","sourceReference","licenseStatus","dataVersion"}]}
 
 POST /api/v1/calculations
 body {"dishId":"...","grams":180}
-200  {"dishId":"...","dishName":"宫保鸡丁","grams":180,"kcal":342}
+200  {"dishId":"...","dishName":"宫保鸡丁","grams":180,"kcal":342,"sourceReference":"...","licenseStatus":"demo_only","dataVersion":"v1"}
 404  {"code":"DISH_NOT_FOUND","message":"..."}
 422  FastAPI/Pydantic validation response or project-normalised error envelope
 ```
@@ -440,6 +440,9 @@ class CalculationResponse(BaseModel):
     dish_name: str
     grams: Decimal
     kcal: int
+    source_reference: str
+    license_status: str
+    data_version: str
 
 def kcal_for(grams: Decimal, kcal_per_100g: Decimal) -> int:
     return int((grams * kcal_per_100g / Decimal("100")).quantize(
@@ -510,22 +513,19 @@ finally:
 | A4 | DB + manifest 双重 preflight 是避免资格遗漏的最佳实现形态 | Pattern 4 | 中：release 系统细节尚未存在，必须把它写进 Phase 1 CI/命令。 |
 | A5 | 搜索 query 可 debounce | Pitfall 5 | 低：延迟阈值和 debounce 时间不应在 Phase 1 锁定。 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **约 100 道菜的正式来源、商业授权文本与推导链何时可用？**
-   - What we know: 未关闭前不可公开发布，允许本地 `demo_only`。 [VERIFIED: STATE.md + project CONTEXT.md]
-   - What's unclear: 每道菜可公开的具体 source URL、license/reference、推导方法和审批人/时间。
-   - Recommendation: Phase 1 先交付 schema、manifest validator 与 15→100 导入流程；所有未闭环记录保持 `demo_only`，production preflight 必须失败。 [VERIFIED: project CONTEXT.md]
+1. **约 100 道菜的正式来源、商业授权文本与推导链何时可用？ — RESOLVED**
+   - Decision: Phase 1 的约 100 道菜全部是有来源/授权状态/推导链字段的本地开发 `demo_only` 数据，不得声称商业授权完整，也不能通过 production preflight。商业授权关闭、字段级真实审核与公开发布判断属于 Phase 5 release gate。 [VERIFIED: STATE.md + CONTEXT.md D-11/D-12]
+   - Verification evidence: `test_seed_catalog.py` 断言约 100 项、D-08 15 项、稳定 ID 和 `demo_only`；`test_release_policy.py`/`test_release_preflight.py` 证明 production 对 demo 数据非零失败。
 
-2. **生产 preflight 接入哪个实际部署/CI 命令？**
-   - What we know: 当前仓库尚未建立 CI 或部署管道。 [VERIFIED: codebase inspection]
-   - What's unclear: 最终 host 与 release job。
-   - Recommendation: Phase 1 提供可独立运行、非零退出的命令和测试；后续部署只负责调用它，不能重写 policy。 [ASSUMED]
+2. **生产 preflight 接入哪个实际部署/CI 命令？ — RESOLVED**
+   - Decision: Phase 1 不虚构云 CI 或部署。`python -m app.scripts.release_preflight --environment production` 是唯一可独立运行的 CI 接点；root/backend runbook 在本地与未来 CI 的 release candidate 步骤中调用它，后续平台只调用此命令而不重写 policy。 [VERIFIED: current repository has no CI/deploy pipeline]
+   - Verification evidence: fake-repository unit matrix 和隔离 PostgreSQL integration suite 覆盖 JSON report 与 production non-zero exit；runbook replay command 必须执行 preflight。
 
-3. **公开 API 是否应返回 `dataStatus`？**
-   - What we know: D-06 要求 API 返回来源与授权信息，但 Phase 1 UI 不展示。
-   - What's unclear: 应返回完整来源字段还是仅内部/运营 endpoint 使用。
-   - Recommendation: 先把 `source`, `license_status`, `data_version` 建入受控内部 response schema 或受认证运维查询；公网计算响应只返回最低必要数据，避免无用暴露。D-06 的 API 可通过菜品 detail/internal schema 满足，planner 应明确 endpoint。 [VERIFIED: project CONTEXT.md]
+3. **公开 API 是否应返回数据治理信息？ — RESOLVED**
+   - Decision: 为严格满足 D-06，`GET /api/v1/dishes` 的每个 item 与 `POST /api/v1/calculations` 的 response 都返回最小的 `sourceReference`、`licenseStatus`、`dataVersion`，并保留 `dataStatus`。API schemas/Service/Repository/route/OpenAPI/API contract tests 必须覆盖这些字段。Phase 1 前端不使用字段请求参数，也不将它们映射到 UI DTO 或渲染；浏览器只显示菜名、克数和后端 kcal。 [VERIFIED: CONTEXT.md D-05/D-06]
+   - Verification evidence: API/OpenAPI tests assert all four governance fields; frontend transport/component tests assert UI DTO 和 DOM 中没有 source/license/version 字段。
 
 ## Environment Availability
 

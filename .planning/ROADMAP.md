@@ -28,12 +28,17 @@
   2. 开发者可用 SQLAlchemy 2 模型和 Alembic 迁移从空库重建菜品、别名、标准配方、营养数据及版本关系，并能查询约 100 道菜的稳定 `dishId`。
   3. 系统只使用带来源、授权记录和可追溯推导链的受控营养数据；缺少明确商用权的数据会阻止公开发布。
   4. 给定受支持菜品和克数时，后端从数据库中的受控营养数据确定性计算热量，并拒绝采用视觉模型自由生成的热量值。
-**Plans**: 4 plans
+**Plans**: 9 plans
 Plans:
-- [ ] 01-01-PLAN.md — Initialize the approved local stack and official Base UI toolchain safely.
-- [ ] 01-02-PLAN.md — Create the governed PostgreSQL catalog, explicit seed, and production eligibility gate.
-- [ ] 01-03-PLAN.md — Deliver the versioned deterministic calculation API through strict backend layers.
-- [ ] 01-04-PLAN.md — Deliver the mobile calculator UI, end-to-end verification, and developer runbook.
+- [ ] 01-01-PLAN.md — Establish Python 3.11, Compose and fail-closed test DB isolation.
+- [ ] 01-02-PLAN.md — Initialize the official Vite + shadcn Base UI frontend.
+- [ ] 01-03-PLAN.md — Create catalog models and DDL-only Alembic migration.
+- [ ] 01-04-PLAN.md — Seed governed approximately-100 demo-only catalog data explicitly.
+- [ ] 01-05-PLAN.md — Enforce release eligibility with fake-repo and PostgreSQL tests.
+- [ ] 01-06-PLAN.md — Implement domain search/calculation and true PostgreSQL repository tests.
+- [ ] 01-07-PLAN.md — Publish the versioned API, D-06 governance fields, CORS and OpenAPI.
+- [ ] 01-08-PLAN.md — Implement the mobile calculator transport and UI boundary.
+- [ ] 01-09-PLAN.md — Prove real E2E behavior and document all operational commands.
 **UI hint**: yes
 
 ### Phase 2: 安全图片识别闭环
