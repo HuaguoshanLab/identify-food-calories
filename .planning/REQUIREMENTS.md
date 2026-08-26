@@ -105,16 +105,56 @@
 
 ## Traceability
 
-路线图创建时填充。每个 v1 需求必须映射到一个阶段。
+每个 v1 需求映射到且仅映射到一个路线图阶段。
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| IMG-01 | Phase 2 | Pending |
+| IMG-02 | Phase 2 | Pending |
+| IMG-03 | Phase 2 | Pending |
+| REC-01 | Phase 2 | Pending |
+| REC-02 | Phase 2 | Pending |
+| REC-03 | Phase 2 | Pending |
+| REC-04 | Phase 2 | Pending |
+| REC-05 | Phase 2 | Pending |
+| CAL-01 | Phase 1 | Pending |
+| CAL-02 | Phase 2 | Pending |
+| CAL-03 | Phase 2 | Pending |
+| CAL-04 | Phase 2 | Pending |
+| EDIT-01 | Phase 3 | Pending |
+| EDIT-02 | Phase 3 | Pending |
+| EDIT-03 | Phase 3 | Pending |
+| EDIT-04 | Phase 3 | Pending |
+| FLOW-01 | Phase 2 | Pending |
+| FLOW-02 | Phase 2 | Pending |
+| FLOW-03 | Phase 2 | Pending |
+| SAFE-01 | Phase 2 | Pending |
+| SAFE-02 | Phase 2 | Pending |
+| SAFE-03 | Phase 2 | Pending |
+| SAFE-04 | Phase 5 | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 3 | Pending |
+| DATA-03 | Phase 3 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| ARCH-01 | Phase 1 | Pending |
+| ARCH-02 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Pending |
+| ARCH-04 | Phase 1 | Pending |
+| ARCH-05 | Phase 1 | Pending |
+| ARCH-06 | Phase 1 | Pending |
+| QLT-01 | Phase 4 | Pending |
+| QLT-02 | Phase 4 | Pending |
+| QLT-03 | Phase 4 | Pending |
+| QLT-04 | Phase 4 | Pending |
+| QLT-05 | Phase 5 | Pending |
+| QLT-06 | Phase 5 | Pending |
+| QLT-07 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 40 total
-- Mapped to phases: 0
-- Unmapped: 40 ⚠️
+- Mapped to phases: 40
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-26*
-*Last updated: 2026-08-26 after initial definition and architecture revision*
+*Last updated: 2026-08-26 after roadmap creation and traceability mapping*
