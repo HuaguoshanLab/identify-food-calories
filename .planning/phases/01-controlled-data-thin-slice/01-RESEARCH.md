@@ -533,7 +533,7 @@ finally:
 |---|---|---|---|---|
 | Node.js | Vite/Vitest/Playwright | ✓ | `v22.23.2`; Vite 文档要求 `20.19+` 或 `22.12+`。 [VERIFIED: local command + https://vite.dev/guide/] | — |
 | npm | frontend dependency install | ✓ | `10.9.8` | — |
-| Python | FastAPI/SQLAlchemy/Alembic | △ | `3.9.6`; 当前 Psycopg 文档的测试支持是 Python `3.10–3.14`，并说明 3.9 支持止于 3.3 前。 [VERIFIED: local command + https://www.psycopg.org/psycopg3/docs/basic/install.html] | 安装/选择 Python 3.11+ 并在 `pyproject.toml` 声明。 |
+| Python | FastAPI/SQLAlchemy/Alembic | △ — blocking | 当前仅确认 `3.9.6`；Psycopg 支持窗口为 Python `3.10–3.14`，且 3.9 支持止于 3.3 前。Phase 1 必须通过 `python3.11 --version` 的 3.11.x checkpoint 后，才可创建 `.venv` 或安装后端依赖。 [VERIFIED: local command + https://www.psycopg.org/psycopg3/docs/basic/install.html] | 用 pyenv、Homebrew `python@3.11` 或官方安装器安装/选择 Python 3.11；失败时修复 PATH 或重新安装，禁止回退到 3.9。 |
 | pip | backend dependency install | ✓ | `21.2.4` | 与新的 Python 一起使用对应 pip。 |
 | Docker CLI | Compose PostgreSQL | ✓ | Docker `29.4.0` | — |
 | Docker Compose | Compose PostgreSQL | Not probed | Docker client 已在，但本轮未执行 `docker compose version`。 [VERIFIED: local command] | Wave 0 先运行 `docker compose version` 与 `docker compose up db`。 |

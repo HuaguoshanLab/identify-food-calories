@@ -44,7 +44,7 @@ The requester supplied DATA/CALC/API/ARCH/UX/TEST/OPS labels that are not requir
 | API-01..05 | 01-07: `/api/v1`; search; calculate; Pydantic/error envelope; D-06 sourceReference/licenseStatus/dataVersion plus OpenAPI/CORS tests |
 | ARCH-01..08 | 01-01..01-09: separate projects; approved stack; Compose; Alembic; strict layers; versioned REST; env/test DB boundaries; independently replayable workflow |
 | UX-01..04 | 01-08: searchable Base UI aliases; defaults/local grams/explicit submit; stated loading/error/stale/accessibility and no governance UI |
-| TEST-01..05 | 01-01, 01-03..01-09: fail-closed test setup; real PostgreSQL schema/repository/seed/preflight; fake service tests; API/OpenAPI/CORS; Vitest; Playwright/manual |
+| TEST-01..05 | 01-01, 01-03..01-09: direct parameterized fail-closed database-guard unit test; real PostgreSQL schema/repository/seed/preflight; fake service tests; API/OpenAPI/CORS; Vitest; Playwright/manual |
 | OPS-01..05 | 01-01, 01-04, 01-05, 01-09: DB health/test creation, env rules, explicit migration/seed, runbook/curl/dataflow, local/CI preflight gate |
 
 ## Research and Scope Fence Coverage
