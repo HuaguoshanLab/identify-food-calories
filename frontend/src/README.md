@@ -19,3 +19,4 @@
 | `App.test.tsx` | 运行壳加载与健康响应的 Vitest/Testing Library 行为测试 |
 | `styles.css` | Tailwind CSS 入口、UI-SPEC 颜色/圆角 tokens 与全局可访问性样式 |
 | `test-setup.ts` | Vitest 的 jest-dom 断言扩展与测试后 DOM 清理 |
+| `components/` | 应用组件边界与官方 shadcn UI 基础设施 |
