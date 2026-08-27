@@ -30,3 +30,4 @@ npm run dev
 | `package-lock.json` | npm 完整依赖锁与完整性摘要 |
 | `index.html` | Vite HTML 入口 |
 | `src/` | React 运行时代码与目录契约 |
+| `tests/` | 前端测试边界与 Playwright E2E 用例 |
