@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-08-27T06:27:11.116Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-08-27T06:41:48.733Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 2
-  percent: 14
+  completed_plans: 3
+  percent: 21
 ---
 
 # Project State
@@ -26,33 +26,34 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 3 of 14
+Plan: 4 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [█░░░░░░░░░] 14%
+Progress: [██░░░░░░░░] 21%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
-- Average duration: 13 min
-- Total execution time: 0.2 hours
+- Total plans completed: 3
+- Average duration: 16 min
+- Total execution time: 0.8 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 1 | 13 min | 13 min |
+| 01 | 3 | 48 min | 16 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 13 min
-- Trend: baseline established
+- Last 5 plans: 13 min, 23 min, 12 min
+- Trend: variable, 16 min average
 
 *Updated after each plan completion*
 | Phase 01 P02 | 23 min | 2 tasks | 14 files |
+| Phase 01 P03 | 12 min | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 01]: production 必须满足强密钥、Secure Cookie、显式 CORS 和完整 SMTP 凭据。 — 不允许本地 Mailpit 或开发默认值静默进入生产。
 - [Phase 01]: 前端依赖只允许来自 Phase 1 研究的 VERIFIED 清单，并对 28 个直接依赖执行精确版本与 integrity 核对。
 - [Phase 01]: Playwright 使用固定端口、reuseExistingServer=false、HTTP readiness 和 SIGTERM 清理，拒绝复用未知本地进程造成假绿。
+- [Phase 01]: 验证码当前性由 user_id + purpose 的 PostgreSQL partial unique index 强制，终态由 consumed_at/invalidated_at 互斥约束表达。
+- [Phase 01]: Repository 只 query/add/flush，Service 保留多步骤认证协议的 commit/rollback 事务边界。
+- [Phase 01]: APP_ENV=test 的 Alembic 环境只使用经过隔离 guard 验证的 TEST_DATABASE_URL。
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T06:27:03.455Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-08-27T06:41:48.731Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None

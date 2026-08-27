@@ -75,8 +75,8 @@
 ### 工程、教学与质量
 
 - [x] **ARC-01**：仓库保持独立 `frontend/` 与 `backend/`，后端为模块化单体。
-- [ ] **ARC-02**：FastAPI 使用 API → Service/Use Case → Repository → Model 分层，Agent 编排层只能通过工具调用领域服务。
-- [ ] **ARC-03**：SQLAlchemy Model、Pydantic Schema、LangGraph State 与 Provider DTO 分离。
+- [x] **ARC-02**：FastAPI 使用 API → Service/Use Case → Repository → Model 分层，Agent 编排层只能通过工具调用领域服务。
+- [x] **ARC-03**：SQLAlchemy Model、Pydantic Schema、LangGraph State 与 Provider DTO 分离。
 - [x] **ARC-04**：PostgreSQL、pgvector 与所需本地依赖通过 Docker Compose 启动，迁移显式执行。
 - [ ] **ARC-05**：前后端使用版本化 OpenAPI 契约；流式 Agent 事件使用 SSE。
 - [ ] **ARC-06**：模型 Provider 可替换且具备 fake 实现，测试不依赖真实付费 API。
