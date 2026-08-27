@@ -2,7 +2,7 @@
 
 ## 职责
 
-`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前运行壳只展示 FastAPI 健康状态；认证、Agent 对话和饮食规划将在后续计划接入。
+`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供产品落地页、隐私/条款与认证入口路由；完整认证生命周期、Agent 对话和饮食规划按后续计划接入。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
 
 ## 允许依赖
 

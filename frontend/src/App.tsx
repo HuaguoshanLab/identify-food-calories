@@ -1,39 +1,41 @@
-import { useQuery } from '@tanstack/react-query'
+import { Route, Routes } from 'react-router-dom'
 
-type HealthResponse = {
-  status: 'ok'
-  version: string
-}
-
-const apiBaseUrl = 'http://127.0.0.1:8000'
-
-async function loadHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/health`)
-
-  if (!response.ok) {
-    throw new Error(`Health request failed with status ${response.status}`)
-  }
-
-  return (await response.json()) as HealthResponse
-}
+import {
+  AuthEntryPage,
+  LandingPage,
+  PrivacyPage,
+  ProtectedAppEntry,
+  TermsPage,
+} from './auth/PublicPages'
 
 export function App() {
-  const health = useQuery({
-    queryKey: ['system', 'health'],
-    queryFn: loadHealth,
-    refetchInterval: (query) => (query.state.data?.status === 'ok' ? false : 1_000),
-  })
-
-  const healthLabel =
-    health.data?.status === 'ok' ? `正常（API ${health.data.version}）` : '连接中'
-
   return (
-    <main>
-      <h1>饮食健康 Agent</h1>
-      <p>前端运行壳已启动，业务功能将在后续计划接入。</p>
-      <p role="status" aria-live="polite">
-        后端状态：{healthLabel}
-      </p>
-    </main>
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route
+        path="/login"
+        element={<AuthEntryPage title="欢迎回来" description="登录后继续管理你的饮食与登录会话。" />}
+      />
+      <Route
+        path="/register"
+        element={<AuthEntryPage title="创建账号" description="使用邮箱创建你的饮食健康档案。" />}
+      />
+      <Route
+        path="/register/verify"
+        element={<AuthEntryPage title="验证邮箱" description="请先完成注册后再输入验证码。" />}
+      />
+      <Route
+        path="/forgot-password"
+        element={<AuthEntryPage title="忘记密码" description="输入邮箱以申请重置验证码。" />}
+      />
+      <Route
+        path="/reset-password"
+        element={<AuthEntryPage title="重置密码" description="请先申请重置验证码。" />}
+      />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/app" element={<ProtectedAppEntry />} />
+      <Route path="*" element={<LandingPage />} />
+    </Routes>
   )
 }

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
-import { App, userRoutePaths } from '../App'
+import { App } from '../App'
 
 function renderRoute(initialEntry: string) {
   const queryClient = new QueryClient({
@@ -41,25 +41,21 @@ describe('public user routes', () => {
     expect(screen.getByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()
     expect(screen.getByText('请先登录后继续使用账号功能。')).toBeInTheDocument()
 
-    expect(userRoutePaths).toEqual(
-      expect.arrayContaining([
-        '/',
-        '/login',
-        '/register',
-        '/register/verify',
-        '/forgot-password',
-        '/reset-password',
-        '/privacy',
-        '/terms',
-        '/app',
-      ]),
-    )
+    renderRoute('/register')
+    expect(screen.getByRole('heading', { name: '创建账号' })).toBeInTheDocument()
+    renderRoute('/register/verify')
+    expect(screen.getByRole('heading', { name: '验证邮箱' })).toBeInTheDocument()
+    renderRoute('/forgot-password')
+    expect(screen.getByRole('heading', { name: '忘记密码' })).toBeInTheDocument()
+    renderRoute('/reset-password')
+    expect(screen.getByRole('heading', { name: '重置密码' })).toBeInTheDocument()
   })
 
   it('contains no admin route, navigation, or admin probe call in the user application', () => {
-    renderRoute('/')
-
-    expect(userRoutePaths).not.toContain('/admin')
+    renderRoute('/admin')
+    expect(
+      screen.getByRole('heading', { name: '拍下或描述一餐，获得可追问的饮食分析' }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /后台|管理/i })).not.toBeInTheDocument()
   })
 })
