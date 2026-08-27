@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-07-PLAN.md
-last_updated: "2026-08-27T08:37:15.727Z"
+stopped_at: Completed 01-08-PLAN.md
+last_updated: "2026-08-27T08:50:55Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 7
-  percent: 50
+  completed_plans: 8
+  percent: 57
 ---
 
 # Project State
@@ -26,29 +26,29 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 8 of 14
+Plan: 9 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 57%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 15 min
-- Total execution time: 1.8 hours
+- Total execution time: 1.9 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 7 | 108 min | 15 min |
+| 01 | 8 | 116 min | 15 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 12 min, 15 min, 13 min, 19 min, 13 min
+- Last 5 plans: 15 min, 13 min, 19 min, 13 min, 8 min
 - Trend: variable, 14 min average
 
 *Updated after each plan completion*
@@ -58,6 +58,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01 P05 | 13 min | 2 tasks | 10 files |
 | Phase 01 P06 | 19 min | 2 tasks | 15 files |
 | Phase 01 P07 | 13 min | 2 tasks | 17 files |
+| Phase 01 P08 | 8 min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Recent decisions affecting current work:
 - [Phase 01]: PostgreSQL 原子 upsert 负责跨 worker 失败累计，Service 负责失败提交、成功 bucket 复位与 session 事务边界。
 - [Phase 01]: Vite 统一承载 React、Tailwind CSS v4 与 Vitest 配置，避免 build/test alias 漂移。
 - [Phase 01]: shadcn 固定官方 base-nova/Base UI registry，cn 位于 components/ui，不创建无职责 lib 目录。
+- [Phase 01]: 九个 UI-SPEC 原语一律由官方 shadcn Base UI registry 生成；Button/Badge 的 variants 依赖 class-variance-authority 0.7.1 作为直接生产依赖。
+- [Phase 01]: Fast Refresh 的 variants 导出例外仅限官方 src/components/ui 原语，业务组件仍执行完整规则。
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T08:37:15.724Z
-Stopped at: Completed 01-07-PLAN.md
+Last session: 2026-08-27T08:50:55Z
+Stopped at: Completed 01-08-PLAN.md
 Resume file: None
