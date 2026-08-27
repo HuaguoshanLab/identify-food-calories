@@ -1,106 +1,128 @@
-# Roadmap: 中式外卖热量识别
+# Roadmap: 多模态饮食健康智能 Agent
 
 ## Overview
 
-路线图以垂直 MVP 推进：先交付一个由 React/Vite 前端、FastAPI REST API 和 PostgreSQL 受控目录共同工作的可运行薄切片，再接入安全图片处理与多菜识别，随后完成用户修正和匿名可追溯闭环，最后用冻结评测集与生产门禁决定是否发布。FastAPI、SQLAlchemy 2、Alembic 和 PostgreSQL 的学习目标直接服务于真实 API、关系建模、迁移与结果持久化；首版保持一个前端、一个后端和一个数据库，不引入微服务、消息队列或长期原图存储。
+路线图按可演示的垂直切片推进。先建立身份、权限和正式工程骨架，再交付一个文字可追问的 LangGraph Agent，随后接入 Qwen-VL 图片感知、长期记忆、饮食规划、用户看板与后台管理，最后通过评测、安全和部署门禁形成可上线、可写简历的完整项目。
+
+DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性工具和受控数据库。LangGraph Checkpoint 管理短期执行状态，Mem0 管理跨会话偏好，PostgreSQL 保存权威业务记录。
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-- [ ] **Phase 1: 受控数据与可运行薄切片** - 用正式前后端和 PostgreSQL 打通受控菜品热量计算的最小端到端路径。
-- [ ] **Phase 2: 安全图片识别闭环** - 用户可安全上传一张外卖图并得到多菜、克数及热量区间结果。
-- [ ] **Phase 3: 可修正与可复现分析** - 用户可即时修正结果，系统保存匿名结构化分析与完整版本身份。
-- [ ] **Phase 4: 识别与区间质量校准** - 冻结评测证明菜名、候选、估重和热量区间达到量化门槛。
-- [ ] **Phase 5: 生产保护与发布门禁** - 在真实移动条件、攻击与费用约束下完成发布候选验收。
+- [ ] **Phase 1: 工程、身份与权限基座** — 建立 React/FastAPI/PostgreSQL、注册登录、会话轮换、RBAC 和教学规范。
+- [ ] **Phase 2: 可追问的 Agent 核心** — 建立 LangGraph 主图、餐食分析子图、确定性营养工具、Checkpoint 和有界循环。
+- [ ] **Phase 3: 多模态餐食分析闭环** — 接入安全图片上传与 Qwen-VL，多菜识别、份量追问、校验和最终报告。
+- [ ] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。
+- [ ] **Phase 5: 饮食规划子图** — 根据身体目标生成并校验餐单，支持用户反馈后的 Human-in-the-loop 调整。
+- [ ] **Phase 6: 用户看板与后台管理** — 完成趋势分析、周复盘、营养目录管理、模型配置、运行审计与 RBAC 管理界面。
+- [ ] **Phase 7: 评测、安全与上线** — 冻结评测、攻击测试、成本和延迟门禁、CI 与 Docker 演示闭环。
 
 ## Phase Details
 
-### Phase 1: 受控数据与可运行薄切片
-**Goal**: 开发者可以运行正式技术栈，用户请求可穿过 React/Vite、FastAPI 和 PostgreSQL，由合法受控数据确定性计算热量。
-**Mode:** mvp
-**Depends on**: Nothing (first phase)
-**Requirements**: ARCH-01, ARCH-02, ARCH-03, ARCH-04, ARCH-05, ARCH-06, DATA-01, DATA-04, CAL-01
-**Success Criteria** (what must be TRUE):
-  1. 开发者可用 Docker Compose 启动 PostgreSQL，并分别启动 `frontend/` React + TypeScript + Vite 与 `backend/` FastAPI 项目；前端能通过版本化 REST/OpenAPI 契约完成一次真实请求。
-  2. 开发者可用 SQLAlchemy 2 模型和 Alembic 迁移从空库重建菜品、别名、标准配方、营养数据及版本关系，并能查询约 100 道菜的稳定 `dishId`。
-  3. 系统只使用带来源、授权记录和可追溯推导链的受控营养数据；缺少明确商用权的数据会阻止公开发布。
-  4. 给定受支持菜品和克数时，后端从数据库中的受控营养数据确定性计算热量，并拒绝采用视觉模型自由生成的热量值。
-**Plans**: 9 plans
-Plans:
-- [ ] 01-01-PLAN.md — Establish Python 3.11, Compose and fail-closed test DB isolation.
-- [ ] 01-02-PLAN.md — Initialize the official Vite + shadcn Base UI frontend.
-- [ ] 01-03-PLAN.md — Create catalog models and DDL-only Alembic migration.
-- [ ] 01-04-PLAN.md — Seed governed approximately-100 demo-only catalog data explicitly.
-- [ ] 01-05-PLAN.md — Enforce release eligibility with fake-repo and PostgreSQL tests.
-- [ ] 01-06-PLAN.md — Implement domain search/calculation and true PostgreSQL repository tests.
-- [ ] 01-07-PLAN.md — Publish the versioned API, D-06 governance fields, CORS and OpenAPI.
-- [ ] 01-08-PLAN.md — Implement the mobile calculator transport and UI boundary.
-- [ ] 01-09-PLAN.md — Prove real E2E behavior and document all operational commands.
-**UI hint**: yes
+### Phase 1: 工程、身份与权限基座
 
-### Phase 2: 安全图片识别闭环
-**Goal**: 免登录用户可以在移动端安全提交一张中式外卖图，并在清晰的状态反馈后得到可解释的多菜热量估算。
+**Goal:** 用户可以安全注册、登录和退出；开发者能运行独立前后端与 PostgreSQL，并从文档理解完整认证链路。
 **Mode:** mvp
-**Depends on**: Phase 1
-**Requirements**: IMG-01, IMG-02, IMG-03, REC-01, REC-02, REC-03, REC-04, REC-05, CAL-02, CAL-03, CAL-04, FLOW-01, FLOW-02, FLOW-03, SAFE-01, SAFE-02, SAFE-03
-**Success Criteria** (what must be TRUE):
-  1. 用户无需登录即可拍照或上传图片，并在提交前看到第三方处理、留存和删除说明；格式、大小、像素、解码、画质或非食物检查失败时会得到可操作的重拍提示。
-  2. 一张有效套餐图会返回多个可见菜品；每项归一化为约 100 道目录中的具体菜名并显示克数，低置信度项提供 2–3 个候选，目录外项目明确标为不支持或无法确认。
-  3. 用户能同时看到每项与整餐的中心热量和合理范围，并能看懂配方、用油、糖、酱汁和实际份量为何会造成误差。
-  4. 用户能辨认图片准备、上传、分析和完成状态；超时、限流、服务错误或模型输出异常均提供明确恢复操作，重复点击、重试或网络抖动不会重复分析或重复计费。
-  5. 系统会拒绝伪造格式、解码炸弹、超大像素等危险图片，剥离图片元数据，并在当次分析结束后删除原图而不长期保存。
-**Plans**: TBD
-**UI hint**: yes
+**Depends on:** Nothing
+**Requirements:** AUTH-01..06, ARC-01..04, EDU-01
+**Success Criteria:**
 
-### Phase 3: 可修正与可复现分析
-**Goal**: 用户可以不重新调用视觉模型就修正餐食结果，系统能用匿名结构化数据复现分析并记录修正信号。
-**Mode:** mvp
-**Depends on**: Phase 2
-**Requirements**: EDIT-01, EDIT-02, EDIT-03, EDIT-04, DATA-02, DATA-03
-**Success Criteria** (what must be TRUE):
-  1. 用户可以精确修改任一菜品克数，单项和整餐热量会立即重算且不再次调用视觉模型。
-  2. 用户可以从候选中切换菜名、搜索替换为受支持菜品或删除误识别项，所有受影响的中心值和范围会立即更新。
-  3. 系统为每次匿名分析保存结构化结果、模型运行元数据和用户修正，但不保存原图；运维人员可按模型、提示词、预处理、目录、营养和计算规则版本复现当时结果。
-**Plans**: TBD
-**UI hint**: yes
+1. Docker Compose 启动 PostgreSQL；React/Vite 与 FastAPI 分别运行并通过 `/api/v1` 通信。
+2. 邮箱注册、登录、access token、HttpOnly refresh token 轮换、退出和会话撤销通过自动化测试。
+3. `user` 与 `admin` 权限在后端强制执行；普通用户请求后台 API 返回统一 403。
+4. SQLAlchemy、Pydantic、Repository、Service 和 API 边界清晰，Alembic 可从空库重建结构。
+5. `docs/learning/01-auth-and-backend-foundation.md` 能解释密码哈希、令牌轮换、依赖注入、数据库事务和测试分层。
 
-### Phase 4: 识别与区间质量校准
-**Goal**: 系统在独立冻结数据上证明菜名识别、候选召回、估重和整餐区间均达到公开发布所需质量。
-**Mode:** mvp
-**Depends on**: Phase 3
-**Requirements**: QLT-01, QLT-02, QLT-03, QLT-04
-**Success Criteria** (what must be TRUE):
-  1. 冻结测试集报告显示目标菜品 Top-1 识别准确率不低于 85%，正确菜名进入前三候选的比例不低于 95%。
-  2. 冻结测试集报告显示单项克数估算的中位相对误差不高于 25%。
-  3. 冻结测试集报告显示真实整餐热量落入合理区间的比例不低于 80%，且区间宽度同时满足预先冻结的护栏，不能靠无限放宽区间达标。
-  4. 同一冻结数据、版本快照和评测命令可重复得到一致指标，未达任一门槛时系统明确阻止发布。
-**Plans**: TBD
+### Phase 2: 可追问的 Agent 核心
 
-### Phase 5: 生产保护与发布门禁
-**Goal**: 发布候选在目标移动网络、真实交互、恶意输入和匿名费用风险下仍然快速、安全且可控。
+**Goal:** 用户通过文字描述一餐时，Agent 能使用确定性工具补齐信息、计算营养并在中断后恢复。
 **Mode:** mvp
-**Depends on**: Phase 4
-**Requirements**: SAFE-04, QLT-05, QLT-06, QLT-07
-**Success Criteria** (what must be TRUE):
-  1. 在目标移动网络环境和发布并发下，90% 的有效识别请求可在 10 秒内返回结果。
-  2. 真机验收确认用户从上传图片到理解结果的主流程不超过 3 次操作。
-  3. 匿名分析端点的限流、并发限制、费用硬上限和紧急熔断均可触发且有效，刷量或供应商异常不会产生无上限费用。
-  4. 发布候选通过冻结测试集、移动端端到端、恶意图片、费用上限、原图删除链和隐私告知验证；任何失败都会给出明确的 no-go 结果。
-**Plans**: TBD
-**UI hint**: yes
+**Depends on:** Phase 1
+**Requirements:** AGT-01..07, NUT-01..05, ARC-05..06, QLT-02
+**Success Criteria:**
+
+1. LangGraph State、节点和条件边有显式类型，主图可路由到餐食分析子图。
+2. 缺少菜名或克数时通过 interrupt 追问；相同 thread 恢复后继续执行，不重复已完成工具。
+3. 菜品查询、营养计算和异常校验均调用领域工具，模型不能直接写最终营养数值。
+4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
+5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
+
+### Phase 3: 多模态餐食分析闭环
+
+**Goal:** 用户上传餐食图片后，Qwen-VL 感知结果进入 Agent 图，并在必要追问后输出可信的多菜营养报告。
+**Mode:** mvp
+**Depends on:** Phase 2
+**Requirements:** VIS-01..06, NUT-06..07, UI-01, QLT-01
+**Success Criteria:**
+
+1. 图片安全校验、元数据剥离、临时存储和删除链经过测试。
+2. Qwen-VL Provider 返回经过 Pydantic 校验的多菜候选、置信度和份量线索。
+3. 模糊菜名、目录外菜品与份量不足会触发追问；模型失败不会重复计费。
+4. 结果页显示逐项营养与整餐汇总，并允许用户确认或修正。
+5. 冻结样本报告识别、归一化与估重基线，不能只展示成功案例。
+
+### Phase 4: 餐食记录与长期记忆
+
+**Goal:** 用户的确认餐食与稳定偏好可以跨会话使用，同时保持权威数据、自然语言记忆和用户隔离。
+**Mode:** mvp
+**Depends on:** Phase 3
+**Requirements:** MEM-01..06
+**Success Criteria:**
+
+1. 餐食记录、营养结果和确认状态保存到 PostgreSQL，支持用户级访问控制。
+2. LangGraph Postgres Checkpointer 保存短期线程；Mem0 只保存白名单长期偏好。
+3. pgvector 检索结合 `user_id` 和业务过滤，绝不跨用户召回。
+4. 用户可查看、修改和删除记忆与餐食；删除链具有集成测试。
+
+### Phase 5: 饮食规划子图
+
+**Goal:** Agent 根据用户目标和偏好生成可校验、可交互调整的一日三餐方案。
+**Mode:** mvp
+**Depends on:** Phase 4
+**Requirements:** PLN-01..06
+**Success Criteria:**
+
+1. 身体数据与目标经确定性公式生成每日能量和宏量营养约束。
+2. 规划子图检索受控菜谱，生成餐单并用工具校验总量、比例、忌口和重复度。
+3. 不合格方案仅在有限次数内重排，之后给出可解释失败结果。
+4. 用户反馈“换清淡”“不吃某菜”后，保留其他约束并恢复图继续规划。
+5. 输出明确声明非医疗建议，并拒绝高风险健康请求。
+
+### Phase 6: 用户看板与后台管理
+
+**Goal:** 用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。
+**Mode:** mvp
+**Depends on:** Phase 5
+**Requirements:** UI-02..03, ADM-01..05, EDU-02..03
+**Success Criteria:**
+
+1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
+2. `/admin` 在前后端执行 RBAC；普通用户无法读取或修改后台数据。
+3. 管理员可维护菜品、营养、来源、授权和版本，并查看完整审计差异。
+4. 管理员可查看模型运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。
+5. README 包含最终架构图、状态图、时序图、调试方式和面试深挖题。
+
+### Phase 7: 评测、安全与上线
+
+**Goal:** 项目具备可重复的质量证据、安全边界、成本控制和一键演示环境。
+**Mode:** mvp
+**Depends on:** Phase 6
+**Requirements:** QLT-03..05
+**Success Criteria:**
+
+1. CI 通过前后端 lint、类型、单元、真实 PostgreSQL 集成、API 合约和 Playwright E2E。
+2. 冻结评测覆盖视觉识别、Agent 路由、营养校验、规划约束与记忆召回。
+3. 越权、提示注入、危险图片、记忆泄漏、无限循环、费用上限和删除链测试通过。
+4. Docker 环境按文档一键启动可演示系统，密钥与生产数据不进入镜像或 Git。
+5. 简历项目描述中的每一项能力都能在代码、测试、截图或评测报告中找到证据。
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. 受控数据与可运行薄切片 | 0/TBD | Not started | - |
-| 2. 安全图片识别闭环 | 0/TBD | Not started | - |
-| 3. 可修正与可复现分析 | 0/TBD | Not started | - |
-| 4. 识别与区间质量校准 | 0/TBD | Not started | - |
-| 5. 生产保护与发布门禁 | 0/TBD | Not started | - |
+| Phase | Status | Plans | Completed |
+|---|---|---|---|
+| 1. 工程、身份与权限基座 | Ready to plan | 0/TBD | - |
+| 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
+| 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
+| 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
+| 5. 饮食规划子图 | Pending | 0/TBD | - |
+| 6. 用户看板与后台管理 | Pending | 0/TBD | - |
+| 7. 评测、安全与上线 | Pending | 0/TBD | - |

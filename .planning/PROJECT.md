@@ -1,101 +1,104 @@
-# 中式外卖热量识别
+# 基于 LangGraph 的多模态饮食健康智能 Agent
 
 ## What This Is
 
-一个移动端优先、免登录的网站，面向只想快速了解一餐热量的普通用户。用户拍照或上传一张中式外卖套餐图片后，系统分别识别其中的多种菜品，估算每项克数与热量，并展示整餐中心估值和合理区间；用户可以修正菜名、克数或删除误识别项。
+一个完整的多模态饮食健康 Agent 项目。用户可以上传一张餐食图片，Agent 通过视觉模型识别多道食物，在信息不足时主动追问菜名或份量，调用受控营养工具计算热量与三大营养素，校验异常结果，并把确认后的餐食记录保存到用户账户。
 
-首版聚焦约 100 道高频中式外卖菜，目标不是覆盖所有食物，而是把有限范围内的识别、估重和热量计算做得可信、可解释、可修正。
+项目还提供饮食规划子图：用户输入身体数据、减脂或增肌目标、忌口和偏好后，Agent 生成并校验一日餐单，接受用户反馈后继续调整。短期会话状态由 LangGraph Checkpoint 保存，长期偏好由 Mem0 管理，权威业务数据始终保存在 PostgreSQL。
+
+项目面向真实上线和求职展示：不仅演示模型调用，还完整呈现状态图、工具边界、Human-in-the-loop、失败恢复、身份认证、长期记忆、评测、安全、后台管理和 Docker 部署。
 
 ## Core Value
 
-让普通用户在约 10 秒内得到一份可信且可修正的中式外卖整餐热量估算。
+让用户通过图片或自然语言得到可追问、可校验、可追溯、能记住个人偏好的饮食分析与规划结果。
 
-## Requirements
+## Target Users
 
-### Validated
+- 普通用户：拍照了解一餐的热量与宏量营养素。
+- 减脂或增肌用户：获得受目标约束、可反复调整的餐单建议。
+- 管理员：维护菜品、营养来源、数据版本、模型配置与审核状态。
+- 学习者/面试官：可以从代码、测试和文档中追踪一条 Agent 请求的完整生命周期。
 
-(None yet — ship to validate)
+## Active Requirements
 
-### Active
+- [ ] 邮箱注册、登录、刷新、退出和基于角色的权限控制。
+- [ ] LangGraph 主图包含餐食分析子图和饮食规划子图。
+- [ ] 图片识别失败、菜品模糊或份量缺失时，Agent 可以中断并追问用户，收到回复后从 Checkpoint 恢复。
+- [ ] 营养查询、热量计算和异常校验均为确定性工具，模型不得自由生成最终营养数值。
+- [ ] DeepSeek 用于文本推理和工具选择，Qwen-VL 用于视觉理解；两者通过 Provider 接口可替换。
+- [ ] PostgreSQL 保存用户、餐食、营养目录、Agent 运行和审计信息；pgvector 支持语义检索。
+- [ ] Mem0 只保存经过筛选的长期偏好，不替代业务数据库。
+- [ ] 用户可查看餐食历史、热量趋势和饮食复盘。
+- [ ] 管理员可维护菜品、营养来源、数据版本、模型配置与审核状态。
+- [ ] 每个后端阶段同步提供教学文档、数据流说明、测试示例和常见面试问题。
 
-- [ ] 用户无需登录即可拍照或上传一张外卖套餐图片。
-- [ ] 系统可以分别识别一张图片中的多种菜品，并返回具体菜名。
-- [ ] 首版重点支持约 100 道高频中式外卖菜。
-- [ ] 系统为每项菜品估算克数、热量和合理误差范围。
-- [ ] 系统展示整餐中心热量估值和合理区间。
-- [ ] 用户可以切换候选菜名、修改克数或删除误识别项，并立即看到重算结果。
-- [ ] 营养值来自受控菜品目录和营养数据库，而不是模型自由生成。
-- [ ] 90% 的有效识别请求在 10 秒内返回。
-- [ ] 产品达到已确认的菜名识别、估重和区间覆盖率验收指标。
+## Out of Scope for v1
 
-### Out of Scope
+- 医疗诊断、疾病治疗和处方级营养建议。
+- 让大模型自由决定或编造热量、宏量营养素和用户身体指标。
+- 微服务、Kafka、Kubernetes 和分布式 Agent 集群；未有规模证据前保持模块化单体。
+- 训练自有视觉基础模型；v1 使用模型 Provider 与冻结评测集比较供应商效果。
+- 长期保存原始餐食图片；默认分析完成后删除。
+- 用万相图像生成模型承担食物识别。万相可作为未来生成餐盘示意图的独立能力，但不进入识别链路。
 
-- 用户账号、登录和跨设备同步 — 快速估算不需要身份体系。
-- 历史饮食记录 — 首版只验证单次识别价值。
-- 减脂计划和个性化营养建议 — 不属于快速了解一餐热量的核心目标。
-- 社交、排行榜和内容社区 — 与核心识别能力无关。
-- 全球食物或全部中餐覆盖 — 首版必须控制识别范围并保证质量。
-- 医疗级或称重级精度承诺 — 单张照片无法可靠还原隐藏油脂、糖、酱汁和真实重量。
+## Approved Technology Stack
 
-## Context
+### Frontend
 
-- 产品定位来自前期探索：目标用户不是专业健身或营养管理人群，而是临时想了解一餐热量的普通用户。
-- 目标场景是中式外卖套餐。一张图片可能同时包含米饭、肉菜、蔬菜和配菜。
-- 用户更希望看到具体菜名，如“鱼香肉丝”，而不是默认拆成原料列表。
-- 同名菜的配方和用油量差异很大，因此结果必须注明“按常见做法估算”，并展示区间而非虚假的精确数字。
-- 推荐链路为：图片 → 多模态模型结构化识别与估重 → 菜名归一化 → 标准菜谱/营养数据库 → 热量及区间计算。
-- 通用多模态模型适合作为首版识别方案；是否采用垂直食品识别服务，应由真实测试集评测决定。
-- 中国食物成分数据可作为主要候选数据源，USDA FoodData Central 可补充基础食材；商业使用前必须核实授权。
-- 上线前需要自建包含真实菜名、称重结果和参考热量的中式外卖评测集。
-- 项目同时承担后端学习目标，因此采用前后端分离，而不是以最少服务数量为唯一优化方向。
-- 前端使用 React、TypeScript 和 Vite；后端使用 FastAPI、Python、SQLAlchemy 2、Alembic 和 PostgreSQL。
-- 数据库保存匿名的结构化分析结果、模型运行元数据和用户修正，以支持评测与改进；原始图片不长期保存。
+- React、TypeScript、Vite、React Router、TanStack Query
+- Tailwind CSS、shadcn/ui Base UI、Lucide
+- React Hook Form、Zod
+- Vitest、Testing Library、MSW、Playwright
 
-## Constraints
+### Backend and Agent
 
-- **范围**：首版只重点支持约 100 道高频中式外卖菜 — 避免“什么都能识别但什么都不准”。
-- **性能**：90% 的有效识别请求应在 10 秒内返回 — 核心价值是快速了解。
-- **菜名准确率**：Top-1 ≥ 85%，Top-3 ≥ 95% — 低置信度时必须提供候选项。
-- **估重准确率**：单项克数估算中位相对误差 ≤ 25% — 用户必须能手动改克数。
-- **区间可信度**：真实总热量落入系统合理区间的比例 ≥ 80% — 区间需经过测试集校准。
-- **交互**：用户从上传图片到理解结果不超过 3 次操作 — 移动端流程必须极轻。
-- **数据可信度**：模型不得直接充当最终营养数据库 — 热量必须由受控数据计算。
-- **隐私**：食物图片的存储期限和删除策略必须在上线前明确 — 默认倾向分析后尽快删除。
-- **架构**：`frontend/` 与 `backend/` 为独立项目 — 用户希望通过项目学习 FastAPI、数据库建模、迁移和 API 设计。
-- **持久化**：PostgreSQL 只保存必要的结构化结果和修正记录，不长期保存原图 — 在改进模型和保护隐私之间取平衡。
+- Python 3.11+、FastAPI、Pydantic
+- LangGraph、PostgreSQL Checkpointer
+- SQLAlchemy 2、Alembic、PostgreSQL、pgvector
+- Mem0（长期偏好阶段接入）
+- pytest、pytest-asyncio、HTTPX
 
-## Key Decisions
+### Model Providers
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| 移动端优先且免登录 | 目标用户只需要快速完成一次估算 | — Pending |
-| 聚焦中式外卖套餐 | 场景具体，常见菜和餐盒相对标准化 | — Pending |
-| 首版覆盖约 100 道高频菜 | 有限范围更容易建立可靠数据和评测集 | — Pending |
-| 输出具体菜名 | 比原料拆分更符合普通用户的理解方式 | — Pending |
-| 展示中心估值和合理区间 | 单张图片无法支持称重级精度 | — Pending |
-| 克数采用精确数值并允许编辑 | 用户需要可控、可实时重算的修正方式 | — Pending |
-| 视觉模型与营养计算解耦 | 防止模型臆造热量，便于校准和审计 | — Pending |
-| React + TypeScript + Vite 前端 | 核心流程是客户端交互；独立 FastAPI 已承担服务端职责，无需额外 SSR 层 | — Pending |
-| FastAPI + Python 独立后端 | 适合 AI、图片处理、数据分析，也满足后端学习目标 | — Pending |
-| PostgreSQL + SQLAlchemy 2 + Alembic | 学习关系建模和迁移，并持久化菜品、营养、匿名分析及修正数据 | — Pending |
-| 保存匿名结构化结果但不长期保存原图 | 为评测和改进保留信号，同时降低隐私风险 | — Pending |
+- `ReasoningModelProvider`：默认 DeepSeek，负责文本推理、规划和工具调用。
+- `VisionModelProvider`：默认阿里云百炼 Qwen-VL，负责食物图片理解。
+- Provider 必须支持测试替身、超时、重试、结构化输出校验、成本记录和替换供应商。
+
+## Architecture Decisions
+
+| Decision | Rationale |
+|---|---|
+| 一个主图、两个子图 | 共享状态与审计边界清晰，避免多 Agent 互相对话导致不可控循环 |
+| 确定性工具是营养真相来源 | 降低幻觉并支持复现、测试与数据治理 |
+| PostgreSQL 是权威数据源 | 用户、餐食、营养、运行记录和权限需要关系完整性与事务 |
+| LangGraph Checkpoint 管短期状态 | 支持追问中断、恢复、重试和故障续跑 |
+| Mem0 只管长期偏好 | 防止自然语言记忆覆盖权威业务事实 |
+| DeepSeek + Qwen-VL 分工 | DeepSeek 当前适合文本/工具调用；Qwen-VL 负责图像理解 |
+| 前后端分离模块化单体 | 满足后端学习与真实工程边界，同时避免过早微服务化 |
+| 后台管理复用同一 React 应用 | `/admin` 由 RBAC 保护，减少重复工程和权限漂移 |
+| 教学材料作为交付物 | 代码要能解释架构选择、请求链路、测试策略和失败模式 |
+
+## Product and Safety Constraints
+
+- 所有健康建议必须标明“普通饮食参考，不替代医疗建议”。
+- Agent 图必须配置最大循环次数、最大工具调用次数、超时和费用上限。
+- 图片上传执行 MIME、大小、像素、解码与元数据检查，处理完成后删除原图。
+- 用户可查看、删除自己的餐食历史、Agent 会话和长期记忆。
+- 管理员操作必须审计；普通用户不能访问后台 API。
+- 模型输入输出、提示词、工具参数、数据版本和计算规则必须可追溯。
+- 生产密钥只来自服务端环境变量，永不进入前端构建或 Git。
+
+## Learning Contract
+
+- 每个后端阶段在 `docs/learning/` 增加一篇中文教学文档。
+- 关键模块解释“为什么这样分层、请求如何流动、哪里容易写错”。
+- 代码注释只解释非显然设计与安全原因，不给每行翻译语法。
+- Service 使用 fake repository 单测；Repository 使用真实 PostgreSQL 集成测试；Agent 图使用确定性模型替身测试路由与循环。
+- README 提供架构图、时序图、运行命令、调试方法和面试深挖题。
 
 ## Evolution
 
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `$gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
-
-**After each milestone** (via `$gsd-complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+该文档在每个阶段完成后更新。新增模型、记忆或后台能力必须保持 Provider、工具和权限边界，不得绕过确定性营养计算与审计。
 
 ---
-*Last updated: 2026-08-26 after initialization*
+*Last updated: 2026-08-27 after Agent redesign*
