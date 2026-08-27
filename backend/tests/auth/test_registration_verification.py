@@ -26,6 +26,9 @@ from app.main import create_app
 from app.notifications.smtp import SMTPMailProvider
 
 
+CSRF_ORIGIN = {"Origin": "http://localhost:5173"}
+
+
 class FakeAuthRepository:
     def __init__(self) -> None:
         self.users: list[User] = []
@@ -318,7 +321,7 @@ def test_registration_and_resend_keep_non_enumerating_202_shape(
         json={"email": "MINA@example.com", "password": "another valid password"},
     )
     clock.advance(seconds=61)
-    resent = client.post("/api/v1/auth/register/resend")
+    resent = client.post("/api/v1/auth/register/resend", headers=CSRF_ORIGIN)
 
     assert first.status_code == duplicate.status_code == resent.status_code == 202
     assert set(first.json()) == set(duplicate.json()) == set(resent.json())
@@ -335,12 +338,16 @@ def test_verification_api_maps_errors_and_clears_context_on_success(
         json={"email": "mina@example.com", "password": "correct horse battery"},
     )
 
-    invalid = client.post("/api/v1/auth/register/verify", json={"code": "000000"})
+    invalid = client.post(
+        "/api/v1/auth/register/verify", json={"code": "000000"}, headers=CSRF_ORIGIN
+    )
     assert invalid.status_code == 400
     assert invalid.json()["error"]["code"] == "INVALID_VERIFICATION_CODE"
     assert set(invalid.json()["error"]) == {"code", "message", "request_id"}
 
-    verified = client.post("/api/v1/auth/register/verify", json={"code": "123456"})
+    verified = client.post(
+        "/api/v1/auth/register/verify", json={"code": "123456"}, headers=CSRF_ORIGIN
+    )
     assert verified.status_code == 200
     assert verified.json() == {
         "status": "EMAIL_VERIFIED",
@@ -362,33 +369,65 @@ def test_api_enforces_ascii_code_cooldown_expiry_and_attempt_limit(
     )
 
     unicode_digits = client.post(
-        "/api/v1/auth/register/verify", json={"code": "１２３４５６"}
+        "/api/v1/auth/register/verify", json={"code": "１２３４５６"}, headers=CSRF_ORIGIN
     )
     assert unicode_digits.status_code == 422
     assert unicode_digits.json()["error"]["code"] == "VALIDATION_ERROR"
 
-    cooldown = client.post("/api/v1/auth/register/resend")
+    cooldown = client.post("/api/v1/auth/register/resend", headers=CSRF_ORIGIN)
     assert cooldown.status_code == 429
     assert cooldown.json()["error"]["code"] == "RESEND_COOLDOWN"
     assert cooldown.json()["error"]["retry_after"] == 60
 
     clock.advance(minutes=10)
-    expired = client.post("/api/v1/auth/register/verify", json={"code": "123456"})
+    expired = client.post(
+        "/api/v1/auth/register/verify", json={"code": "123456"}, headers=CSRF_ORIGIN
+    )
     assert expired.status_code == 410
     assert expired.json()["error"]["code"] == "VERIFICATION_CODE_EXPIRED"
 
     clock.advance(seconds=1)
-    assert client.post("/api/v1/auth/register/resend").status_code == 202
+    assert client.post("/api/v1/auth/register/resend", headers=CSRF_ORIGIN).status_code == 202
     for _ in range(4):
         invalid = client.post(
-            "/api/v1/auth/register/verify", json={"code": "000000"}
+            "/api/v1/auth/register/verify", json={"code": "000000"}, headers=CSRF_ORIGIN
         )
         assert invalid.status_code == 400
     exhausted = client.post(
-        "/api/v1/auth/register/verify", json={"code": "000000"}
+        "/api/v1/auth/register/verify", json={"code": "000000"}, headers=CSRF_ORIGIN
     )
     assert exhausted.status_code == 429
     assert exhausted.json()["error"]["code"] == "VERIFICATION_ATTEMPTS_EXCEEDED"
+
+
+def test_registration_context_cookie_mutations_require_exact_origin_or_referer(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, clock = protocol
+    client = make_client(service)
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "mina@example.com", "password": "correct horse battery"},
+    )
+
+    missing = client.post("/api/v1/auth/register/verify", json={"code": "123456"})
+    forged_referer = client.post(
+        "/api/v1/auth/register/resend",
+        headers={"Referer": "http://localhost:5173.attacker.example/register/verify"},
+    )
+
+    assert missing.status_code == forged_referer.status_code == 403
+    assert missing.json()["error"]["code"] == "CSRF_ORIGIN_INVALID"
+    assert forged_referer.json()["error"]["code"] == "CSRF_ORIGIN_INVALID"
+
+    clock.advance(seconds=61)
+    allowed_resend = client.post("/api/v1/auth/register/resend", headers=CSRF_ORIGIN)
+    verified = client.post(
+        "/api/v1/auth/register/verify", json={"code": "654321"}, headers=CSRF_ORIGIN
+    )
+
+    assert allowed_resend.status_code == 202
+    assert verified.status_code == 200
 
 
 def test_openapi_exposes_routes_without_persistence_secrets(
@@ -448,7 +487,9 @@ def test_real_postgres_and_mailpit_registration_flow(db_session: object) -> None
     ).json()
     assert "314159" in delivered["Text"]
 
-    verified = client.post("/api/v1/auth/register/verify", json={"code": "314159"})
+    verified = client.post(
+        "/api/v1/auth/register/verify", json={"code": "314159"}, headers=CSRF_ORIGIN
+    )
     assert verified.status_code == 200
     db_session.expire_all()  # type: ignore[attr-defined]
     user = repository.get_user_by_email(recipient)

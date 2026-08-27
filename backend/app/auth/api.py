@@ -129,6 +129,12 @@ def verify_registration(
     registration_context: str | None = Cookie(default=None),
     service: RegistrationService = Depends(get_registration_service),
 ) -> VerificationSuccessResponse | JSONResponse:
+    if not _request_origin_is_allowed(request):
+        return _error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="CSRF_ORIGIN_INVALID",
+            message="请求来源无效。",
+        )
     if not registration_context:
         return _error(
             status_code=status.HTTP_409_CONFLICT,
@@ -183,6 +189,12 @@ def resend_registration_code(
     registration_context: str | None = Cookie(default=None),
     service: RegistrationService = Depends(get_registration_service),
 ) -> CodeDispatchAcceptedResponse | JSONResponse:
+    if not _request_origin_is_allowed(request):
+        return _error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="CSRF_ORIGIN_INVALID",
+            message="请求来源无效。",
+        )
     if not registration_context:
         return _error(
             status_code=status.HTTP_409_CONFLICT,
