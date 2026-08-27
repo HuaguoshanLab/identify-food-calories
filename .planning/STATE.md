@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-12-PLAN.md
-last_updated: "2026-08-27T10:14:40.521Z"
+stopped_at: Completed 01-13-PLAN.md
+last_updated: "2026-08-27T10:27:34Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -26,30 +26,30 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 10
-- Average duration: 14 min
-- Total execution time: 2.2 hours
+- Total plans completed: 13
+- Average duration: 13 min
+- Total execution time: 2.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 10 | 129 min | 13 min |
+| 01 | 13 | 162 min | 12 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 19 min, 13 min, 8 min, 15 min, 13 min
-- Trend: variable, 14 min average
+- Last 5 plans: 15 min, 13 min, 10 min, 12 min, 9 min
+- Trend: improving, 12 min average
 
 *Updated after each plan completion*
 | Phase 01 P02 | 23 min | 2 tasks | 14 files |
@@ -63,6 +63,7 @@ Progress: [███████░░░] 71%
 | Phase 01 P10 | 13 min | 2 tasks | 13 files |
 | Phase 01 P11 | 10 min | 2 tasks | 17 files |
 | Phase 01 P12 | 12 min | 2 tasks | 17 files |
+| Phase 01 P13 | 9 min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,7 @@ Recent decisions affecting current work:
 - [Phase 01]: admin probe 先沿用既有 session-bound Bearer 验证，再按 subject 从 PostgreSQL 读取 active role；JWT role claim 不参与最终授权。
 - [Phase 01]: 首次 bootstrap 使用 system:bootstrap actor；后续提升只接受已验证、active 的现有 admin actor，拒绝自我提升和空 reason。
 - [Phase 01]: 角色提升和 audit 在同一 Session transaction 提交；事务级 PostgreSQL advisory lock 串行化首次管理员的 check-then-promote 判定。
+- [Phase 01]: 密码重置在一个数据库事务内完成密码哈希更新、验证码消费与用户全部 session/refresh family 撤销；恢复外部 envelope 必须包含未知账号的 signed decoy context，避免二次枚举。 — 真实 PostgreSQL 并发与 rollback 测试已验证。
 
 ### Pending Todos
 
@@ -124,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T10:14:40.519Z
-Stopped at: Completed 01-12-PLAN.md
+Last session: 2026-08-27T10:27:34Z
+Stopped at: Completed 01-13-PLAN.md
 Resume file: None
