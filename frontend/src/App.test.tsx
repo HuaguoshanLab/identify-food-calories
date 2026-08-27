@@ -16,7 +16,9 @@ describe('App', () => {
   it('renders the public product landing page', () => {
     renderApp()
 
-    expect(screen.getByRole('heading', { name: '饮食健康 Agent' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: '拍下或描述一餐，获得可追问的饮食分析' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '创建账号' })).toHaveAttribute('href', '/register')
   })
 })
