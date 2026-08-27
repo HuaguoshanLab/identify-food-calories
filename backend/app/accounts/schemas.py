@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -19,9 +18,9 @@ class ResetPasswordRequest(VerificationCodeRequest):
 
 
 class RecoveryPendingResponse(BaseModel):
-    masked_email: str
-    resend_available_at: datetime
-    expires_at: datetime
+    """Fixed pending shape; account-derived fields would become an enumeration oracle."""
+
+    status: Literal["RECOVERY_PENDING"] = "RECOVERY_PENDING"
 
 
 class RecoveryDispatchAcceptedResponse(BaseModel):

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 import uuid
+import hashlib
+import hmac
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -105,17 +107,25 @@ class RecoveryService:
         return self._dispatch(user=user, now=now)
 
     def get_context(self, context_token: str) -> RecoveryPendingResponse:
-        challenge = self._current_challenge(context_token)
-        user = self._user_for(challenge)
-        return RecoveryPendingResponse(
-            masked_email=_mask_email(user.email),
-            resend_available_at=challenge.resend_available_at,
-            expires_at=challenge.expires_at,
-        )
+        try:
+            self._current_challenge(context_token)
+        except RecoveryContextInvalid:
+            if self._decoy_context_is_valid(context_token):
+                return RecoveryPendingResponse()
+            raise
+        # Even a masked email or precise deadline lets an attacker compare a real
+        # cookie with a decoy. The UI gets only a fixed pending state; enforcement
+        # remains server-side in the challenge row.
+        return RecoveryPendingResponse()
 
     def resend(self, context_token: str) -> RecoveryDispatch:
         now = self._now()
-        challenge = self._current_challenge(context_token)
+        try:
+            challenge = self._current_challenge(context_token)
+        except RecoveryContextInvalid:
+            if self._decoy_context_is_valid(context_token):
+                return self._decoy_dispatch(now=now)
+            raise
         if now < challenge.resend_available_at:
             raise ResendCooldown(
                 max(1, math.ceil((challenge.resend_available_at - now).total_seconds()))
@@ -127,17 +137,24 @@ class RecoveryService:
     def verify(self, *, context_token: str, code: str) -> None:
         """Check a code without consuming it; reset remains the single use operation."""
 
-        self._validate_code(
-            challenge=self._current_challenge(context_token),
-            context_token=context_token,
-            code=code,
-        )
+        try:
+            challenge = self._current_challenge(context_token)
+        except RecoveryContextInvalid:
+            if self._decoy_context_is_valid(context_token):
+                raise InvalidRecoveryCode
+            raise
+        self._validate_code(challenge=challenge, context_token=context_token, code=code)
 
     def reset(self, *, context_token: str, code: str, new_password: str) -> None:
         """Consume challenge, update password, and revoke all sessions atomically."""
 
         now = self._now()
-        challenge = self._current_challenge(context_token)
+        try:
+            challenge = self._current_challenge(context_token)
+        except RecoveryContextInvalid:
+            if self._decoy_context_is_valid(context_token):
+                raise InvalidRecoveryCode
+            raise
         self._validate_code(challenge=challenge, context_token=context_token, code=code)
         user = self._user_for(challenge)
         try:
@@ -227,16 +244,41 @@ class RecoveryService:
         )
 
     def _decoy_dispatch(self, *, now: datetime) -> RecoveryDispatch:
-        # The signed opaque value prevents a client from manufacturing another shape.
-        # It intentionally has no matching challenge and therefore no reset capability.
+        # The server verifies this signed opaque value but never stores it in browser
+        # storage or a URL. It gives unknown accounts the same cookie lifecycle
+        # without reset capability or a nullable DB foreign key.
+        issued_at = int(now.timestamp())
+        nonce = uuid.uuid4().hex
+        payload = f"recovery-decoy:v1:{issued_at}:{nonce}"
+        signature = hmac.new(
+            self._secret_key.encode("utf-8"), payload.encode("ascii"), hashlib.sha256
+        ).hexdigest()
         return RecoveryDispatch(
-            context_token=derive_context_token(
-                secret_key=self._secret_key, challenge_id=uuid.uuid4()
-            ),
+            context_token=f"r1.{issued_at}.{nonce}.{signature}",
             masked_email="***",
             resend_available_at=now + RESEND_COOLDOWN,
             expires_at=now + RECOVERY_EXPIRY,
         )
+
+    def _decoy_context_is_valid(self, context_token: str) -> bool:
+        parts = context_token.split(".")
+        if len(parts) != 4 or parts[0] != "r1":
+            return False
+        _, issued_at_text, nonce, signature = parts
+        if len(nonce) != 32 or any(character not in "0123456789abcdef" for character in nonce):
+            return False
+        try:
+            issued_at = int(issued_at_text)
+        except ValueError:
+            return False
+        payload = f"recovery-decoy:v1:{issued_at}:{nonce}"
+        expected = hmac.new(
+            self._secret_key.encode("utf-8"), payload.encode("ascii"), hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return False
+        now_timestamp = int(self._now().timestamp())
+        return issued_at <= now_timestamp < issued_at + int(RECOVERY_EXPIRY.total_seconds())
 
     def _current_challenge(self, context_token: str) -> VerificationChallenge:
         challenge = self._repository.get_current_challenge_for_update(

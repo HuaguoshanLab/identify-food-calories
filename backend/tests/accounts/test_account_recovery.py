@@ -318,6 +318,45 @@ def test_recovery_api_uses_non_enumerating_202_and_httponly_context(
     assert "SameSite=strict" in cookie
 
 
+def test_recovery_context_and_invalid_code_do_not_turn_decoy_cookie_into_an_oracle(
+    recovery_protocol: tuple[
+        RecoveryService, FakeRecoveryRepository, FakeMailProvider, MutableClock, list[str]
+    ],
+) -> None:
+    service, _, _, _, _ = recovery_protocol
+    known_client = make_client(service)
+    unknown_client = make_client(service)
+    headers = {"Origin": "http://localhost:5173"}
+    known_client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": "mina@example.com"},
+        headers=headers,
+    )
+    unknown_client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": "not-a-user@example.com"},
+        headers=headers,
+    )
+
+    known_context = known_client.get("/api/v1/auth/password-recovery/context")
+    unknown_context = unknown_client.get("/api/v1/auth/password-recovery/context")
+    known_wrong_code = known_client.post(
+        "/api/v1/auth/password-recovery/verify",
+        json={"code": "000000"},
+        headers=headers,
+    )
+    unknown_wrong_code = unknown_client.post(
+        "/api/v1/auth/password-recovery/verify",
+        json={"code": "000000"},
+        headers=headers,
+    )
+
+    assert known_context.json() == unknown_context.json() == {"status": "RECOVERY_PENDING"}
+    assert known_wrong_code.status_code == unknown_wrong_code.status_code == 400
+    assert known_wrong_code.json()["error"]["code"] == "INVALID_RECOVERY_CODE"
+    assert unknown_wrong_code.json()["error"]["code"] == "INVALID_RECOVERY_CODE"
+
+
 def test_recovery_api_verifies_then_resets_without_exposing_context(
     recovery_protocol: tuple[
         RecoveryService, FakeRecoveryRepository, FakeMailProvider, MutableClock, list[str]
