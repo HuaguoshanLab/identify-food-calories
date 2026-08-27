@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-08-27T08:01:00.000Z"
+stopped_at: Completed 01-07-PLAN.md
+last_updated: "2026-08-27T08:37:15.727Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 6
-  percent: 43
+  completed_plans: 7
+  percent: 50
 ---
 
 # Project State
@@ -26,30 +26,30 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 7 of 14
+Plan: 8 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [████░░░░░░] 43%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
-- Average duration: 16 min
-- Total execution time: 1.6 hours
+- Total plans completed: 7
+- Average duration: 15 min
+- Total execution time: 1.8 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 6 | 95 min | 16 min |
+| 01 | 7 | 108 min | 15 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 23 min, 12 min, 15 min, 13 min, 19 min
-- Trend: variable, 16 min average
+- Last 5 plans: 12 min, 15 min, 13 min, 19 min, 13 min
+- Trend: variable, 14 min average
 
 *Updated after each plan completion*
 | Phase 01 P02 | 23 min | 2 tasks | 14 files |
@@ -57,6 +57,7 @@ Progress: [████░░░░░░] 43%
 | Phase 01 P04 | 15 min | 2 tasks | 17 files |
 | Phase 01 P05 | 13 min | 2 tasks | 10 files |
 | Phase 01 P06 | 19 min | 2 tasks | 15 files |
+| Phase 01 P07 | 13 min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 登录限流同时累计规范化 principal 与 source 的 secret-scoped HMAC v1 bucket，数据库不保存 raw 邮箱或网络来源。
 - [Phase 01]: 登录失败阈值固定为 5 次/5 分钟并封禁 5 分钟；窗口与 retry_after 由注入时钟确定。
 - [Phase 01]: PostgreSQL 原子 upsert 负责跨 worker 失败累计，Service 负责失败提交、成功 bucket 复位与 session 事务边界。
+- [Phase 01]: Vite 统一承载 React、Tailwind CSS v4 与 Vitest 配置，避免 build/test alias 漂移。
+- [Phase 01]: shadcn 固定官方 base-nova/Base UI registry，cn 位于 components/ui，不创建无职责 lib 目录。
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T08:01:00.000Z
-Stopped at: Completed 01-06-PLAN.md
+Last session: 2026-08-27T08:37:15.724Z
+Stopped at: Completed 01-07-PLAN.md
 Resume file: None
