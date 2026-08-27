@@ -21,6 +21,14 @@ npm run dev
 
 生产构建使用 `npm run build`。浏览器通过 `http://127.0.0.1:8000/api/v1` 访问本地 FastAPI；后续 Vite 配置计划会统一开发代理和静态检查。
 
+健康 E2E 不要求手工启动服务：
+
+```bash
+npm run test:e2e -- --grep "full-stack health"
+```
+
+Playwright 会启动隔离的 `postgres-test` 与 Mailpit、在 Alembic 配置存在时迁移测试库，并以固定 test 环境启动 FastAPI 和 Vite preview。应用进程由 Playwright 进程组清理；Docker 测试服务可被后续用例安全复用。
+
 ## 文件索引
 
 | 路径 | 职责 |
@@ -29,5 +37,6 @@ npm run dev
 | `package.json` | 固定命令与受审核依赖清单 |
 | `package-lock.json` | npm 完整依赖锁与完整性摘要 |
 | `index.html` | Vite HTML 入口 |
+| `playwright.config.ts` | 确定性的基础设施、FastAPI 与 Vite E2E 生命周期 |
 | `src/` | React 运行时代码与目录契约 |
 | `tests/` | 前端测试边界与 Playwright E2E 用例 |
