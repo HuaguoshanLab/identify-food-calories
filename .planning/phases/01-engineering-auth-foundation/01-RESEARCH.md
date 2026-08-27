@@ -69,8 +69,12 @@ Use one request-scoped SQLAlchemy `Session`. The application service owns transa
 2. Validate password length using Unicode character count; do not silently truncate.
 3. Query by normalized email and also enforce a database unique constraint.
 4. Hash with Argon2 outside any needlessly long database lock.
-5. Insert role=`user` unconditionally; the public schema must not contain a role field.
-6. Map duplicate registration and invalid login to non-enumerating responses.
+5. Insert role=`user` with `email_verified_at=NULL`; the public schema must not contain a role field.
+6. Generate a 6-digit email challenge, store only its digest, and send it through `MailProvider`.
+7. Activate the account only after `/register/verify` consumes the current unexpired challenge.
+8. Map duplicate registration, resend, and invalid login to non-enumerating responses.
+
+Verification challenges expire after 10 minutes, allow at most 5 failed attempts, enforce a 60-second resend cooldown, and are single-use. Issuing a new challenge invalidates the previous one. Local Compose uses the official fixed-version `axllent/mailpit` image on SMTP 1025 and UI 8025; production remains provider-neutral.
 
 ### Login
 
@@ -169,6 +173,7 @@ Package names below were checked against their official PyPI/npm registry entrie
 | `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `msw` | npm / respective official projects | [VERIFIED] | frontend unit/component/API mocking tests |
 | `@playwright/test` | npm / Playwright official docs | [VERIFIED] | browser E2E |
 | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh` | npm / ESLint and React official tooling | [VERIFIED] | frontend static checks |
+| `axllent/mailpit` Docker image | Mailpit official documentation and Docker Hub | [VERIFIED] | local SMTP capture and verification-email E2E |
 
 Do not install similarly named boilerplate packages or third-party shadcn registries. Initialize the frontend from the official Vite path and add only the audited packages. The executor must inspect generated manifests/lockfiles before committing.
 

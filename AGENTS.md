@@ -46,7 +46,7 @@
 
 ## Architecture Rules
 
-- 保持独立 `frontend/` 和 `backend/`；不得改为 Next.js 单体。
+- 保持独立 `frontend/` 和 `backend/`；Phase 6 新增同级独立 `admin-frontend/`；不得改为 Next.js 单体，也不得把后台页面塞进用户 H5。
 - v1 使用模块化单体，不引入微服务、Kafka 或 Kubernetes。
 - LangGraph 使用一个主图和两个子图：餐食分析、饮食规划。
 - Agent 编排层只能通过工具调用领域服务，不得直接查询数据库。
@@ -75,7 +75,7 @@
 
 ## Conventions
 
-- 仓库根目录、`frontend/` 与 `backend/` 必须各自维护 `README.md` 和 `AGENTS.md`；子级 `AGENTS.md` 只能细化、不能放宽上级规则。
+- 仓库根目录、`frontend/` 与 `backend/` 必须各自维护 `README.md` 和 `AGENTS.md`；Phase 6 创建 `admin-frontend/` 时同样适用；子级 `AGENTS.md` 只能细化、不能放宽上级规则。
 - 新增任何目录时，必须在同一次提交新增该目录的 `README.md`，写明目录职责、允许依赖和文件索引；目录文件变化时同步更新索引。
 - 数据库 schema 变更必须通过 Alembic migration。
 - API、模型输出、工具参数和 Graph State 必须经过运行时校验。

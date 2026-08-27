@@ -9,7 +9,7 @@ created: 2026-08-27
 
 # Phase 1 — 工程、身份与权限基座 UI Design Contract
 
-> Phase 1 前端视觉与交互的单一事实来源。范围仅包含注册、登录、认证启动、最小 `/app`、会话管理、退出和 admin probe/拒绝访问；不包含 Agent 对话、图片上传、营养报告、数据看板或完整后台。
+> Phase 1 前端视觉与交互的单一事实来源。范围仅包含产品落地页、登录、注册与邮箱验证码、密码重置、隐私/条款、认证启动、最小 `/app`、会话管理和退出。Phase 1 的 admin probe 仅是后端契约；用户 H5 不包含 `/admin` 页面，独立 `admin-frontend/` 延后到 Phase 6。
 
 ---
 
@@ -60,7 +60,7 @@ Exceptions：所有可点击控件最小高度和最小触控面积为 44px；�
 
 - 输入、按钮和正文使用 16px，避免移动浏览器聚焦输入框时自动缩放。
 - 14px 只用于字段标签、辅助信息、时间、角色和状态；错误文案不得小于 14px。
-- 28px 只用于登录/注册页主标题；`/app` 和 `/admin` 页面标题使用 20px。
+- 28px 只用于落地页和认证页主标题；`/app` 页面标题使用 20px。
 - 会话设备名、邮箱和错误内容允许换行，不以省略号隐藏关键身份信息。
 
 ---
@@ -79,28 +79,29 @@ Exceptions：所有可点击控件最小高度和最小触控面积为 44px；�
 | Destructive | Red 600 `#DC2626` | 撤销会话、破坏性确认和错误图标；仅限破坏/错误语义 |
 | Warning | Amber 700 `#B45309` | 会话即将过期或安全提醒；不用作普通装饰 |
 
-Accent reserved for：`登录并继续`/`注册账号` 等每屏唯一主 CTA、表单焦点环、当前导航、当前会话标签、成功状态。普通正文链接默认使用 Slate 700 加下划线，hover 才使用 Teal 700，避免页面到处发绿。
+Accent reserved for：`登录并继续`/`发送验证码`/`验证并激活账号` 等每屏唯一主 CTA、表单焦点环、当前导航、当前会话标签、成功状态。普通正文链接默认使用 Slate 700 加下划线，hover 才使用 Teal 700，避免页面到处发绿。
 
-任何状态不能只靠颜色表达：成功、错误、当前会话、管理员和拒绝访问必须同时有文字；正文与背景达到 WCAG AA，焦点指示与相邻颜色至少 3:1。
+任何状态不能只靠颜色表达：成功、错误、当前会话、验证码过期和重发冷却必须同时有文字；正文与背景达到 WCAG AA，焦点指示与相邻颜色至少 3:1。
 
 ---
 
 ## Layout Contract
 
-### Shared auth shell
+### Public and auth shell
 
-- `/login`、`/register` 使用单列、移动端优先布局，`min-height: 100dvh`，水平 page padding 16px；`md` 以上为 24px。
-- 认证页的视觉焦点固定为页面标题与主表单 CTA；品牌说明、辅助链接和装饰不能与这两个锚点争夺层级。
+- `/`、登录、注册、验证码、密码重置、隐私与条款页面使用移动端优先布局，`min-height: 100dvh`，水平 page padding 16px；`md` 以上为 24px。
+- 落地页的视觉焦点固定为产品价值标题与“创建账号”主 CTA；“登录并继续”和能力说明保持次级层级。认证页的视觉焦点固定为页面标题与主表单 CTA；品牌说明、辅助链接和装饰不能与这些锚点争夺层级。
 - 表单容器宽度 `min(100%, 420px)`，居中；手机端不制造无意义的悬浮大阴影，桌面端使用 1px Slate 200 边框和低强度阴影。
 - 品牌行位于卡片上方或卡片顶部：名称固定为“饮食健康 Agent”，不得承诺“精准诊断”“医学级”等能力。
 - 卡片 padding：手机 24px，`md` 以上 32px。标题、说明、表单、次要链接按 24/32/24px 分组。
+- `/` 首屏只介绍产品价值和登录要求，不伪造尚未交付的图片分析结果；主 CTA 为“创建账号”，次 CTA 为“登录并继续”。已登录时主 CTA 替换为“进入应用”。
 
 ### Authenticated shell
 
-- `/app` 和 `/admin` 共用最小应用外壳：顶部栏 + `main`；内容最大宽度 960px，移动端 padding 16px，桌面 24px。
+- `/app` 使用最小应用外壳：顶部栏 + `main`；内容最大宽度 960px，移动端 padding 16px，桌面 24px。
 - `/app` 的视觉焦点固定为账号摘要与“登录会话”列表标题；退出按钮和角色标签保持次级层级。
 - 顶部栏包含产品名、当前用户邮箱、角色标签和“退出登录”。移动端允许邮箱换行，退出按钮保持 44px 命中区。
-- Phase 1 不实现侧边栏、数据图表、Agent 输入框或空的后台导航。为未来功能画假入口会制造错误承诺，禁止。
+- Phase 1 不实现侧边栏、数据图表、Agent 输入框、游客分析或后台导航。为未来功能画假入口会制造错误承诺，禁止。
 - 会话列表桌面端按“设备/状态—最近活动—到期时间—操作”对齐；小于 640px 时堆叠成卡片，操作按钮独占底部一行。
 
 ### Responsive floor
@@ -114,16 +115,23 @@ Accent reserved for：`登录并继续`/`注册账号` 等每屏唯一主 CTA、
 
 | Route | Access | Required content | Required states |
 |-------|--------|------------------|-----------------|
-| `/login` | Public-only | 邮箱、密码、“登录并继续” CTA、注册链接 | idle、client-invalid、submitting、server-error、rate-limited |
-| `/register` | Public-only | 邮箱、密码、确认密码、注册 CTA、登录链接、密码规则 | idle、client-invalid、submitting、server-error、success redirect |
+| `/` | Public | 产品定位、核心能力说明、登录要求、隐私/条款入口、“创建账号”与“登录” | anonymous、authenticated |
+| `/login` | Public-only | 邮箱、密码、“登录并继续” CTA、“忘记密码？”、注册链接 | idle、client-invalid、submitting、server-error、rate-limited |
+| `/register` | Public-only | 邮箱、密码、确认密码、“发送验证码”、登录链接、密码规则 | idle、client-invalid、submitting、server-error、navigating-to-verify |
+| `/register/verify` | Public-only pending flow | 掩码邮箱、单个 6 位验证码输入、“验证并激活账号”、重发倒计时、返回修改邮箱 | idle、submitting、invalid-code、expired、attempts-exhausted、resending、new-code-sent、network-error、retrying |
+| `/forgot-password` | Public-only | 邮箱、“发送重置验证码”、返回登录 | idle、client-invalid、submitting、uniform-success、server-error |
+| `/reset-password` | Public-only pending flow | 掩码邮箱、6 位验证码、新密码、确认密码、“重置密码”、重发倒计时 | idle、client-invalid、submitting、invalid-code、expired、attempts-exhausted、resending、network-error、retrying、success |
+| `/privacy` | Public | 隐私说明正文、“返回首页” | loading-static、ready |
+| `/terms` | Public | 使用条款正文、“返回首页” | loading-static、ready |
 | `/app` | Authenticated | 邮箱、`user/admin` 角色、会话列表、退出 | bootstrapping、loading sessions、empty-other-sessions、error、revoking |
-| `/admin` | Authenticated + server probe | 最小权限探针结果；管理员显示“管理员权限已验证”，普通用户显示拒绝访问 | probing、allowed、forbidden、network-error |
 | unknown | Any | 简洁 404 与返回入口 | authenticated 返回 `/app`；unauthenticated 返回 `/login` |
 
-- 已登录用户访问 `/login` 或 `/register` 时 replace 到 `/app`，不得闪现表单。
-- 未登录用户访问保护路由时跳转 `/login`，只保存站内相对目标；不得接受外部 URL 作为回跳地址。
-- `/admin` 的前端角色判断只决定是否展示入口。直接访问该路由时必须调用后端 admin probe；服务端 403 才是权限结论。
-- 普通用户收到 403 时停留在 `/admin` 的拒绝访问状态，不得错误跳转登录，也不得显示“资源不存在”掩盖契约测试。
+- 已登录用户访问登录、注册、验证码或密码重置流程时 replace 到 `/app`，不得闪现表单；`/`、`/privacy`、`/terms` 始终可访问。
+- `/app` 以及后续标记为 `requiresAuth` 的 H5 路由全部禁止游客访问。未登录深链统一跳转 `/login?returnTo=<encoded-relative-path>`，Phase 1 不提供游客分析。
+- `returnTo` 只能是 React Router 已注册且标记 `requiresAuth` 的同源相对路径，必须以单个 `/` 开头，并拒绝 `//`、协议、host、认证页和未知路径；校验失败回退 `/app`。登录成功后使用 `replace` 返回该路径。
+- `/register` 提交成功后始终进入 `/register/verify`，不得根据响应文案确认邮箱是否已注册。原始邮箱不得放入 URL；验证页只使用服务端 pending-registration 上下文返回的掩码邮箱。
+- 直接访问缺少有效 pending 上下文的 `/register/verify` 或 `/reset-password` 时显示“验证信息已失效，请重新开始。”，主 CTA 分别为“返回注册”或“重新申请重置”。
+- 用户 H5 不注册 `/admin` 路由、不显示后台入口、不调用 admin probe。后端 admin probe、RBAC 和管理员 CLI 仍由 Phase 1 后端计划验证；独立 `admin-frontend/` 属于 Phase 6。
 
 ---
 
@@ -131,17 +139,19 @@ Accent reserved for：`登录并继续`/`注册账号` 等每屏唯一主 CTA、
 
 | Component / boundary | Responsibility | Must not own |
 |----------------------|----------------|--------------|
-| `AuthProvider` | 内存 access token、当前用户、启动 refresh、登录/注册/退出命令、single-flight refresh | 不写 localStorage/sessionStorage/IndexedDB；不决定 admin 授权 |
+| `AuthProvider` | 内存 access token、当前用户、启动 refresh、登录/退出命令、single-flight refresh | 不写 localStorage/sessionStorage/IndexedDB；不管理邮箱验证码生命周期 |
 | `AuthBootstrap` | 启动时阻止登录页闪烁，渲染全页可访问 loading | 不显示业务页面骨架，不无限重试 |
-| `PublicOnlyRoute` | 已认证用户离开登录/注册页 | 不调用 admin probe |
-| `ProtectedRoute` | 等待 bootstrap；未认证时跳登录 | 不根据本地 role 授予权限 |
-| `AdminProbeRoute` | 进入 `/admin` 后调用后端 probe，映射 200/403/401 | 不把菜单隐藏当 RBAC |
+| `PublicOnlyRoute` | 已认证用户离开认证流程页面 | 不阻止 `/`、隐私或条款页面 |
+| `ProtectedRoute` | 等待 bootstrap；未认证时带安全 `returnTo` 跳登录 | 不接受任意 URL，不允许游客绕过 |
 | `LoginForm` | React Hook Form + Zod、字段状态、表单错误与提交 | 不直接操作 token 或 Cookie |
-| `RegisterForm` | 邮箱、密码、确认密码、客户端一致性检查 | 不向 API 发送确认密码或 role |
+| `RegisterForm` | 邮箱、密码、确认密码、客户端一致性检查，成功后进入验证页 | 不向 API 发送确认密码或 role，不确认账号是否存在 |
+| `EmailCodeForm` | 单个 6 位验证码输入、后端错误码映射、10 分钟过期语义、5 次失败终止 | 不在前端自行决定剩余尝试次数，不把验证码持久化 |
+| `ResendCodeControl` | 展示 60 秒冷却、重发、新码替换旧码的状态与 live announcement | 不用前端倒计时绕过后端冷却，不显示 Mailpit 操作 |
+| `ForgotPasswordForm` | 发送统一响应的重置验证码请求 | 不确认邮箱是否存在 |
+| `ResetPasswordForm` | 验证码、新密码与确认密码；成功返回登录 | 不发送确认密码，不复用已成功验证码 |
 | `SessionList` | TanStack Query 读取会话、展示当前与其他会话 | 不展示 token、IP 全值或未经批准的指纹信息 |
 | `SessionRow` | 安全元数据、当前标签、撤销动作 | 不允许撤销别人的 session id |
 | `RevokeSessionDialog` | 明确目标、二次确认、提交中禁止重复操作 | 不乐观移除；服务端成功后才更新列表 |
-| `AccessDenied` | 解释权限不足并返回 `/app` | 不提供“申请管理员”假入口 |
 | `ApiErrorAlert` | 稳定错误码、可操作文案、可选 request id | 不原样渲染后端 exception/detail/HTML |
 
 shadcn 官方组件清单：`Button`、`Input`、`Label`、`Card`、`Alert`、`AlertDialog`、`Badge`、`Separator`、`Skeleton`。Toast 只用于非阻塞成功反馈；表单错误必须留在表单内，不能只发 Toast。
@@ -179,13 +189,18 @@ authenticated
 - 登录密码：`type="password"`、`autoComplete="current-password"`。
 - 注册密码：`autoComplete="new-password"`；确认密码仅在前端比较，不发送后端。
 - Phase 1 统一客户端长度契约为 12–128 个 Unicode 字符；前后端必须共享相同边界测试。不得静默截断、trim 或修改密码。
+- 验证码使用一个有可见标签“邮箱验证码”的输入框：`inputMode="numeric"`、`autoComplete="one-time-code"`、`maxLength=6`，可访问名称精确为“6 位邮箱验证码”。只接受 6 个 ASCII 数字；允许一次粘贴完整 6 位值，不拆成六个难以读屏的输入框。
+- `/register/verify` 与 `/reset-password` 只显示服务端 pending context 返回的掩码邮箱，例如 `m***@example.com`；不得从 URL 或本地持久化恢复原始邮箱。
+- 验证码有效期由后端时间决定，页面文案固定为“验证码 10 分钟内有效。”；前端倒计时只改善体验，不能覆盖后端 expired/attempts-exhausted 结果。
+- 重发按钮在 60 秒冷却时禁用，可见文本与可访问名称统一为“{seconds} 秒后可重新发送”；冷却结束后统一为“重新发送验证码”。
 - Enter 提交当前表单；提交中禁用所有字段和主 CTA，按钮保留原动作文字并增加 spinner，避免布局跳动和重复请求。
 - 首次提交失败后，焦点移动到第一个无效字段；字段错误通过 `aria-describedby` 绑定，表单级错误使用 `role="alert"`。
+- 验证页路由进入后先聚焦 `<h1>`；验证码校验失败时聚焦验证码输入并全选；重发成功后清空旧码、聚焦验证码输入，并通过 `aria-live="polite"` 宣告“新验证码已发送，之前的验证码已失效。”
 - 客户端校验只用于即时反馈。服务端响应始终权威，前端不能因为 Zod 通过就假定注册、登录或权限成功。
 
 ---
 
-## Server Error Mapping
+## Server Response and Error Mapping
 
 前端只根据稳定的 `error.code` 映射，不解析 `message` 子串。后端 envelope 为 `{ error: { code, message, request_id } }`；未知 code 进入安全兜底。
 
@@ -193,9 +208,13 @@ authenticated
 |-------------|---------|----------------------|
 | `422 VALIDATION_ERROR` | 对应字段；无法定位则表单顶部 | 显示后端提供的安全字段消息；聚焦首个错误字段 |
 | `401 INVALID_CREDENTIALS` | 登录表单顶部 | “邮箱或密码不正确，请重新输入。” 不区分邮箱是否存在 |
-| `409 REGISTRATION_UNAVAILABLE` | 注册表单顶部 | “暂时无法使用这些信息完成注册，请检查后重试或直接登录。” 不确认邮箱是否已注册 |
+| `202 CODE_DISPATCH_ACCEPTED` | 注册/忘记密码/重发 | 邮箱存在、不存在或已注册场景使用相同状态与 envelope；统一进入下一步并显示“如果该操作可以继续，验证码将发送到你填写的邮箱。” |
+| `400 INVALID_VERIFICATION_CODE` | 验证码输入 | “验证码不正确，请重新输入。” 聚焦并全选验证码；不显示服务端未提供的剩余次数 |
+| `410 VERIFICATION_CODE_EXPIRED` | 验证页表单顶部 | “验证码已过期，请重新发送。” 禁用提交，恢复动作“重新发送验证码” |
+| `429 VERIFICATION_ATTEMPTS_EXCEEDED` | 验证页表单顶部 | “验证码已失效，请重新发送后再试。” 清空验证码并禁用提交 |
+| `429 RESEND_COOLDOWN` | 重发控件 | 使用后端安全 `retry_after` 重置“{seconds} 秒后可重新发送”，不发送第二个请求 |
+| `409 VERIFICATION_CONTEXT_INVALID` | 验证/重置页 | “验证信息已失效，请重新开始。” 注册流 CTA“返回注册”；重置流 CTA“重新申请重置” |
 | `401 SESSION_EXPIRED` | 全局 | 清理内存状态，跳转登录并显示“登录状态已过期，请重新登录。” |
-| `403 INSUFFICIENT_ROLE` | `/admin` 页面内 | “你没有访问此页面的权限。” + “返回应用” |
 | `404 SESSION_NOT_FOUND` | 会话撤销对话框 | 关闭对话框、刷新列表，提示“该会话已不存在或已被撤销。” |
 | `409 SESSION_ALREADY_REVOKED` | 会话列表 | 刷新列表，使用中性反馈，不当作致命错误 |
 | `429 RATE_LIMITED` | 当前表单 | “尝试次数过多，请稍后再试。” 若响应给出安全重试时间则显示倒计时 |
@@ -222,22 +241,37 @@ authenticated
 | Element | Copy |
 |---------|------|
 | Product name | 饮食健康 Agent |
+| Landing heading | 拍下或描述一餐，获得可追问的饮食分析 |
+| Landing body | 登录后使用餐食分析、记录和规划功能。结果仅作普通饮食参考。 |
+| Landing primary / secondary CTA | 创建账号 / 登录；已登录主 CTA 为“进入应用” |
 | Login heading | 欢迎回来 |
 | Login body | 登录后继续管理你的饮食与登录会话。 |
 | Login primary CTA | 登录并继续 |
 | Register heading | 创建账号 |
 | Register body | 使用邮箱创建你的饮食健康档案。 |
-| Register primary CTA | 注册账号 |
+| Register primary CTA | 发送验证码 |
+| Register verify heading | 验证邮箱 |
+| Register verify body | 输入发送到 {masked_email} 的 6 位验证码。验证码 10 分钟内有效。 |
+| Register verify primary / secondary CTA | 验证并激活账号 / 返回修改邮箱 |
+| Verification success | 邮箱验证成功，请登录。 |
+| Resend enabled / disabled | 重新发送验证码 / {seconds} 秒后可重新发送 |
+| New-code notice | 新验证码已发送，之前的验证码已失效。 |
+| Invalid / expired code | 验证码不正确，请重新输入。 / 验证码已过期，请重新发送。 |
+| Attempts exhausted | 验证码已失效，请重新发送后再试。 |
+| Verification retry | 暂时无法验证，请检查网络后重试。 / 重新尝试验证 |
+| Forgot-password heading / CTA | 忘记密码 / 发送重置验证码 |
+| Login recovery link | 忘记密码？ |
+| Reset-password heading / CTA | 重置密码 / 重置密码 |
+| Auth secondary links | 返回登录 / 返回注册 / 重新申请重置 |
+| Legal links / page return | 查看隐私说明 / 查看使用条款 / 返回首页 |
+| Reset success | 密码已重置，请使用新密码登录。 |
+| Privacy / terms heading | 隐私说明 / 使用条款 |
 | Auth bootstrap | 正在确认登录状态… |
 | App heading | 账号与会话 |
 | Session empty heading | 暂无其他登录会话 |
 | Session empty body | 只有当前设备保持登录。新的设备登录后会显示在这里。 |
 | Session load error | 无法加载登录会话。请检查网络后重新尝试。 |
 | Logout action | 退出登录 |
-| Admin allowed heading | 管理员权限已验证 |
-| Admin allowed body | 后端已确认当前账号可以访问管理员 API。完整后台将在后续阶段实现。 |
-| Access denied heading | 无权访问 |
-| Access denied body | 你没有访问此页面的权限。管理员权限由服务器验证。 |
 | Generic error | 服务暂时不可用，请稍后重试。 |
 | Destructive confirmation | 撤销会话：“该设备将需要重新登录。此操作不会删除账号或饮食数据。”；次按钮“保留这个会话”，破坏性按钮“撤销这个会话” |
 
@@ -263,10 +297,12 @@ authenticated
 | Surface | Loading | Empty | Error | Success |
 |---------|---------|-------|-------|---------|
 | Auth bootstrap | 居中 spinner + “正在确认登录状态…” | 不适用 | 一次 refresh 失败后进入未登录，不无限重试 | 无闪烁进入目标页 |
-| Login/register | CTA 内 spinner，字段禁用 | 不适用 | 表单内 `ApiErrorAlert`，保留邮箱 | replace 到 `/app`，避免返回键回表单 |
+| Login | CTA 内 spinner，字段禁用 | 不适用 | 表单内 `ApiErrorAlert`，保留邮箱 | replace 到已校验 `returnTo` 或 `/app` |
+| Register | “发送验证码”保留文字并增加 spinner，字段禁用 | 不适用 | 统一错误，不确认邮箱存在性 | replace 到 `/register/verify` |
+| Register verify | “验证并激活账号”或“重新发送验证码”保留文字并增加 spinner | 无 pending context 时要求重新开始 | invalid、expired、attempts-exhausted、network-error 均有明确恢复动作 | 激活成功后进入登录并显示“邮箱验证成功，请登录。” |
+| Forgot/reset password | CTA 内 spinner，字段禁用 | 无 pending context 时要求重新申请 | 统一发送响应；验证码错误/过期/超限按 error code 映射 | replace 到 `/login` 并显示“密码已重置，请使用新密码登录。” |
 | `/app` identity | 2 行 Skeleton，不显示假邮箱 | 不适用 | 认证失败进入登录；网络失败可重试 | 展示服务端 `/me` 返回的邮箱/角色 |
 | Session list | 3 个等高 Skeleton 行 | “暂无其他登录会话” | 区域内重试，不登出 | 撤销后刷新并播报结果 |
-| Admin probe | 状态卡 Skeleton + “正在验证管理员权限…” | 不适用 | 403 显示 AccessDenied；网络错误可重试 | 只显示 probe 已通过，不提前实现后台 |
 
 Skeleton 必须匹配最终布局尺寸，避免布局位移；未知数据不得用假数据占位。
 
@@ -276,10 +312,13 @@ Skeleton 必须匹配最终布局尺寸，避免布局位移；未知数据不�
 
 - 前端不保存、不打印、不展示 access token 或 refresh token；Cookie 也不得尝试从 JS 读取。
 - 登录、注册和会话请求启用 `credentials: include` 仅针对受控 API origin；不得使用 wildcard origin。
-- 管理员入口可按当前用户 role 隐藏，但 `/admin` 仍由后端 probe 决定 allowed/forbidden。
+- 用户 H5 不注册 `/admin`、不显示后台入口、不调用 admin probe；后台权限验证属于后端和 Phase 6 独立 `admin-frontend/`。
 - 注册表单没有 role 字段，网络 payload 也不能包含 role；任何客户端篡改必须由后端拒绝。
+- 验证码、pending registration/reset 上下文和完整邮箱不得写入 localStorage、sessionStorage、IndexedDB 或 URL；验证码输入在成功、重发或离开流程时清空。
+- Mailpit 只用于本地开发者查看捕获邮件；生产 UI 不出现“打开 Mailpit”“查看测试邮箱”或任何依赖开发工具的用户动作。
+- `returnTo` 只允许同源、已注册、受保护的相对路由；任何绝对 URL、协议相对 URL、未知路由和认证流程路由都回退 `/app`。
 - 不显示完整 IP、精确地理位置、浏览器指纹或内部 session/token id。撤销请求使用服务端提供的不可猜测 session id，但不把它作为主要可见文案。
-- 认证错误不区分“邮箱不存在”和“密码错误”；注册错误不确认邮箱是否已注册。
+- 认证错误不区分“邮箱不存在”和“密码错误”；注册、忘记密码和重发响应不确认邮箱或账号是否存在。
 - 所有成功/安全状态用“已由服务器验证”措辞，前端不得宣称自身构成安全边界。
 
 ---
@@ -288,21 +327,25 @@ Skeleton 必须匹配最终布局尺寸，避免布局位移；未知数据不�
 
 ### Component and integration tests
 
-- 登录/注册每个字段的 label、autocomplete、客户端错误、服务端错误映射和首次错误聚焦均有 Testing Library 测试；登录主按钮按可访问名称精确断言为“登录并继续”。
+- 落地页、隐私与条款无需认证；`/app` 和所有 `requiresAuth` 深链必须进入登录。恶意 `returnTo`（外域、`//`、未知路由、认证页）必须回退 `/app`，合法受保护路径登录后原样返回。
+- 登录/注册每个字段的 label、autocomplete、客户端错误、服务端错误映射和首次错误聚焦均有 Testing Library 测试；精确断言 CTA“登录并继续”和“发送验证码”，确认密码与 role 均不进入请求 payload。
+- `/register/verify` 和 `/reset-password` 精确测试 6 位 ASCII 数字约束、`one-time-code`、掩码邮箱、10 分钟过期 error code、最多 5 次失败 error code、60 秒重发冷却和新码使旧码失效的 UI 状态。
+- 重发控件逐秒断言可访问名称“{seconds} 秒后可重新发送”，归零后为“重新发送验证码”；重发成功清空旧码、聚焦验证码输入，并播报“新验证码已发送，之前的验证码已失效。”
+- 注册、忘记密码和重发在“邮箱存在/不存在”MSW 场景中必须显示相同发送响应；生产组件树与可访问名称中不得出现 Mailpit。
 - auth bootstrap 不闪现公开页面；同时到达的多个 401 只产生一次 refresh，原请求最多重试一次。
 - 测试 spy 断言 token 未写入 localStorage、sessionStorage、IndexedDB 或 URL。
-- 普通用户即使手输 `/admin` 也调用 probe 并渲染 403；admin 的 200 显示允许状态。
+- 路由表和渲染测试断言用户 H5 不存在 `/admin` 页面或后台导航；Phase 1 前端不调用 admin probe。
 - 会话撤销必须经过 AlertDialog；测试按可访问名称精确断言“保留这个会话”关闭且不调用 API，“撤销这个会话”才提交撤销；失败不移除条目，成功后列表刷新且 live region 播报。
 - 切换用户后旧用户的 TanStack Query cache 不可见。
 
 ### Playwright smoke flow
 
-1. 320px 视口注册普通账号，验证公开 payload 没有 role。
-2. 到 `/app` 查看当前账号与当前会话。
-3. 直接进入 `/admin`，稳定看到拒绝访问而不是登录页。
-4. 创建第二会话后撤销它，确认对应设备后续请求失效。
-5. 退出当前设备，返回登录页；浏览器后退不能重新显示受保护数据。
-6. 仅用键盘重复登录和撤销对话框流程，并在 200% 缩放下检查无水平滚动。
+1. 320px 视口从 `/` 进入注册，提交邮箱/密码/确认密码，验证 payload 没有确认密码与 role，并进入 `/register/verify`。
+2. 输入错误码、模拟过期与第 5 次失败；重发后旧码失败，新 6 位码成功激活，返回登录。
+3. 未登录直达 `/app?tab=sessions`，跳到带编码 `returnTo` 的登录页；登录后安全返回同一路径。外域 `returnTo` 必须回退 `/app`。
+4. 到 `/app` 查看 `/users/me` 账号摘要与当前会话，创建第二会话后撤销它，确认对应设备后续请求失效。
+5. 走完忘记/重置密码的统一响应、验证码和重发流程；页面不出现 Mailpit 用户动作。
+6. 退出当前设备，返回登录页；浏览器后退不能重新显示受保护数据。仅用键盘重复验证码和撤销对话框流程，并在 200% 缩放下检查无水平滚动。
 
 ---
 
@@ -321,9 +364,9 @@ Phase 1 禁止第三方 shadcn registry 和整页 auth block。若实现时新�
 
 | Source | Decisions applied |
 |--------|-------------------|
-| `01-CONTEXT.md` | 18 项：Phase 1 边界、移动优先/浅色/Slate+Teal/8px、认证、会话、RBAC、admin probe、前端非安全边界 |
-| `01-RESEARCH.md` | 16 项：AuthProvider、内存 token、bootstrap refresh、single-flight 401、路由、错误 envelope、测试与安全边界 |
-| `REQUIREMENTS.md` / `ROADMAP.md` | 11 项：AUTH-01..06、UI-01 中认证部分、ARC-01、admin 后端 403、阶段成功标准 |
+| `01-CONTEXT.md` | D-31..D-35：独立邮箱验证、摘要/过期/尝试/重发规则、Mailpit 仅本地工具、公开/受保护路由边界、独立后台延后 Phase 6；并继承移动优先/浅色/Slate+Teal/8px |
+| `01-RESEARCH.md` | AuthProvider、内存 token、bootstrap refresh、single-flight 401、稳定错误 envelope、会话管理与安全边界 |
+| `REQUIREMENTS.md` / `ROADMAP.md` | AUTH-01..06、ARC-01/07/08、公开页面、验证激活、后端 admin probe 与独立后台阶段边界 |
 | Existing UI | 0 项：仓库当前无 `frontend/`、`components.json`、Tailwind 配置或可继承组件 |
 | Defaulted by UI researcher | Typography、精确色值、响应式尺寸、文案、焦点和空/错/载入状态 |
 
@@ -338,4 +381,4 @@ Phase 1 禁止第三方 shadcn registry 和整页 auth block。若实现时新�
 - [x] Dimension 5 Spacing: PASS
 - [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** verified by `gsd-ui-checker` on 2026-08-27
+**Approval:** verified by `gsd-ui-checker` on 2026-08-27; non-blocking CTA and landing-focus recommendations incorporated

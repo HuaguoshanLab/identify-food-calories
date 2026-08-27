@@ -28,6 +28,8 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 1. Docker Compose 启动 PostgreSQL；React/Vite 与 FastAPI 分别运行并通过 `/api/v1` 通信。
 2. 邮箱注册、登录、access token、HttpOnly refresh token 轮换、退出和会话撤销通过自动化测试。
+   注册必须经过邮箱验证码激活，本地邮件由 Docker Mailpit 捕获。
+
 3. `user` 与 `admin` 权限在后端强制执行；普通用户请求后台 API 返回统一 403。
 4. SQLAlchemy、Pydantic、Repository、Service 和 API 边界清晰，Alembic 可从空库重建结构。
 5. `docs/learning/01-auth-and-backend-foundation.md` 能解释密码哈希、令牌轮换、依赖注入、数据库事务和测试分层。
@@ -93,11 +95,11 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。
 **Mode:** mvp
 **Depends on:** Phase 5
-**Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, EDU-02, EDU-03
+**Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
 **Success Criteria:**
 
 1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
-2. `/admin` 在前后端执行 RBAC；普通用户无法读取或修改后台数据。
+2. 独立 `admin-frontend/` 项目调用 `/api/v1/admin/*`；普通用户无法读取或修改后台数据，用户 H5 不包含后台页面。
 3. 管理员可维护菜品、营养、来源、授权和版本，并查看完整审计差异。
 4. 管理员可查看模型运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。
 5. README 包含最终架构图、状态图、时序图、调试方式和面试深挖题。
@@ -120,7 +122,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
-| 1. 工程、身份与权限基座 | Ready to plan | 0/TBD | - |
+| 1. 工程、身份与权限基座 | 0/14 | Planned    |  |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |

@@ -21,7 +21,7 @@
 
 ## Active Requirements
 
-- [ ] 邮箱注册、登录、刷新、退出和基于角色的权限控制。
+- [ ] 邮箱注册、验证码激活、登录、刷新、退出、密码重置和基于角色的权限控制。
 - [ ] LangGraph 主图包含餐食分析子图和饮食规划子图。
 - [ ] 图片识别失败、菜品模糊或份量缺失时，Agent 可以中断并追问用户，收到回复后从 Checkpoint 恢复。
 - [ ] 营养查询、热量计算和异常校验均为确定性工具，模型不得自由生成最终营养数值。
@@ -75,9 +75,9 @@
 | Mem0 只管长期偏好 | 防止自然语言记忆覆盖权威业务事实 |
 | DeepSeek + Qwen-VL 分工 | DeepSeek 当前适合文本/工具调用；Qwen-VL 负责图像理解 |
 | 前后端分离模块化单体 | 满足后端学习与真实工程边界，同时避免过早微服务化 |
-| 后台管理复用同一 React 应用 | `/admin` 由 RBAC 保护，减少重复工程和权限漂移 |
+| 后台管理使用独立前端项目 | `admin-frontend/` 与 `frontend/`、`backend/` 同级，独立构建部署；共用 FastAPI `/api/v1/admin/*` 与后端 RBAC |
 | 教学材料作为交付物 | 代码要能解释架构选择、请求链路、测试策略和失败模式 |
-| 分层目录自文档化 | 根目录、`frontend/`、`backend/` 分别维护 README 与 AGENTS；新增目录与职责/依赖/文件索引 README 同次提交 |
+| 分层目录自文档化 | 根目录、`frontend/`、`backend/` 以及 Phase 6 创建的 `admin-frontend/` 分别维护 README 与 AGENTS；新增目录与职责/依赖/文件索引 README 同次提交 |
 
 ## Product and Safety Constraints
 
