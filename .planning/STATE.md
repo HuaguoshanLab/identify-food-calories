@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-08-27T06:41:48.733Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-27T07:07:14.864Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 3
-  percent: 21
+  completed_plans: 4
+  percent: 29
 ---
 
 # Project State
@@ -26,34 +26,35 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 4 of 14
+Plan: 5 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [██░░░░░░░░] 21%
+Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 16 min
-- Total execution time: 0.8 hours
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 3 | 48 min | 16 min |
+| 01 | 4 | 63 min | 16 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 13 min, 23 min, 12 min
+- Last 5 plans: 13 min, 23 min, 12 min, 15 min
 - Trend: variable, 16 min average
 
 *Updated after each plan completion*
 | Phase 01 P02 | 23 min | 2 tasks | 14 files |
 | Phase 01 P03 | 12 min | 2 tasks | 18 files |
+| Phase 01 P04 | 15 min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 01]: 验证码当前性由 user_id + purpose 的 PostgreSQL partial unique index 强制，终态由 consumed_at/invalidated_at 互斥约束表达。
 - [Phase 01]: Repository 只 query/add/flush，Service 保留多步骤认证协议的 commit/rollback 事务边界。
 - [Phase 01]: APP_ENV=test 的 Alembic 环境只使用经过隔离 guard 验证的 TEST_DATABASE_URL。
+- [Phase 01]: 验证码使用 6 位 ASCII CSPRNG，并按高熵 context 作用域做 HMAC；数据库只保存摘要。
+- [Phase 01]: registration context 由服务端密钥与 challenge UUID 可重建，再以摘要落库，兼顾冷却期非枚举与 digest-only。
+- [Phase 01]: 邮箱验证只激活账号并要求登录，不自动创建 session 或签发 token。
 
 ### Pending Todos
 
@@ -93,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T06:41:48.731Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-08-27T07:07:14.861Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
