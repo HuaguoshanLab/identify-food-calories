@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +31,10 @@ describe('protected user routes', () => {
     },
   )
 
+  it('keeps a valid registered deep link for login completion', () => {
+    expect(parseReturnTo('/app?tab=sessions')).toBe('/app?tab=sessions')
+  })
+
   it('preserves the registered protected deep link and redirects unauthenticated visitors to login', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
     renderApp('/app?tab=sessions')
@@ -44,5 +49,33 @@ describe('protected user routes', () => {
 
     expect(screen.getByRole('heading', { name: '拍下或描述一餐，获得可追问的饮食分析' })).toBeInTheDocument()
     expect(screen.queryByText(/admin/i)).not.toBeInTheDocument()
+  })
+
+  it('returns to the registered protected route after database-authoritative login', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) {
+        return new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })
+      }
+      if (url.endsWith('/auth/login')) {
+        return new Response(JSON.stringify({ access_token: 'runtime-only-access', expires_in: 900, token_type: 'bearer' }))
+      }
+      if (url.endsWith('/users/me')) {
+        return new Response(JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', email: 'database@example.com', email_verified_at: null, is_active: true, role: 'user' }))
+      }
+      if (url.endsWith('/auth/sessions')) {
+        return new Response(JSON.stringify([]))
+      }
+      return new Response(JSON.stringify({ error: { code: 'UNEXPECTED' } }), { status: 500 })
+    }))
+    renderApp('/login?returnTo=%2Fapp%3Ftab%3Dsessions')
+
+    await user.type(await screen.findByLabelText('邮箱'), 'mina@example.com')
+    await user.type(screen.getByLabelText('密码'), 'correct horse battery')
+    await user.click(screen.getByRole('button', { name: '登录并继续' }))
+
+    expect(await screen.findByRole('heading', { name: '账号与会话' })).toBeInTheDocument()
+    expect(screen.getByText('database@example.com')).toBeInTheDocument()
   })
 })
