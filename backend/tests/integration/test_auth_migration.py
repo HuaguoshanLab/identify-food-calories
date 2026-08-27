@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,8 +38,18 @@ def _alembic(*arguments: str) -> None:
     )
 
 
+def _public_tables(database_url: str) -> set[str]:
+    engine = create_engine(database_url)
+    try:
+        return set(inspect(engine).get_table_names(schema="public"))
+    finally:
+        engine.dispose()
+
+
 def test_0001_rebuilds_an_empty_isolated_database() -> None:
     test_url = _test_url()
+    development_url = os.environ["DATABASE_URL"]
+    development_tables_before = _public_tables(development_url)
     _alembic("downgrade", "base")
     _alembic("upgrade", "head")
 
@@ -52,10 +62,29 @@ def test_0001_rebuilds_an_empty_isolated_database() -> None:
             "auth_sessions",
             "refresh_tokens",
         } <= set(inspector.get_table_names())
+        assert {item["name"] for item in inspector.get_check_constraints("users")} == {
+            "ck_users_email_normalized",
+            "ck_users_role",
+        }
+        assert {
+            item["name"]
+            for item in inspector.get_check_constraints("verification_challenges")
+        } >= {
+            "ck_verification_challenges_attempts",
+            "ck_verification_challenges_expiry",
+            "ck_verification_challenges_terminal_state",
+        }
+        assert {
+            item["name"] for item in inspector.get_indexes("verification_challenges")
+        } >= {"uq_verification_challenges_current"}
+        assert {item["name"] for item in inspector.get_unique_constraints("refresh_tokens")} >= {
+            "uq_refresh_tokens_token_digest"
+        }
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
     finally:
         engine.dispose()
+    assert _public_tables(development_url) == development_tables_before
 
 
 def test_repository_flushes_without_committing_and_database_enforces_contracts(
@@ -123,22 +152,3 @@ def test_repository_flushes_without_committing_and_database_enforces_contracts(
     )
     with pytest.raises(IntegrityError):
         db_session.flush()
-
-
-def test_development_database_remains_unmigrated() -> None:
-    development_url = os.environ["DATABASE_URL"]
-    engine = create_engine(development_url)
-    try:
-        with engine.connect() as connection:
-            tables = set(
-                connection.scalars(
-                    text(
-                        "SELECT tablename FROM pg_catalog.pg_tables "
-                        "WHERE schemaname = 'public'"
-                    )
-                )
-            )
-        assert "users" not in tables
-        assert "alembic_version" not in tables
-    finally:
-        engine.dispose()
