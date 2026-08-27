@@ -18,4 +18,11 @@ export default [
       ...reactRefresh.configs.vite.rules,
     },
   },
+  {
+    files: ['src/components/ui/*.tsx'],
+    rules: {
+      // Official shadcn primitives export their documented variant helpers alongside components.
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ]

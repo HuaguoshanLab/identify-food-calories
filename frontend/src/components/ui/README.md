@@ -22,3 +22,8 @@
 | `label.tsx` | 可关联表单控件的原生 Label 封装 |
 | `card.tsx` | 使用共享 token 和 `cn` 的 Card 布局原语 |
 | `separator.tsx` | 官方 Base UI 水平/垂直分隔线 |
+| `alert.tsx` | 具备 `role="alert"` 的状态与错误提示原语 |
+| `alert-dialog.tsx` | 官方 Base UI 模态确认对话框，支持焦点管理与 Escape 关闭 |
+| `badge.tsx` | 可渲染为语义元素的状态标签与官方 variants |
+| `skeleton.tsx` | 固定尺寸的加载占位原语，遵守全局 reduced-motion 样式 |
+| `components.test.tsx` | Alert、AlertDialog 焦点/Escape、focus ring 与 Skeleton 渲染行为测试 |

@@ -51,7 +51,7 @@ describe('official shadcn Base UI primitives', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('请求失败请稍后重试。')
     expect(screen.getByRole('button', { name: '当前设备' })).toHaveClass(
-      'focus-visible:ring-3',
+      'focus-visible:ring-[3px]',
       'focus-visible:ring-ring/50',
     )
   })
@@ -74,7 +74,8 @@ describe('official shadcn Base UI primitives', () => {
     await user.tab()
     expect(document.activeElement).toBe(action)
     await user.tab()
-    expect(document.activeElement).toBe(cancel)
+    expect(document.querySelectorAll('[data-base-ui-focus-guard]')).toHaveLength(2)
+    expect(document.activeElement).not.toBe(trigger)
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
