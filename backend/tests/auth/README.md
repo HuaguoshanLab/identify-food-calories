@@ -15,3 +15,4 @@
 | 文件 | 职责 |
 |---|---|
 | `test_registration_verification.py` | 注册与邮箱验证码策略、Provider 注入和 HTTP 合约证据 |
+| `test_login_me_service.py` | 登录、最小 access claims、opaque refresh 摘要与数据库权威身份的 Service 证据 |
