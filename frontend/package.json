@@ -8,8 +8,11 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "test": "vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {

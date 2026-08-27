@@ -19,7 +19,16 @@ npm ci
 npm run dev
 ```
 
-生产构建使用 `npm run build`。浏览器通过 `http://127.0.0.1:8000/api/v1` 访问本地 FastAPI；后续 Vite 配置计划会统一开发代理和静态检查。
+生产构建使用 `npm run build`。浏览器通过 `http://127.0.0.1:8000/api/v1` 访问本地 FastAPI。提交前执行完整前端门禁：
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Testing Library 验证用户可见行为。
 
 健康 E2E 不要求手工启动服务：
 
@@ -36,7 +45,11 @@ Playwright 会启动隔离的 `postgres-test` 与 Mailpit、在 Alembic 配置�
 | `AGENTS.md` | 前端架构、安全、测试和文档细则 |
 | `package.json` | 固定命令与受审核依赖清单 |
 | `package-lock.json` | npm 完整依赖锁与完整性摘要 |
+| `eslint.config.js` | TypeScript、React Hooks 与 Vite 刷新边界静态检查 |
+| `tsconfig.json` | 浏览器源码与测试共用的严格 TypeScript 配置 |
+| `vite.config.ts` | React、Tailwind CSS 与 Vitest 的统一构建配置 |
 | `index.html` | Vite HTML 入口 |
+| `components.json` | shadcn 官方 Base UI registry、样式入口与路径 aliases |
 | `playwright.config.ts` | 确定性的基础设施、FastAPI 与 Vite E2E 生命周期 |
 | `src/` | React 运行时代码与目录契约 |
 | `tests/` | 前端测试边界与 Playwright E2E 用例 |

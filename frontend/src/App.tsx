@@ -24,14 +24,15 @@ export function App() {
     refetchInterval: (query) => (query.state.data?.status === 'ok' ? false : 1_000),
   })
 
-  const isHealthy = health.data?.status === 'ok'
+  const healthLabel =
+    health.data?.status === 'ok' ? `正常（API ${health.data.version}）` : '连接中'
 
   return (
     <main>
       <h1>饮食健康 Agent</h1>
       <p>前端运行壳已启动，业务功能将在后续计划接入。</p>
       <p role="status" aria-live="polite">
-        后端状态：{isHealthy ? `正常（API ${health.data.version}）` : '连接中'}
+        后端状态：{healthLabel}
       </p>
     </main>
   )
