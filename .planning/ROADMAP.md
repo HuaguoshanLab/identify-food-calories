@@ -23,7 +23,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户可以安全注册、登录和退出；开发者能运行独立前后端与 PostgreSQL，并从文档理解完整认证链路。
 **Mode:** mvp
 **Depends on:** Nothing
-**Requirements:** AUTH-01..06, ARC-01..04, EDU-01
+**Requirements:** AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, ARC-01, ARC-02, ARC-03, ARC-04, EDU-01
 **Success Criteria:**
 
 1. Docker Compose 启动 PostgreSQL；React/Vite 与 FastAPI 分别运行并通过 `/api/v1` 通信。
@@ -37,7 +37,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户通过文字描述一餐时，Agent 能使用确定性工具补齐信息、计算营养并在中断后恢复。
 **Mode:** mvp
 **Depends on:** Phase 1
-**Requirements:** AGT-01..07, NUT-01..05, ARC-05..06, QLT-02
+**Requirements:** AGT-01, AGT-02, AGT-03, AGT-04, AGT-05, AGT-06, AGT-07, NUT-01, NUT-02, NUT-03, NUT-04, NUT-05, ARC-05, ARC-06, QLT-02
 **Success Criteria:**
 
 1. LangGraph State、节点和条件边有显式类型，主图可路由到餐食分析子图。
@@ -51,7 +51,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户上传餐食图片后，Qwen-VL 感知结果进入 Agent 图，并在必要追问后输出可信的多菜营养报告。
 **Mode:** mvp
 **Depends on:** Phase 2
-**Requirements:** VIS-01..06, NUT-06..07, UI-01, QLT-01
+**Requirements:** VIS-01, VIS-02, VIS-03, VIS-04, VIS-05, VIS-06, NUT-06, NUT-07, UI-01, QLT-01
 **Success Criteria:**
 
 1. 图片安全校验、元数据剥离、临时存储和删除链经过测试。
@@ -65,7 +65,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户的确认餐食与稳定偏好可以跨会话使用，同时保持权威数据、自然语言记忆和用户隔离。
 **Mode:** mvp
 **Depends on:** Phase 3
-**Requirements:** MEM-01..06
+**Requirements:** MEM-01, MEM-02, MEM-03, MEM-04, MEM-05, MEM-06
 **Success Criteria:**
 
 1. 餐食记录、营养结果和确认状态保存到 PostgreSQL，支持用户级访问控制。
@@ -78,7 +78,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** Agent 根据用户目标和偏好生成可校验、可交互调整的一日三餐方案。
 **Mode:** mvp
 **Depends on:** Phase 4
-**Requirements:** PLN-01..06
+**Requirements:** PLN-01, PLN-02, PLN-03, PLN-04, PLN-05, PLN-06
 **Success Criteria:**
 
 1. 身体数据与目标经确定性公式生成每日能量和宏量营养约束。
@@ -92,7 +92,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。
 **Mode:** mvp
 **Depends on:** Phase 5
-**Requirements:** UI-02..03, ADM-01..05, EDU-02..03
+**Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, EDU-02, EDU-03
 **Success Criteria:**
 
 1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
@@ -106,7 +106,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 项目具备可重复的质量证据、安全边界、成本控制和一键演示环境。
 **Mode:** mvp
 **Depends on:** Phase 6
-**Requirements:** QLT-03..05
+**Requirements:** QLT-03, QLT-04, QLT-05
 **Success Criteria:**
 
 1. CI 通过前后端 lint、类型、单元、真实 PostgreSQL 集成、API 合约和 Playwright E2E。
