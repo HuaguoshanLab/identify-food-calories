@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import uuid
 
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.auth.api import router as auth_router
 from app.core.config import Settings, get_settings
 
 
@@ -26,6 +31,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.include_router(auth_router)
+
+    @application.exception_handler(RequestValidationError)
+    async def validation_error(
+        _request: Request, _error: RequestValidationError
+    ) -> JSONResponse:
+        # Raw Pydantic errors may contain submitted secrets; expose only a stable code.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "请求字段不符合要求。",
+                    "request_id": str(uuid.uuid4()),
+                }
+            },
+        )
+
+    @application.exception_handler(Exception)
+    async def internal_error(_request: Request, _error: Exception) -> JSONResponse:
+        # Provider/database exceptions stay server-side and never become response details.
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "服务暂时不可用，请稍后重试。",
+                    "request_id": str(uuid.uuid4()),
+                }
+            },
+        )
 
     @application.get("/api/v1/health", tags=["system"])
     def health() -> dict[str, str]:

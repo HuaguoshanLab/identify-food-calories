@@ -113,7 +113,6 @@ def protocol() -> tuple[RegistrationService, FakeAuthRepository, FakeMailProvide
         secret_key="test-only-verification-pepper-at-least-32-bytes",
         now=clock.now,
         code_factory=sequence(["123456", "654321", "222222"]),
-        context_token_factory=sequence(["context-one", "context-two", "context-three"]),
     )
     return service, repository, mail, clock
 
@@ -169,7 +168,7 @@ def test_code_expires_after_ten_minutes(
 ) -> None:
     service, _, _, clock = protocol
     dispatch = service.register(email="mina@example.com", password="correct horse battery")
-    clock.advance(minutes=10, seconds=1)
+    clock.advance(minutes=10)
 
     with pytest.raises(VerificationCodeExpired):
         service.verify(context_token=dispatch.context_token, code="123456")
@@ -241,6 +240,22 @@ def test_duplicate_registration_keeps_non_enumerating_dispatch_shape(
     assert first.__class__ is second.__class__
 
 
+def test_duplicate_during_cooldown_reuses_valid_context_without_sending(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, repository, mail, _ = protocol
+    first = service.register(email="mina@example.com", password="correct horse battery")
+
+    duplicate = service.register(
+        email="MINA@example.com", password="another valid password"
+    )
+
+    assert duplicate.context_token == first.context_token
+    assert service.get_context(duplicate.context_token).masked_email == "m***@example.com"
+    assert len(repository.challenges) == 1
+    assert len(mail.messages) == 1
+
+
 def make_client(service: RegistrationService) -> TestClient:
     settings = Settings(
         app_env="test",
@@ -279,7 +294,7 @@ def test_registration_api_uses_httponly_context_and_safe_envelope(
     assert "123456" not in serialized
     assert "mina@example.com" not in serialized
     set_cookie = response.headers["set-cookie"]
-    assert "registration_context=context-one" in set_cookie
+    assert "registration_context=" in set_cookie
     assert "HttpOnly" in set_cookie
     assert "SameSite=strict" in set_cookie
 
@@ -302,6 +317,7 @@ def test_registration_and_resend_keep_non_enumerating_202_shape(
         "/api/v1/auth/register",
         json={"email": "MINA@example.com", "password": "another valid password"},
     )
+    clock.advance(seconds=61)
     resent = client.post("/api/v1/auth/register/resend")
 
     assert first.status_code == duplicate.status_code == resent.status_code == 202
@@ -335,6 +351,46 @@ def test_verification_api_maps_errors_and_clears_context_on_success(
     assert client.get("/api/v1/auth/register/context").status_code == 409
 
 
+def test_api_enforces_ascii_code_cooldown_expiry_and_attempt_limit(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, clock = protocol
+    client = make_client(service)
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "mina@example.com", "password": "correct horse battery"},
+    )
+
+    unicode_digits = client.post(
+        "/api/v1/auth/register/verify", json={"code": "１２３４５６"}
+    )
+    assert unicode_digits.status_code == 422
+    assert unicode_digits.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    cooldown = client.post("/api/v1/auth/register/resend")
+    assert cooldown.status_code == 429
+    assert cooldown.json()["error"]["code"] == "RESEND_COOLDOWN"
+    assert cooldown.json()["error"]["retry_after"] == 60
+
+    clock.advance(minutes=10)
+    expired = client.post("/api/v1/auth/register/verify", json={"code": "123456"})
+    assert expired.status_code == 410
+    assert expired.json()["error"]["code"] == "VERIFICATION_CODE_EXPIRED"
+
+    clock.advance(seconds=1)
+    assert client.post("/api/v1/auth/register/resend").status_code == 202
+    for _ in range(4):
+        invalid = client.post(
+            "/api/v1/auth/register/verify", json={"code": "000000"}
+        )
+        assert invalid.status_code == 400
+    exhausted = client.post(
+        "/api/v1/auth/register/verify", json={"code": "000000"}
+    )
+    assert exhausted.status_code == 429
+    assert exhausted.json()["error"]["code"] == "VERIFICATION_ATTEMPTS_EXCEEDED"
+
+
 def test_openapi_exposes_routes_without_persistence_secrets(
     protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
 ) -> None:
@@ -365,7 +421,6 @@ def test_real_postgres_and_mailpit_registration_flow(db_session: object) -> None
         ),
         secret_key="test-only-verification-pepper-at-least-32-bytes",
         code_factory=lambda: "314159",
-        context_token_factory=lambda: "mailpit-context-token",
         commit=db_session.commit,  # type: ignore[attr-defined]
         rollback=db_session.rollback,  # type: ignore[attr-defined]
     )

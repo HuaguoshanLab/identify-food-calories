@@ -12,6 +12,7 @@
 - `repository.py` 实现 port，可执行 SQLAlchemy query 和 `flush()`；事务提交或回滚由 Service/调用方负责。
 - `service.py` 只能依赖 port、Schema 和安全原语；不得导入 FastAPI 或直接查询数据库。
 - `security.py` 封装 Argon2id 与 HMAC/CSPRNG 原语，不决定验证码生命周期。
+- `api.py` 只装配 port、管理 HttpOnly context cookie，并映射稳定 HTTP envelope。
 
 ## 文件索引
 
@@ -24,3 +25,4 @@
 | `repository.py` | 同步 SQLAlchemy Repository adapter |
 | `security.py` | Argon2id 密码哈希、验证码 CSPRNG 与 HMAC 摘要原语 |
 | `service.py` | 注册、验证码冷却/过期/次数/替换/消费应用协议 |
+| `api.py` | 注册、context、验证与重发 HTTP 路由和安全错误映射 |

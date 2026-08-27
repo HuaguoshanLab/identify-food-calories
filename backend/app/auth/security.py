@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+import uuid
+from base64 import urlsafe_b64encode
 
 from pwdlib import PasswordHash
 
@@ -22,8 +24,15 @@ def generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def generate_context_token() -> str:
-    return secrets.token_urlsafe(32)
+def derive_context_token(*, secret_key: str, challenge_id: uuid.UUID) -> str:
+    """Rebuild an opaque context without storing it or exposing predictable row IDs."""
+
+    digest = hmac.new(
+        secret_key.encode("utf-8"),
+        f"registration-context:{challenge_id}".encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def digest_context(*, secret_key: str, context_token: str) -> str:

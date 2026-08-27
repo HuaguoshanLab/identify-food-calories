@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -33,6 +33,16 @@ class VerificationPendingResponse(BaseModel):
     masked_email: str
     resend_available_at: datetime
     expires_at: datetime
+
+
+class CodeDispatchAcceptedResponse(VerificationPendingResponse):
+    status: Literal["CODE_DISPATCH_ACCEPTED"] = "CODE_DISPATCH_ACCEPTED"
+
+
+class VerificationSuccessResponse(BaseModel):
+    status: Literal["EMAIL_VERIFIED"] = "EMAIL_VERIFIED"
+    message: Literal["邮箱验证成功，请登录。"] = "邮箱验证成功，请登录。"
+    next_action: Literal["login"] = "login"
 
 
 class PublicUser(BaseModel):

@@ -13,9 +13,9 @@ from app.auth.ports import AuthRepository
 from app.auth.schemas import PublicUser, VerificationPendingResponse
 from app.auth.security import (
     code_matches,
+    derive_context_token,
     digest_code,
     digest_context,
-    generate_context_token,
     generate_verification_code,
     hash_password,
 )
@@ -72,7 +72,6 @@ class RegistrationService:
         secret_key: str,
         now: Callable[[], datetime] | None = None,
         code_factory: Callable[[], str] = generate_verification_code,
-        context_token_factory: Callable[[], str] = generate_context_token,
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
     ) -> None:
@@ -81,7 +80,6 @@ class RegistrationService:
         self._secret_key = secret_key
         self._now = now or (lambda: datetime.now(UTC))
         self._code_factory = code_factory
-        self._context_token_factory = context_token_factory
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
 
@@ -108,9 +106,12 @@ class RegistrationService:
         if current is not None:
             if now < current.resend_available_at:
                 # The external 202 shape remains uniform. This opaque context deliberately
-                # has no server row, so duplicate requests cannot bypass the cooldown.
+                # maps back to the current row, so duplicate requests cannot enumerate an
+                # account or bypass the cooldown.
                 return RegistrationDispatch(
-                    context_token=self._context_token_factory(),
+                    context_token=derive_context_token(
+                        secret_key=self._secret_key, challenge_id=current.id
+                    ),
                     masked_email=_mask_email(normalized_email),
                     resend_available_at=current.resend_available_at,
                     expires_at=current.expires_at,
@@ -145,7 +146,7 @@ class RegistrationService:
         challenge = self._current_challenge(context_token)
         if challenge.attempts >= challenge.max_attempts:
             raise VerificationAttemptsExceeded
-        if now > challenge.expires_at:
+        if now >= challenge.expires_at:
             raise VerificationCodeExpired
         if not code_matches(
             secret_key=self._secret_key,
@@ -168,12 +169,15 @@ class RegistrationService:
         return PublicUser.model_validate(user)
 
     def _dispatch(self, *, user: User, now: datetime) -> RegistrationDispatch:
-        context_token = self._context_token_factory()
+        challenge_id = uuid.uuid4()
+        context_token = derive_context_token(
+            secret_key=self._secret_key, challenge_id=challenge_id
+        )
         code = self._code_factory()
         if len(code) != 6 or any(character < "0" or character > "9" for character in code):
             raise ValueError("verification code factory must return six ASCII digits")
         challenge = VerificationChallenge(
-            id=uuid.uuid4(),
+            id=challenge_id,
             user_id=user.id,
             purpose=ChallengePurpose.REGISTRATION.value,
             context_digest=digest_context(
