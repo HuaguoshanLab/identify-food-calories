@@ -30,13 +30,13 @@ npm run build
 
 Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Testing Library 验证用户可见行为。
 
-健康 E2E 不要求手工启动服务：
+健康与认证 E2E 不要求手工启动服务：
 
 ```bash
-npm run test:e2e -- --grep "full-stack health"
+npm run test:e2e
 ```
 
-Playwright 会启动隔离的 `postgres-test` 与 Mailpit、在 Alembic 配置存在时迁移测试库，并以固定 test 环境启动 FastAPI 和 Vite preview。应用进程由 Playwright 进程组清理；Docker 测试服务可被后续用例安全复用。
+Playwright 会启动隔离的 `postgres-test` 与 Mailpit，清空该测试库后从 `0001` 明确迁移到 `head`，再以固定 test 环境启动 FastAPI 和 Vite preview。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
 
 ## 文件索引
 

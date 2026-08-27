@@ -30,13 +30,23 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 测试必须显式使用 `APP_ENV=test` 和独立的 `TEST_DATABASE_URL`；配置保护会拒绝 SQLite、开发库以及不以 `_test` 结尾的测试库。
 
-迁移命令在 `APP_ENV=test` 时只读取通过上述保护的 `TEST_DATABASE_URL`：
+迁移命令在 `APP_ENV=test` 时只读取通过上述保护的 `TEST_DATABASE_URL`。全栈 E2E 会先清空隔离库，再从 `0001` 显式升级到 `head`；开发库绝不参与这个过程：
 
 ```bash
 APP_ENV=test \
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
 .venv/bin/alembic upgrade head
+```
+
+完成后运行全部后端质量门禁：
+
+```bash
+APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
+TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
+.venv/bin/python -m pytest -q
+ruff check .
+mypy app
 ```
 
 管理员只能通过后端 CLI 创建或提升，公开注册和用户 H5 没有角色输入。首次 bootstrap 必须使用已有、已验证且 active 的用户并写入 `system:bootstrap` 审计 actor；后续提升必须显式提供已验证、active 的现有管理员与非空 reason：
