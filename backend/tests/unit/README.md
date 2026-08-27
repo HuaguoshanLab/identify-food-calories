@@ -14,3 +14,4 @@
 | 文件 | 职责 |
 |---|---|
 | `test_test_database_guards.py` | 证明测试数据库配置拒绝危险回退 |
+| `test_runtime_foundation.py` | 验证版本化健康端点的稳定合约 |

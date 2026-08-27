@@ -33,6 +33,7 @@ docker compose up -d --wait postgres postgres-test mailpit
 | 路径 | 职责 |
 |---|---|
 | `AGENTS.md` | 后端局部实现与测试约束 |
+| `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
 | `app/` | FastAPI 应用代码 |
