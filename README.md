@@ -19,6 +19,8 @@ docker compose up -d --wait postgres postgres-test mailpit
 docker compose ps
 ```
 
+默认端口：开发库 `5432`、测试库 `55432`、Mailpit SMTP `1025`、Mailpit UI `8025`。所有端口只绑定本机回环地址。
+
 服务端口与验证命令以 [`backend/README.md`](backend/README.md) 为准。生产密钥只通过未提交的环境变量提供；`.env.example` 仅记录变量名和安全占位值。
 
 ## 文件索引
