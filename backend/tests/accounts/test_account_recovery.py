@@ -7,7 +7,9 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 
+from app.accounts.api import get_recovery_service
 from app.auth.models import ChallengePurpose, User, UserRole, VerificationChallenge
 from app.accounts.service import (
     InvalidRecoveryCode,
@@ -16,6 +18,8 @@ from app.accounts.service import (
     RecoveryService,
     ResendCooldown,
 )
+from app.core.config import Settings
+from app.main import create_app
 
 
 class FakeRecoveryRepository:
@@ -255,3 +259,86 @@ def test_reset_rolls_back_when_session_family_revoke_fails(
             new_password="a-new-correct-horse-battery",
         )
     assert events[-1] == "rollback"
+
+
+def make_client(service: RecoveryService) -> TestClient:
+    application = create_app(
+        Settings(
+            app_env="test",
+            database_url="postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev",
+            test_database_url=(
+                "postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test"
+            ),
+            secret_key="test-only-recovery-pepper-at-least-32-bytes",
+            cors_origins=["http://localhost:5173"],
+            smtp_host="localhost",
+            smtp_from_email="noreply@local.test",
+            _env_file=None,
+        )
+    )
+    application.dependency_overrides[get_recovery_service] = lambda: service
+    return TestClient(application)
+
+
+def test_recovery_api_uses_non_enumerating_202_and_httponly_context(
+    recovery_protocol: tuple[
+        RecoveryService, FakeRecoveryRepository, FakeMailProvider, MutableClock, list[str]
+    ],
+) -> None:
+    service, _, _, _, _ = recovery_protocol
+    client = make_client(service)
+
+    known = client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": "mina@example.com"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    unknown = client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": "not-a-user@example.com"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert known.status_code == unknown.status_code == 202
+    assert known.json() == unknown.json()
+    assert known.json()["status"] == "RECOVERY_CODE_DISPATCH_ACCEPTED"
+    assert "123456" not in known.text
+    cookie = known.headers["set-cookie"]
+    assert "password_recovery_context=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=strict" in cookie
+
+
+def test_recovery_api_verifies_then_resets_without_exposing_context(
+    recovery_protocol: tuple[
+        RecoveryService, FakeRecoveryRepository, FakeMailProvider, MutableClock, list[str]
+    ],
+) -> None:
+    service, _, _, _, _ = recovery_protocol
+    client = make_client(service)
+    client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": "mina@example.com"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    context = client.get("/api/v1/auth/password-recovery/context")
+    verified = client.post(
+        "/api/v1/auth/password-recovery/verify",
+        json={"code": "123456"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    reset = client.post(
+        "/api/v1/auth/password-recovery/reset",
+        json={"code": "123456", "new_password": "a-new-correct-horse-battery"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert context.status_code == 200
+    assert "context_token" not in context.text
+    assert verified.json() == {"status": "RECOVERY_CODE_VERIFIED"}
+    assert reset.json() == {
+        "status": "PASSWORD_RESET",
+        "message": "密码已更新，请重新登录。",
+    }
+    assert 'password_recovery_context=""' in reset.headers["set-cookie"]
