@@ -147,7 +147,7 @@ describe('authentication forms', () => {
       'polite',
     )
     expect(codeInput).toHaveValue('')
-    expect(codeInput).toHaveFocus()
+    await waitFor(() => expect(codeInput).toHaveFocus())
     expect(screen.getByRole('button', { name: /秒后可重新发送/ })).toBeDisabled()
   })
 
@@ -188,6 +188,55 @@ describe('authentication forms', () => {
     renderAuthPage('/register/verify')
     expect(await screen.findByText('验证信息已失效，请重新开始。')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '返回注册' })).toHaveAttribute('href', '/register')
+  })
+
+  it('uses the server retry_after cooldown and offers explicit network recovery', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          masked_email: 'm***@example.com',
+          resend_available_at: '2020-01-01T00:00:00Z',
+          expires_at: '2026-08-27T00:10:00Z',
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: { code: 'RESEND_COOLDOWN', retry_after: 17, request_id: 'request-3' } },
+          429,
+        ),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    renderAuthPage('/register/verify')
+
+    await screen.findByRole('textbox', { name: '6 位邮箱验证码' })
+    await user.click(screen.getByRole('button', { name: '重新发送验证码' }))
+    expect(await screen.findByRole('button', { name: '17 秒后可重新发送' })).toBeDisabled()
+  })
+
+  it('offers explicit recovery when verification loses network connectivity', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            masked_email: 'm***@example.com',
+            resend_available_at: '2020-01-01T00:00:00Z',
+            expires_at: '2026-08-27T00:10:00Z',
+          }),
+        )
+        .mockRejectedValueOnce(new TypeError('offline')),
+    )
+    renderAuthPage('/register/verify')
+    const codeInput = await screen.findByRole('textbox', { name: '6 位邮箱验证码' })
+    await user.type(codeInput, '123456')
+    await user.click(screen.getByRole('button', { name: '验证并激活账号' }))
+
+    expect(await screen.findByText('暂时无法连接服务，请检查网络后重试。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新尝试验证' })).toBeInTheDocument()
   })
 
   it('keeps recovery shells public without persisting email, code, or passwords', async () => {

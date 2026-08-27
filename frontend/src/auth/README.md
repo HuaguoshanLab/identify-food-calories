@@ -18,11 +18,11 @@
 | `README.md` | 认证 UI 边界、允许依赖和文件索引 |
 | `PublicPages.tsx` | 落地页、隐私/条款和表单页共用公开布局 |
 | `PublicRoutes.test.tsx` | 公开路由、受保护入口和无后台表面证据 |
-| `LoginPage.tsx` | 登录表单（后续任务加入） |
-| `RegisterPage.tsx` | 注册与非枚举验证码分发（后续任务加入） |
-| `RegisterVerifyPage.tsx` | 注册验证码、冷却与错误恢复（后续任务加入） |
-| `ForgotPasswordPage.tsx` | 密码恢复申请壳（后续任务加入） |
-| `ResetPasswordPage.tsx` | 密码重置壳（后续任务加入） |
-| `api.ts` | 受控认证 API 适配器（后续任务加入） |
-| `schemas.ts` | 表单运行时校验契约（后续任务加入） |
-| `AuthForms.test.tsx` | 表单、错误和可访问性行为测试（后续任务加入） |
+| `LoginPage.tsx` | 登录表单与统一、非枚举错误映射；不持久化 access token |
+| `RegisterPage.tsx` | 注册与非枚举验证码分发；只发送 email/password |
+| `RegisterVerifyPage.tsx` | 注册验证码、掩码邮箱、冷却、重发和显式错误恢复 |
+| `ForgotPasswordPage.tsx` | 密码恢复申请壳；等待后端恢复 API 合约 |
+| `ResetPasswordPage.tsx` | 缺少有效恢复上下文时的安全重置入口 |
+| `api.ts` | 受控注册、验证和登录 API 适配器；不暴露 Cookie 或 token |
+| `schemas.ts` | React Hook Form 使用的 Zod 运行时输入契约 |
+| `AuthForms.test.tsx` | 表单、payload、错误、冷却和可访问性行为测试 |

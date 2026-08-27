@@ -2,7 +2,7 @@
 
 ## 职责
 
-`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供产品落地页、隐私/条款与认证入口路由；完整认证生命周期、Agent 对话和饮食规划按后续计划接入。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
+`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供产品落地页、隐私/条款、登录、注册和注册验证码交互；完整认证会话生命周期、后端密码恢复 API、Agent 对话和饮食规划按后续计划接入。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
 
 ## 允许依赖
 
