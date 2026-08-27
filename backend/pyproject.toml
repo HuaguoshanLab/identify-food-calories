@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75.8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "food-agent-backend"
+version = "0.1.0"
+description = "FastAPI modular-monolith backend for the multimodal nutrition agent."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "alembic==1.16.5",
+  "fastapi==0.128.8",
+  "psycopg[binary]==3.2.13",
+  "pydantic-settings==2.11.0",
+  "sqlalchemy==2.0.52",
+  "uvicorn[standard]==0.39.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "pytest==8.4.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
