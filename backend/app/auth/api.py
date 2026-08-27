@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response, Security, status
 from fastapi.responses import JSONResponse
@@ -349,8 +350,9 @@ def _request_origin_is_allowed(request: Request) -> bool:
     if origin is None:
         referer = request.headers.get("referer")
         if referer is None:
-            return True
-        return any(referer.startswith(f"{allowed}/") or referer == allowed for allowed in request.app.state.settings.cors_origins)
+            return False
+        parsed = urlsplit(referer)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
     return origin in request.app.state.settings.cors_origins
 
 

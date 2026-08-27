@@ -133,10 +133,13 @@ def test_refresh_replay_and_missing_cookie_use_stable_errors_and_clear_cookie() 
         def refresh(self, refresh_token: str) -> LoginResult:
             raise RefreshTokenReplayed
 
-    missing = _client(StubRefreshService()).post("/api/v1/auth/refresh")
+    missing = _client(StubRefreshService()).post(
+        "/api/v1/auth/refresh", headers={"Origin": "http://localhost:5173"}
+    )
     replay = _client(ReplayService()).post(
         "/api/v1/auth/refresh",
         cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"},
+        headers={"Origin": "http://localhost:5173"},
     )
 
     assert missing.status_code == 401
@@ -144,6 +147,28 @@ def test_refresh_replay_and_missing_cookie_use_stable_errors_and_clear_cookie() 
     assert replay.status_code == 401
     assert replay.json()["error"]["code"] == "REFRESH_TOKEN_INVALID"
     assert "Max-Age=0" in replay.headers["set-cookie"]
+
+
+def test_cookie_mutations_require_exact_origin_or_referer() -> None:
+    client = _client(StubRefreshService())
+
+    missing = client.post(
+        "/api/v1/auth/refresh", cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"}
+    )
+    allowed_referer = client.post(
+        "/api/v1/auth/refresh",
+        cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"},
+        headers={"Referer": "http://localhost:5173/app"},
+    )
+    prefix_attack = client.post(
+        "/api/v1/auth/refresh",
+        cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"},
+        headers={"Referer": "http://localhost:5173.attacker.example/app"},
+    )
+
+    assert missing.status_code == 403
+    assert allowed_referer.status_code == 200
+    assert prefix_attack.status_code == 403
 
 
 def test_logout_list_and_delete_sessions_require_bearer_and_never_allow_current_delete() -> None:
