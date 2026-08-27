@@ -19,4 +19,5 @@
 | `core/` | 配置、数据库等跨模块基础设施 |
 | `auth/` | 认证 ORM、运行时 Schema、Service、Repository port 与 SQLAlchemy adapter |
 | `admin/` | 后端 RBAC probe、数据库权威角色提升与审计模块 |
+| `accounts/` | 密码恢复 Service、Repository port 与 HTTP 契约 |
 | `notifications/` | 可替换邮件 Provider port 与本地 SMTP adapter |

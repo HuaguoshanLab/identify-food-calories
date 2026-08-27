@@ -2,7 +2,7 @@
 
 ## 职责
 
-`notifications/` 隔离应用服务与邮件传输。应用层只依赖 `MailProvider`，SMTP/Mailpit 是可替换基础设施 adapter。
+`notifications/` 隔离应用服务与邮件传输。注册和密码恢复应用层只依赖 `MailProvider`，SMTP/Mailpit 是可替换基础设施 adapter。
 
 ## 允许依赖
 

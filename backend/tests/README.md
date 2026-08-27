@@ -18,3 +18,4 @@
 | `unit/` | 不依赖外部服务的快速单元测试 |
 | `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试 |
 | `auth/` | 注册、验证码、登录与会话的 Service/API 安全协议测试 |
+| `accounts/` | 密码恢复 Service/API、Mailpit 与 PostgreSQL 事务证据 |
