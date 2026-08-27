@@ -23,7 +23,7 @@
 | `RegisterVerifyPage.tsx` | 注册验证码、掩码邮箱、冷却、重发和显式错误恢复 |
 | `ForgotPasswordPage.tsx` | 密码恢复申请壳；等待后端恢复 API 合约 |
 | `ResetPasswordPage.tsx` | 缺少有效恢复上下文时的安全重置入口 |
-| `api.ts` | 受控注册、验证、登录、refresh 与 `/users/me` API 适配器；不暴露 Cookie 或 token |
+| `api.ts` | 受控注册、验证、登录、refresh 与 `/users/me` API 适配器；默认走同源 `/api/v1`，生产绝不把回环 API 地址编进 bundle，也不暴露 Cookie 或 token |
 | `AuthProvider.tsx` | access token 仅存运行时内存；single-flight refresh 后以 `/users/me` 建立数据库权威身份 |
 | `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
 | `RouteGuards.tsx` | `/app` 路由守卫、bootstrap 状态和账号摘要 |

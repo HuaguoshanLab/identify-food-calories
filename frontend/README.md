@@ -19,13 +19,14 @@ npm ci
 npm run dev
 ```
 
-生产构建使用 `npm run build`。浏览器通过 `http://127.0.0.1:8000/api/v1` 访问本地 FastAPI。提交前执行完整前端门禁：
+生产构建使用 `npm run build`。默认通过同源 `/api/v1` 反向代理访问 FastAPI；如部署在独立 API 域名，设置构建时 `VITE_API_BASE_URL=https://api.example.com/api/v1`。生产环境拒绝非 HTTPS 的绝对 API 地址，`VITE_API_BASE_URL` 留空时明确采用同源契约。本地 Vite dev/preview 的 `/api` 代理目标可由 `VITE_DEV_API_PROXY_TARGET` 覆盖，默认仅用于本机 `127.0.0.1:8000` 开发服务，不会进入浏览器 bundle。提交前执行完整前端门禁：
 
 ```bash
 npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run verify:production-bundle
 ```
 
 Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Testing Library 验证用户可见行为。

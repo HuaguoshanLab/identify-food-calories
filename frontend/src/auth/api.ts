@@ -1,4 +1,35 @@
-const apiBaseUrl = 'http://127.0.0.1:8000/api/v1'
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+
+function resolveApiBaseUrl(value: string | undefined): string {
+  if (!value) {
+    // Production deployments may keep the API behind the SPA's same-origin proxy.
+    return '/api/v1'
+  }
+
+  if (value.startsWith('/')) {
+    if (value.startsWith('//')) {
+      throw new Error('VITE_API_BASE_URL must be a same-origin path or an HTTP(S) URL.')
+    }
+    return value.replace(/\/+$/, '') || '/'
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error('VITE_API_BASE_URL must be a same-origin path or an HTTP(S) URL.')
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('VITE_API_BASE_URL must use HTTP(S).')
+  }
+  if (import.meta.env.PROD && parsed.protocol !== 'https:') {
+    throw new Error('Production VITE_API_BASE_URL must use HTTPS.')
+  }
+  return parsed.toString().replace(/\/$/, '')
+}
+
+const apiBaseUrl = resolveApiBaseUrl(configuredApiBaseUrl)
 
 type ApiErrorBody = {
   error?: {
@@ -69,6 +100,9 @@ export type AuthSessionSummary = {
 }
 
 export function apiUrl(path: string) {
+  if (!path.startsWith('/')) {
+    throw new Error('API paths must begin with a slash.')
+  }
   return `${apiBaseUrl}${path}`
 }
 

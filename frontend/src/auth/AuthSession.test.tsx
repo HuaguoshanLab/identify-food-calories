@@ -81,8 +81,8 @@ describe('authentication session bootstrap', () => {
 
     expect(await screen.findByTestId('identity')).toHaveTextContent('database@example.com:admin')
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
-      'http://127.0.0.1:8000/api/v1/auth/refresh',
-      'http://127.0.0.1:8000/api/v1/users/me',
+      '/api/v1/auth/refresh',
+      '/api/v1/users/me',
     ])
   })
 
