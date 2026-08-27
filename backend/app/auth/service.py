@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import hmac
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -38,10 +40,21 @@ VERIFICATION_EXPIRY = timedelta(minutes=10)
 RESEND_COOLDOWN = timedelta(seconds=60)
 MAX_VERIFICATION_ATTEMPTS = 5
 SESSION_EXPIRY = timedelta(days=30)
+LOGIN_FAILURE_THRESHOLD = 5
+LOGIN_ATTEMPT_WINDOW = timedelta(minutes=5)
+LOGIN_LOCKOUT = timedelta(minutes=5)
 
 
 class InvalidCredentials(ValueError):
     """Uniform login failure for unknown, wrong, unverified, and inactive users."""
+
+
+class LoginRateLimited(ValueError):
+    """Stable denial independent of whether the submitted principal exists."""
+
+    def __init__(self, retry_after: int) -> None:
+        super().__init__("login rate limited")
+        self.retry_after = retry_after
 
 
 class AuthenticatedUserUnavailable(ValueError):
@@ -78,8 +91,21 @@ class AuthenticationService:
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
 
-    def login(self, *, email: str, password: str) -> LoginResult:
-        user = self._repository.get_user_by_email(email.strip().lower())
+    def login(self, *, email: str, password: str, source: str) -> LoginResult:
+        normalized_email = email.strip().lower()
+        now = self._now()
+        bucket_digests = self._login_bucket_digests(
+            normalized_email=normalized_email, source=source
+        )
+        blocked_until = self._repository.get_login_blocked_until(
+            bucket_digests=bucket_digests, now=now
+        )
+        if blocked_until is not None:
+            raise LoginRateLimited(
+                max(1, math.ceil((blocked_until - now).total_seconds()))
+            )
+
+        user = self._repository.get_user_by_email(normalized_email)
         password_valid = password_matches(
             password=password,
             password_hash=user.password_hash if user is not None else None,
@@ -90,9 +116,25 @@ class AuthenticationService:
             or user.email_verified_at is None
             or not user.is_active
         ):
+            blocked_until = self._repository.record_login_failure(
+                bucket_digests=bucket_digests,
+                now=now,
+                threshold=LOGIN_FAILURE_THRESHOLD,
+                window=LOGIN_ATTEMPT_WINDOW,
+                lockout=LOGIN_LOCKOUT,
+            )
+            try:
+                self._commit()
+            except Exception:
+                self._rollback()
+                raise
+            if blocked_until is not None:
+                raise LoginRateLimited(
+                    max(1, math.ceil((blocked_until - now).total_seconds()))
+                )
             raise InvalidCredentials("invalid credentials")
 
-        now = self._now()
+        self._repository.reset_login_attempts(bucket_digests=bucket_digests)
         session = self._repository.add_session(
             AuthSession(
                 id=uuid.uuid4(),
@@ -138,6 +180,21 @@ class AuthenticationService:
             refresh_token=raw_refresh_token,
             token_type="bearer",
             expires_in=expires_in,
+        )
+
+    def _login_bucket_digests(
+        self, *, normalized_email: str, source: str
+    ) -> tuple[str, str]:
+        def digest(value: str) -> str:
+            return hmac.new(
+                self._secret_key.encode("utf-8"),
+                value.encode("utf-8"),
+                hashlib.sha256,
+            ).hexdigest()
+
+        return (
+            digest(f"login-principal:v1:{normalized_email}"),
+            digest(f"login-source:v1:{source}"),
         )
 
     def current_user(self, access_token: str) -> CurrentUserResponse:

@@ -3,12 +3,29 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from app.auth.models import AuthSession, RefreshToken, User, VerificationChallenge
 
 
 class AuthRepository(Protocol):
+    def get_login_blocked_until(
+        self, *, bucket_digests: tuple[str, ...], now: datetime
+    ) -> datetime | None: ...
+
+    def record_login_failure(
+        self,
+        *,
+        bucket_digests: tuple[str, ...],
+        now: datetime,
+        threshold: int,
+        window: timedelta,
+        lockout: timedelta,
+    ) -> datetime | None: ...
+
+    def reset_login_attempts(self, *, bucket_digests: tuple[str, ...]) -> None: ...
+
     def add_user(self, user: User) -> User: ...
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None: ...

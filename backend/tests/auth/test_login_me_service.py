@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -28,6 +28,25 @@ class FakeAuthRepository:
         self.users = {user.id: user for user in users}
         self.sessions: list[AuthSession] = []
         self.refresh_tokens: list[RefreshToken] = []
+
+    def get_login_blocked_until(
+        self, *, bucket_digests: tuple[str, ...], now: datetime
+    ) -> datetime | None:
+        return None
+
+    def record_login_failure(
+        self,
+        *,
+        bucket_digests: tuple[str, ...],
+        now: datetime,
+        threshold: int,
+        window: timedelta,
+        lockout: timedelta,
+    ) -> datetime | None:
+        return None
+
+    def reset_login_attempts(self, *, bucket_digests: tuple[str, ...]) -> None:
+        return None
 
     def get_user_by_email(self, normalized_email: str) -> User | None:
         return next(
@@ -97,12 +116,14 @@ def test_login_uses_one_uniform_failure_without_creating_session(
 
     with pytest.raises(InvalidCredentials, match="invalid credentials"):
         _service(repository, commit=commits).login(
-            email=" PERSON@example.com ", password=password
+            email=" PERSON@example.com ", password=password, source="test-client"
         )
 
     assert repository.sessions == []
     assert repository.refresh_tokens == []
-    assert commits == []
+    # Failed authentication is still a committed protocol event because the
+    # authoritative throttle must survive process restarts and other workers.
+    assert commits == [True]
 
 
 def test_unknown_and_known_login_each_execute_one_password_verification(
@@ -120,7 +141,7 @@ def test_unknown_and_known_login_each_execute_one_password_verification(
     for repository in (FakeAuthRepository([]), FakeAuthRepository([user])):
         with pytest.raises(InvalidCredentials):
             _service(repository).login(
-                email=user.email, password="wrong password value"
+                email=user.email, password="wrong password value", source="test-client"
             )
 
     assert seen_hashes == [None, user.password_hash]
@@ -132,7 +153,9 @@ def test_login_creates_session_and_minimal_access_and_opaque_refresh_tokens() ->
     commits: list[bool] = []
 
     result = _service(repository, commit=commits).login(
-        email="PERSON@example.com", password="correct horse battery staple"
+        email="PERSON@example.com",
+        password="correct horse battery staple",
+        source="test-client",
     )
 
     header, payload, _signature = result.access_token.split(".")
@@ -157,7 +180,9 @@ def test_current_user_reloads_authoritative_status_and_role_from_repository() ->
     repository = FakeAuthRepository([user])
     service = _service(repository)
     login = service.login(
-        email=user.email, password="correct horse battery staple"
+        email=user.email,
+        password="correct horse battery staple",
+        source="test-client",
     )
 
     user.role = UserRole.ADMIN.value

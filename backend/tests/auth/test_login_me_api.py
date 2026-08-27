@@ -21,6 +21,7 @@ from app.auth.service import (
     AuthenticatedUserUnavailable,
     AuthenticationService,
     InvalidCredentials,
+    LoginRateLimited,
     LoginResult,
 )
 from app.core.config import Settings
@@ -34,10 +35,14 @@ AUDIENCE = "food-agent-h5"
 
 
 class StubAuthenticationService:
-    def __init__(self, *, reject_login: bool = False) -> None:
+    def __init__(self, *, reject_login: bool = False, rate_limited: bool = False) -> None:
         self.reject_login = reject_login
+        self.rate_limited = rate_limited
 
-    def login(self, *, email: str, password: str) -> LoginResult:
+    def login(self, *, email: str, password: str, source: str) -> LoginResult:
+        assert source
+        if self.rate_limited:
+            raise LoginRateLimited(123)
         if self.reject_login:
             raise InvalidCredentials("invalid credentials")
         return LoginResult(
@@ -122,6 +127,20 @@ def test_login_failure_is_uniform_and_does_not_leak_submitted_credentials() -> N
     assert set(response.json()["error"]) == {"code", "message", "request_id"}
     assert submitted not in response.text
     assert "unknown@example.com" not in response.text
+    assert "set-cookie" not in response.headers
+
+
+def test_login_rate_limit_has_stable_non_enumerating_error() -> None:
+    response = _client(StubAuthenticationService(rate_limited=True)).post(
+        "/api/v1/auth/login",
+        json={"email": "unknown@example.com", "password": "submitted-secret"},
+    )
+
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "RATE_LIMITED"
+    assert response.json()["error"]["retry_after"] == 123
+    assert "unknown@example.com" not in response.text
+    assert "submitted-secret" not in response.text
     assert "set-cookie" not in response.headers
 
 

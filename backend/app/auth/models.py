@@ -34,6 +34,35 @@ class ChallengePurpose(str, enum.Enum):
     PASSWORD_RESET = "password_reset"
 
 
+class LoginAttempt(Base):
+    """One opaque rate-limit bucket; raw principals and network sources never persist."""
+
+    __tablename__ = "login_attempts"
+    __table_args__ = (
+        CheckConstraint("failed_attempts > 0", name="ck_login_attempts_positive"),
+        CheckConstraint(
+            "window_expires_at > window_started_at",
+            name="ck_login_attempts_window",
+        ),
+        CheckConstraint(
+            "blocked_until IS NULL OR blocked_until > window_started_at",
+            name="ck_login_attempts_blocked_until",
+        ),
+        Index("ix_login_attempts_blocked_until", "blocked_until"),
+    )
+
+    bucket_digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    window_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (

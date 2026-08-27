@@ -25,6 +25,7 @@ from app.auth.service import (
     AuthenticatedUserUnavailable,
     AuthenticationService,
     InvalidCredentials,
+    LoginRateLimited,
     InvalidVerificationCode,
     RegistrationDispatch,
     RegistrationService,
@@ -210,7 +211,17 @@ def login(
     service: AuthenticationService = Depends(get_authentication_service),
 ) -> AccessTokenResponse | JSONResponse:
     try:
-        result = service.login(email=payload.email, password=payload.password)
+        source = request.client.host if request.client is not None else "unavailable"
+        result = service.login(
+            email=payload.email, password=payload.password, source=source
+        )
+    except LoginRateLimited as error:
+        return _error(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            code="RATE_LIMITED",
+            message="尝试次数过多，请稍后再试。",
+            retry_after=error.retry_after,
+        )
     except InvalidCredentials:
         return _error(
             status_code=status.HTTP_401_UNAUTHORIZED,

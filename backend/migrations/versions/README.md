@@ -15,3 +15,4 @@
 | 文件 | 职责 |
 |---|---|
 | `0001_auth_foundation.py` | 用户、验证码、会话与 refresh token 权威 schema |
+| `0002_login_attempts.py` | HMAC-only 登录失败 bucket、窗口与封禁 schema |

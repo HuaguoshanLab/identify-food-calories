@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
-from app.auth.models import AuthSession, RefreshToken, User, VerificationChallenge
+from app.auth.models import (
+    AuthSession,
+    LoginAttempt,
+    RefreshToken,
+    User,
+    VerificationChallenge,
+)
 
 
 class SqlAlchemyAuthRepository:
@@ -18,6 +25,83 @@ class SqlAlchemyAuthRepository:
         self._session.add(user)
         self._session.flush()
         return user
+
+    def get_login_blocked_until(
+        self, *, bucket_digests: tuple[str, ...], now: datetime
+    ) -> datetime | None:
+        return self._session.scalar(
+            select(func.max(LoginAttempt.blocked_until)).where(
+                LoginAttempt.bucket_digest.in_(bucket_digests),
+                LoginAttempt.blocked_until > now,
+            )
+        )
+
+    def record_login_failure(
+        self,
+        *,
+        bucket_digests: tuple[str, ...],
+        now: datetime,
+        threshold: int,
+        window: timedelta,
+        lockout: timedelta,
+    ) -> datetime | None:
+        """Atomically advance each bucket using PostgreSQL's row-level conflict lock."""
+
+        blocked_until: datetime | None = None
+        for bucket_digest in bucket_digests:
+            candidate = self._session.scalar(
+                text(
+                    """
+                    INSERT INTO login_attempts (
+                        bucket_digest, failed_attempts, window_started_at,
+                        window_expires_at, blocked_until, updated_at
+                    ) VALUES (
+                        :bucket_digest, 1, :now, :window_expires_at, NULL, :now
+                    )
+                    ON CONFLICT (bucket_digest) DO UPDATE SET
+                        failed_attempts = CASE
+                            WHEN login_attempts.window_expires_at <= :now THEN 1
+                            ELSE login_attempts.failed_attempts + 1
+                        END,
+                        window_started_at = CASE
+                            WHEN login_attempts.window_expires_at <= :now THEN :now
+                            ELSE login_attempts.window_started_at
+                        END,
+                        window_expires_at = CASE
+                            WHEN login_attempts.window_expires_at <= :now
+                                THEN :window_expires_at
+                            ELSE login_attempts.window_expires_at
+                        END,
+                        blocked_until = CASE
+                            WHEN login_attempts.window_expires_at <= :now THEN NULL
+                            WHEN login_attempts.blocked_until > :now
+                                THEN login_attempts.blocked_until
+                            WHEN login_attempts.failed_attempts + 1 >= :threshold
+                                THEN :blocked_until
+                            ELSE NULL
+                        END,
+                        updated_at = :now
+                    RETURNING blocked_until
+                    """
+                ),
+                {
+                    "bucket_digest": bucket_digest,
+                    "now": now,
+                    "window_expires_at": now + window,
+                    "threshold": threshold,
+                    "blocked_until": now + lockout,
+                },
+            )
+            if candidate is not None and (
+                blocked_until is None or candidate > blocked_until
+            ):
+                blocked_until = candidate
+        return blocked_until
+
+    def reset_login_attempts(self, *, bucket_digests: tuple[str, ...]) -> None:
+        self._session.execute(
+            delete(LoginAttempt).where(LoginAttempt.bucket_digest.in_(bucket_digests))
+        )
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._session.get(User, user_id)
