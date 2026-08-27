@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth.api import router as auth_router, users_router
+from app.admin.api import router as admin_router
 from app.core.config import Settings, get_settings
 
 
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.include_router(auth_router)
     application.include_router(users_router)
+    application.include_router(admin_router)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(

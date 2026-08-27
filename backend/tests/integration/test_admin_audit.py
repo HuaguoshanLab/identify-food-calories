@@ -15,6 +15,7 @@ from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminService
 from app.auth.api import get_authentication_service
 from app.auth.models import AuthSession, User, UserRole
+from app.auth.repository import SqlAlchemyAuthRepository
 from app.auth.security import issue_access_token
 from app.auth.service import AuthenticationService
 from app.core.config import Settings
@@ -78,7 +79,7 @@ def _token(*, user: User, session: AuthSession, claimed_role: str) -> str:
 def _client(db_session: Session) -> TestClient:
     application = create_app(_settings())
     auth_service = AuthenticationService(
-        repository=SqlAlchemyAdminRepository(db_session),
+        repository=SqlAlchemyAuthRepository(db_session),
         secret_key=SECRET,
         issuer=ISSUER,
         audience=AUDIENCE,
