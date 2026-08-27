@@ -24,7 +24,9 @@ class RecoveryPendingResponse(BaseModel):
     expires_at: datetime
 
 
-class RecoveryDispatchAcceptedResponse(RecoveryPendingResponse):
+class RecoveryDispatchAcceptedResponse(BaseModel):
+    """A fixed 202 envelope so reset initiation cannot enumerate accounts."""
+
     status: Literal["RECOVERY_CODE_DISPATCH_ACCEPTED"] = "RECOVERY_CODE_DISPATCH_ACCEPTED"
 
 

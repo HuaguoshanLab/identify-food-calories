@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Iterator
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from threading import Barrier
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, select
+from sqlalchemy.orm import Session
 
 from app.accounts.api import get_recovery_service
+from app.accounts.repository import SqlAlchemyAccountRecoveryRepository
 from app.auth.models import ChallengePurpose, User, UserRole, VerificationChallenge
+from app.auth.models import AuthSession, RefreshToken
+from app.auth.security import hash_password, password_matches
 from app.accounts.service import (
     InvalidRecoveryCode,
     RecoveryCodeExpired,
@@ -342,3 +351,251 @@ def test_recovery_api_verifies_then_resets_without_exposing_context(
         "message": "密码已更新，请重新登录。",
     }
     assert 'password_recovery_context=""' in reset.headers["set-cookie"]
+
+
+REAL_NOW = datetime(2026, 8, 27, 11, 0, tzinfo=UTC)
+REAL_SECRET = "recovery-postgres-secret-with-at-least-forty-eight-bytes"
+
+
+def _seed_recovery_user(test_engine: Engine) -> tuple[uuid.UUID, list[uuid.UUID]]:
+    user_id = uuid.uuid4()
+    session_ids = [uuid.uuid4(), uuid.uuid4()]
+    with Session(test_engine) as setup:
+        setup.add(
+            User(
+                id=user_id,
+                email=f"recovery-{uuid.uuid4().hex}@example.com",
+                password_hash=hash_password("old-correct-horse-battery"),
+                role=UserRole.USER.value,
+                is_active=True,
+                email_verified_at=REAL_NOW,
+                created_at=REAL_NOW,
+                updated_at=REAL_NOW,
+            )
+        )
+        for session_id in session_ids:
+            setup.add(
+                AuthSession(
+                    id=session_id,
+                    user_id=user_id,
+                    family_id=uuid.uuid4(),
+                    created_at=REAL_NOW,
+                    last_seen_at=REAL_NOW,
+                    expires_at=REAL_NOW + timedelta(days=30),
+                    revoked_at=None,
+                    device_label=None,
+                )
+            )
+            setup.add(
+                RefreshToken(
+                    id=uuid.uuid4(),
+                    session_id=session_id,
+                    token_digest=uuid.uuid4().hex,
+                    issued_at=REAL_NOW,
+                    expires_at=REAL_NOW + timedelta(days=30),
+                    consumed_at=None,
+                    replaced_by_id=None,
+                    revoked_at=None,
+                )
+            )
+        setup.commit()
+    return user_id, session_ids
+
+
+def _real_service(
+    session: Session,
+    *,
+    code: str = "314159",
+    session_family_revoker: object | None = None,
+) -> RecoveryService:
+    repository = SqlAlchemyAccountRecoveryRepository(session)
+    return RecoveryService(
+        repository=repository,
+        session_family_revoker=(
+            session_family_revoker
+            if session_family_revoker is not None
+            else repository
+        ),
+        mail_provider=FakeMailProvider(),
+        secret_key=REAL_SECRET,
+        now=lambda: REAL_NOW,
+        code_factory=lambda: code,
+        commit=session.commit,
+        rollback=session.rollback,
+    )
+
+
+def _delete_recovery_user(test_engine: Engine, user_id: uuid.UUID) -> None:
+    with Session(test_engine) as cleanup:
+        user = cleanup.get(User, user_id)
+        if user is not None:
+            cleanup.delete(user)
+            cleanup.commit()
+
+
+def test_two_real_postgres_transactions_consume_recovery_challenge_once(
+    test_engine: Engine,
+) -> None:
+    """A row lock, rather than timing, proves one reset winner under PostgreSQL."""
+
+    assert test_engine.url.drivername == "postgresql+psycopg"
+    user_id, session_ids = _seed_recovery_user(test_engine)
+    try:
+        with Session(test_engine) as dispatch_session:
+            service = _real_service(dispatch_session)
+            user = dispatch_session.get(User, user_id)
+            assert user is not None
+            dispatch = service.request_reset(email=user.email)
+
+        barrier = Barrier(2)
+
+        def reset_once() -> str:
+            with Session(test_engine) as session:
+                service = _real_service(session)
+                barrier.wait()
+                try:
+                    service.reset(
+                        context_token=dispatch.context_token,
+                        code="314159",
+                        new_password="new-correct-horse-battery",
+                    )
+                    return "reset"
+                except RecoveryContextInvalid:
+                    return "already-consumed"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(executor.map(lambda _index: reset_once(), range(2)))
+        assert Counter(outcomes) == {"reset": 1, "already-consumed": 1}
+
+        with Session(test_engine) as inspection:
+            challenge = inspection.scalar(
+                select(VerificationChallenge).where(
+                    VerificationChallenge.user_id == user_id,
+                    VerificationChallenge.purpose == ChallengePurpose.PASSWORD_RESET.value,
+                )
+            )
+            user = inspection.get(User, user_id)
+            sessions = list(
+                inspection.scalars(select(AuthSession).where(AuthSession.id.in_(session_ids)))
+            )
+            refreshes = list(
+                inspection.scalars(
+                    select(RefreshToken).where(RefreshToken.session_id.in_(session_ids))
+                )
+            )
+            assert challenge is not None and challenge.consumed_at == REAL_NOW
+            assert user is not None and password_matches(
+                password="new-correct-horse-battery", password_hash=user.password_hash
+            )
+            assert all(auth_session.revoked_at == REAL_NOW for auth_session in sessions)
+            assert all(refresh.revoked_at == REAL_NOW for refresh in refreshes)
+    finally:
+        _delete_recovery_user(test_engine, user_id)
+
+
+def test_real_postgres_reset_rolls_back_password_challenge_and_families(
+    test_engine: Engine,
+) -> None:
+    user_id, session_ids = _seed_recovery_user(test_engine)
+    try:
+        with Session(test_engine) as dispatch_session:
+            service = _real_service(dispatch_session)
+            user = dispatch_session.get(User, user_id)
+            assert user is not None
+            dispatch = service.request_reset(email=user.email)
+
+        with Session(test_engine) as reset_session:
+            repository = SqlAlchemyAccountRecoveryRepository(reset_session)
+
+            class FailingRevoker:
+                def revoke_all_session_families(
+                    self, *, user_id: uuid.UUID, revoked_at: datetime
+                ) -> None:
+                    repository.revoke_all_session_families(
+                        user_id=user_id, revoked_at=revoked_at
+                    )
+                    raise RuntimeError("injected family revoke failure")
+
+            with pytest.raises(RuntimeError, match="injected family revoke failure"):
+                _real_service(
+                    reset_session, session_family_revoker=FailingRevoker()
+                ).reset(
+                    context_token=dispatch.context_token,
+                    code="314159",
+                    new_password="new-correct-horse-battery",
+                )
+
+        with Session(test_engine) as inspection:
+            user = inspection.get(User, user_id)
+            challenge = inspection.scalar(
+                select(VerificationChallenge).where(
+                    VerificationChallenge.user_id == user_id,
+                    VerificationChallenge.purpose == ChallengePurpose.PASSWORD_RESET.value,
+                )
+            )
+            sessions = list(
+                inspection.scalars(select(AuthSession).where(AuthSession.id.in_(session_ids)))
+            )
+            assert user is not None and password_matches(
+                password="old-correct-horse-battery", password_hash=user.password_hash
+            )
+            assert challenge is not None and challenge.consumed_at is None
+            assert all(auth_session.revoked_at is None for auth_session in sessions)
+    finally:
+        _delete_recovery_user(test_engine, user_id)
+
+
+def test_real_api_sends_recovery_code_to_local_mailpit(db_session: Session) -> None:
+    """The browser never receives a code; Mailpit receives it through the SMTP adapter."""
+
+    recipient = f"mailpit-recovery-{uuid.uuid4().hex}@example.com"
+    db_session.add(
+        User(
+            id=uuid.uuid4(),
+            email=recipient,
+            password_hash=hash_password("old-correct-horse-battery"),
+            role=UserRole.USER.value,
+            is_active=True,
+            email_verified_at=REAL_NOW,
+            created_at=REAL_NOW,
+            updated_at=REAL_NOW,
+        )
+    )
+    db_session.commit()
+    repository = SqlAlchemyAccountRecoveryRepository(db_session)
+    from app.notifications.smtp import SMTPMailProvider
+
+    service = RecoveryService(
+        repository=repository,
+        session_family_revoker=repository,
+        mail_provider=SMTPMailProvider(
+            host="localhost", port=1025, from_email="noreply@local.test"
+        ),
+        secret_key=REAL_SECRET,
+        code_factory=lambda: "271828",
+        commit=db_session.commit,
+        rollback=db_session.rollback,
+    )
+    client = make_client(service)
+
+    response = client.post(
+        "/api/v1/auth/password-recovery/forgot",
+        json={"email": recipient},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert response.status_code == 202
+    assert "271828" not in response.text
+    messages = httpx.get("http://localhost:8025/api/v1/messages", timeout=5).json()[
+        "messages"
+    ]
+    matching = [
+        message
+        for message in messages
+        if any(address["Address"] == recipient for address in message["To"])
+    ]
+    assert matching
+    delivered = httpx.get(
+        f"http://localhost:8025/api/v1/message/{matching[0]['ID']}", timeout=5
+    ).json()
+    assert "271828" in delivered["Text"]
