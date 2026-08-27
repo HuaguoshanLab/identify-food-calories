@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { AuthProvider, useAuth } from './AuthProvider'
+import { AuthProvider } from './AuthProvider'
+import { useAuth } from './useAuth'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -88,7 +89,7 @@ describe('authentication session bootstrap', () => {
           role: 'user',
         })
       }
-      return String((init?.headers as HeadersInit | undefined)?.Authorization ?? '').includes('access-1')
+      return new Headers(init?.headers).get('Authorization')?.includes('access-1')
         ? jsonResponse({ error: { code: 'AUTHENTICATION_REQUIRED' } }, 401)
         : jsonResponse({ ok: true })
     })
@@ -100,7 +101,8 @@ describe('authentication session bootstrap', () => {
     fireEvent.click(screen.getByRole('button', { name: '并发请求' }))
 
     await waitFor(() => expect(refreshCount).toBe(2))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7))
+    // Bootstrap and the shared refresh both verify identity through /users/me.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(8))
     expect(localStorageSetItem).not.toHaveBeenCalled()
   })
 })

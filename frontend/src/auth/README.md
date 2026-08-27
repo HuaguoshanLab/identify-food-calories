@@ -2,7 +2,7 @@
 
 ## 职责
 
-`src/auth/` 保存用户 H5 的公开认证页面、表单边界和受控 API 适配器。它只处理浏览器侧路由、输入体验和 FastAPI `/api/v1` 公共合约；账号权限、验证码当前性和会话安全始终由服务端决定。
+`src/auth/` 保存用户 H5 的认证页面、内存会话和受控 API 适配器。它只处理浏览器侧路由、输入体验和 FastAPI `/api/v1` 公共合约；身份、权限、验证码当前性和会话安全始终由服务端决定。
 
 ## 允许依赖
 
@@ -23,6 +23,12 @@
 | `RegisterVerifyPage.tsx` | 注册验证码、掩码邮箱、冷却、重发和显式错误恢复 |
 | `ForgotPasswordPage.tsx` | 密码恢复申请壳；等待后端恢复 API 合约 |
 | `ResetPasswordPage.tsx` | 缺少有效恢复上下文时的安全重置入口 |
-| `api.ts` | 受控注册、验证和登录 API 适配器；不暴露 Cookie 或 token |
+| `api.ts` | 受控注册、验证、登录、refresh 与 `/users/me` API 适配器；不暴露 Cookie 或 token |
+| `AuthProvider.tsx` | access token 仅存运行时内存；single-flight refresh 后以 `/users/me` 建立数据库权威身份 |
+| `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
+| `RouteGuards.tsx` | `/app` 路由守卫、bootstrap 状态和账号摘要 |
+| `returnTo.ts` | 同源、相对、已登记受保护路由的登录返回地址解析 |
 | `schemas.ts` | React Hook Form 使用的 Zod 运行时输入契约 |
 | `AuthForms.test.tsx` | 表单、payload、错误、冷却和可访问性行为测试 |
+| `AuthSession.test.tsx` | refresh、数据库权威身份、并发 401 重试与 token 非持久化测试 |
+| `ProtectedRoutes.test.tsx` | 受保护深链、安全 returnTo 与无 admin 路由测试 |

@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import { AuthApiError, loginAccount } from './api'
+import { AuthApiError } from './api'
+import { useAuth } from './useAuth'
 import { loginSchema, type LoginValues } from './schemas'
 import { AuthEntryPage } from './PublicPages'
+import { parseReturnTo } from './returnTo'
 
 function loginErrorMessage(error: unknown) {
   if (!(error instanceof AuthApiError)) {
@@ -26,6 +28,8 @@ function loginErrorMessage(error: unknown) {
 
 export function LoginPage() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { login } = useAuth()
   const [formError, setFormError] = useState<string>()
   const [success, setSuccess] = useState(
     location.state && typeof location.state === 'object' && 'message' in location.state
@@ -41,8 +45,8 @@ export function LoginPage() {
     setSuccess(undefined)
 
     try {
-      await loginAccount(values)
-      setSuccess('登录已由服务器验证。')
+      await login(values)
+      navigate(parseReturnTo(new URLSearchParams(location.search).get('returnTo')), { replace: true })
     } catch (error) {
       setFormError(loginErrorMessage(error))
     }

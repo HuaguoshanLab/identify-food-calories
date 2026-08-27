@@ -39,11 +39,25 @@ type LoginResponse = {
   token_type: 'bearer'
 }
 
+export type CurrentUser = {
+  id: string
+  email: string
+  email_verified_at: string | null
+  is_active: boolean
+  role: string
+}
+
+export type LoginSession = LoginResponse
+
+export function apiUrl(path: string) {
+  return `${apiBaseUrl}${path}`
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
 
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, {
+    response = await fetch(apiUrl(path), {
       ...init,
       credentials: 'include',
       headers: {
@@ -95,4 +109,37 @@ export function loginAccount(payload: { email: string; password: string }) {
     body: JSON.stringify(payload),
     method: 'POST',
   })
+}
+
+export function refreshAccessToken() {
+  return requestJson<LoginSession>('/auth/refresh', { method: 'POST' })
+}
+
+export function getCurrentUser(accessToken: string) {
+  return requestJson<CurrentUser>('/users/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: 'GET',
+  })
+}
+
+export async function requestWithAccess(path: string, accessToken: string, init?: RequestInit) {
+  try {
+    return await fetch(apiUrl(path), {
+      ...init,
+      credentials: 'include',
+      headers: {
+        ...init?.headers,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+  } catch {
+    throw new AuthApiError('NETWORK_ERROR')
+  }
+}
+
+export async function logoutCurrentSession(accessToken: string) {
+  const response = await requestWithAccess('/auth/logout', accessToken, { method: 'POST' })
+  if (!response.ok && response.status !== 401) {
+    throw new AuthApiError('LOGOUT_FAILED')
+  }
 }

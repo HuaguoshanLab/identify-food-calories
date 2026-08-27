@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 type PublicPageProps = {
   children?: ReactNode
@@ -109,24 +109,5 @@ export function TermsPage() {
         返回首页
       </Link>
     </PublicPage>
-  )
-}
-
-export function ProtectedAppEntry() {
-  const location = useLocation()
-  const returnTo = `${location.pathname}${location.search}`
-
-  return (
-    <AuthEntryPage
-      title="欢迎回来"
-      description="请先登录后继续使用账号功能。"
-    >
-      <Link
-        className="mt-6 inline-block text-sm text-slate-700 underline hover:text-teal-700"
-        to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
-      >
-        前往登录
-      </Link>
-    </AuthEntryPage>
   )
 }
