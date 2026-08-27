@@ -212,7 +212,8 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
         ]
     )
     db_session.commit()
-    session_factory = lambda: nullcontext(db_session)
+    def session_factory() -> object:
+        return nullcontext(db_session)
 
     assert admin_cli(
         [

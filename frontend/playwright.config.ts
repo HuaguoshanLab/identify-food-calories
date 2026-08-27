@@ -6,7 +6,9 @@ const backendUrl = 'http://127.0.0.1:8000/api/v1/health'
 const backendEnvironment = {
   ...process.env,
   APP_ENV: 'test',
-  DATABASE_URL: 'postgresql+psycopg://postgres:postgres@127.0.0.1:5432/food_agent_dev',
+  // The spawned application must use only the isolated database; Alembic receives
+  // its required distinct development URL inline while it validates TEST_DATABASE_URL.
+  DATABASE_URL: 'postgresql+psycopg://postgres:postgres@127.0.0.1:55432/food_agent_test',
   TEST_DATABASE_URL:
     'postgresql+psycopg://postgres:postgres@127.0.0.1:55432/food_agent_test',
   CORS_ORIGINS: JSON.stringify([frontendUrl]),
@@ -41,8 +43,9 @@ export default defineConfig({
       cwd: '../backend',
       command:
         "docker compose -f ../docker-compose.yml up -d --wait postgres-test mailpit && " +
-        "if [ -f alembic.ini ]; then .venv/bin/alembic upgrade head; " +
-        "else echo '[e2e] Alembic config is not present yet; migration step skipped'; fi && " +
+        "docker compose -f ../docker-compose.yml exec -T postgres-test psql -U postgres -d food_agent_test -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && " +
+        "DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/food_agent_dev .venv/bin/alembic upgrade 0001 && " +
+        "DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/food_agent_dev .venv/bin/alembic upgrade head && " +
         'exec .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000',
       env: backendEnvironment,
       url: backendUrl,

@@ -14,7 +14,6 @@ from app.auth.api import (
 from app.auth.schemas import AccessTokenResponse, SessionResponse
 from app.auth.service import (
     CurrentSessionCannotBeRevoked,
-    InvalidRefreshToken,
     LoginResult,
     RefreshTokenReplayed,
 )

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import delete, func, select, text, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.auth.models import (
@@ -185,7 +187,9 @@ class SqlAlchemyAuthRepository:
             )
             .values(revoked_at=revoked_at)
         )
-        return result.rowcount == 1
+        # Session.execute is typed as a generic Result; UPDATE's affected-row
+        # count is the atomic ownership proof required by this authorization check.
+        return cast(CursorResult[Any], result).rowcount == 1
 
     def revoke_session_family(
         self, *, session_id: uuid.UUID, revoked_at: datetime

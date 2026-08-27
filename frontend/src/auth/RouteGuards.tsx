@@ -57,7 +57,7 @@ export function AccountAndSessionsPage() {
         <dl className="mt-6 grid gap-3 text-sm">
           <div>
             <dt className="text-slate-600">邮箱</dt>
-            <dd className="font-medium">{user?.email}</dd>
+            <dd className="break-all font-medium">{user?.email}</dd>
           </div>
           <div>
             <dt className="text-slate-600">角色</dt>

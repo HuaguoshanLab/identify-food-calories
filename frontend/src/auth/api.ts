@@ -33,6 +33,15 @@ type VerificationSuccessResponse = {
   status: 'EMAIL_VERIFIED'
 }
 
+type RecoveryCodeVerifiedResponse = {
+  status: 'RECOVERY_CODE_VERIFIED'
+}
+
+type PasswordResetResponse = {
+  message: '密码已更新，请重新登录。'
+  status: 'PASSWORD_RESET'
+}
+
 type LoginResponse = {
   access_token: string
   expires_in: number
@@ -112,6 +121,27 @@ export function verifyRegistration(code: string) {
 
 export function resendRegistrationCode() {
   return requestJson<CodeDispatchResponse>('/auth/register/resend', { method: 'POST' })
+}
+
+export function requestPasswordRecovery(email: string) {
+  return requestJson<{ status: 'RECOVERY_CODE_DISPATCH_ACCEPTED' }>('/auth/password-recovery/forgot', {
+    body: JSON.stringify({ email }),
+    method: 'POST',
+  })
+}
+
+export function verifyRecoveryCode(code: string) {
+  return requestJson<RecoveryCodeVerifiedResponse>('/auth/password-recovery/verify', {
+    body: JSON.stringify({ code }),
+    method: 'POST',
+  })
+}
+
+export function resetPassword(payload: { code: string; newPassword: string }) {
+  return requestJson<PasswordResetResponse>('/auth/password-recovery/reset', {
+    body: JSON.stringify({ code: payload.code, new_password: payload.newPassword }),
+    method: 'POST',
+  })
 }
 
 export function loginAccount(payload: { email: string; password: string }) {

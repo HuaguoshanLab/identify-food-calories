@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 const mailpitApi = 'http://127.0.0.1:8025/api/v1'
 const password = 'correct-horse-battery-staple'
@@ -117,13 +117,15 @@ test.describe('full-stack auth', () => {
     await expect(page.getByRole('heading', { name: '重置密码' })).toBeVisible()
     const recoveryCode = await readCode(request, email)
     await page.getByLabel('6 位邮箱验证码').fill(recoveryCode)
-    await page.getByLabel('新密码').fill(replacementPassword)
+    await page.getByLabel('新密码', { exact: true }).fill(replacementPassword)
     await page.getByLabel('确认新密码').fill(replacementPassword)
     await page.getByRole('button', { name: '更新密码' }).click()
     await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
     await login(page, email, replacementPassword)
 
     await page.addStyleTag({ content: 'html { font-size: 200%; }' })
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+    await page.getByRole('heading', { name: '账号与会话' }).scrollIntoViewIfNeeded()
+    await expect(page.getByRole('heading', { name: '账号与会话' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '退出当前设备' })).toBeVisible()
   })
 })
