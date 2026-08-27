@@ -17,3 +17,4 @@
 | `__init__.py` | Python 包标识 |
 | `main.py` | FastAPI 应用工厂与健康端点 |
 | `core/` | 配置、数据库等跨模块基础设施 |
+| `auth/` | 认证 ORM、运行时 Schema、Repository port 与 SQLAlchemy adapter |
