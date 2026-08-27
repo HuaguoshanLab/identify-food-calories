@@ -7,8 +7,11 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 
+from app.auth.api import get_registration_service
 from app.auth.models import User, VerificationChallenge
+from app.auth.repository import SqlAlchemyAuthRepository
 from app.auth.security import generate_verification_code
 from app.auth.service import (
     InvalidVerificationCode,
@@ -18,6 +21,9 @@ from app.auth.service import (
     VerificationCodeExpired,
     VerificationContextInvalid,
 )
+from app.core.config import Settings
+from app.main import create_app
+from app.notifications.smtp import SMTPMailProvider
 
 
 class FakeAuthRepository:
@@ -233,3 +239,162 @@ def test_duplicate_registration_keeps_non_enumerating_dispatch_shape(
     assert len(repository.users) == 1
     assert first.masked_email == second.masked_email
     assert first.__class__ is second.__class__
+
+
+def make_client(service: RegistrationService) -> TestClient:
+    settings = Settings(
+        app_env="test",
+        database_url="postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev",
+        test_database_url=(
+            "postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test"
+        ),
+        secret_key="test-only-verification-pepper-at-least-32-bytes",
+        cors_origins=["http://localhost:5173"],
+        smtp_host="localhost",
+        smtp_from_email="noreply@local.test",
+        _env_file=None,
+    )
+    application = create_app(settings)
+    application.dependency_overrides[get_registration_service] = lambda: service
+    return TestClient(application)
+
+
+def test_registration_api_uses_httponly_context_and_safe_envelope(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, _ = protocol
+    client = make_client(service)
+
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "mina@example.com", "password": "correct horse battery"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert response.status_code == 202
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert response.json()["status"] == "CODE_DISPATCH_ACCEPTED"
+    serialized = response.text
+    assert "context-one" not in serialized
+    assert "123456" not in serialized
+    assert "mina@example.com" not in serialized
+    set_cookie = response.headers["set-cookie"]
+    assert "registration_context=context-one" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=strict" in set_cookie
+
+    context = client.get("/api/v1/auth/register/context")
+    assert context.status_code == 200
+    assert context.json()["masked_email"] == "m***@example.com"
+
+
+def test_registration_and_resend_keep_non_enumerating_202_shape(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, clock = protocol
+    client = make_client(service)
+    first = client.post(
+        "/api/v1/auth/register",
+        json={"email": "mina@example.com", "password": "correct horse battery"},
+    )
+    clock.advance(seconds=61)
+    duplicate = client.post(
+        "/api/v1/auth/register",
+        json={"email": "MINA@example.com", "password": "another valid password"},
+    )
+    resent = client.post("/api/v1/auth/register/resend")
+
+    assert first.status_code == duplicate.status_code == resent.status_code == 202
+    assert set(first.json()) == set(duplicate.json()) == set(resent.json())
+    assert first.json()["status"] == duplicate.json()["status"] == "CODE_DISPATCH_ACCEPTED"
+
+
+def test_verification_api_maps_errors_and_clears_context_on_success(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, _ = protocol
+    client = make_client(service)
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "mina@example.com", "password": "correct horse battery"},
+    )
+
+    invalid = client.post("/api/v1/auth/register/verify", json={"code": "000000"})
+    assert invalid.status_code == 400
+    assert invalid.json()["error"]["code"] == "INVALID_VERIFICATION_CODE"
+    assert set(invalid.json()["error"]) == {"code", "message", "request_id"}
+
+    verified = client.post("/api/v1/auth/register/verify", json={"code": "123456"})
+    assert verified.status_code == 200
+    assert verified.json() == {
+        "status": "EMAIL_VERIFIED",
+        "message": "邮箱验证成功，请登录。",
+        "next_action": "login",
+    }
+    assert "registration_context=\"\"" in verified.headers["set-cookie"]
+    assert client.get("/api/v1/auth/register/context").status_code == 409
+
+
+def test_openapi_exposes_routes_without_persistence_secrets(
+    protocol: tuple[RegistrationService, FakeAuthRepository, FakeMailProvider, MutableClock],
+) -> None:
+    service, _, _, _ = protocol
+    document = make_client(service).get("/api/openapi.json").json()
+
+    assert {
+        "/api/v1/auth/register",
+        "/api/v1/auth/register/context",
+        "/api/v1/auth/register/verify",
+        "/api/v1/auth/register/resend",
+    }.issubset(document["paths"])
+    serialized = str(document)
+    for forbidden in ("password_hash", "code_digest", "context_digest", "refresh_token"):
+        assert forbidden not in serialized
+
+
+def test_real_postgres_and_mailpit_registration_flow(db_session: object) -> None:
+    """The product API hides the code while local SMTP proves delivery end to end."""
+
+    import httpx
+
+    repository = SqlAlchemyAuthRepository(db_session)  # type: ignore[arg-type]
+    service = RegistrationService(
+        repository=repository,
+        mail_provider=SMTPMailProvider(
+            host="localhost", port=1025, from_email="noreply@local.test"
+        ),
+        secret_key="test-only-verification-pepper-at-least-32-bytes",
+        code_factory=lambda: "314159",
+        context_token_factory=lambda: "mailpit-context-token",
+        commit=db_session.commit,  # type: ignore[attr-defined]
+        rollback=db_session.rollback,  # type: ignore[attr-defined]
+    )
+    client = make_client(service)
+    recipient = f"mailpit-{uuid.uuid4().hex}@example.com"
+
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={"email": recipient, "password": "correct horse battery"},
+    )
+
+    assert registered.status_code == 202
+    assert "314159" not in registered.text
+    messages = httpx.get("http://localhost:8025/api/v1/messages", timeout=5).json()[
+        "messages"
+    ]
+    matching = [
+        message
+        for message in messages
+        if any(address["Address"] == recipient for address in message["To"])
+    ]
+    assert matching
+    delivered = httpx.get(
+        f"http://localhost:8025/api/v1/message/{matching[0]['ID']}", timeout=5
+    ).json()
+    assert "314159" in delivered["Text"]
+
+    verified = client.post("/api/v1/auth/register/verify", json={"code": "314159"})
+    assert verified.status_code == 200
+    db_session.expire_all()  # type: ignore[attr-defined]
+    user = repository.get_user_by_email(recipient)
+    assert user is not None and user.email_verified_at is not None and user.is_active
