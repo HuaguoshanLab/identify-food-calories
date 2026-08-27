@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from app.admin.api import get_admin_service
+from app.admin.cli import main as admin_cli
 from app.admin.models import AdminRoleAudit
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminService
@@ -188,3 +191,116 @@ def test_first_admin_bootstrap_changes_role_and_audits_in_one_commit(
     assert persisted.after_role == UserRole.ADMIN.value
     assert persisted.occurred_at.tzinfo is not None
     assert persisted.reason == "initial production administrator"
+
+
+def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
+    db_session: Session,
+) -> None:
+    first_target = _user(role=UserRole.USER.value)
+    second_target = _user(role=UserRole.USER.value)
+    non_admin_actor = _user(role=UserRole.USER.value)
+    db_session.add_all([first_target, second_target, non_admin_actor])
+    db_session.commit()
+    session_factory = lambda: nullcontext(db_session)
+
+    assert admin_cli(
+        [
+            "bootstrap",
+            "--email",
+            first_target.email,
+            "--reason",
+            "initial production administrator",
+        ],
+        session_factory=session_factory,
+    ) == 0
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            first_target.email,
+            "--email",
+            second_target.email,
+            "--reason",
+            "delegated operational access",
+        ],
+        session_factory=session_factory,
+    ) == 0
+
+    events = list(
+        db_session.scalars(
+            select(AdminRoleAudit).order_by(AdminRoleAudit.occurred_at, AdminRoleAudit.id)
+        )
+    )
+    assert [(event.actor_identifier, event.target_user_id) for event in events] == [
+        ("system:bootstrap", first_target.id),
+        (str(first_target.id), second_target.id),
+    ]
+    assert all(event.before_role == UserRole.USER.value for event in events)
+    assert all(event.after_role == UserRole.ADMIN.value for event in events)
+    assert all(event.reason for event in events)
+    assert all(event.occurred_at.tzinfo is not None for event in events)
+
+    before_failures = len(events)
+    assert admin_cli(
+        [
+            "bootstrap",
+            "--email",
+            non_admin_actor.email,
+            "--reason",
+            "a second bootstrap is forbidden",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            non_admin_actor.email,
+            "--email",
+            non_admin_actor.email,
+            "--reason",
+            "self promotion is forbidden",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            first_target.email,
+            "--email",
+            non_admin_actor.email,
+            "--reason",
+            "   ",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert len(list(db_session.scalars(select(AdminRoleAudit)))) == before_failures
+    assert non_admin_actor.role == UserRole.USER.value
+
+
+def test_role_and_audit_roll_back_together_when_persistence_commit_fails(
+    db_session: Session,
+) -> None:
+    target = _user(role=UserRole.USER.value)
+    db_session.add(target)
+    db_session.commit()
+    service = AdminService(
+        repository=SqlAlchemyAdminRepository(db_session),
+        commit=lambda: (_ for _ in ()).throw(RuntimeError("simulated commit failure")),
+        rollback=db_session.rollback,
+    )
+
+    with pytest.raises(RuntimeError, match="simulated commit failure"):
+        service.bootstrap_first_admin(
+            target_user_id=target.id,
+            reason="commit failure must not leave an audit orphan",
+        )
+
+    db_session.expire_all()
+    reloaded = db_session.get(User, target.id)
+    assert reloaded is not None
+    assert reloaded.role == UserRole.USER.value
+    assert db_session.scalar(
+        select(AdminRoleAudit).where(AdminRoleAudit.target_user_id == target.id)
+    ) is None
