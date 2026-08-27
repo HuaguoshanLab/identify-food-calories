@@ -28,7 +28,7 @@ from app.main import create_app
 
 
 NOW = datetime(2026, 8, 27, 7, 30, tzinfo=UTC)
-SECRET = "api-test-secret-with-at-least-thirty-two-bytes"
+SECRET = "api-test-secret-with-at-least-forty-eight-bytes-for-hmac"
 ISSUER = "food-agent-api"
 AUDIENCE = "food-agent-h5"
 
@@ -133,10 +133,12 @@ def _encoded_token(
     expires_at: datetime | None = None,
     algorithm: str = "HS256",
     token_type: str = "JWT",
+    secret: str = SECRET,
+    subject: str | None = None,
 ) -> str:
     return jwt.encode(
         {
-            "sub": str(uuid.uuid4()),
+            "sub": subject or str(uuid.uuid4()),
             "role": UserRole.USER.value,
             "iat": int(issued_at.timestamp()),
             "exp": int((expires_at or (issued_at + timedelta(minutes=15))).timestamp()),
@@ -144,7 +146,7 @@ def _encoded_token(
             "iss": issuer,
             "aud": audience,
         },
-        SECRET,
+        secret,
         algorithm=algorithm,
         headers={"typ": token_type},
     )
@@ -162,6 +164,9 @@ def _encoded_token(
         _encoded_token(audience="wrong-audience"),
         _encoded_token(algorithm="HS384"),
         _encoded_token(token_type="not-access-jwt"),
+        _encoded_token(secret="different-signing-secret-with-at-least-forty-eight-bytes"),
+        _encoded_token(issued_at=NOW + timedelta(seconds=1)),
+        _encoded_token(subject="not-a-uuid"),
     ],
 )
 def test_users_me_rejects_malformed_expired_or_wrong_envelope(token: str) -> None:
@@ -188,8 +193,38 @@ class SqlAlchemyAuthRepositoryPlaceholder:
         raise AssertionError("invalid bearer must not query persistence")
 
 
+class MissingUserRepository:
+    def get_user_by_id(self, _user_id: uuid.UUID) -> User | None:
+        return None
+
+
 def test_users_me_requires_bearer_header() -> None:
     response = _client(StubAuthenticationService()).get("/api/v1/users/me")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_users_me_rejects_a_valid_subject_missing_from_database() -> None:
+    service = AuthenticationService(
+        repository=MissingUserRepository(),
+        secret_key=SECRET,
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        now=lambda: NOW,
+    )
+    token, _expires_in = issue_access_token(
+        secret_key=SECRET,
+        user_id=uuid.uuid4(),
+        role=UserRole.USER.value,
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        issued_at=NOW,
+    )
+
+    response = _client(service).get(
+        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+    )
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"

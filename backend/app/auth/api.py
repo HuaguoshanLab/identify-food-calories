@@ -1,22 +1,30 @@
-"""HTTP translation for registration; business rules remain in RegistrationService."""
+"""HTTP translation for authentication; business rules remain in services."""
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, Security, status
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.auth.repository import SqlAlchemyAuthRepository
 from app.auth.schemas import (
+    AccessTokenResponse,
     CodeDispatchAcceptedResponse,
+    CurrentUserResponse,
+    LoginRequest,
     RegisterRequest,
     VerificationCodeRequest,
     VerificationPendingResponse,
     VerificationSuccessResponse,
 )
+from app.auth.security import InvalidAccessToken
 from app.auth.service import (
+    AuthenticatedUserUnavailable,
+    AuthenticationService,
+    InvalidCredentials,
     InvalidVerificationCode,
     RegistrationDispatch,
     RegistrationService,
@@ -30,7 +38,29 @@ from app.notifications.smtp import create_smtp_mail_provider
 
 
 REGISTRATION_CONTEXT_COOKIE = "registration_context"
-router = APIRouter(prefix="/api/v1/auth/register", tags=["authentication"])
+REFRESH_TOKEN_COOKIE = "refresh_token"
+ACCESS_TOKEN_ISSUER = "food-agent-api"
+ACCESS_TOKEN_AUDIENCE = "food-agent-h5"
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
+users_router = APIRouter(prefix="/api/v1/users", tags=["users"])
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_authentication_service(
+    request: Request, session: Session = Depends(get_session)
+) -> AuthenticationService:
+    """Bind one request-scoped repository to login and identity policy."""
+
+    settings = request.app.state.settings
+    return AuthenticationService(
+        repository=SqlAlchemyAuthRepository(session),
+        secret_key=settings.secret_key.get_secret_value(),
+        issuer=ACCESS_TOKEN_ISSUER,
+        audience=ACCESS_TOKEN_AUDIENCE,
+        commit=session.commit,
+        rollback=session.rollback,
+    )
 
 
 def get_registration_service(
@@ -49,7 +79,7 @@ def get_registration_service(
 
 
 @router.post(
-    "",
+    "/register",
     response_model=CodeDispatchAcceptedResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -64,7 +94,7 @@ def register(
     return _accepted(dispatch)
 
 
-@router.get("/context", response_model=VerificationPendingResponse)
+@router.get("/register/context", response_model=VerificationPendingResponse)
 def registration_context(
     registration_context: str | None = Cookie(default=None),
     service: RegistrationService = Depends(get_registration_service),
@@ -85,7 +115,7 @@ def registration_context(
         )
 
 
-@router.post("/verify", response_model=VerificationSuccessResponse)
+@router.post("/register/verify", response_model=VerificationSuccessResponse)
 def verify_registration(
     payload: VerificationCodeRequest,
     response: Response,
@@ -137,7 +167,7 @@ def verify_registration(
 
 
 @router.post(
-    "/resend",
+    "/register/resend",
     response_model=CodeDispatchAcceptedResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -170,6 +200,58 @@ def resend_registration_code(
         )
     _set_context_cookie(response=response, request=request, dispatch=dispatch)
     return _accepted(dispatch)
+
+
+@router.post("/login", response_model=AccessTokenResponse)
+def login(
+    payload: LoginRequest,
+    response: Response,
+    request: Request,
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> AccessTokenResponse | JSONResponse:
+    try:
+        result = service.login(email=payload.email, password=payload.password)
+    except InvalidCredentials:
+        return _error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="AUTHENTICATION_FAILED",
+            message="邮箱或密码不正确，或账号尚不可登录。",
+        )
+    response.set_cookie(
+        REFRESH_TOKEN_COOKIE,
+        result.refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=request.app.state.settings.cookie_secure,
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+    return AccessTokenResponse(
+        access_token=result.access_token,
+        token_type="bearer",
+        expires_in=result.expires_in,
+    )
+
+
+@users_router.get("/me", response_model=CurrentUserResponse)
+def current_user(
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> CurrentUserResponse | JSONResponse:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return _authentication_required()
+    try:
+        return service.current_user(credentials.credentials)
+    except (InvalidAccessToken, AuthenticatedUserUnavailable):
+        return _authentication_required()
+
+
+def _authentication_required() -> JSONResponse:
+    return _error(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="AUTHENTICATION_REQUIRED",
+        message="登录状态无效或已过期，请重新登录。",
+    )
 
 
 def _accepted(dispatch: RegistrationDispatch) -> CodeDispatchAcceptedResponse:
