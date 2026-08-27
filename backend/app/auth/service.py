@@ -8,16 +8,28 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from app.auth.models import ChallengePurpose, User, UserRole, VerificationChallenge
+from app.auth.models import (
+    AuthSession,
+    ChallengePurpose,
+    RefreshToken,
+    User,
+    UserRole,
+    VerificationChallenge,
+)
 from app.auth.ports import AuthRepository
-from app.auth.schemas import PublicUser, VerificationPendingResponse
+from app.auth.schemas import CurrentUserResponse, PublicUser, VerificationPendingResponse
 from app.auth.security import (
     code_matches,
     derive_context_token,
     digest_code,
     digest_context,
     generate_verification_code,
+    generate_refresh_token,
     hash_password,
+    issue_access_token,
+    password_matches,
+    digest_refresh_token,
+    verify_access_token,
 )
 from app.notifications.ports import MailProvider
 
@@ -25,6 +37,121 @@ from app.notifications.ports import MailProvider
 VERIFICATION_EXPIRY = timedelta(minutes=10)
 RESEND_COOLDOWN = timedelta(seconds=60)
 MAX_VERIFICATION_ATTEMPTS = 5
+SESSION_EXPIRY = timedelta(days=30)
+
+
+class InvalidCredentials(ValueError):
+    """Uniform login failure for unknown, wrong, unverified, and inactive users."""
+
+
+class AuthenticatedUserUnavailable(ValueError):
+    """The signed subject no longer maps to an active authoritative user."""
+
+
+@dataclass(frozen=True, slots=True)
+class LoginResult:
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+
+class AuthenticationService:
+    """Login and current-identity policy over a repository port."""
+
+    def __init__(
+        self,
+        *,
+        repository: AuthRepository,
+        secret_key: str,
+        issuer: str,
+        audience: str,
+        now: Callable[[], datetime] | None = None,
+        commit: Callable[[], None] | None = None,
+        rollback: Callable[[], None] | None = None,
+    ) -> None:
+        self._repository = repository
+        self._secret_key = secret_key
+        self._issuer = issuer
+        self._audience = audience
+        self._now = now or (lambda: datetime.now(UTC))
+        self._commit = commit or (lambda: None)
+        self._rollback = rollback or (lambda: None)
+
+    def login(self, *, email: str, password: str) -> LoginResult:
+        user = self._repository.get_user_by_email(email.strip().lower())
+        password_valid = password_matches(
+            password=password,
+            password_hash=user.password_hash if user is not None else None,
+        )
+        if (
+            user is None
+            or not password_valid
+            or user.email_verified_at is None
+            or not user.is_active
+        ):
+            raise InvalidCredentials("invalid credentials")
+
+        now = self._now()
+        session = self._repository.add_session(
+            AuthSession(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                family_id=uuid.uuid4(),
+                created_at=now,
+                last_seen_at=now,
+                expires_at=now + SESSION_EXPIRY,
+                revoked_at=None,
+                device_label=None,
+            )
+        )
+        raw_refresh_token = generate_refresh_token()
+        self._repository.add_refresh_token(
+            RefreshToken(
+                id=uuid.uuid4(),
+                session_id=session.id,
+                token_digest=digest_refresh_token(
+                    secret_key=self._secret_key, refresh_token=raw_refresh_token
+                ),
+                issued_at=now,
+                expires_at=session.expires_at,
+                consumed_at=None,
+                replaced_by_id=None,
+                revoked_at=None,
+            )
+        )
+        access_token, expires_in = issue_access_token(
+            secret_key=self._secret_key,
+            user_id=user.id,
+            role=user.role,
+            issuer=self._issuer,
+            audience=self._audience,
+            issued_at=now,
+        )
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return LoginResult(
+            access_token=access_token,
+            refresh_token=raw_refresh_token,
+            token_type="bearer",
+            expires_in=expires_in,
+        )
+
+    def current_user(self, access_token: str) -> CurrentUserResponse:
+        user_id = verify_access_token(
+            token=access_token,
+            secret_key=self._secret_key,
+            issuer=self._issuer,
+            audience=self._audience,
+            now=self._now,
+        )
+        user = self._repository.get_user_by_id(user_id)
+        if user is None or not user.is_active:
+            raise AuthenticatedUserUnavailable
+        return CurrentUserResponse.model_validate(user)
 
 
 class RegistrationError(Exception):

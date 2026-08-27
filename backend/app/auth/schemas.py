@@ -25,6 +25,17 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=12, max_length=128)
 
 
+class LoginRequest(BaseModel):
+    email: EmailAddress
+    password: str = Field(min_length=12, max_length=128)
+
+
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int = Field(gt=0)
+
+
 class VerificationCodeRequest(BaseModel):
     code: str = Field(pattern=r"^[0-9]{6}$")
 

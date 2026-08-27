@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+import app.auth.service as auth_service_module
 from app.auth.models import AuthSession, RefreshToken, User, UserRole
 from app.auth.security import hash_password
 from app.auth.service import (
@@ -102,6 +103,27 @@ def test_login_uses_one_uniform_failure_without_creating_session(
     assert repository.sessions == []
     assert repository.refresh_tokens == []
     assert commits == []
+
+
+def test_unknown_and_known_login_each_execute_one_password_verification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = _user()
+    seen_hashes: list[str | None] = []
+
+    def record_verification(*, password: str, password_hash: str | None) -> bool:
+        assert password == "wrong password value"
+        seen_hashes.append(password_hash)
+        return False
+
+    monkeypatch.setattr(auth_service_module, "password_matches", record_verification)
+    for repository in (FakeAuthRepository([]), FakeAuthRepository([user])):
+        with pytest.raises(InvalidCredentials):
+            _service(repository).login(
+                email=user.email, password="wrong password value"
+            )
+
+    assert seen_hashes == [None, user.password_hash]
 
 
 def test_login_creates_session_and_minimal_access_and_opaque_refresh_tokens() -> None:
