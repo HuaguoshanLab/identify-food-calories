@@ -18,3 +18,5 @@
 | `test_login_me_service.py` | 登录、最小 access claims、opaque refresh 摘要与数据库权威身份的 Service 证据 |
 | `test_login_me_api.py` | login Cookie、Bearer 失败、真实 PostgreSQL `/users/me` 与 OpenAPI 证据 |
 | `test_login_rate_limit_service.py` | HMAC bucket、可控时钟、失败阈值与成功复位的 Service 合约证据 |
+| `test_refresh_service.py` | fake Repository 下 opaque refresh rotation、replay family revoke 与用户作用域会话协议 |
+| `test_refresh_api.py` | refresh/logout/session 的 Cookie、CSRF、稳定错误与 OpenAPI 非泄露合约 |

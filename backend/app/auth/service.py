@@ -19,7 +19,12 @@ from app.auth.models import (
     VerificationChallenge,
 )
 from app.auth.ports import AuthRepository
-from app.auth.schemas import CurrentUserResponse, PublicUser, VerificationPendingResponse
+from app.auth.schemas import (
+    CurrentUserResponse,
+    PublicUser,
+    SessionResponse,
+    VerificationPendingResponse,
+)
 from app.auth.security import (
     code_matches,
     derive_context_token,
@@ -32,6 +37,7 @@ from app.auth.security import (
     password_matches,
     digest_refresh_token,
     verify_access_token,
+    verify_access_token_session,
 )
 from app.notifications.ports import MailProvider
 
@@ -61,6 +67,18 @@ class AuthenticatedUserUnavailable(ValueError):
     """The signed subject no longer maps to an active authoritative user."""
 
 
+class InvalidRefreshToken(ValueError):
+    """Stable denial for absent, expired, revoked, or unknown refresh material."""
+
+
+class RefreshTokenReplayed(InvalidRefreshToken):
+    """A consumed refresh token was presented again and its family was revoked."""
+
+
+class CurrentSessionCannotBeRevoked(ValueError):
+    """The caller must use logout to revoke the currently authenticated session."""
+
+
 @dataclass(frozen=True, slots=True)
 class LoginResult:
     access_token: str
@@ -82,6 +100,7 @@ class AuthenticationService:
         now: Callable[[], datetime] | None = None,
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
+        refresh_token_factory: Callable[[], str] = generate_refresh_token,
     ) -> None:
         self._repository = repository
         self._secret_key = secret_key
@@ -90,6 +109,7 @@ class AuthenticationService:
         self._now = now or (lambda: datetime.now(UTC))
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
+        self._refresh_token_factory = refresh_token_factory
 
     def login(self, *, email: str, password: str, source: str) -> LoginResult:
         normalized_email = email.strip().lower()
@@ -147,7 +167,7 @@ class AuthenticationService:
                 device_label=None,
             )
         )
-        raw_refresh_token = generate_refresh_token()
+        raw_refresh_token = self._refresh_token_factory()
         self._repository.add_refresh_token(
             RefreshToken(
                 id=uuid.uuid4(),
@@ -169,6 +189,7 @@ class AuthenticationService:
             issuer=self._issuer,
             audience=self._audience,
             issued_at=now,
+            session_id=session.id,
         )
         try:
             self._commit()
@@ -181,6 +202,125 @@ class AuthenticationService:
             token_type="bearer",
             expires_in=expires_in,
         )
+
+    def refresh(self, refresh_token: str) -> LoginResult:
+        """Consume one opaque token under a row lock and mint exactly one successor."""
+
+        now = self._now()
+        token = self._repository.get_refresh_token_for_update(
+            digest_refresh_token(secret_key=self._secret_key, refresh_token=refresh_token)
+        )
+        if token is None:
+            raise InvalidRefreshToken
+
+        session = self._repository.get_session_for_update(token.session_id)
+        if session is None or session.revoked_at is not None or session.expires_at <= now:
+            raise InvalidRefreshToken
+        if token.revoked_at is not None or token.expires_at <= now:
+            raise InvalidRefreshToken
+        if token.consumed_at is not None:
+            self._repository.revoke_session_family(session_id=session.id, revoked_at=now)
+            try:
+                self._commit()
+            except Exception:
+                self._rollback()
+                raise
+            raise RefreshTokenReplayed
+
+        raw_successor = self._refresh_token_factory()
+        successor = self._repository.add_refresh_token(
+            RefreshToken(
+                id=uuid.uuid4(),
+                session_id=session.id,
+                token_digest=digest_refresh_token(
+                    secret_key=self._secret_key, refresh_token=raw_successor
+                ),
+                issued_at=now,
+                expires_at=session.expires_at,
+                consumed_at=None,
+                replaced_by_id=None,
+                revoked_at=None,
+            )
+        )
+        token.consumed_at = now
+        token.replaced_by_id = successor.id
+        session.last_seen_at = now
+        access_token, expires_in = issue_access_token(
+            secret_key=self._secret_key,
+            user_id=session.user_id,
+            role=self._active_user_role(session.user_id),
+            issuer=self._issuer,
+            audience=self._audience,
+            issued_at=now,
+            session_id=session.id,
+        )
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return LoginResult(
+            access_token=access_token,
+            refresh_token=raw_successor,
+            token_type="bearer",
+            expires_in=expires_in,
+        )
+
+    def authenticated_session(self, access_token: str) -> tuple[uuid.UUID, uuid.UUID]:
+        user_id, session_id = verify_access_token_session(
+            token=access_token,
+            secret_key=self._secret_key,
+            issuer=self._issuer,
+            audience=self._audience,
+            now=self._now,
+        )
+        session = self._repository.get_session_for_user(
+            session_id=session_id, user_id=user_id
+        )
+        if session is None or session.revoked_at is not None or session.expires_at <= self._now():
+            raise AuthenticatedUserUnavailable
+        return user_id, session_id
+
+    def logout(self, *, user_id: uuid.UUID, session_id: uuid.UUID) -> bool:
+        revoked = self._repository.revoke_session_for_user(
+            session_id=session_id, user_id=user_id, revoked_at=self._now()
+        )
+        if revoked:
+            try:
+                self._commit()
+            except Exception:
+                self._rollback()
+                raise
+        return revoked
+
+    def list_sessions(
+        self, *, user_id: uuid.UUID, current_session_id: uuid.UUID
+    ) -> list[SessionResponse]:
+        return [
+            SessionResponse(
+                id=session.id,
+                created_at=session.created_at,
+                last_seen_at=session.last_seen_at,
+                expires_at=session.expires_at,
+                revoked_at=session.revoked_at,
+                device_label=session.device_label,
+                is_current=session.id == current_session_id,
+            )
+            for session in self._repository.list_sessions_for_user(user_id)
+        ]
+
+    def revoke_session(
+        self, *, user_id: uuid.UUID, session_id: uuid.UUID, current_session_id: uuid.UUID
+    ) -> bool:
+        if session_id == current_session_id:
+            raise CurrentSessionCannotBeRevoked
+        return self.logout(user_id=user_id, session_id=session_id)
+
+    def _active_user_role(self, user_id: uuid.UUID) -> str:
+        user = self._repository.get_user_by_id(user_id)
+        if user is None or not user.is_active:
+            raise InvalidRefreshToken
+        return user.role
 
     def _login_bucket_digests(
         self, *, normalized_email: str, source: str

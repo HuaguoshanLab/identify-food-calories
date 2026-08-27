@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from app.auth.models import (
@@ -159,6 +159,11 @@ class SqlAlchemyAuthRepository:
             )
         )
 
+    def get_session_for_update(self, session_id: uuid.UUID) -> AuthSession | None:
+        return self._session.scalar(
+            select(AuthSession).where(AuthSession.id == session_id).with_for_update()
+        )
+
     def list_sessions_for_user(self, user_id: uuid.UUID) -> list[AuthSession]:
         return list(
             self._session.scalars(
@@ -167,6 +172,38 @@ class SqlAlchemyAuthRepository:
                 .order_by(AuthSession.created_at.desc())
             )
         )
+
+    def revoke_session_for_user(
+        self, *, session_id: uuid.UUID, user_id: uuid.UUID, revoked_at: datetime
+    ) -> bool:
+        result = self._session.execute(
+            update(AuthSession)
+            .where(
+                AuthSession.id == session_id,
+                AuthSession.user_id == user_id,
+                AuthSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=revoked_at)
+        )
+        return result.rowcount == 1
+
+    def revoke_session_family(
+        self, *, session_id: uuid.UUID, revoked_at: datetime
+    ) -> None:
+        self._session.execute(
+            update(AuthSession)
+            .where(AuthSession.id == session_id, AuthSession.revoked_at.is_(None))
+            .values(revoked_at=revoked_at)
+        )
+        self._session.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.session_id == session_id,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .values(revoked_at=revoked_at)
+        )
+        self._session.flush()
 
     def add_refresh_token(self, refresh_token: RefreshToken) -> RefreshToken:
         self._session.add(refresh_token)

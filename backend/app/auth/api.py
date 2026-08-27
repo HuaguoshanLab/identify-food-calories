@@ -19,6 +19,7 @@ from app.auth.schemas import (
     VerificationCodeRequest,
     VerificationPendingResponse,
     VerificationSuccessResponse,
+    SessionResponse,
 )
 from app.auth.security import InvalidAccessToken
 from app.auth.service import (
@@ -33,6 +34,9 @@ from app.auth.service import (
     VerificationAttemptsExceeded,
     VerificationCodeExpired,
     VerificationContextInvalid,
+    CurrentSessionCannotBeRevoked,
+    InvalidRefreshToken,
+    RefreshTokenReplayed,
 )
 from app.core.database import get_session
 from app.notifications.smtp import create_smtp_mail_provider
@@ -228,20 +232,84 @@ def login(
             code="AUTHENTICATION_FAILED",
             message="邮箱或密码不正确，或账号尚不可登录。",
         )
-    response.set_cookie(
-        REFRESH_TOKEN_COOKIE,
-        result.refresh_token,
-        max_age=REFRESH_COOKIE_MAX_AGE,
-        httponly=True,
-        secure=request.app.state.settings.cookie_secure,
-        samesite="lax",
-        path="/api/v1/auth",
-    )
+    _set_refresh_cookie(response=response, request=request, refresh_token=result.refresh_token)
     return AccessTokenResponse(
         access_token=result.access_token,
         token_type="bearer",
         expires_in=result.expires_in,
     )
+
+
+@router.post("/refresh", response_model=AccessTokenResponse)
+def refresh(
+    response: Response,
+    request: Request,
+    refresh_token: str | None = Cookie(default=None, include_in_schema=False),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> AccessTokenResponse | JSONResponse:
+    if not _request_origin_is_allowed(request):
+        return _error(status_code=status.HTTP_403_FORBIDDEN, code="CSRF_ORIGIN_INVALID", message="请求来源无效。")
+    if not refresh_token:
+        return _refresh_invalid(response=response, request=request)
+    try:
+        result = service.refresh(refresh_token)
+    except (InvalidRefreshToken, RefreshTokenReplayed):
+        return _refresh_invalid(response=response, request=request)
+    _set_refresh_cookie(response=response, request=request, refresh_token=result.refresh_token)
+    return AccessTokenResponse(access_token=result.access_token, token_type="bearer", expires_in=result.expires_in)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def logout(
+    response: Response,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> Response | JSONResponse:
+    if not _request_origin_is_allowed(request):
+        return _error(status_code=status.HTTP_403_FORBIDDEN, code="CSRF_ORIGIN_INVALID", message="请求来源无效。")
+    authenticated = _authenticated_session(credentials=credentials, service=service)
+    if isinstance(authenticated, JSONResponse):
+        return authenticated
+    user_id, session_id = authenticated
+    service.logout(user_id=user_id, session_id=session_id)
+    _clear_refresh_cookie(response=response, request=request)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.get("/sessions", response_model=list[SessionResponse])
+def sessions(
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> list[SessionResponse] | JSONResponse:
+    authenticated = _authenticated_session(credentials=credentials, service=service)
+    if isinstance(authenticated, JSONResponse):
+        return authenticated
+    user_id, session_id = authenticated
+    return service.list_sessions(user_id=user_id, current_session_id=session_id)
+
+
+@router.delete(
+    "/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
+def revoke_session(
+    session_id: uuid.UUID,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> Response | JSONResponse:
+    if not _request_origin_is_allowed(request):
+        return _error(status_code=status.HTTP_403_FORBIDDEN, code="CSRF_ORIGIN_INVALID", message="请求来源无效。")
+    authenticated = _authenticated_session(credentials=credentials, service=service)
+    if isinstance(authenticated, JSONResponse):
+        return authenticated
+    user_id, current_session_id = authenticated
+    try:
+        service.revoke_session(user_id=user_id, session_id=session_id, current_session_id=current_session_id)
+    except CurrentSessionCannotBeRevoked:
+        return _error(status_code=status.HTTP_409_CONFLICT, code="CURRENT_SESSION_REQUIRES_LOGOUT", message="当前会话请通过退出登录撤销。")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @users_router.get("/me", response_model=CurrentUserResponse)
@@ -263,6 +331,59 @@ def _authentication_required() -> JSONResponse:
         code="AUTHENTICATION_REQUIRED",
         message="登录状态无效或已过期，请重新登录。",
     )
+
+
+def _authenticated_session(
+    *, credentials: HTTPAuthorizationCredentials | None, service: AuthenticationService
+) -> tuple[uuid.UUID, uuid.UUID] | JSONResponse:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return _authentication_required()
+    try:
+        return service.authenticated_session(credentials.credentials)
+    except (InvalidAccessToken, AuthenticatedUserUnavailable):
+        return _authentication_required()
+
+
+def _request_origin_is_allowed(request: Request) -> bool:
+    origin = request.headers.get("origin")
+    if origin is None:
+        referer = request.headers.get("referer")
+        if referer is None:
+            return True
+        return any(referer.startswith(f"{allowed}/") or referer == allowed for allowed in request.app.state.settings.cors_origins)
+    return origin in request.app.state.settings.cors_origins
+
+
+def _set_refresh_cookie(*, response: Response, request: Request, refresh_token: str) -> None:
+    response.set_cookie(
+        REFRESH_TOKEN_COOKIE,
+        refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=request.app.state.settings.cookie_secure,
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+
+
+def _clear_refresh_cookie(*, response: Response, request: Request) -> None:
+    response.delete_cookie(
+        REFRESH_TOKEN_COOKIE,
+        path="/api/v1/auth",
+        secure=request.app.state.settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def _refresh_invalid(*, response: Response, request: Request) -> JSONResponse:
+    error = _error(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="REFRESH_TOKEN_INVALID",
+        message="登录状态无效或已过期，请重新登录。",
+    )
+    _clear_refresh_cookie(response=error, request=request)
+    return error
 
 
 def _accepted(dispatch: RegistrationDispatch) -> CodeDispatchAcceptedResponse:

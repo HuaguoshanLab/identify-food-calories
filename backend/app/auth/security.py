@@ -50,6 +50,7 @@ def issue_access_token(
     issuer: str,
     audience: str,
     issued_at: datetime,
+    session_id: uuid.UUID | None = None,
 ) -> tuple[str, int]:
     expires_at = issued_at + ACCESS_TOKEN_TTL
     claims = {
@@ -57,7 +58,9 @@ def issue_access_token(
         "role": role,
         "iat": int(issued_at.timestamp()),
         "exp": int(expires_at.timestamp()),
-        "jti": str(uuid.uuid4()),
+        # A session-bound JTI lets session-management endpoints identify the bearer
+        # without exposing refresh material or adding a second unvalidated claim.
+        "jti": str(session_id or uuid.uuid4()),
         "iss": issuer,
         "aud": audience,
     }
@@ -79,6 +82,43 @@ def verify_access_token(
     now: Callable[[], datetime] | None = None,
 ) -> uuid.UUID:
     """Validate the complete access-token envelope and return only its subject."""
+
+    return _verify_access_token_claims(
+        token=token,
+        secret_key=secret_key,
+        issuer=issuer,
+        audience=audience,
+        now=now,
+    )[0]
+
+
+def verify_access_token_session(
+    *,
+    token: str,
+    secret_key: str,
+    issuer: str,
+    audience: str,
+    now: Callable[[], datetime] | None = None,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Return authenticated subject and the session-bound JTI for session operations."""
+
+    return _verify_access_token_claims(
+        token=token,
+        secret_key=secret_key,
+        issuer=issuer,
+        audience=audience,
+        now=now,
+    )
+
+
+def _verify_access_token_claims(
+    *,
+    token: str,
+    secret_key: str,
+    issuer: str,
+    audience: str,
+    now: Callable[[], datetime] | None = None,
+) -> tuple[uuid.UUID, uuid.UUID]:
 
     current_time = (now or (lambda: datetime.now(UTC)))()
     try:
@@ -108,10 +148,10 @@ def verify_access_token(
         now_timestamp = current_time.timestamp()
         if issued_at > now_timestamp or expires_at <= now_timestamp or expires_at <= issued_at:
             raise InvalidAccessToken
-        uuid.UUID(claims["jti"])
+        session_id = uuid.UUID(claims["jti"])
         if claims["role"] not in {"user", "admin"}:
             raise InvalidAccessToken
-        return uuid.UUID(claims["sub"])
+        return uuid.UUID(claims["sub"]), session_id
     except (jwt.InvalidTokenError, KeyError, TypeError, ValueError) as error:
         raise InvalidAccessToken from error
 

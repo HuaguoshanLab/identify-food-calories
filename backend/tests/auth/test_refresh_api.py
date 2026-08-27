@@ -56,6 +56,7 @@ class StubRefreshService:
             SessionResponse(
                 id=self.session_id,
                 created_at=NOW,
+                last_seen_at=NOW,
                 expires_at=NOW,
                 revoked_at=None,
                 device_label=None,
@@ -94,6 +95,7 @@ def _client(service: object, *, cookie_secure: bool = False) -> TestClient:
 def test_refresh_rotates_httponly_cookie_without_exposing_refresh_secret() -> None:
     response = _client(StubRefreshService()).post(
         "/api/v1/auth/refresh", cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"}
+        , headers={"Origin": "http://localhost:5173"}
     )
 
     assert response.status_code == 200

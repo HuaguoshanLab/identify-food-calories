@@ -80,3 +80,4 @@ class SessionResponse(BaseModel):
     expires_at: datetime
     revoked_at: datetime | None
     device_label: str | None
+    is_current: bool

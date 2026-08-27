@@ -43,6 +43,9 @@ class FakeRefreshRepository:
         session = self.sessions.get(session_id)
         return session if session is not None and session.user_id == user_id else None
 
+    def get_session_for_update(self, session_id: uuid.UUID) -> AuthSession | None:
+        return self.sessions.get(session_id)
+
     def list_sessions_for_user(self, user_id: uuid.UUID) -> list[AuthSession]:
         return [session for session in self.sessions.values() if session.user_id == user_id]
 
@@ -83,7 +86,9 @@ def _fixture() -> tuple[FakeRefreshRepository, AuthenticationService, str, AuthS
     session = AuthSession(
         id=uuid.uuid4(),
         user_id=user.id,
+        family_id=uuid.uuid4(),
         created_at=NOW,
+        last_seen_at=NOW,
         expires_at=NOW + timedelta(days=30),
         revoked_at=None,
         device_label=None,
@@ -96,6 +101,7 @@ def _fixture() -> tuple[FakeRefreshRepository, AuthenticationService, str, AuthS
         issued_at=NOW,
         expires_at=NOW + timedelta(days=30),
         consumed_at=None,
+        replaced_by_id=None,
         revoked_at=None,
     )
     repository = FakeRefreshRepository(user=user, session=session, token=token)
@@ -154,7 +160,9 @@ def test_logout_and_session_listing_are_scoped_to_authenticated_user() -> None:
     other = AuthSession(
         id=uuid.uuid4(),
         user_id=uuid.uuid4(),
+        family_id=uuid.uuid4(),
         created_at=NOW,
+        last_seen_at=NOW,
         expires_at=NOW + timedelta(days=30),
         revoked_at=None,
         device_label=None,
@@ -179,4 +187,3 @@ def test_current_session_cannot_be_revoked_through_session_management() -> None:
             session_id=session.id,
             current_session_id=session.id,
         )
-
