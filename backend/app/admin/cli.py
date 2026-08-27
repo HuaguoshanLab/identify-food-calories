@@ -28,10 +28,10 @@ def main(
         service = AdminService(
             repository=repository, commit=session.commit, rollback=session.rollback
         )
-        target = repository.get_user_by_email(_normalize_email(arguments.email))
-        if target is None:
-            return _denied("target user was not found")
         try:
+            target = repository.get_user_by_email(_normalize_email(arguments.email))
+            if target is None:
+                return _denied("target user was not found")
             if arguments.command == "bootstrap":
                 audit = service.bootstrap_first_admin(
                     target_user_id=target.id, reason=arguments.reason

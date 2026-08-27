@@ -48,6 +48,9 @@ class AdminService:
     ) -> AdminRoleAudit:
         """Promote only when the system has no active admin, recording the system actor."""
 
+        # A transaction-scoped PostgreSQL advisory lock closes the check-then-promote
+        # race: concurrent bootstrap processes cannot both observe an empty admin set.
+        self._repository.acquire_bootstrap_lock()
         if self._repository.has_active_admin():
             raise AdminRoleChangeDenied("bootstrap is only available before an active admin exists")
         target = self._promotion_target(target_user_id)

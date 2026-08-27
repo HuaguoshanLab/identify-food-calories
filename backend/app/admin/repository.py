@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, select, text
 from sqlalchemy.orm import Session
 
 from app.admin.models import AdminRoleAudit
@@ -16,6 +16,11 @@ class SqlAlchemyAdminRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def acquire_bootstrap_lock(self) -> None:
+        """Serialize the one-time bootstrap check without adding mutable global state."""
+
+        self._session.execute(text("SELECT pg_advisory_xact_lock(918273645)"))
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._session.get(User, user_id)

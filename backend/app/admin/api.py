@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Security, status
+import uuid
+
+from fastapi import APIRouter, Depends, Security, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -70,4 +72,9 @@ def _forbidden() -> JSONResponse:
 
 
 def _error(*, status_code: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message}})
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {"code": code, "message": message, "request_id": str(uuid.uuid4())}
+        },
+    )
