@@ -16,4 +16,4 @@
 | 路径 | 职责 |
 |---|---|
 | `README.md` | 组件目录职责、依赖边界与索引 |
-| `ui/` | 官方 shadcn Base UI 组件与共享样式 utility |
+| `ui/` | 官方 shadcn Base UI 组件与共享样式 utility：Button、Input、Label、Card、Separator 及后续状态原语 |
