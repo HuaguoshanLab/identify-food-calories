@@ -55,6 +55,26 @@ function renderSessionList() {
   )
 }
 
+function renderIndependentAuthProviders() {
+  const firstClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const secondClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={firstClient}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </QueryClientProvider>
+      <QueryClientProvider client={secondClient}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
+  )
+}
+
 describe('authentication session bootstrap', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -118,6 +138,35 @@ describe('authentication session bootstrap', () => {
     // Bootstrap and the shared refresh both verify identity through /users/me.
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(8))
     expect(localStorageSetItem).not.toHaveBeenCalled()
+  })
+
+  it('shares a bootstrap refresh across independent providers', async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined
+    const pendingRefresh = new Promise<Response>((resolve) => { resolveRefresh = resolve })
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) return pendingRefresh
+      if (url.endsWith('/users/me')) {
+        return Promise.resolve(jsonResponse({
+          id: '00000000-0000-0000-0000-000000000001',
+          email: 'database@example.com',
+          email_verified_at: null,
+          is_active: true,
+          role: 'user',
+        }))
+      }
+      return Promise.resolve(jsonResponse({ error: { code: 'UNEXPECTED' } }, 500))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderIndependentAuthProviders()
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/auth/refresh'))).toHaveLength(1))
+    resolveRefresh?.(jsonResponse({ access_token: 'shared-access', expires_in: 900, token_type: 'bearer' }))
+
+    await waitFor(() => expect(screen.getAllByTestId('identity')).toHaveLength(2))
+    for (const identity of screen.getAllByTestId('identity')) {
+      expect(identity).toHaveTextContent('database@example.com:user')
+    }
   })
 })
 

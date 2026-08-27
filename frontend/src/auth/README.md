@@ -24,7 +24,8 @@
 | `ForgotPasswordPage.tsx` | 密码恢复申请壳；等待后端恢复 API 合约 |
 | `ResetPasswordPage.tsx` | 缺少有效恢复上下文时的安全重置入口 |
 | `api.ts` | 受控注册、验证、登录、refresh 与 `/users/me` API 适配器；默认走同源 `/api/v1`，生产绝不把回环 API 地址编进 bundle，也不暴露 Cookie 或 token |
-| `AuthProvider.tsx` | access token 仅存运行时内存；single-flight refresh 后以 `/users/me` 建立数据库权威身份 |
+| `AuthProvider.tsx` | access token 仅存运行时内存；页面内 single-flight 与跨标签 Web Locks 协调 refresh 后以 `/users/me` 建立数据库权威身份 |
+| `refreshCoordinator.ts` | 页面内 refresh single-flight 与同源标签页 Web Locks 协调；不放宽服务端真实 replay 的 family revoke |
 | `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
 | `RouteGuards.tsx` | `/app` 路由守卫、bootstrap 状态和账号摘要 |
 | `returnTo.ts` | 同源、相对、已登记受保护路由的登录返回地址解析 |
@@ -32,5 +33,6 @@
 | `RevokeSessionDialog.tsx` | Base UI AlertDialog 的破坏性远端会话撤销确认，不允许撤销当前会话 |
 | `schemas.ts` | React Hook Form 使用的 Zod 运行时输入契约 |
 | `AuthForms.test.tsx` | 表单、payload、错误、冷却和可访问性行为测试 |
-| `AuthSession.test.tsx` | refresh、数据库权威身份、并发 401 重试与 token 非持久化测试 |
+| `AuthSession.test.tsx` | refresh、数据库权威身份、独立 Provider bootstrap、并发 401 重试与 token 非持久化测试 |
+| `refreshCoordinator.test.ts` | 隔离标签页运行时的 refresh 锁串行化测试 |
 | `ProtectedRoutes.test.tsx` | 受保护深链、安全 returnTo 与无 admin 路由测试 |

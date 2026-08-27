@@ -19,6 +19,7 @@ import {
   requestWithAccess,
 } from './api'
 import { AuthContext, type AuthContextValue, type AuthenticationStatus } from './AuthContext'
+import { coordinateRefresh } from './refreshCoordinator'
 
 type AuthenticatedSession = {
   accessToken: string
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return refreshFlight.current
     }
 
-    const flight = refreshAccessToken()
+    const flight = coordinateRefresh(refreshAccessToken)
       .then(establishSession)
       .catch((error: unknown) => {
         if (error instanceof AuthApiError && (error.code === 'NETWORK_ERROR' || error.code === 'UNKNOWN_ERROR')) {
@@ -68,9 +69,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         clearSession()
         return undefined
       })
-      .finally(() => {
-        refreshFlight.current = undefined
-      })
+      .finally(() => { refreshFlight.current = undefined })
     refreshFlight.current = flight
     return flight
   }, [clearSession, establishSession])
