@@ -2,7 +2,7 @@
 
 ## 职责
 
-`auth/` 定义用户、邮箱验证、登录会话和 refresh token 的权威数据边界。ORM 只描述持久化结构，Pydantic Schema 只描述运行时公开数据，Repository port 隔离应用服务与 SQLAlchemy。
+`auth/` 定义用户、邮箱验证、登录会话和 refresh token 的权威数据边界。ORM 只描述持久化结构，Pydantic Schema 只描述运行时公开数据，Service 执行业务协议，Repository port 隔离应用服务与 SQLAlchemy。
 
 ## 允许依赖
 
@@ -10,6 +10,8 @@
 - `schemas.py` 只依赖 Pydantic 和标准库；不得暴露密码摘要、验证码摘要或 refresh token 摘要。
 - `ports.py` 可以引用 ORM 实体来定义应用层所需的持久化能力，不得引用 SQLAlchemy `Session`。
 - `repository.py` 实现 port，可执行 SQLAlchemy query 和 `flush()`；事务提交或回滚由 Service/调用方负责。
+- `service.py` 只能依赖 port、Schema 和安全原语；不得导入 FastAPI 或直接查询数据库。
+- `security.py` 封装 Argon2id 与 HMAC/CSPRNG 原语，不决定验证码生命周期。
 
 ## 文件索引
 
@@ -20,3 +22,5 @@
 | `schemas.py` | 注册、验证、用户和会话的公开运行时合约 |
 | `ports.py` | 应用服务依赖的 Repository Protocol |
 | `repository.py` | 同步 SQLAlchemy Repository adapter |
+| `security.py` | Argon2id 密码哈希、验证码 CSPRNG 与 HMAC 摘要原语 |
+| `service.py` | 注册、验证码冷却/过期/次数/替换/消费应用协议 |

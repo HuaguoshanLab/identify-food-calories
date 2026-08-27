@@ -21,6 +21,10 @@ class AuthRepository(Protocol):
         self, *, context_digest: str, purpose: str
     ) -> VerificationChallenge | None: ...
 
+    def get_current_challenge_for_user_for_update(
+        self, *, user_id: uuid.UUID, purpose: str
+    ) -> VerificationChallenge | None: ...
+
     def add_session(self, auth_session: AuthSession) -> AuthSession: ...
 
     def get_session_for_user(

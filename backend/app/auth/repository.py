@@ -45,6 +45,21 @@ class SqlAlchemyAuthRepository:
         )
         return self._session.scalar(statement)
 
+    def get_current_challenge_for_user_for_update(
+        self, *, user_id: uuid.UUID, purpose: str
+    ) -> VerificationChallenge | None:
+        statement = (
+            select(VerificationChallenge)
+            .where(
+                VerificationChallenge.user_id == user_id,
+                VerificationChallenge.purpose == purpose,
+                VerificationChallenge.consumed_at.is_(None),
+                VerificationChallenge.invalidated_at.is_(None),
+            )
+            .with_for_update()
+        )
+        return self._session.scalar(statement)
+
     def add_session(self, auth_session: AuthSession) -> AuthSession:
         self._session.add(auth_session)
         self._session.flush()
