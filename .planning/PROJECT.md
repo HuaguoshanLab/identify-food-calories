@@ -77,6 +77,7 @@
 | 前后端分离模块化单体 | 满足后端学习与真实工程边界，同时避免过早微服务化 |
 | 后台管理复用同一 React 应用 | `/admin` 由 RBAC 保护，减少重复工程和权限漂移 |
 | 教学材料作为交付物 | 代码要能解释架构选择、请求链路、测试策略和失败模式 |
+| 分层目录自文档化 | 根目录、`frontend/`、`backend/` 分别维护 README 与 AGENTS；新增目录与职责/依赖/文件索引 README 同次提交 |
 
 ## Product and Safety Constraints
 

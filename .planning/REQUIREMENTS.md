@@ -80,6 +80,7 @@
 - [ ] **ARC-04**：PostgreSQL、pgvector 与所需本地依赖通过 Docker Compose 启动，迁移显式执行。
 - [ ] **ARC-05**：前后端使用版本化 OpenAPI 契约；流式 Agent 事件使用 SSE。
 - [ ] **ARC-06**：模型 Provider 可替换且具备 fake 实现，测试不依赖真实付费 API。
+- [ ] **ARC-07**：仓库根目录、`frontend/` 与 `backend/` 各自维护 `README.md` 和 `AGENTS.md`；新增任何目录时必须在同次提交创建该目录的 `README.md`，写明职责、允许依赖和文件索引。
 - [ ] **EDU-01**：每个后端阶段提供中文教学文档，说明请求链路、设计理由、测试策略和常见错误。
 - [ ] **EDU-02**：README 包含架构图、LangGraph 状态图、关键时序图、启动与调试命令。
 - [ ] **EDU-03**：关键模块配套面试深挖题和可验证答案线索。
@@ -101,7 +102,7 @@
 
 | Requirement group | Phase |
 |---|---|
-| AUTH-01..06, ARC-01..04, EDU-01 | Phase 1 |
+| AUTH-01..06, ARC-01..04, ARC-07, EDU-01 | Phase 1 |
 | AGT-01..07, NUT-01..05, ARC-05..06, QLT-02 | Phase 2 |
 | VIS-01..06, NUT-06..07, UI-01, QLT-01 | Phase 3 |
 | MEM-01..06 | Phase 4 |

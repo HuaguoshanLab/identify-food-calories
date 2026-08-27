@@ -75,6 +75,8 @@
 
 ## Conventions
 
+- 仓库根目录、`frontend/` 与 `backend/` 必须各自维护 `README.md` 和 `AGENTS.md`；子级 `AGENTS.md` 只能细化、不能放宽上级规则。
+- 新增任何目录时，必须在同一次提交新增该目录的 `README.md`，写明目录职责、允许依赖和文件索引；目录文件变化时同步更新索引。
 - 数据库 schema 变更必须通过 Alembic migration。
 - API、模型输出、工具参数和 Graph State 必须经过运行时校验。
 - 模型、提示词、工具、目录和计算规则都有版本标识。

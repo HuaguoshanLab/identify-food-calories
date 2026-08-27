@@ -142,6 +142,36 @@ The client may pre-check password/email for usability, but server errors are aut
 
 The scaffold is incomplete product code and must not be counted as delivered until migrated, tested, and documented. Its strongest reusable idea is refusing SQLite and the development database during repository tests.
 
+## Directory Documentation Contract
+
+The repository must be self-describing at every directory boundary. Phase 1 must create the root `README.md`, `frontend/README.md`, `frontend/AGENTS.md`, `backend/README.md`, and `backend/AGENTS.md`. Every new source, test, migration, or documentation directory created by an execution task must receive its own `README.md` in that same task and commit. Each directory README has three mandatory sections: `职责`, `允许依赖`, and `文件索引`. The file index is maintained when files are added, moved, or removed.
+
+Root documentation explains full-stack orchestration and global rules. Frontend documentation may only depend on public API contracts and frontend libraries; backend documentation owns HTTP, application, persistence, security, and Agent boundaries. Child `AGENTS.md` files may add local rules but may never weaken root security, testing, or directory-documentation rules.
+
+## Package Legitimacy Audit
+
+Package names below were checked against their official PyPI/npm registry entries or official project installation documentation on 2026-08-27. `[VERIFIED]` means the name and source are legitimate; it does not waive lockfile review, vulnerability scanning, or compatibility tests during installation.
+
+| Package / install name | Registry or official source | Status | Intended use |
+|---|---|---|---|
+| `fastapi`, `uvicorn[standard]` | PyPI / FastAPI official docs | [VERIFIED] | API runtime |
+| `sqlalchemy`, `alembic`, `psycopg[binary]` | PyPI / SQLAlchemy and Alembic official docs | [VERIFIED] | ORM, migrations, PostgreSQL driver |
+| `pydantic-settings`, `email-validator` | PyPI | [VERIFIED] | settings and normalized email validation |
+| `pwdlib[argon2]` | PyPI; also used by current FastAPI security guide | [VERIFIED] | Argon2 password hashing |
+| `PyJWT` | PyPI / project repository | [VERIFIED] | short-lived access-token signing and validation |
+| `pytest`, `httpx`, `pytest-cov`, `ruff`, `mypy` | PyPI / respective official projects | [VERIFIED] | backend test, coverage, lint, typing |
+| `react`, `react-dom` | npm / React official project | [VERIFIED] | UI runtime |
+| `react-router-dom` | npm / React Router official docs | [VERIFIED] | client routing |
+| `@tanstack/react-query` | npm / TanStack official docs | [VERIFIED] | server-state and auth request orchestration |
+| `react-hook-form`, `zod`, `@hookform/resolvers` | npm / respective official projects | [VERIFIED] | forms and client validation |
+| `vite`, `typescript`, `@vitejs/plugin-react` | npm / Vite official docs | [VERIFIED] | frontend build and typing |
+| `tailwindcss`, `@tailwindcss/vite`, `shadcn`, `@base-ui/react`, `lucide-react` | npm / Tailwind, shadcn, Base UI and Lucide official docs | [VERIFIED] | verified UI-SPEC implementation |
+| `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `msw` | npm / respective official projects | [VERIFIED] | frontend unit/component/API mocking tests |
+| `@playwright/test` | npm / Playwright official docs | [VERIFIED] | browser E2E |
+| `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh` | npm / ESLint and React official tooling | [VERIFIED] | frontend static checks |
+
+Do not install similarly named boilerplate packages or third-party shadcn registries. Initialize the frontend from the official Vite path and add only the audited packages. The executor must inspect generated manifests/lockfiles before committing.
+
 ## Threat Model
 
 | Threat | Severity | Required mitigation/evidence |
@@ -249,4 +279,3 @@ Plans 2 and 3 should be test-first at the service/protocol level even though glo
 ---
 
 ## RESEARCH COMPLETE
-

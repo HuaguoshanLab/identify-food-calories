@@ -23,7 +23,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户可以安全注册、登录和退出；开发者能运行独立前后端与 PostgreSQL，并从文档理解完整认证链路。
 **Mode:** mvp
 **Depends on:** Nothing
-**Requirements:** AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, ARC-01, ARC-02, ARC-03, ARC-04, EDU-01
+**Requirements:** AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, ARC-01, ARC-02, ARC-03, ARC-04, ARC-07, EDU-01
 **Success Criteria:**
 
 1. Docker Compose 启动 PostgreSQL；React/Vite 与 FastAPI 分别运行并通过 `/api/v1` 通信。
@@ -31,6 +31,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 3. `user` 与 `admin` 权限在后端强制执行；普通用户请求后台 API 返回统一 403。
 4. SQLAlchemy、Pydantic、Repository、Service 和 API 边界清晰，Alembic 可从空库重建结构。
 5. `docs/learning/01-auth-and-backend-foundation.md` 能解释密码哈希、令牌轮换、依赖注入、数据库事务和测试分层。
+6. 根目录、`frontend/` 与 `backend/` 均包含本级 `README.md` 和 `AGENTS.md`；本阶段新增的每个目录均有同次提交的职责、允许依赖和文件索引说明。
 
 ### Phase 2: 可追问的 Agent 核心
 
