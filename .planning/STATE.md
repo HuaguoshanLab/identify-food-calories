@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-08-27T07:07:14.864Z"
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-08-27T07:31:29.545Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 4
-  percent: 29
+  completed_plans: 5
+  percent: 36
 ---
 
 # Project State
@@ -26,35 +26,36 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 5 of 14
+Plan: 6 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [███░░░░░░░] 29%
+Progress: [████░░░░░░] 36%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
-- Average duration: 16 min
-- Total execution time: 1.1 hours
+- Total plans completed: 5
+- Average duration: 15 min
+- Total execution time: 1.3 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 4 | 63 min | 16 min |
+| 01 | 5 | 76 min | 15 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 13 min, 23 min, 12 min, 15 min
-- Trend: variable, 16 min average
+- Last 5 plans: 13 min, 23 min, 12 min, 15 min, 13 min
+- Trend: variable, 15 min average
 
 *Updated after each plan completion*
 | Phase 01 P02 | 23 min | 2 tasks | 14 files |
 | Phase 01 P03 | 12 min | 2 tasks | 18 files |
 | Phase 01 P04 | 15 min | 2 tasks | 17 files |
+| Phase 01 P05 | 13 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 01]: 验证码使用 6 位 ASCII CSPRNG，并按高熵 context 作用域做 HMAC；数据库只保存摘要。
 - [Phase 01]: registration context 由服务端密钥与 challenge UUID 可重建，再以摘要落库，兼顾冷却期非枚举与 digest-only。
 - [Phase 01]: 邮箱验证只激活账号并要求登录，不自动创建 session 或签发 token。
+- [Phase 01]: access token 固定 HS256/typ/issuer/audience，并严格校验最小 claims。
+- [Phase 01]: /users/me 的 email、active 和最终 role 每次按 JWT sub 从 PostgreSQL 重读。
+- [Phase 01]: refresh token 使用 256-bit opaque 原文进 HttpOnly Cookie，数据库只保存 HMAC 摘要。
 
 ### Pending Todos
 
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T07:07:14.861Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-08-27T07:31:29.542Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None
