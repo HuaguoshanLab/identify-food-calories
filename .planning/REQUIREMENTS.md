@@ -74,13 +74,13 @@
 
 ### 工程、教学与质量
 
-- [ ] **ARC-01**：仓库保持独立 `frontend/` 与 `backend/`，后端为模块化单体。
+- [x] **ARC-01**：仓库保持独立 `frontend/` 与 `backend/`，后端为模块化单体。
 - [ ] **ARC-02**：FastAPI 使用 API → Service/Use Case → Repository → Model 分层，Agent 编排层只能通过工具调用领域服务。
 - [ ] **ARC-03**：SQLAlchemy Model、Pydantic Schema、LangGraph State 与 Provider DTO 分离。
-- [ ] **ARC-04**：PostgreSQL、pgvector 与所需本地依赖通过 Docker Compose 启动，迁移显式执行。
+- [x] **ARC-04**：PostgreSQL、pgvector 与所需本地依赖通过 Docker Compose 启动，迁移显式执行。
 - [ ] **ARC-05**：前后端使用版本化 OpenAPI 契约；流式 Agent 事件使用 SSE。
 - [ ] **ARC-06**：模型 Provider 可替换且具备 fake 实现，测试不依赖真实付费 API。
-- [ ] **ARC-07**：仓库根目录、`frontend/` 与 `backend/` 各自维护 `README.md` 和 `AGENTS.md`；新增任何目录时必须在同次提交创建该目录的 `README.md`，写明职责、允许依赖和文件索引。
+- [x] **ARC-07**：仓库根目录、`frontend/` 与 `backend/` 各自维护 `README.md` 和 `AGENTS.md`；新增任何目录时必须在同次提交创建该目录的 `README.md`，写明职责、允许依赖和文件索引。
 - [ ] **ARC-08**：管理后台使用独立的 `admin-frontend/` React 项目，与 `frontend/`、`backend/` 同级并独立构建部署；后台与用户端共用 FastAPI，但后台权限始终由 `/api/v1/admin/*` 的后端 RBAC 强制执行。
 - [ ] **EDU-01**：每个后端阶段提供中文教学文档，说明请求链路、设计理由、测试策略和常见错误。
 - [ ] **EDU-02**：README 包含架构图、LangGraph 状态图、关键时序图、启动与调试命令。
