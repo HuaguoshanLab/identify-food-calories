@@ -4,7 +4,7 @@
 
 ## 工程边界
 
-- `frontend/`：React、TypeScript 与 Vite 用户端（后续计划创建）。
+- `frontend/`：独立运行和构建的 React、TypeScript 与 Vite 用户端。
 - `backend/`：FastAPI 模块化单体，依赖方向为 API → Application/Service → Repository → Model。
 - `admin-frontend/`：Phase 6 才创建的独立后台前端，不能塞进用户 H5。
 - PostgreSQL 保存权威业务数据；模型不得成为营养数值真相来源。
@@ -28,6 +28,8 @@ docker compose ps
 | 路径 | 职责 |
 |---|---|
 | `AGENTS.md` | 全仓库架构、安全、测试与文档硬约束 |
+| `.gitignore` | Node、Python、测试和本地环境生成物排除规则 |
+| `frontend/` | React + TypeScript + Vite 用户端应用 |
 | `backend/` | 后端运行时、迁移和测试 |
 | `docker-compose.yml` | 本地 pgvector 双库与 Mailpit 编排 |
 | `.planning/` | GSD 权威规划、需求、路线图与执行状态 |
