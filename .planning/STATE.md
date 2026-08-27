@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-09-PLAN.md
-last_updated: "2026-08-27T09:13:27.013Z"
+stopped_at: Completed 01-10-PLAN.md
+last_updated: "2026-08-27T09:39:32Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 10
   percent: 0
 ---
 
@@ -26,29 +26,29 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 10 of 14
+Plan: 11 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
-- Average duration: 15 min
-- Total execution time: 1.9 hours
+- Total plans completed: 10
+- Average duration: 14 min
+- Total execution time: 2.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 8 | 116 min | 15 min |
+| 01 | 10 | 129 min | 13 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 15 min, 13 min, 19 min, 13 min, 8 min
+- Last 5 plans: 19 min, 13 min, 8 min, 15 min, 13 min
 - Trend: variable, 14 min average
 
 *Updated after each plan completion*
@@ -60,6 +60,7 @@ Progress: [██████░░░░] 64%
 | Phase 01 P07 | 13 min | 2 tasks | 17 files |
 | Phase 01 P08 | 8 min | 2 tasks | 16 files |
 | Phase 01 P09 | 15 min | 2 tasks | 15 files |
+| Phase 01 P10 | 13 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Fast Refresh 的 variants 导出例外仅限官方 src/components/ui 原语，业务组件仍执行完整规则。
 - [Phase 01]: 用户 H5 只保留公开认证与受保护 /app 入口，不注册 /admin、后台导航或 admin probe；独立后台延后 Phase 6。
 - [Phase 01]: 密码恢复后端 API 未交付前，前端只提供安全 shell，不伪造网络端点或持久化 pending context。
+- [Phase 01]: refresh 原文只存在于 HttpOnly Cookie 和一次性 Service 返回值；数据库仅保存 HMAC digest，已消费 refresh 的 replay 原子撤销 session family。 — 防止 token 泄露、竞争双签发和 replay 后 successor 继续有效。
+- [Phase 01]: access JWT 的既有 jti 绑定 auth session，当前会话只能 logout，其他会话的列表/撤销必须 user_id 作用域。 — 使会话管理无需暴露 refresh 原文且不产生当前 access token 的模糊状态。
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T09:13:03.519Z
-Stopped at: Completed 01-09-PLAN.md
+Last session: 2026-08-27T09:39:32Z
+Stopped at: Completed 01-10-PLAN.md
 Resume file: None

@@ -122,7 +122,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
-| 1. 工程、身份与权限基座 | 9/14 | In Progress|  |
+| 1. 工程、身份与权限基座 | 10/14 | In Progress|  |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
