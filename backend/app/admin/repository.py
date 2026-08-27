@@ -20,6 +20,9 @@ class SqlAlchemyAdminRepository:
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._session.get(User, user_id)
 
+    def get_user_by_email(self, normalized_email: str) -> User | None:
+        return self._session.scalar(select(User).where(User.email == normalized_email))
+
     def get_user_for_update(self, user_id: uuid.UUID) -> User | None:
         return self._session.scalar(
             select(User).where(User.id == user_id).with_for_update()

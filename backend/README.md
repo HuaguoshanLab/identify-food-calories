@@ -39,6 +39,21 @@ TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_ag
 .venv/bin/alembic upgrade head
 ```
 
+管理员只能通过后端 CLI 创建或提升，公开注册和用户 H5 没有角色输入。首次 bootstrap 必须使用已有、已验证且 active 的用户并写入 `system:bootstrap` 审计 actor；后续提升必须显式提供已验证、active 的现有管理员与非空 reason：
+
+```bash
+.venv/bin/python -m app.admin.cli bootstrap \
+  --email first-admin@example.com \
+  --reason "initial production administrator"
+
+.venv/bin/python -m app.admin.cli promote \
+  --actor-email existing-admin@example.com \
+  --email next-admin@example.com \
+  --reason "approved operational access"
+```
+
+两条命令都只接受已存在的账号；角色变化和 `admin_role_audit` 记录在同一个数据库事务内提交。CLI 拒绝匿名、未验证/inactive/non-admin actor、自我提升和空 reason。
+
 ## 文件索引
 
 | 路径 | 职责 |

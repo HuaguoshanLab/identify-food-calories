@@ -21,4 +21,4 @@
 | `repository.py` | SQLAlchemy 查询、锁与 flush-only 审计 adapter |
 | `service.py` | 数据库权威 RBAC 与原子角色提升策略 |
 | `api.py` | `/api/v1/admin/probe` HTTP 翻译 |
-| `cli.py` | 显式管理员 bootstrap/promote 命令（Task 2 添加） |
+| `cli.py` | 显式管理员 bootstrap/promote 命令 |

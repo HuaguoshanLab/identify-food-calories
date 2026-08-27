@@ -40,7 +40,7 @@ def _settings() -> Settings:
     )
 
 
-def _user(*, role: str, is_active: bool = True) -> User:
+def _user(*, role: str, is_active: bool = True, verified: bool = True) -> User:
     now = datetime.now(UTC)
     return User(
         id=uuid.uuid4(),
@@ -48,7 +48,7 @@ def _user(*, role: str, is_active: bool = True) -> User:
         password_hash="argon2id-digest",
         role=role,
         is_active=is_active,
-        email_verified_at=now,
+        email_verified_at=now if verified else None,
         created_at=now,
         updated_at=now,
     )
@@ -198,8 +198,19 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
 ) -> None:
     first_target = _user(role=UserRole.USER.value)
     second_target = _user(role=UserRole.USER.value)
+    rejected_target = _user(role=UserRole.USER.value)
     non_admin_actor = _user(role=UserRole.USER.value)
-    db_session.add_all([first_target, second_target, non_admin_actor])
+    inactive_admin_actor = _user(role=UserRole.ADMIN.value, is_active=False)
+    unverified_admin_actor = _user(role=UserRole.ADMIN.value, verified=False)
+    db_session.add_all(
+        [
+            first_target,
+            second_target,
+            rejected_target,
+            non_admin_actor,
+            inactive_admin_actor,
+        ]
+    )
     db_session.commit()
     session_factory = lambda: nullcontext(db_session)
 
@@ -213,6 +224,8 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
         ],
         session_factory=session_factory,
     ) == 0
+    db_session.add(unverified_admin_actor)
+    db_session.commit()
     assert admin_cli(
         [
             "promote",
@@ -256,6 +269,39 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
             "promote",
             "--actor-email",
             non_admin_actor.email,
+            "--email", rejected_target.email,
+            "--reason",
+            "non-admin actors are forbidden",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            inactive_admin_actor.email,
+            "--email", rejected_target.email,
+            "--reason",
+            "inactive admins are forbidden",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            unverified_admin_actor.email,
+            "--email", rejected_target.email,
+            "--reason",
+            "unverified admins are forbidden",
+        ],
+        session_factory=session_factory,
+    ) == 2
+    assert admin_cli(
+        [
+            "promote",
+            "--actor-email",
+            non_admin_actor.email,
             "--email",
             non_admin_actor.email,
             "--reason",
@@ -277,6 +323,7 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
     ) == 2
     assert len(list(db_session.scalars(select(AdminRoleAudit)))) == before_failures
     assert non_admin_actor.role == UserRole.USER.value
+    assert rejected_target.role == UserRole.USER.value
 
 
 def test_role_and_audit_roll_back_together_when_persistence_commit_fails(
