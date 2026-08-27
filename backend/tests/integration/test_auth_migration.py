@@ -1,4 +1,4 @@
-"""Real-PostgreSQL evidence for the 0001 auth schema and repository adapter."""
+"""Real-PostgreSQL evidence for the auth migration chain and repository adapter."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _public_tables(database_url: str) -> set[str]:
         engine.dispose()
 
 
-def test_0001_rebuilds_an_empty_isolated_database() -> None:
+def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
     test_url = _test_url()
     development_url = os.environ["DATABASE_URL"]
     development_tables_before = _public_tables(development_url)
@@ -61,6 +61,7 @@ def test_0001_rebuilds_an_empty_isolated_database() -> None:
             "verification_challenges",
             "auth_sessions",
             "refresh_tokens",
+            "login_attempts",
         } <= set(inspector.get_table_names())
         assert {item["name"] for item in inspector.get_check_constraints("users")} == {
             "ck_users_email_normalized",
@@ -81,7 +82,7 @@ def test_0001_rebuilds_an_empty_isolated_database() -> None:
             "uq_refresh_tokens_token_digest"
         }
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
     finally:
         engine.dispose()
     assert _public_tables(development_url) == development_tables_before

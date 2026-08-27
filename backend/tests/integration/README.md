@@ -14,4 +14,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `test_auth_migration.py` | 0001 空库往返、约束与 Repository flush-only 合约 |
+| `test_auth_migration.py` | auth migration head 空库重建、约束与 Repository flush-only 合约 |
+| `test_auth_database_protocols.py` | 0001→0002 往返、约束/savepoint 与并发登录限流的真实 PostgreSQL 证据 |
