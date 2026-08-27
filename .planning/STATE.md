@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-08-PLAN.md
-last_updated: "2026-08-27T08:50:55Z"
+stopped_at: Completed 01-09-PLAN.md
+last_updated: "2026-08-27T09:13:27.013Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 8
-  percent: 57
+  completed_plans: 9
+  percent: 0
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 9 of 14
+Plan: 10 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
-Progress: [██████░░░░] 57%
+Progress: [██████░░░░] 64%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [██████░░░░] 57%
 | Phase 01 P06 | 19 min | 2 tasks | 15 files |
 | Phase 01 P07 | 13 min | 2 tasks | 17 files |
 | Phase 01 P08 | 8 min | 2 tasks | 16 files |
+| Phase 01 P09 | 15 min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Recent decisions affecting current work:
 - [Phase 01]: shadcn 固定官方 base-nova/Base UI registry，cn 位于 components/ui，不创建无职责 lib 目录。
 - [Phase 01]: 九个 UI-SPEC 原语一律由官方 shadcn Base UI registry 生成；Button/Badge 的 variants 依赖 class-variance-authority 0.7.1 作为直接生产依赖。
 - [Phase 01]: Fast Refresh 的 variants 导出例外仅限官方 src/components/ui 原语，业务组件仍执行完整规则。
+- [Phase 01]: 用户 H5 只保留公开认证与受保护 /app 入口，不注册 /admin、后台导航或 admin probe；独立后台延后 Phase 6。
+- [Phase 01]: 密码恢复后端 API 未交付前，前端只提供安全 shell，不伪造网络端点或持久化 pending context。
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T08:50:55Z
-Stopped at: Completed 01-08-PLAN.md
+Last session: 2026-08-27T09:13:03.519Z
+Stopped at: Completed 01-09-PLAN.md
 Resume file: None
