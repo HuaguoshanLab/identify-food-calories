@@ -30,6 +30,15 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 测试必须显式使用 `APP_ENV=test` 和独立的 `TEST_DATABASE_URL`；配置保护会拒绝 SQLite、开发库以及不以 `_test` 结尾的测试库。
 
+迁移命令在 `APP_ENV=test` 时只读取通过上述保护的 `TEST_DATABASE_URL`：
+
+```bash
+APP_ENV=test \
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
+TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
+.venv/bin/alembic upgrade head
+```
+
 ## 文件索引
 
 | 路径 | 职责 |
@@ -38,6 +47,7 @@ docker compose up -d --wait postgres postgres-test mailpit
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
+| `alembic.ini` | Alembic CLI 与迁移脚本位置配置 |
 | `app/` | FastAPI 应用代码 |
 | `migrations/` | Alembic schema 变更脚本目录 |
 | `tests/` | 单元、集成和 API 合约测试 |

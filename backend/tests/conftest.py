@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from collections.abc import Generator
 from pathlib import Path
 
@@ -33,7 +34,11 @@ def _upgrade_test_database() -> None:
 
     migration_env = os.environ.copy()
     migration_env["APP_ENV"] = "test"
-    subprocess.run(["alembic", "upgrade", "head"], check=True, env=migration_env)
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        check=True,
+        env=migration_env,
+    )
 
 
 @pytest.fixture(scope="session")

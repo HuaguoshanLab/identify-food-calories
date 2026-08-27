@@ -12,4 +12,8 @@
 
 ## 文件索引
 
-当前仅建立目录契约；Alembic 配置和 revision 将由后续计划添加，并在此更新索引。
+| 路径 | 职责 |
+|---|---|
+| `env.py` | 受 APP_ENV/TEST_DATABASE_URL 保护的在线迁移环境 |
+| `script.py.mako` | 新 revision 的标准脚本模板 |
+| `versions/` | 已审查的有序 schema revision |
