@@ -49,6 +49,16 @@ export type CurrentUser = {
 
 export type LoginSession = LoginResponse
 
+export type AuthSessionSummary = {
+  created_at: string
+  device_label: string | null
+  expires_at: string
+  id: string
+  is_current: boolean
+  last_seen_at: string
+  revoked_at: string | null
+}
+
 export function apiUrl(path: string) {
   return `${apiBaseUrl}${path}`
 }

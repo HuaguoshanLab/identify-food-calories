@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
+import { AuthProvider } from './AuthProvider'
 
 function renderRoute(initialEntry: string) {
   const queryClient = new QueryClient({
@@ -13,13 +14,15 @@ function renderRoute(initialEntry: string) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <AuthProvider><App /></AuthProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   )
 }
 
 describe('public user routes', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it('keeps landing, legal and account-entry pages public', () => {
     renderRoute('/')
     expect(
@@ -35,11 +38,12 @@ describe('public user routes', () => {
     expect(screen.getByRole('heading', { name: '使用条款' })).toBeInTheDocument()
   })
 
-  it('declares authentication entry routes and sends the protected app route to login', () => {
+  it('declares authentication entry routes and sends the protected app route to login', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
     renderRoute('/app?tab=sessions')
 
-    expect(screen.getByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()
-    expect(screen.getByText('请先登录后继续使用账号功能。')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()
+    expect(screen.getByText('登录后继续管理你的饮食与登录会话。')).toBeInTheDocument()
 
     renderRoute('/register')
     expect(screen.getByRole('heading', { name: '创建账号' })).toBeInTheDocument()
@@ -52,6 +56,7 @@ describe('public user routes', () => {
   })
 
   it('contains no admin route, navigation, or admin probe call in the user application', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
     renderRoute('/admin')
     expect(
       screen.getByRole('heading', { name: '拍下或描述一餐，获得可追问的饮食分析' }),

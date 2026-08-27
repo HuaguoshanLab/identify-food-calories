@@ -28,6 +28,8 @@
 | `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
 | `RouteGuards.tsx` | `/app` 路由守卫、bootstrap 状态和账号摘要 |
 | `returnTo.ts` | 同源、相对、已登记受保护路由的登录返回地址解析 |
+| `SessionList.tsx` | `/app` 身份后的 TanStack Query 会话列表、重试、退出当前设备与远端撤销入口 |
+| `RevokeSessionDialog.tsx` | Base UI AlertDialog 的破坏性远端会话撤销确认，不允许撤销当前会话 |
 | `schemas.ts` | React Hook Form 使用的 Zod 运行时输入契约 |
 | `AuthForms.test.tsx` | 表单、payload、错误、冷却和可访问性行为测试 |
 | `AuthSession.test.tsx` | refresh、数据库权威身份、并发 401 重试与 token 非持久化测试 |

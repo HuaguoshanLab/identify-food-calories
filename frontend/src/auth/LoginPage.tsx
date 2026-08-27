@@ -29,7 +29,7 @@ function loginErrorMessage(error: unknown) {
 export function LoginPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, logoutWarning } = useAuth()
   const [formError, setFormError] = useState<string>()
   const [success, setSuccess] = useState(
     location.state && typeof location.state === 'object' && 'message' in location.state
@@ -57,6 +57,7 @@ export function LoginPage() {
   return (
     <AuthEntryPage title="欢迎回来" description="登录后继续管理你的饮食与登录会话。">
       <form className="mt-6 flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+        {logoutWarning ? <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{logoutWarning}</p> : null}
         {formError ? <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</div> : null}
         {success ? <p role="status" aria-live="polite" className="text-sm text-teal-800">{success}</p> : null}
         <div className="grid gap-2">

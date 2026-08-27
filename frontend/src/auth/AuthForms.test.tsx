@@ -9,6 +9,7 @@ import { LoginPage } from './LoginPage'
 import { RegisterPage } from './RegisterPage'
 import { RegisterVerifyPage } from './RegisterVerifyPage'
 import { ResetPasswordPage } from './ResetPasswordPage'
+import { AuthProvider } from './AuthProvider'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -26,7 +27,7 @@ function renderAuthPage(initialEntry: string) {
     <MemoryRouter initialEntries={[initialEntry]}>
       <QueryClientProvider client={queryClient}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<AuthProvider><LoginPage /></AuthProvider>} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/register/verify" element={<RegisterVerifyPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

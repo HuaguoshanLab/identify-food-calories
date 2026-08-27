@@ -31,7 +31,7 @@ describe('protected user routes', () => {
   )
 
   it('preserves the registered protected deep link and redirects unauthenticated visitors to login', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
     renderApp('/app?tab=sessions')
 
     expect(await screen.findByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()

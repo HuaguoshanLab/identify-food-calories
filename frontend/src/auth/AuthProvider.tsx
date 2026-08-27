@@ -29,6 +29,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const [session, setSession] = useState<AuthenticatedSession | undefined>(undefined)
   const [status, setStatus] = useState<AuthenticationStatus>('bootstrapping')
+  const [logoutWarning, setLogoutWarning] = useState<string>()
   const sessionRef = useRef<AuthenticatedSession | undefined>(undefined)
   const refreshFlight = useRef<Promise<AuthenticatedSession | undefined> | undefined>(undefined)
   const bootstrapped = useRef(false)
@@ -57,7 +58,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     const flight = refreshAccessToken()
       .then(establishSession)
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (error instanceof AuthApiError && (error.code === 'NETWORK_ERROR' || error.code === 'UNKNOWN_ERROR')) {
+          sessionRef.current = undefined
+          setSession(undefined)
+          setStatus('identity-error')
+          return undefined
+        }
         clearSession()
         return undefined
       })
@@ -80,6 +87,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const access = await loginAccount(credentials)
     // Clear user-scoped cache before publishing a possibly different account.
     queryClient.clear()
+    setLogoutWarning(undefined)
     try {
       await establishSession(access)
     } catch (error) {
@@ -87,6 +95,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       throw error
     }
   }, [clearSession, establishSession, queryClient])
+
+  const retryBootstrap = useCallback(async () => {
+    setStatus('bootstrapping')
+    await refresh()
+  }, [refresh])
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
     const active = sessionRef.current
@@ -116,11 +129,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
     try {
       await logoutCurrentSession(accessToken)
+      setLogoutWarning(undefined)
       return true
     } catch (error) {
       if (error instanceof AuthApiError) {
+        setLogoutWarning('退出请求未能由服务器确认；此设备已退出，其他设备的会话状态可能仍有效。')
         return false
       }
+      setLogoutWarning('退出请求未能由服务器确认；此设备已退出，其他设备的会话状态可能仍有效。')
       return false
     }
   }, [clearSession])
@@ -128,10 +144,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const value = useMemo<AuthContextValue>(() => ({
     login,
     logout,
+    logoutWarning,
     request,
+    retryBootstrap,
     status,
     user: session?.user,
-  }), [login, logout, request, session?.user, status])
+  }), [login, logout, logoutWarning, request, retryBootstrap, session?.user, status])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
