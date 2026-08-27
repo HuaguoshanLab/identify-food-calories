@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-11-PLAN.md
-last_updated: "2026-08-27T09:58:02.552Z"
+stopped_at: Completed 01-12-PLAN.md
+last_updated: "2026-08-27T10:14:40.521Z"
 last_activity: 2026-08-27
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 1 (engineering-auth-foundation) — EXECUTING
-Plan: 12 of 14
+Plan: 13 of 14
 Status: Ready to execute
 Last activity: 2026-08-27
 
@@ -62,6 +62,7 @@ Progress: [███████░░░] 71%
 | Phase 01 P09 | 15 min | 2 tasks | 15 files |
 | Phase 01 P10 | 13 min | 2 tasks | 13 files |
 | Phase 01 P11 | 10 min | 2 tasks | 17 files |
+| Phase 01 P12 | 12 min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 01]: access JWT 的既有 jti 绑定 auth session，当前会话只能 logout，其他会话的列表/撤销必须 user_id 作用域。 — 使会话管理无需暴露 refresh 原文且不产生当前 access token 的模糊状态。
 - [Phase 01]: 浏览器身份必须 refresh 后经 /users/me 建立，access token 仅留在运行时内存。 — 阻断 JWT claims 冒充最终身份与浏览器 token 持久化。
 - [Phase 01]: returnTo 仅允许已登记的 /app 相对路径，当前会话只退出而远端会话必须确认撤销。 — 阻断开放跳转/admin 表面并保留清晰会话语义。
+- [Phase 01]: admin probe 先沿用既有 session-bound Bearer 验证，再按 subject 从 PostgreSQL 读取 active role；JWT role claim 不参与最终授权。
+- [Phase 01]: 首次 bootstrap 使用 system:bootstrap actor；后续提升只接受已验证、active 的现有 admin actor，拒绝自我提升和空 reason。
+- [Phase 01]: 角色提升和 audit 在同一 Session transaction 提交；事务级 PostgreSQL advisory lock 串行化首次管理员的 check-then-promote 判定。
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T09:58:02.549Z
-Stopped at: Completed 01-11-PLAN.md
+Last session: 2026-08-27T10:14:40.519Z
+Stopped at: Completed 01-12-PLAN.md
 Resume file: None
