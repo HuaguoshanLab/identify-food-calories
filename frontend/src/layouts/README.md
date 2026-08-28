@@ -19,6 +19,6 @@
 | `AppHeader.tsx` | 详情页的确定返回入口与标题栏。 |
 | `PublicAuthLayout.tsx` | 公开页和认证页的无 Tab 外壳；显式区分品牌入口与有确定返回目标的后续步骤。 |
 | `DetailLayout.tsx` | 账号资料与会话详情页的无 Tab 外壳；组合标题栏、返回“我的”链接和主滚动区。 |
-| `AppShell.tsx` | 四个 Tab 根页面的统一外壳。 |
-| `BottomNavigation.tsx` | 真实路由驱动的四项底部导航。 |
+| `AppShell.tsx` | 四个 Tab 根页面的统一外壳；提供可聚焦跳转链接，并让主滚动区与导航保持 frame 内同级。 |
+| `BottomNavigation.tsx` | 以 `routePaths.ts` 为唯一真相的真实四项路由导航；不维护本地 active 状态。 |
 | `layouts.test.tsx` | 外壳滚动、导航语义和可访问性合同测试。 |

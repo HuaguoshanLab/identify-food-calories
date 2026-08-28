@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import {
   createMemoryRouter,
   MemoryRouter,
@@ -118,7 +119,7 @@ describe('tab shell navigation', () => {
     const { container } = render(<RouterProvider router={router} />)
 
     const navigation = screen.getByRole('navigation', { name: '主要导航' })
-    const tabs = screen.getAllByRole('link')
+    const tabs = within(navigation).getAllByRole('link')
 
     expect(tabs.map((tab) => tab.textContent)).toEqual(['分析', '记录', '计划', '我的'])
     expect(tabs.map((tab) => tab.getAttribute('href'))).toEqual([
@@ -131,7 +132,7 @@ describe('tab shell navigation', () => {
     expect(screen.getByRole('link', { name: '我的' })).toHaveClass('font-semibold', 'text-primary')
     expect(navigation).toHaveClass('shrink-0')
     expect(navigation).not.toHaveClass('fixed')
-    expect(container.querySelectorAll('[data-lucide]')).toHaveLength(4)
+    expect(container.querySelectorAll('svg')).toHaveLength(4)
   })
 
   it('keeps ordinary tab navigation in browser history and exposes a visible-focus skip link', async () => {
