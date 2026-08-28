@@ -31,9 +31,25 @@ describe('protected user routes', () => {
     },
   )
 
-  it('keeps a valid registered deep link for login completion', () => {
-    expect(parseReturnTo('/app?tab=sessions')).toBe('/app?tab=sessions')
+  it.each([
+    '/app',
+    '/app/analyze',
+    '/app/records',
+    '/app/plans',
+    '/app/me',
+    '/app/me/account',
+    '/app/me/sessions',
+    '/app/me/sessions?source=login',
+  ])('keeps the exact registered deep link %s for login completion', (returnTo) => {
+    expect(parseReturnTo(returnTo)).toBe(returnTo)
   })
+
+  it.each(['/app/admin', '/application', '/app/me/unknown', '/app/analyze/extra', '/app\\admin'])(
+    'falls back from an unregistered path that resembles a protected route: %s',
+    (returnTo) => {
+      expect(parseReturnTo(returnTo)).toBe('/app')
+    },
+  )
 
   it('preserves the registered protected deep link and redirects unauthenticated visitors to login', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
