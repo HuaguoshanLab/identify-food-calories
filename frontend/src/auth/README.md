@@ -27,7 +27,7 @@
 | `AuthProvider.tsx` | access token 仅存运行时内存；页面内 single-flight 与跨标签 Web Locks 协调 refresh 后以 `/users/me` 建立数据库权威身份 |
 | `refreshCoordinator.ts` | 页面内 refresh single-flight 与同源标签页 Web Locks 协调；不放宽服务端真实 replay 的 family revoke |
 | `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
-| `RouteGuards.tsx` | `/app` 路由守卫、bootstrap 状态和账号摘要 |
+| `RouteGuards.tsx` | 统一 `/app/*` pathless `Outlet` 守卫；拥有 bootstrap、身份错误重试与精确登录回跳，不承载账号或会话业务页面 |
 | `returnTo.ts` | 同源、相对、已登记受保护路由的登录返回地址解析 |
 | `SessionList.tsx` | `/app` 身份后的 TanStack Query 会话列表、重试、退出当前设备与远端撤销入口 |
 | `RevokeSessionDialog.tsx` | Base UI AlertDialog 的破坏性远端会话撤销确认，不允许撤销当前会话 |

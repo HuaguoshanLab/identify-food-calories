@@ -1,37 +1,53 @@
-import { useEffect, useRef, type PropsWithChildren } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MobileFrame } from '@/layouts/MobileFrame'
 
 import { loginHrefFor } from './returnTo'
-import { SessionList } from './SessionList'
 import { useAuth } from './useAuth'
 
-export function RequireAuthentication({ children }: PropsWithChildren) {
+/**
+ * This pathless boundary owns one identity-recovery lifecycle for every protected child route.
+ * Rendering an Outlet here keeps route composition in App.tsx and prevents individual pages from
+ * accidentally skipping bootstrap, error recovery, or the exact post-login return destination.
+ */
+export function RequireAuthentication() {
   const { retryBootstrap, status } = useAuth()
   const location = useLocation()
 
   if (status === 'bootstrapping') {
     return (
-      <main className="flex min-h-dvh items-center justify-center px-4" role="status" aria-live="polite">
-        <div className="w-full max-w-md space-y-3" aria-label="正在确认登录状态…">
-          <Skeleton className="h-5 w-2/5" />
-          <Skeleton className="h-5 w-3/5" />
-          <p className="text-slate-700">正在确认登录状态…</p>
-        </div>
-      </main>
+      <MobileFrame>
+        <main className="flex flex-1 items-center justify-center px-4" role="status" aria-live="polite">
+          <div className="w-full max-w-md space-y-3" aria-label="正在确认登录状态…">
+            <Skeleton className="h-5 w-2/5" />
+            <Skeleton className="h-5 w-3/5" />
+            <p className="text-muted-foreground">正在确认登录状态…</p>
+          </div>
+        </main>
+      </MobileFrame>
     )
   }
 
   if (status === 'identity-error') {
     return (
-      <main className="flex min-h-dvh items-center justify-center px-4">
-        <section className="w-full max-w-md rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
-          <h1 className="text-xl font-semibold">无法加载账号信息</h1>
-          <p className="mt-2 text-sm text-slate-700" role="alert">请检查网络后重新尝试。</p>
-          <button className="mt-5 min-h-11 rounded-lg bg-teal-600 px-4 py-2 font-medium text-white" onClick={() => void retryBootstrap()} type="button">重新尝试</button>
-        </section>
-      </main>
+      <MobileFrame>
+        <main className="flex flex-1 items-center justify-center px-4">
+          <section className="w-full max-w-md space-y-5 rounded-xl border bg-card p-6">
+            <div className="space-y-2">
+              <h1 className="text-xl font-semibold">无法加载账号信息</h1>
+              <Alert variant="destructive">
+                <AlertDescription>请检查网络后重新尝试。</AlertDescription>
+              </Alert>
+            </div>
+            <Button className="h-11 w-full" onClick={() => void retryBootstrap()} type="button">
+              重新尝试
+            </Button>
+          </section>
+        </main>
+      </MobileFrame>
     )
   }
 
@@ -39,33 +55,5 @@ export function RequireAuthentication({ children }: PropsWithChildren) {
     return <Navigate replace to={loginHrefFor(location)} />
   }
 
-  return children
-}
-
-export function AccountAndSessionsPage() {
-  const { user } = useAuth()
-  const headingRef = useRef<HTMLHeadingElement>(null)
-
-  useEffect(() => {
-    headingRef.current?.focus()
-  }, [])
-
-  return (
-    <main className="min-h-dvh px-4 py-8 md:px-6">
-      <section className="mx-auto w-full max-w-md rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">账号与会话</h1>
-        <dl className="mt-6 grid gap-3 text-sm">
-          <div>
-            <dt className="text-slate-600">邮箱</dt>
-            <dd className="break-all font-medium">{user?.email}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-600">角色</dt>
-            <dd className="font-medium">{user?.role}</dd>
-          </div>
-        </dl>
-        <SessionList />
-      </section>
-    </main>
-  )
+  return <Outlet />
 }

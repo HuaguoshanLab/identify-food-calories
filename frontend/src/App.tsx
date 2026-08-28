@@ -5,7 +5,7 @@ import {
   PrivacyPage,
   TermsPage,
 } from './auth/PublicPages'
-import { AccountAndSessionsPage, RequireAuthentication } from './auth/RouteGuards'
+import { RequireAuthentication } from './auth/RouteGuards'
 import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
 import { LoginPage } from './auth/LoginPage'
 import { RegisterPage } from './auth/RegisterPage'
@@ -23,7 +23,7 @@ export function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
-      <Route path="/app" element={<RequireAuthentication><AccountAndSessionsPage /></RequireAuthentication>} />
+      <Route path="/app" element={<RequireAuthentication />} />
       <Route path="*" element={<LandingPage />} />
     </Routes>
   )

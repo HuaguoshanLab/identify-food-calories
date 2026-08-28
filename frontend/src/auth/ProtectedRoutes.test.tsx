@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
 import { AuthProvider } from './AuthProvider'
+import { LoginPage } from './LoginPage'
 import { RequireAuthentication } from './RouteGuards'
 import { parseReturnTo } from './returnTo'
 
@@ -86,14 +87,27 @@ describe('protected user routes', () => {
       }
       return new Response(JSON.stringify({ error: { code: 'UNEXPECTED' } }), { status: 500 })
     }))
-    renderApp('/login?returnTo=%2Fapp%3Ftab%3Dsessions')
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MemoryRouter initialEntries={['/login?returnTo=%2Fapp%2Fme%2Fsessions']}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<RequireAuthentication />}>
+                <Route path="/app/me/sessions" element={<h1>受保护的会话详情</h1>} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
 
     await user.type(await screen.findByLabelText('邮箱'), 'mina@example.com')
     await user.type(screen.getByLabelText('密码'), 'correct horse battery')
     await user.click(screen.getByRole('button', { name: '登录并继续' }))
 
-    expect(await screen.findByRole('heading', { name: '账号与会话' })).toBeInTheDocument()
-    expect(screen.getByText('database@example.com')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '受保护的会话详情' })).toBeInTheDocument()
   })
 
   it('renders nested protected routes through the guard Outlet after identity recovery', async () => {
