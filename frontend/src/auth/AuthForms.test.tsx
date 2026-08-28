@@ -277,6 +277,11 @@ describe('authentication forms', () => {
 
     renderAuthPage('/reset-password')
     expect(screen.getByRole('heading', { name: '重置密码' })).toBeInTheDocument()
+    expect(screen.getByText('步骤 2/2')).toBeInTheDocument()
+    expect(screen.getByLabelText('6 位邮箱验证码')).toHaveAttribute(
+      'autocomplete',
+      'one-time-code',
+    )
     expect(screen.getByRole('link', { name: '重新申请重置' })).toHaveAttribute(
       'href',
       '/forgot-password',
