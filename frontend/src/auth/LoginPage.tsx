@@ -3,6 +3,11 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
 import { AuthApiError } from './api'
 import { useAuth } from './useAuth'
 import { loginSchema, type LoginValues } from './schemas'
@@ -57,12 +62,12 @@ export function LoginPage() {
   return (
     <AuthEntryPage title="欢迎回来" description="登录后继续管理你的饮食与登录会话。">
       <form className="mt-6 flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
-        {logoutWarning ? <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{logoutWarning}</p> : null}
-        {formError ? <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</div> : null}
-        {success ? <p role="status" aria-live="polite" className="text-sm text-teal-800">{success}</p> : null}
+        {logoutWarning ? <Alert><AlertDescription>{logoutWarning}</AlertDescription></Alert> : null}
+        {formError ? <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert> : null}
+        {success ? <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{success}</p> : null}
         <div className="grid gap-2">
-          <label htmlFor="login-email" className="font-medium">邮箱</label>
-          <input
+          <Label htmlFor="login-email" className="text-base">邮箱</Label>
+          <Input
             id="login-email"
             type="email"
             inputMode="email"
@@ -70,31 +75,31 @@ export function LoginPage() {
             aria-describedby={form.formState.errors.email ? 'login-email-error' : undefined}
             aria-invalid={Boolean(form.formState.errors.email)}
             disabled={submitting}
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3"
+            className="h-11 text-base"
             {...form.register('email')}
           />
-          {form.formState.errors.email ? <p id="login-email-error" className="text-sm text-red-700">{form.formState.errors.email.message}</p> : null}
+          {form.formState.errors.email ? <p id="login-email-error" className="text-sm text-destructive">{form.formState.errors.email.message}</p> : null}
         </div>
         <div className="grid gap-2">
-          <label htmlFor="login-password" className="font-medium">密码</label>
-          <input
+          <Label htmlFor="login-password" className="text-base">密码</Label>
+          <Input
             id="login-password"
             type="password"
             autoComplete="current-password"
             aria-describedby={form.formState.errors.password ? 'login-password-error' : undefined}
             aria-invalid={Boolean(form.formState.errors.password)}
             disabled={submitting}
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3"
+            className="h-11 text-base"
             {...form.register('password')}
           />
-          {form.formState.errors.password ? <p id="login-password-error" className="text-sm text-red-700">{form.formState.errors.password.message}</p> : null}
+          {form.formState.errors.password ? <p id="login-password-error" className="text-sm text-destructive">{form.formState.errors.password.message}</p> : null}
         </div>
-        <button disabled={submitting} className="min-h-11 rounded-lg bg-teal-600 px-4 py-2 font-medium text-white disabled:opacity-50" type="submit">
+        <Button disabled={submitting} className="h-11 w-full cursor-pointer text-base font-semibold" type="submit">
           登录并继续{submitting ? '…' : ''}
-        </button>
+        </Button>
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <Link className="text-slate-700 underline hover:text-teal-700" to="/forgot-password">忘记密码？</Link>
-          <Link className="text-slate-700 underline hover:text-teal-700" to="/register">创建账号</Link>
+          <Link className="text-foreground underline underline-offset-4 hover:text-primary" to="/forgot-password">忘记密码？</Link>
+          <Link className="text-foreground underline underline-offset-4 hover:text-primary" to="/register">创建账号</Link>
         </div>
       </form>
     </AuthEntryPage>
