@@ -31,16 +31,15 @@ test.describe('full-stack auth', () => {
 
     await login(page, account, '/app/me/sessions')
     await expect(page).toHaveURL(/\/app\/me\/sessions$/)
-    await expect(page.getByRole('heading', { name: '登录会话', exact: true })).toBeVisible()
+    await expect(page.locator('h1', { hasText: '登录会话' })).toBeVisible()
 
-    const secondContext = await createSecondDeviceSession(browser, account)
+    const secondDevice = await createSecondDeviceSession(browser, account)
     await page.reload()
     await revokeOtherSession(page)
     await expect(page.getByRole('status')).toHaveText('登录会话已撤销。')
-    const secondPage = secondContext.pages()[0]
-    await secondPage.reload()
-    await expect(secondPage.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
-    await secondContext.close()
+    await secondDevice.page.reload()
+    await expect(secondDevice.page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+    await secondDevice.context.close()
 
     await page.getByRole('button', { name: '退出当前设备' }).click()
     await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()

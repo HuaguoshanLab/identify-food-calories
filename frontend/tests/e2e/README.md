@@ -15,4 +15,5 @@
 | 文件 | 职责 |
 |---|---|
 | `health.spec.ts` | Vite、FastAPI 与版本化健康端点的最小全栈证明 |
+| `auth-helpers.ts` | 仅通过页面与公开 Mailpit HTTP 创建、验证、登录和恢复隔离测试账号的复用夹具 |
 | `auth-skeleton.spec.ts` | 从 Mailpit 取真实验证码的注册、恢复、会话撤销与登出浏览器证据 |
