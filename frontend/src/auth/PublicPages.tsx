@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 
 type PublicPageProps = {
   children?: ReactNode
@@ -49,19 +49,23 @@ export function LandingPage() {
         </p>
       </section>
       <div className="flex flex-col gap-4">
-        <Button
-          className="h-11 w-full cursor-pointer text-base font-semibold"
-          render={<Link to="/register" />}
+        <Link
+          className={buttonVariants({
+            className: 'h-11 w-full cursor-pointer text-base font-semibold',
+          })}
+          to="/register"
         >
           创建账号
-        </Button>
-        <Button
-          className="h-11 w-full cursor-pointer text-base font-semibold"
-          render={<Link to="/login" />}
-          variant="outline"
+        </Link>
+        <Link
+          className={buttonVariants({
+            className: 'h-11 w-full cursor-pointer text-base font-semibold',
+            variant: 'outline',
+          })}
+          to="/login"
         >
           登录
-        </Button>
+        </Link>
       </div>
       <nav aria-label="法律信息" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
         <Link className="text-foreground underline underline-offset-4 hover:text-primary" to="/privacy">
