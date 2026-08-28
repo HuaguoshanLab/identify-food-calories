@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
+import { routePaths } from '@/routePaths'
+
+import { MePage } from './MePage'
 import { PlaceholderTabPage } from './PlaceholderTabPage'
 
 describe('honest placeholder tab pages', () => {
@@ -20,5 +24,32 @@ describe('honest placeholder tab pages', () => {
     expect(screen.queryByRole('form')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/上传|加载|骨架/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('my settings root page', () => {
+  it('exposes only the two complete settings links and keeps keyboard navigation native', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <MePage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { level: 1, name: '我的' })).toBeInTheDocument()
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(2)
+    expect(screen.getByRole('link', { name: /账号资料/ })).toHaveAttribute('href', routePaths.account)
+    expect(screen.getByRole('link', { name: /登录会话/ })).toHaveAttribute('href', routePaths.sessions)
+    expect(screen.queryByText(/@/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /退出|保存|编辑/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/偏好|设置/i)).not.toBeInTheDocument()
+
+    for (const link of links) {
+      expect(within(link).getAllByRole('img', { hidden: true })).toHaveLength(2)
+    }
+
+    await user.tab()
+    expect(screen.getByRole('link', { name: /账号资料/ })).toHaveFocus()
   })
 })
