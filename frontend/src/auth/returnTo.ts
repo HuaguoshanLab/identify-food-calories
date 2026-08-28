@@ -1,4 +1,4 @@
-const protectedRoutePaths = new Set(['/app'])
+import { protectedRoutePaths, routePaths } from '../routePaths'
 
 /**
  * A login redirect is navigation input, not an authority decision. Accept only the
@@ -7,7 +7,7 @@ const protectedRoutePaths = new Set(['/app'])
  */
 export function parseReturnTo(candidate: string | null | undefined) {
   if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//') || candidate.includes('\\')) {
-    return '/app'
+    return routePaths.app
   }
 
   try {
@@ -17,11 +17,11 @@ export function parseReturnTo(candidate: string | null | undefined) {
       parsed.hash ||
       !protectedRoutePaths.has(parsed.pathname)
     ) {
-      return '/app'
+      return routePaths.app
     }
     return `${parsed.pathname}${parsed.search}`
   } catch {
-    return '/app'
+    return routePaths.app
   }
 }
 

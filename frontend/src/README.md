@@ -17,6 +17,7 @@
 | `main.tsx` | React、Router 与 Query Client 组合根 |
 | `App.tsx` | 用户 H5 路由表；只声明公开入口与受保护 `/app` 入口，不包含后台路由 |
 | `App.test.tsx` | 落地页路由的 Vitest/Testing Library 行为测试 |
+| `routePaths.ts` | 用户 H5 的精确路径合同，供路由声明与登录返回地址白名单共同使用 |
 | `styles.css` | Tailwind CSS 入口、UI-SPEC 颜色/圆角 tokens 与全局可访问性样式 |
 | `test-setup.ts` | Vitest 的 jest-dom 断言扩展与测试后 DOM 清理 |
 | `auth/` | 认证页面、内存会话、路由守卫与受控 API 适配器；禁止存储 token、验证码或引入后台表面 |
