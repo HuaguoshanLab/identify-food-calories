@@ -185,6 +185,46 @@ def test_constraints_and_savepoint_rollback_are_enforced_by_postgres(
         db_session.flush()
 
 
+def test_session_listing_excludes_revoked_sessions(db_session: Session) -> None:
+    """The account page must never offer a second revoke action for a dead session."""
+
+    repository = SqlAlchemyAuthRepository(db_session)
+    user = repository.add_user(
+        User(
+            id=uuid.uuid4(),
+            email=f"active-sessions-{uuid.uuid4().hex}@example.com",
+            password_hash="argon2id-digest",
+            role=UserRole.USER.value,
+            is_active=True,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    active = repository.add_session(
+        AuthSession(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            family_id=uuid.uuid4(),
+            created_at=NOW,
+            last_seen_at=NOW,
+            expires_at=NOW + timedelta(days=30),
+        )
+    )
+    repository.add_session(
+        AuthSession(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            family_id=uuid.uuid4(),
+            created_at=NOW,
+            last_seen_at=NOW,
+            expires_at=NOW + timedelta(days=30),
+            revoked_at=NOW,
+        )
+    )
+
+    assert [session.id for session in repository.list_sessions_for_user(user.id)] == [active.id]
+
+
 def _bucket_digest(scope: str, value: str) -> str:
     return hmac.new(
         SECRET.encode("utf-8"),

@@ -170,7 +170,10 @@ class SqlAlchemyAuthRepository:
         return list(
             self._session.scalars(
                 select(AuthSession)
-                .where(AuthSession.user_id == user_id)
+                .where(
+                    AuthSession.user_id == user_id,
+                    AuthSession.revoked_at.is_(None),
+                )
                 .order_by(AuthSession.created_at.desc())
             )
         )

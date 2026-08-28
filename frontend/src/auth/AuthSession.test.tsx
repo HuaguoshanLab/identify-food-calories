@@ -175,6 +175,7 @@ describe('session management', () => {
 
   it('uses logout for the current session and requires explicit confirmation before revoking another session', async () => {
     const user = (await import('@testing-library/user-event')).default.setup()
+    let remoteSessionRevoked = false
     const sessions = [
       {
         id: '00000000-0000-0000-0000-000000000010',
@@ -199,9 +200,14 @@ describe('session management', () => {
       const url = String(input)
       if (url.endsWith('/auth/refresh')) return jsonResponse({ access_token: 'access', expires_in: 900, token_type: 'bearer' })
       if (url.endsWith('/users/me')) return jsonResponse({ id: '00000000-0000-0000-0000-000000000001', email: 'database@example.com', email_verified_at: null, is_active: true, role: 'user' })
-      if (url.endsWith('/auth/sessions') && init?.method === 'GET') return jsonResponse(sessions)
+      if (url.endsWith('/auth/sessions') && init?.method === 'GET') {
+        return jsonResponse(sessions.filter((session) => !remoteSessionRevoked || session.is_current))
+      }
       if (url.endsWith('/auth/logout')) return new Response(null, { status: 204 })
-      if (url.endsWith('/00000000-0000-0000-0000-000000000011') && init?.method === 'DELETE') return new Response(null, { status: 204 })
+      if (url.endsWith('/00000000-0000-0000-0000-000000000011') && init?.method === 'DELETE') {
+        remoteSessionRevoked = true
+        return new Response(null, { status: 204 })
+      }
       return jsonResponse({ error: { code: 'UNEXPECTED' } }, 500)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -223,6 +229,7 @@ describe('session management', () => {
     await user.click(screen.getByRole('button', { name: '撤销这个会话' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).includes('/00000000-0000-0000-0000-000000000011') && init?.method === 'DELETE')).toBe(true))
     expect(await screen.findByRole('status')).toHaveTextContent('登录会话已撤销。')
+    await waitFor(() => expect(screen.queryByRole('button', { name: '撤销会话' })).not.toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: '退出当前设备' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/auth/logout'))).toBe(true))
