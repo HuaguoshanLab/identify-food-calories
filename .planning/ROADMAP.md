@@ -8,7 +8,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 ## Phases
 
-- [x] **Phase 1: 工程、身份与权限基座** — 建立 React/FastAPI/PostgreSQL、注册登录、会话轮换、RBAC 和教学规范。（代码执行完成，待阶段级验收）
+- [x] **Phase 1: 工程、身份与权限基座** — 建立 React/FastAPI/PostgreSQL、注册登录、会话轮换、RBAC 和教学规范。（阶段验收已完成）
 - [ ] **Phase 2: 可追问的 Agent 核心** — 建立 LangGraph 主图、餐食分析子图、确定性营养工具、Checkpoint 和有界循环。
 - [ ] **Phase 3: 多模态餐食分析闭环** — 接入安全图片上传与 Qwen-VL，多菜识别、份量追问、校验和最终报告。
 - [ ] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。
@@ -122,7 +122,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
-| 1. 工程、身份与权限基座 | 13/14 | In Progress|  |
+| 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
