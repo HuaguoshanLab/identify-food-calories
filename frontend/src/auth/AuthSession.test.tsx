@@ -260,6 +260,70 @@ describe('session management', () => {
     await waitFor(() => expect(fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/auth/sessions') && init?.method === 'GET')).toHaveLength(sessionRequestsBeforeRetry + 1))
   })
 
+  it('keeps a failed remote revoke recoverable, prevents pending dismissal, and returns focus to the list heading after success', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    let remoteSessionRevoked = false
+    let deleteAttempts = 0
+    let resolveSecondDelete: ((response: Response) => void) | undefined
+    const secondDelete = new Promise<Response>((resolve) => { resolveSecondDelete = resolve })
+    const sessions = [
+      {
+        id: '00000000-0000-0000-0000-000000000010',
+        created_at: '2026-08-01T00:00:00Z',
+        last_seen_at: '2026-08-27T00:00:00Z',
+        expires_at: '2026-09-01T00:00:00Z',
+        revoked_at: null,
+        device_label: '当前浏览器',
+        is_current: true,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000011',
+        created_at: '2026-08-02T00:00:00Z',
+        last_seen_at: '2026-08-26T00:00:00Z',
+        expires_at: '2026-09-02T00:00:00Z',
+        revoked_at: null,
+        device_label: '平板设备',
+        is_current: false,
+      },
+    ]
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) return jsonResponse({ access_token: 'access', expires_in: 900, token_type: 'bearer' })
+      if (url.endsWith('/users/me')) return jsonResponse({ id: '00000000-0000-0000-0000-000000000001', email: 'database@example.com', email_verified_at: null, is_active: true, role: 'user' })
+      if (url.endsWith('/auth/sessions') && init?.method === 'GET') return jsonResponse(sessions.filter((session) => !remoteSessionRevoked || session.is_current))
+      if (url.endsWith('/00000000-0000-0000-0000-000000000011') && init?.method === 'DELETE') {
+        deleteAttempts += 1
+        if (deleteAttempts === 1) return jsonResponse({ error: { code: 'SESSION_REVOKE_FAILED' } }, 500)
+        return secondDelete.then((response) => {
+          remoteSessionRevoked = true
+          return response
+        })
+      }
+      return jsonResponse({ error: { code: 'UNEXPECTED' } }, 500)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderSessionList()
+
+    await user.click(await screen.findByRole('button', { name: '撤销会话' }))
+    await user.click(screen.getByRole('button', { name: '撤销这个会话' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法撤销这个登录会话。请检查网络后重新尝试。')
+    expect(screen.getByRole('heading', { name: '撤销这个登录会话？' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '撤销这个会话' }))
+    expect(await screen.findByRole('button', { name: '正在撤销…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '正在撤销…' })).toHaveClass('min-h-11', 'w-full')
+    expect(screen.getByRole('button', { name: '保留这个会话' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '保留这个会话' })).toHaveClass('min-h-11', 'w-full')
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('heading', { name: '撤销这个登录会话？' })).toBeInTheDocument()
+
+    resolveSecondDelete?.(new Response(null, { status: 204 }))
+    expect(await screen.findByRole('status')).toHaveTextContent('登录会话已撤销。')
+    await waitFor(() => expect(screen.queryByRole('button', { name: '撤销会话' })).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { level: 2, name: '登录会话' })).toHaveFocus()
+  })
+
   it('uses logout for the current session and requires explicit confirmation before revoking another session', async () => {
     const user = (await import('@testing-library/user-event')).default.setup()
     let remoteSessionRevoked = false
