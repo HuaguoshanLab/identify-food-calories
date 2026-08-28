@@ -18,21 +18,16 @@ function PublicPage({ children, description, progress, title }: PublicPageProps)
   }, [])
 
   return (
-    <main className="min-h-dvh px-4 py-8 md:px-6">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <Link className="w-fit text-sm font-medium text-slate-700 underline hover:text-teal-700" to="/">
-          饮食健康 Agent
-        </Link>
-        <section className="rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
-          {progress ? <p className="mb-2 text-sm text-muted-foreground">{progress}</p> : null}
-          <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">
-            {title}
-          </h1>
-          <p className="mt-2 text-slate-600">{description}</p>
-          {children}
-        </section>
+    <section className="mx-auto flex w-full max-w-md flex-col py-8">
+      <div className="rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
+        {progress ? <p className="mb-2 text-sm text-muted-foreground">{progress}</p> : null}
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">
+          {title}
+        </h1>
+        <p className="mt-2 text-muted-foreground">{description}</p>
+        {children}
       </div>
-    </main>
+    </section>
   )
 }
 

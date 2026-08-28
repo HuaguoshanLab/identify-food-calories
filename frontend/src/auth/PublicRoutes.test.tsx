@@ -97,6 +97,16 @@ describe('public user routes', () => {
     expect(screen.queryByLabelText(/上传/i)).not.toBeInTheDocument()
   })
 
+  it('keeps an authentication entry inside the shared frame without a second main landmark', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
+    renderRoute('/login')
+
+    await screen.findByRole('heading', { name: '欢迎回来' })
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: '饮食健康 Agent' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()
+  })
+
   it('contains no admin route, navigation, or admin probe call in the user application', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
     renderRoute('/admin')
