@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
@@ -17,10 +17,16 @@ function renderApp(initialEntry: string) {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <App />
+          <LocationProbe />
         </AuthProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="guard-location">{location.pathname}{location.search}</output>
 }
 
 describe('protected user routes', () => {
@@ -55,10 +61,11 @@ describe('protected user routes', () => {
 
   it('preserves the registered protected deep link and redirects unauthenticated visitors to login', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED' } }), { status: 401 })))
-    renderApp('/app?tab=sessions')
+    renderApp('/app/me/sessions')
 
     expect(await screen.findByRole('heading', { name: '欢迎回来' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '创建账号' })).toHaveAttribute('href', '/register')
+    expect(screen.getByTestId('guard-location')).toHaveTextContent('/login?returnTo=%2Fapp%2Fme%2Fsessions')
   })
 
   it('does not register an admin page in the user H5', () => {

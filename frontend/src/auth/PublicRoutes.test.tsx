@@ -75,10 +75,12 @@ describe('public user routes', () => {
     expect(screen.getByRole('heading', { name: '创建账号' })).toBeInTheDocument()
     renderRoute('/register/verify')
     expect(screen.getByRole('heading', { name: '验证邮箱' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: '返回上一步' }).at(-1)).toHaveAttribute('href', '/register')
     renderRoute('/forgot-password')
     expect(screen.getByRole('heading', { name: '忘记密码' })).toBeInTheDocument()
     renderRoute('/reset-password')
     expect(screen.getByRole('heading', { name: '重置密码' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: '返回上一步' }).at(-1)).toHaveAttribute('href', '/forgot-password')
   })
 
   it.each([
