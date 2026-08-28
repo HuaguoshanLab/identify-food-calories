@@ -17,8 +17,8 @@
 | `MobileFrame.tsx` | H5 视口与桌面设备容器，拥有唯一的页面高度、flex 列布局和裁剪边界。 |
 | `PageScrollArea.tsx` | 仅有的页面主纵向滚动区。 |
 | `AppHeader.tsx` | 详情页的确定返回入口与标题栏。 |
-| `PublicAuthLayout.tsx` | 公开页和认证页的无 Tab 外壳。 |
-| `DetailLayout.tsx` | 账号资料与会话详情页的无 Tab 外壳。 |
+| `PublicAuthLayout.tsx` | 公开页和认证页的无 Tab 外壳；显式区分品牌入口与有确定返回目标的后续步骤。 |
+| `DetailLayout.tsx` | 账号资料与会话详情页的无 Tab 外壳；组合标题栏、返回“我的”链接和主滚动区。 |
 | `AppShell.tsx` | 四个 Tab 根页面的统一外壳。 |
 | `BottomNavigation.tsx` | 真实路由驱动的四项底部导航。 |
 | `layouts.test.tsx` | 外壳滚动、导航语义和可访问性合同测试。 |
