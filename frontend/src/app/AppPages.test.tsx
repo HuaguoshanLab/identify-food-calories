@@ -68,7 +68,17 @@ describe('account and session detail content', () => {
   })
 
   it('reuses SessionList as the only session-query owner', async () => {
-    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }))
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      {
+        created_at: '2026-08-01T00:00:00Z',
+        device_label: '当前浏览器',
+        expires_at: '2026-09-01T00:00:00Z',
+        id: '00000000-0000-0000-0000-000000000010',
+        is_current: true,
+        last_seen_at: '2026-08-27T00:00:00Z',
+        revoked_at: null,
+      },
+    ]), { status: 200 }))
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
@@ -81,6 +91,23 @@ describe('account and session detail content', () => {
     expect(await screen.findByRole('heading', { level: 2, name: '登录会话' })).toBeInTheDocument()
     expect(await screen.findByText('暂无其他登录会话')).toBeInTheDocument()
     expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('/auth/sessions', { method: 'GET' })
+  })
+
+  it('keeps an empty session response visibly recoverable instead of pretending it is current-only', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={createAuthValue({ request })}>
+          <SessionsDetailsPage />
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('暂时没有可显示的登录会话。')).toBeInTheDocument()
+    expect(screen.queryByText('暂无其他登录会话')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新尝试' })).toBeInTheDocument()
     expect(request).toHaveBeenCalledWith('/auth/sessions', { method: 'GET' })
   })
 })
