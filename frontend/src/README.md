@@ -22,3 +22,4 @@
 | `test-setup.ts` | Vitest 的 jest-dom 断言扩展与测试后 DOM 清理 |
 | `auth/` | 认证页面、内存会话、路由守卫与受控 API 适配器；禁止存储 token、验证码或引入后台表面 |
 | `components/` | 应用组件边界与官方 shadcn UI 基础设施（Button/Input/Label/Card/Separator 等原语） |
+| `layouts/` | H5 设备容器、唯一主滚动区、公开/详情/Tab 外壳和底部导航；不承载业务数据或认证协议 |
