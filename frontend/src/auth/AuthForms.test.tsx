@@ -100,6 +100,28 @@ describe('authentication forms', () => {
     expect(screen.getByRole('heading', { name: '验证邮箱' })).toBeInTheDocument()
   })
 
+  it('keeps entry-form progress and field-level errors accessible', async () => {
+    const user = userEvent.setup()
+    const registerPage = renderAuthPage('/register')
+
+    expect(screen.getByText('步骤 1/2')).toBeInTheDocument()
+    const registerEmail = screen.getByLabelText('邮箱')
+    expect(registerEmail).toHaveAttribute('aria-invalid', 'false')
+    await user.click(screen.getByRole('button', { name: '发送验证码' }))
+    expect(await screen.findByText('请输入有效的邮箱地址。')).toBeInTheDocument()
+    expect(registerEmail).toHaveAttribute('aria-describedby', 'register-email-error')
+    registerPage.unmount()
+
+    renderAuthPage('/forgot-password')
+
+    expect(screen.getByText('步骤 1/2')).toBeInTheDocument()
+    const forgotEmail = screen.getByLabelText('邮箱')
+    expect(forgotEmail).toHaveAttribute('aria-invalid', 'false')
+    await user.click(screen.getByRole('button', { name: '发送重置验证码' }))
+    expect(await screen.findByText('请输入有效的邮箱地址。')).toBeInTheDocument()
+    expect(forgotEmail).toHaveAttribute('aria-describedby', 'forgot-email-error')
+  })
+
   it('maps expired verification, resend replacement and accessible cooldown states', async () => {
     const user = userEvent.setup()
     const fetchMock = vi
