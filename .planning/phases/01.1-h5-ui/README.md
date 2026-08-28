@@ -17,5 +17,6 @@
 | `README.md` | 阶段目录职责、允许依赖与文件索引 |
 | `01.1-CONTEXT.md` | 供研究与规划读取的阶段边界、用户决策、权威引用和代码上下文 |
 | `01.1-DISCUSSION-LOG.md` | 仅供人工审计的讨论选项、选择与理由记录 |
+| `01.1-UI-SPEC.md` | Phase 01.1 的页面壳、路由、视觉 token、交互状态、可访问性与视觉回归合同 |
 
-后续新增 `CONTEXT.md`、`UI-SPEC.md`、`PLAN.md`、`SUMMARY.md` 或验收文件时，必须同步更新本索引。
+后续新增 `01.1-PLAN.md`、`01.1-SUMMARY.md`、`01.1-UAT.md` 等阶段文件时，必须同步更新本索引；已有上下文与 UI 合同固定使用 `01.1-CONTEXT.md`、`01.1-UI-SPEC.md`。
