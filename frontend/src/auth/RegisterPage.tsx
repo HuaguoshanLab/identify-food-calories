@@ -37,9 +37,8 @@ export function RegisterPage() {
   const submitting = form.formState.isSubmitting
 
   return (
-    <AuthEntryPage title="创建账号" description="使用邮箱创建你的饮食健康档案。">
+    <AuthEntryPage progress="步骤 1/2" title="创建账号" description="使用邮箱创建你的饮食健康档案。">
       <form className="mt-6 flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
-        <p className="text-sm text-muted-foreground">步骤 1/2</p>
         {formError ? <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert> : null}
         <div className="grid gap-2">
           <Label htmlFor="register-email" className="text-base">邮箱</Label>

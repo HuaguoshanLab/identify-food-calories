@@ -4,6 +4,11 @@ import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
 import {
   AuthApiError,
   getRegistrationContext,
@@ -149,8 +154,8 @@ export function RegisterVerifyPage() {
 
   if (contextQuery.isPending) {
     return (
-      <AuthEntryPage title="验证邮箱" description="正在确认验证信息…">
-        <p role="status" aria-live="polite" className="mt-6 text-sm text-slate-600">正在确认验证信息…</p>
+      <AuthEntryPage progress="步骤 2/2" title="验证邮箱" description="正在确认验证信息…">
+        <p role="status" aria-live="polite" className="mt-6 text-sm text-muted-foreground">正在确认验证信息…</p>
       </AuthEntryPage>
     )
   }
@@ -159,13 +164,14 @@ export function RegisterVerifyPage() {
     const invalidContext = contextQuery.error instanceof AuthApiError && contextQuery.error.code === 'VERIFICATION_CONTEXT_INVALID'
     return (
       <AuthEntryPage
+        progress="步骤 2/2"
         title="验证邮箱"
         description={invalidContext ? '验证信息已失效，请重新开始。' : '暂时无法连接服务，请检查网络后重试。'}
       >
         {invalidContext ? (
-          <Link className="mt-6 inline-block text-sm text-slate-700 underline hover:text-teal-700" to="/register">返回注册</Link>
+          <Link className="mt-6 inline-block text-sm text-foreground underline underline-offset-4 hover:text-primary" to="/register">返回注册</Link>
         ) : (
-          <button className="mt-6 text-sm text-slate-700 underline hover:text-teal-700" type="button" onClick={() => void contextQuery.refetch()}>重新尝试</button>
+          <Button className="mt-6 h-11 text-base" variant="link" type="button" onClick={() => void contextQuery.refetch()}>重新尝试</Button>
         )}
       </AuthEntryPage>
     )
@@ -177,24 +183,25 @@ export function RegisterVerifyPage() {
 
   return (
     <AuthEntryPage
+      progress="步骤 2/2"
       title="验证邮箱"
       description={`输入发送到 ${pending.masked_email} 的 6 位验证码。验证码 10 分钟内有效。`}
     >
       <form className="mt-6 flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
         {formError ? (
-          <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-            <p>{formError}</p>
+          <Alert variant="destructive">
+            <AlertDescription>{formError}</AlertDescription>
             {canRetryVerification ? (
-              <button className="mt-2 underline" type="button" onClick={() => void form.handleSubmit(onSubmit)()}>
+              <Button className="mt-2 h-11 text-base" variant="link" type="button" onClick={() => void form.handleSubmit(onSubmit)()}>
                 重新尝试验证
-              </button>
+              </Button>
             ) : null}
-          </div>
+          </Alert>
         ) : null}
-        {announcement ? <p aria-live="polite" className="text-sm text-teal-800">{announcement}</p> : null}
+        {announcement ? <p aria-live="polite" className="text-sm text-muted-foreground">{announcement}</p> : null}
         <div className="grid gap-2">
-          <label htmlFor="registration-code" className="font-medium">6 位邮箱验证码</label>
-          <input
+          <Label htmlFor="registration-code" className="text-base">6 位邮箱验证码</Label>
+          <Input
             id="registration-code"
             type="text"
             inputMode="numeric"
@@ -203,18 +210,18 @@ export function RegisterVerifyPage() {
             aria-invalid={Boolean(form.formState.errors.code)}
             aria-describedby={form.formState.errors.code ? 'registration-code-error' : undefined}
             disabled={disabled}
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3"
+            className="h-11 text-base"
             {...codeInputProps}
           />
-          {form.formState.errors.code ? <p id="registration-code-error" className="text-sm text-red-700">{form.formState.errors.code.message}</p> : null}
+          {form.formState.errors.code ? <p id="registration-code-error" className="text-sm text-destructive">{form.formState.errors.code.message}</p> : null}
         </div>
-        <button disabled={disabled} className="min-h-11 rounded-lg bg-teal-600 px-4 py-2 font-medium text-white disabled:opacity-50" type="submit">
+        <Button disabled={disabled} className="h-11 w-full cursor-pointer text-base font-semibold" type="submit">
           验证并激活账号{form.formState.isSubmitting ? '…' : ''}
-        </button>
-        <button disabled={cooldown > 0 || form.formState.isSubmitting} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium text-slate-800 disabled:opacity-50" type="button" onClick={() => void resendCode()}>
+        </Button>
+        <Button disabled={cooldown > 0 || form.formState.isSubmitting} className="h-11 w-full cursor-pointer text-base font-semibold" variant="outline" type="button" onClick={() => void resendCode()}>
           {resendLabel}
-        </button>
-        <Link className="w-fit text-sm text-slate-700 underline hover:text-teal-700" to="/register">返回修改邮箱</Link>
+        </Button>
+        <Link className="w-fit text-sm text-foreground underline underline-offset-4 hover:text-primary" to="/register">返回修改邮箱</Link>
       </form>
     </AuthEntryPage>
   )

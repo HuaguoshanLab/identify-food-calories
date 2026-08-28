@@ -30,9 +30,8 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <AuthEntryPage title="忘记密码" description="输入邮箱以申请重置验证码。">
+    <AuthEntryPage progress="步骤 1/2" title="忘记密码" description="输入邮箱以申请重置验证码。">
       <form className="mt-6 flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
-        <p className="text-sm text-muted-foreground">步骤 1/2</p>
         {formError ? <Alert variant="destructive"><AlertDescription>{formError}</AlertDescription></Alert> : null}
         <div className="grid gap-2">
           <Label htmlFor="forgot-email" className="text-base">邮箱</Label>

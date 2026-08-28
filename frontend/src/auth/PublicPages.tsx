@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 type PublicPageProps = {
   children?: ReactNode
   description: string
+  progress?: string
   title: string
 }
 
-function PublicPage({ children, description, title }: PublicPageProps) {
+function PublicPage({ children, description, progress, title }: PublicPageProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
@@ -23,6 +24,7 @@ function PublicPage({ children, description, title }: PublicPageProps) {
           饮食健康 Agent
         </Link>
         <section className="rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
+          {progress ? <p className="mb-2 text-sm text-muted-foreground">{progress}</p> : null}
           <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">
             {title}
           </h1>
@@ -81,12 +83,13 @@ export function LandingPage() {
 type AuthEntryPageProps = {
   children?: ReactNode
   description: string
+  progress?: string
   title: string
 }
 
-export function AuthEntryPage({ children, description, title }: AuthEntryPageProps) {
+export function AuthEntryPage({ children, description, progress, title }: AuthEntryPageProps) {
   return (
-    <PublicPage description={description} title={title}>
+    <PublicPage description={description} progress={progress} title={title}>
       {children}
     </PublicPage>
   )
