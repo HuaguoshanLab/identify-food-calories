@@ -96,4 +96,27 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: '返回我的' })).toHaveAttribute('href', '/app/me')
     expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
   })
+
+  it('moves focus to my and detail page headings after route changes', async () => {
+    const user = userEvent.setup()
+    stubAuthenticatedIdentity()
+    const analyzeRoute = renderApp(['/app/analyze'])
+
+    await screen.findByRole('heading', { name: '分析' })
+    await user.click(screen.getByRole('link', { name: '我的' }))
+    expect(await screen.findByRole('heading', { name: '我的' })).toHaveFocus()
+
+    await user.click(screen.getByRole('link', { name: /账号资料/ }))
+    expect(await screen.findByRole('heading', { name: '账号资料' })).toHaveFocus()
+    analyzeRoute.unmount()
+
+    const meRoute = renderApp(['/app/me'])
+    await screen.findByRole('heading', { name: '我的' })
+    await user.click(screen.getByRole('link', { name: /登录会话/ }))
+    expect(await screen.findByRole('heading', { name: '登录会话' })).toHaveFocus()
+    meRoute.unmount()
+
+    renderApp(['/app/me/account'])
+    expect(await screen.findByRole('heading', { name: '账号资料' })).toHaveFocus()
+  })
 })

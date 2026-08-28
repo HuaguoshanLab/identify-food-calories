@@ -113,6 +113,16 @@ describe('account and session detail content', () => {
 })
 
 describe('my settings root page', () => {
+  it('focuses the page heading when my is mounted directly', () => {
+    render(
+      <MemoryRouter>
+        <MePage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { level: 1, name: '我的' })).toHaveFocus()
+  })
+
   it('exposes only the two complete settings links and keeps keyboard navigation native', async () => {
     const user = userEvent.setup()
     render(
