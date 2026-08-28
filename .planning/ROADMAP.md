@@ -37,14 +37,30 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 ### Phase 01.1: H5 UI 基座与现有页面迁移 (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** 用户能在统一、移动端优先的 H5 页面壳中完成既有公开认证与账号会话流程，并通过四个独立 Tab、明确详情层级和可审查视觉基线获得稳定、可访问的导航体验。
+**Requirements:** None（阶段专属 UX 合同；本阶段不完成或认领 UI-01）
 **Depends on:** Phase 1
-**Plans:** 0 plans
+**Plans:** 9 plans
+
+**Success Criteria:**
+
+1. 首页、全部认证/法律页面、四个 Tab 和两个“我的”详情页使用统一 MobileFrame，并在 320px 至桌面设备容器中保持单滚动、安全区和无横向溢出。
+2. `/app` replace 到 `/app/me`；四个 Tab 使用独立路径和普通 history push；未开放页面只显示标题与“功能即将开放”。
+3. “我的”只链接到只读账号资料与登录会话详情；退出当前设备、撤销其他会话、refresh/returnTo 和真实认证协议保持 Phase 1 行为。
+4. 新页面只使用 shadcn 语义 token，`.dark` 仅预留，不新增主题开关、UI 库、后端 API、数据库或未来饮食业务。
+5. 组件/路由测试、真实 FastAPI/PostgreSQL/Mailpit Playwright 流程、八张 430×932 Git 基线、320/desktop 布局检查和 Codex 内置浏览器验收通过；基线经人工审查后批准。
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 01.1 to break down)
+- [ ] 01.1-01-PLAN.md — 同步占位页合同，建立语义主题和精确受保护路径表
+- [ ] 01.1-02-PLAN.md — 建立 MobileFrame、公开页壳、Tab 壳、详情壳与四项导航
+- [ ] 01.1-03-PLAN.md — 实现诚实占位页、“我的”根页和账号/会话详情内容
+- [ ] 01.1-04-PLAN.md — 迁移真实会话列表、退出和撤销确认状态
+- [ ] 01.1-05-PLAN.md — 迁移首页、隐私和条款公开页面
+- [ ] 01.1-06-PLAN.md — 迁移登录、注册、验证和密码恢复表单
+- [ ] 01.1-07-PLAN.md — 接线统一认证守卫、嵌套路由、深链和浏览器历史
+- [ ] 01.1-08-PLAN.md — 建立真实跨栈 E2E、响应式门禁、视觉基线和内置浏览器验收
+- [ ] 01.1-09-PLAN.md — 人工审查并批准八张 430px Git 视觉基线
 
 ### Phase 2: 可追问的 Agent 核心
 
@@ -134,7 +150,7 @@ Plans:
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
-| 01.1. H5 UI 基座与现有页面迁移 | Pending | 0/TBD | - |
+| 01.1. H5 UI 基座与现有页面迁移 | Pending | 0/9 | - |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
