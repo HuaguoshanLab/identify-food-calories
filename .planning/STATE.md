@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01.1-01-PLAN.md
-last_updated: "2026-08-28T05:39:20.159Z"
+stopped_at: Completed 01.1-02-PLAN.md
+last_updated: "2026-08-28T05:48:51.203Z"
 last_activity: 2026-08-28
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 23
-  completed_plans: 15
-  percent: 65
+  completed_plans: 16
+  percent: 70
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 01.1 (h5-ui) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Executing Phase 01.1
 Last activity: 2026-08-28
 
-Progress: [███████░░░] 65%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [███████░░░] 65%
 | Phase 01 P13 | 9 min | 2 tasks | 14 files |
 | Phase 01 P14 | 14 min | 2 tasks | 22 files |
 | Phase 01.1 P01 | 5 min | 3 tasks | 6 files |
+| Phase 01.1 P02 | 5 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 密码恢复浏览器端仅使用公开 API 与 HttpOnly recovery context，不把验证码、context 或 token 放进 React 持久状态。 — 与后端的非枚举和摘要策略保持一致。
 - [Phase 01]: README 合同从 Git 已跟踪源文件推导目录，自动检查三段式 README 和父目录索引。 — 防止生成目录影响审计且让新增模块文档可验证。
 - [Phase 01.1]: 在 Agent 核心之前插入 H5 UI 基座与现有页面迁移阶段。 — 先统一页面壳、四 Tab 目标信息架构、滚动、安全区和语义 token，再承载 Agent 页面。
+- [Phase 01.1]: H5 视口、唯一主滚动区与底部导航统一由 layouts/ 管理，业务页面不得重复创建全屏或滚动根。
+- [Phase 01.1]: 四 Tab active 状态从 routePaths 与 NavLink 推导，认证与详情返回使用确定路径，不依赖浏览器历史。
 
 ### Pending Todos
 
@@ -132,6 +135,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T05:39:20.156Z
-Stopped at: Completed 01.1-01-PLAN.md
+Last session: 2026-08-28T05:48:33.777Z
+Stopped at: Completed 01.1-02-PLAN.md
 Resume file: None
