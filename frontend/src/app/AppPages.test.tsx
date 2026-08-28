@@ -1,12 +1,34 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { AuthContext, type AuthContextValue } from '@/auth/AuthContext'
 import { routePaths } from '@/routePaths'
 
+import { AccountDetailsPage } from './AccountDetailsPage'
 import { MePage } from './MePage'
 import { PlaceholderTabPage } from './PlaceholderTabPage'
+import { SessionsDetailsPage } from './SessionsDetailsPage'
+
+function createAuthValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
+  return {
+    login: vi.fn(),
+    logout: vi.fn().mockResolvedValue(true),
+    request: vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 })),
+    retryBootstrap: vi.fn(),
+    status: 'authenticated',
+    user: {
+      email: 'database@example.com',
+      email_verified_at: '2026-08-27T00:00:00Z',
+      id: '00000000-0000-0000-0000-000000000001',
+      is_active: true,
+      role: 'user',
+    },
+    ...overrides,
+  }
+}
 
 describe('honest placeholder tab pages', () => {
   it.each(['分析', '记录', '计划'] as const)('renders only the locked %s status', (title) => {
@@ -24,6 +46,42 @@ describe('honest placeholder tab pages', () => {
     expect(screen.queryByRole('form')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/上传|加载|骨架/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('account and session detail content', () => {
+  it('maps only database-authoritative account fields to readonly Chinese details', () => {
+    render(
+      <AuthContext.Provider value={createAuthValue({ user: { ...createAuthValue().user!, role: 'admin' } })}>
+        <AccountDetailsPage />
+      </AuthContext.Provider>,
+    )
+
+    expect(screen.getByText('邮箱')).toBeInTheDocument()
+    expect(screen.getByText('database@example.com')).toHaveClass('break-all')
+    expect(screen.getByText('账号状态')).toBeInTheDocument()
+    expect(screen.getByText('正常')).toBeInTheDocument()
+    expect(screen.getByText('角色')).toBeInTheDocument()
+    expect(screen.getByText('管理员')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /编辑|保存|修改|上传/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('reuses SessionList as the only session-query owner', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={createAuthValue({ request })}>
+          <SessionsDetailsPage />
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('heading', { level: 2, name: '登录会话' })).toBeInTheDocument()
+    expect(await screen.findByText('暂无其他登录会话')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('/auth/sessions', { method: 'GET' })
   })
 })
 
