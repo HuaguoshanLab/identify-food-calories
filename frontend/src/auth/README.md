@@ -16,8 +16,8 @@
 | 文件 | 职责 |
 |---|---|
 | `README.md` | 认证 UI 边界、允许依赖和文件索引 |
-| `PublicPages.tsx` | 落地页、隐私/条款和表单页共用公开布局 |
-| `PublicRoutes.test.tsx` | 公开路由、受保护入口和无后台表面证据 |
+| `PublicPages.tsx` | 落地页与隐私/条款的纯内容组件；它们交由 `PublicAuthLayout` 提供 H5 视口、品牌入口和唯一滚动区。`AuthEntryPage` 继续为认证表单提供共用内容结构。 |
+| `PublicRoutes.test.tsx` | 公开路由、主次 CTA、法律页公开滚动边界、受保护入口和无后台表面证据 |
 | `LoginPage.tsx` | 登录表单与统一、非枚举错误映射；不持久化 access token |
 | `RegisterPage.tsx` | 注册与非枚举验证码分发；只发送 email/password |
 | `RegisterVerifyPage.tsx` | 注册验证码、掩码邮箱、冷却、重发和显式错误恢复 |

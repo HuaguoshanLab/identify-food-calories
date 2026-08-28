@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
 import { AuthProvider } from './AuthProvider'
+import { PrivacyPage, TermsPage } from './PublicPages'
+import { PublicAuthLayout } from '../layouts/PublicAuthLayout'
 
 function renderRoute(initialEntry: string) {
   const queryClient = new QueryClient({
@@ -16,6 +18,19 @@ function renderRoute(initialEntry: string) {
       <QueryClientProvider client={queryClient}>
         <AuthProvider><App /></AuthProvider>
       </QueryClientProvider>
+    </MemoryRouter>,
+  )
+}
+
+function renderLegalContent(initialEntry: '/privacy' | '/terms') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route element={<PublicAuthLayout mode="entry" />}>
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+        </Route>
+      </Routes>
     </MemoryRouter>,
   )
 }
@@ -64,6 +79,20 @@ describe('public user routes', () => {
     expect(screen.getByRole('heading', { name: '忘记密码' })).toBeInTheDocument()
     renderRoute('/reset-password')
     expect(screen.getByRole('heading', { name: '重置密码' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['/privacy', '隐私说明'],
+    ['/terms', '使用条款'],
+  ] as const)('renders %s as scrollable public content without private navigation', (path, title) => {
+    renderLegalContent(path)
+
+    expect(screen.getByRole('main')).toHaveAttribute('data-testid', 'page-scroll-area')
+    expect(screen.getByRole('heading', { name: title })).toHaveFocus()
+    expect(screen.getByRole('link', { name: '返回首页' })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /后台|管理/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/上传/i)).not.toBeInTheDocument()
   })
 
   it('contains no admin route, navigation, or admin probe call in the user application', () => {
