@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
 import { AuthProvider } from './AuthProvider'
-import { PrivacyPage, TermsPage } from './PublicPages'
+import { LandingPage, PrivacyPage, TermsPage } from './PublicPages'
 import { PublicAuthLayout } from '../layouts/PublicAuthLayout'
 
 function renderRoute(initialEntry: string) {
@@ -36,7 +36,26 @@ function renderLegalContent(initialEntry: '/privacy' | '/terms') {
 }
 
 describe('public user routes', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps landing CTAs as native navigation links without Base UI button warnings', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(
+      <MemoryRouter>
+        <LandingPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: '创建账号' })).not.toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('link', { name: '登录' })).not.toHaveAttribute('data-slot', 'button')
+    expect(consoleError).not.toHaveBeenCalledWith(
+      expect.stringContaining('expected a native <button>'),
+    )
+  })
 
   it('keeps landing, legal and account-entry pages public', () => {
     const { container } = renderRoute('/')
