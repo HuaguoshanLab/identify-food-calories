@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -226,31 +226,38 @@ describe('session management', () => {
     resolveSessions?.(jsonResponse([]))
   })
 
-  it('distinguishes a normal current-only empty state from an abnormal empty response and lets the user retry', async () => {
-    const user = (await import('@testing-library/user-event')).default.setup()
-    let callCount = 0
-    vi.stubGlobal('fetch', sessionFetch(() => {
-      callCount += 1
-      return callCount === 1 ? [] : [
-        {
-          id: '00000000-0000-0000-0000-000000000010',
-          created_at: '2026-08-01T00:00:00Z',
-          last_seen_at: '2026-08-27T00:00:00Z',
-          expires_at: '2026-09-01T00:00:00Z',
-          revoked_at: null,
-          device_label: '当前浏览器',
-          is_current: true,
-        },
-      ]
-    }))
+  it('shows the normal empty state only when the current session exists', async () => {
+    vi.stubGlobal('fetch', sessionFetch([
+      {
+        id: '00000000-0000-0000-0000-000000000010',
+        created_at: '2026-08-01T00:00:00Z',
+        last_seen_at: '2026-08-27T00:00:00Z',
+        expires_at: '2026-09-01T00:00:00Z',
+        revoked_at: null,
+        device_label: '当前浏览器',
+        is_current: true,
+      },
+    ]))
 
     renderSessionList()
 
-    expect(await screen.findByText('暂时没有可显示的登录会话。')).toBeInTheDocument()
-    expect(screen.queryByText('暂无其他登录会话')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '重新尝试' }))
     expect(await screen.findByText('暂无其他登录会话')).toBeInTheDocument()
     expect(screen.queryByText('暂时没有可显示的登录会话。')).not.toBeInTheDocument()
+  })
+
+  it('renders an abnormal empty response with a user-driven retry', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    const fetchMock = sessionFetch([])
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { container } = renderSessionList()
+    const sessionView = within(container)
+
+    expect(await sessionView.findByText('暂时没有可显示的登录会话。')).toBeInTheDocument()
+    expect(sessionView.queryByText('暂无其他登录会话')).not.toBeInTheDocument()
+    const sessionRequestsBeforeRetry = fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/auth/sessions') && init?.method === 'GET').length
+    await user.click(sessionView.getByRole('button', { name: '重新尝试' }))
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/auth/sessions') && init?.method === 'GET')).toHaveLength(sessionRequestsBeforeRetry + 1))
   })
 
   it('uses logout for the current session and requires explicit confirmation before revoking another session', async () => {
