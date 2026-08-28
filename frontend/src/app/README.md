@@ -16,4 +16,6 @@
 | `PlaceholderTabPage.tsx` | 分析、记录、计划三个未开放 Tab 的诚实状态页。 |
 | `SettingsLinkRow.tsx` | “我的”中的完整语义设置链接行。 |
 | `MePage.tsx` | “我的”根页，仅提供账号资料和登录会话入口。 |
+| `AccountDetailsPage.tsx` | 从 AuthProvider 权威身份映射出的只读账号资料。 |
+| `SessionsDetailsPage.tsx` | 登录会话详情的组合入口，复用 `auth/SessionList` 的唯一 Query 所有权。 |
 | `AppPages.test.tsx` | 应用页面组件的可见行为、语义和键盘可达性测试。 |
