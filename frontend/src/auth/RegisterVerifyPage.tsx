@@ -161,14 +161,16 @@ export function RegisterVerifyPage() {
   }
 
   if (contextQuery.isError || !pending) {
-    const invalidContext = contextQuery.error instanceof AuthApiError && contextQuery.error.code === 'VERIFICATION_CONTEXT_INVALID'
+    const queryHasInvalidContext = contextQuery.error instanceof AuthApiError
+      && contextQuery.error.code === 'VERIFICATION_CONTEXT_INVALID'
+    const hasInvalidContext = invalidContext || queryHasInvalidContext
     return (
       <AuthEntryPage
         progress="步骤 2/2"
         title="验证邮箱"
-        description={invalidContext ? '验证信息已失效，请重新开始。' : '暂时无法连接服务，请检查网络后重试。'}
+        description={hasInvalidContext ? '验证信息已失效，请重新开始。' : '暂时无法连接服务，请检查网络后重试。'}
       >
-        {invalidContext ? (
+        {hasInvalidContext ? (
           <Link className="mt-6 inline-block text-sm text-foreground underline underline-offset-4 hover:text-primary" to="/register">返回注册</Link>
         ) : (
           <Button className="mt-6 h-11 text-base" variant="link" type="button" onClick={() => void contextQuery.refetch()}>重新尝试</Button>
