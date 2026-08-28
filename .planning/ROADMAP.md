@@ -35,11 +35,22 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 5. `docs/learning/01-auth-and-backend-foundation.md` 能解释密码哈希、令牌轮换、依赖注入、数据库事务和测试分层。
 6. 根目录、`frontend/` 与 `backend/` 均包含本级 `README.md` 和 `AGENTS.md`；本阶段新增的每个目录均有同次提交的职责、允许依赖和文件索引说明。
 
+### Phase 01.1: H5 UI 基座与现有页面迁移 (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 1
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 01.1 to break down)
+
 ### Phase 2: 可追问的 Agent 核心
 
 **Goal:** 用户通过文字描述一餐时，Agent 能使用确定性工具补齐信息、计算营养并在中断后恢复。
 **Mode:** mvp
-**Depends on:** Phase 1
+**Depends on:** Phase 01.1
 **Requirements:** AGT-01, AGT-02, AGT-03, AGT-04, AGT-05, AGT-06, AGT-07, NUT-01, NUT-02, NUT-03, NUT-04, NUT-05, ARC-05, ARC-06, QLT-02
 **Success Criteria:**
 
@@ -123,6 +134,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
+| 01.1. H5 UI 基座与现有页面迁移 | Pending | 0/TBD | - |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
