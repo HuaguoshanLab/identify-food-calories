@@ -173,6 +173,86 @@ describe('authentication session bootstrap', () => {
 describe('session management', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it('puts the current session first and preserves the server order for other sessions', async () => {
+    const sessions = [
+      {
+        id: '00000000-0000-0000-0000-000000000012',
+        created_at: '2026-08-03T00:00:00Z',
+        last_seen_at: '2026-08-25T00:00:00Z',
+        expires_at: '2026-09-03T00:00:00Z',
+        revoked_at: null,
+        device_label: '笔记本电脑',
+        is_current: false,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000010',
+        created_at: '2026-08-01T00:00:00Z',
+        last_seen_at: '2026-08-27T00:00:00Z',
+        expires_at: '2026-09-01T00:00:00Z',
+        revoked_at: null,
+        device_label: '当前浏览器',
+        is_current: true,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000011',
+        created_at: '2026-08-02T00:00:00Z',
+        last_seen_at: '2026-08-26T00:00:00Z',
+        expires_at: '2026-09-02T00:00:00Z',
+        revoked_at: null,
+        device_label: '平板设备',
+        is_current: false,
+      },
+    ]
+    vi.stubGlobal('fetch', sessionFetch(sessions))
+
+    renderSessionList()
+
+    expect((await screen.findAllByRole('heading', { level: 3 })).map((heading) => heading.textContent)).toEqual([
+      '当前浏览器（当前设备）',
+      '笔记本电脑',
+      '平板设备',
+    ])
+  })
+
+  it('renders two card-sized skeletons while sessions are loading', async () => {
+    let resolveSessions: ((response: Response) => void) | undefined
+    const pendingSessions = new Promise<Response>((resolve) => { resolveSessions = resolve })
+    vi.stubGlobal('fetch', sessionFetch(pendingSessions))
+
+    const { container } = renderSessionList()
+
+    await screen.findByRole('status', { name: '正在加载登录会话' })
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2)
+    resolveSessions?.(jsonResponse([]))
+  })
+
+  it('distinguishes a normal current-only empty state from an abnormal empty response and lets the user retry', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    let callCount = 0
+    vi.stubGlobal('fetch', sessionFetch(() => {
+      callCount += 1
+      return callCount === 1 ? [] : [
+        {
+          id: '00000000-0000-0000-0000-000000000010',
+          created_at: '2026-08-01T00:00:00Z',
+          last_seen_at: '2026-08-27T00:00:00Z',
+          expires_at: '2026-09-01T00:00:00Z',
+          revoked_at: null,
+          device_label: '当前浏览器',
+          is_current: true,
+        },
+      ]
+    }))
+
+    renderSessionList()
+
+    expect(await screen.findByText('暂时没有可显示的登录会话。')).toBeInTheDocument()
+    expect(screen.queryByText('暂无其他登录会话')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '重新尝试' }))
+    expect(await screen.findByText('暂无其他登录会话')).toBeInTheDocument()
+    expect(screen.queryByText('暂时没有可显示的登录会话。')).not.toBeInTheDocument()
+  })
+
   it('uses logout for the current session and requires explicit confirmation before revoking another session', async () => {
     const user = (await import('@testing-library/user-event')).default.setup()
     let remoteSessionRevoked = false
@@ -235,3 +315,26 @@ describe('session management', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/auth/logout'))).toBe(true))
   })
 })
+
+function sessionFetch(sessions: AuthSessionSummarySource | (() => AuthSessionSummarySource)) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.endsWith('/auth/refresh')) return jsonResponse({ access_token: 'access', expires_in: 900, token_type: 'bearer' })
+    if (url.endsWith('/users/me')) return jsonResponse({ id: '00000000-0000-0000-0000-000000000001', email: 'database@example.com', email_verified_at: null, is_active: true, role: 'user' })
+    if (url.endsWith('/auth/sessions') && init?.method === 'GET') {
+      const response = typeof sessions === 'function' ? sessions() : sessions
+      return response instanceof Promise ? response : jsonResponse(response)
+    }
+    return jsonResponse({ error: { code: 'UNEXPECTED' } }, 500)
+  })
+}
+
+type AuthSessionSummarySource = Array<{
+  created_at: string
+  device_label: string
+  expires_at: string
+  id: string
+  is_current: boolean
+  last_seen_at: string
+  revoked_at: null
+}> | Promise<Response>
