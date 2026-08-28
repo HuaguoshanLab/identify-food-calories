@@ -73,6 +73,13 @@
 - Service 使用 fake repository 单测；Repository 使用真实 PostgreSQL 集成测试；Agent 图使用 Fake Provider 测试路由、interrupt/resume 与循环终止。
 - README 最终必须包含架构图、状态图、时序图、启动/调试命令和面试深挖题。
 
+## Browser Verification
+
+- 验收涉及用户可见页面、表单、路由、上传、图表或跨栈交互时，必须优先使用 Codex 内置浏览器完成一次真实交互验证。
+- 浏览器验证必须走产品实际页面和公开 API；不得用直接写数据库、伪造 token、调用内部函数或只看截图代替。
+- 自动化单测、API 测试与 Playwright E2E 仍是基础门禁；内置浏览器验证用于补足真实浏览器行为、页面可访问性和用户路径验收。
+- 交付时说明浏览器验证过的路径、关键结果，以及仍需人工确认的项目；浏览器不可用时必须明确记录原因，不能声称已完成页面验收。
+
 ## Conventions
 
 - 仓库根目录、`frontend/` 与 `backend/` 必须各自维护 `README.md` 和 `AGENTS.md`；Phase 6 创建 `admin-frontend/` 时同样适用；子级 `AGENTS.md` 只能细化、不能放宽上级规则。
