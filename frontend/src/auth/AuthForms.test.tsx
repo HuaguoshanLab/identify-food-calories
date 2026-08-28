@@ -217,6 +217,60 @@ describe('authentication forms', () => {
     expect(screen.getByRole('link', { name: '返回注册' })).toHaveAttribute('href', '/register')
   })
 
+  it('returns to registration when verification submission finds an invalid context', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            masked_email: 'm***@example.com',
+            resend_available_at: '2020-01-01T00:00:00Z',
+            expires_at: '2026-08-27T00:10:00Z',
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ error: { code: 'VERIFICATION_CONTEXT_INVALID' } }, 409),
+        ),
+    )
+
+    renderAuthPage('/register/verify')
+    await user.type(await screen.findByLabelText('6 位邮箱验证码'), '123456')
+    await user.click(screen.getByRole('button', { name: '验证并激活账号' }))
+
+    expect(await screen.findByText('验证信息已失效，请重新开始。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回注册' })).toHaveAttribute('href', '/register')
+    expect(screen.queryByText('暂时无法连接服务，请检查网络后重试。')).not.toBeInTheDocument()
+  })
+
+  it('returns to registration when resending finds an invalid context', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            masked_email: 'm***@example.com',
+            resend_available_at: '2020-01-01T00:00:00Z',
+            expires_at: '2026-08-27T00:10:00Z',
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ error: { code: 'VERIFICATION_CONTEXT_INVALID' } }, 409),
+        ),
+    )
+
+    renderAuthPage('/register/verify')
+    await screen.findByLabelText('6 位邮箱验证码')
+    await user.click(screen.getByRole('button', { name: '重新发送验证码' }))
+
+    expect(await screen.findByText('验证信息已失效，请重新开始。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回注册' })).toHaveAttribute('href', '/register')
+    expect(screen.queryByText('暂时无法连接服务，请检查网络后重试。')).not.toBeInTheDocument()
+  })
+
   it('uses the server retry_after cooldown and offers explicit network recovery', async () => {
     const user = userEvent.setup()
     const fetchMock = vi
