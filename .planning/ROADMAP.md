@@ -40,7 +40,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 **Goal:** 用户能在统一、移动端优先的 H5 页面壳中完成既有公开认证与账号会话流程，并通过四个独立 Tab、明确详情层级和可审查视觉基线获得稳定、可访问的导航体验。
 **Requirements:** None（阶段专属 UX 合同；本阶段不完成或认领 UI-01）
 **Depends on:** Phase 1
-**Plans:** 9 plans
+**Plans:** 1/9 plans executed
 
 **Success Criteria:**
 
@@ -52,7 +52,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 
 Plans:
 
-- [ ] 01.1-01-PLAN.md — 同步占位页合同，建立语义主题和精确受保护路径表
+- [x] 01.1-01-PLAN.md — 同步占位页合同，建立语义主题和精确受保护路径表
 - [ ] 01.1-02-PLAN.md — 建立 MobileFrame、公开页壳、Tab 壳、详情壳与四项导航
 - [ ] 01.1-03-PLAN.md — 实现诚实占位页、“我的”根页和账号/会话详情内容
 - [ ] 01.1-04-PLAN.md — 迁移真实会话列表、退出和撤销确认状态
@@ -150,7 +150,7 @@ Plans:
 | Phase | Status | Plans | Completed |
 |---|---|---|---|
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
-| 01.1. H5 UI 基座与现有页面迁移 | Pending | 0/9 | - |
+| 01.1. H5 UI 基座与现有页面迁移 | 1/9 | In Progress|  |
 | 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
