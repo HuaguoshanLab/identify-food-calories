@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
@@ -46,7 +46,7 @@ describe('my settings root page', () => {
     expect(screen.queryByText(/偏好|设置/i)).not.toBeInTheDocument()
 
     for (const link of links) {
-      expect(within(link).getAllByRole('img', { hidden: true })).toHaveLength(2)
+      expect(link.querySelectorAll('svg')).toHaveLength(2)
     }
 
     await user.tab()

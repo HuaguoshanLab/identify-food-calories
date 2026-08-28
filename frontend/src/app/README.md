@@ -14,4 +14,6 @@
 | 文件 | 职责 |
 |---|---|
 | `PlaceholderTabPage.tsx` | 分析、记录、计划三个未开放 Tab 的诚实状态页。 |
+| `SettingsLinkRow.tsx` | “我的”中的完整语义设置链接行。 |
+| `MePage.tsx` | “我的”根页，仅提供账号资料和登录会话入口。 |
 | `AppPages.test.tsx` | 应用页面组件的可见行为、语义和键盘可达性测试。 |
