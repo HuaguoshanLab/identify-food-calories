@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01.1-06-PLAN.md
-last_updated: "2026-08-28T06:25:04.449Z"
+stopped_at: Completed 01.1-07-PLAN.md
+last_updated: "2026-08-28T06:40:21.881Z"
 last_activity: 2026-08-28
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 21
   percent: 13
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 01.1 (h5-ui) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-08-28
 
@@ -71,6 +71,7 @@ Progress: [████████░░] 83%
 | Phase 01.1 P04 | 9 min | 2 tasks | 3 files |
 | Phase 01.1 P05 | 6min | 2 tasks | 4 files |
 | Phase 01.1 P06 | 6min | 3 tasks | 7 files |
+| Phase 01.1 P07 | 8 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,7 @@ Recent decisions affecting current work:
 - [Phase 01.1]: 未开放 Tab 仅通过锁定标题与状态说明呈现；账号详情只读映射 AuthProvider，会话详情复用 SessionList 作为唯一 Query 所有者。 — 避免假功能、身份数据重复披露和会话缓存分叉。
 - [Phase 01.1]: 完全空的会话 API 响应是异常可恢复状态；只有存在当前会话且无其他会话时才显示正常空态。 — 避免将身份/服务异常错误呈现为用户只有当前设备在线。
 - [Phase 01.1]: 认证步骤进度由共享 AuthEntryPage 在标题前渲染；验证码与恢复 context 继续只由公开 API 和 HttpOnly Cookie 管理。 — 符合已冻结 UI-SPEC，并避免在 React 持久状态复制敏感认证上下文。
+- [Phase 01.1]: 所有 /app 子路由只经过一个 pathless RequireAuthentication；/app index replace 到 /app/me，四个 Tab 保持默认 push 历史。 — 统一深链身份恢复与浏览器历史语义。
 
 ### Pending Todos
 
@@ -142,6 +144,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T06:25:04.447Z
-Stopped at: Completed 01.1-06-PLAN.md
+Last session: 2026-08-28T06:40:21.821Z
+Stopped at: Completed 01.1-07-PLAN.md
 Resume file: None
