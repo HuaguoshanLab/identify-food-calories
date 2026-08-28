@@ -18,6 +18,38 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+const recoverableRecoveryErrors = [
+  ['NETWORK_ERROR', '暂时无法连接服务，请检查网络后重试。'],
+  ['UNKNOWN_ERROR', '服务暂时不可用，请稍后重试。'],
+  ['CSRF_ORIGIN_INVALID', '请求来源无效，请刷新后重试。'],
+] as const
+
+const terminalRecoveryErrors = [
+  ['RECOVERY_CONTEXT_INVALID', '恢复信息已失效，请重新开始。'],
+  ['RECOVERY_CODE_EXPIRED', '验证码已过期，请重新申请重置。'],
+  ['RECOVERY_ATTEMPTS_EXCEEDED', '验证码尝试次数已用尽，请重新申请重置。'],
+] as const
+
+function recoveryErrorResponse(code: string) {
+  if (code === 'NETWORK_ERROR') {
+    return Promise.reject(new TypeError('offline'))
+  }
+  if (code === 'UNKNOWN_ERROR') {
+    return Promise.resolve(jsonResponse({ error: {} }, 500))
+  }
+  return Promise.resolve(jsonResponse({ error: { code } }, code === 'CSRF_ORIGIN_INVALID' ? 403 : 409))
+}
+
+function countRequests(fetchMock: ReturnType<typeof vi.fn>, path: string) {
+  return fetchMock.mock.calls.filter(([url]) => String(url).includes(path)).length
+}
+
+async function fillResetPasswordForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText('6 位邮箱验证码'), '123456')
+  await user.type(screen.getByLabelText('新密码'), 'correct horse battery')
+  await user.type(screen.getByLabelText('确认新密码'), 'correct horse battery')
+}
+
 function renderAuthPage(initialEntry: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -319,6 +351,107 @@ describe('authentication forms', () => {
     expect(await screen.findByText('暂时无法连接服务，请检查网络后重试。')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新尝试验证' })).toBeInTheDocument()
   })
+
+  it.each(recoverableRecoveryErrors)(
+    'keeps reset inputs and retries only code verification after %s',
+    async (errorCode, errorMessage) => {
+      const user = userEvent.setup()
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        if (String(url).includes('/password-recovery/verify')) {
+          return recoveryErrorResponse(errorCode)
+        }
+        throw new Error(`Unexpected request: ${String(url)}`)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderAuthPage('/reset-password')
+      await fillResetPasswordForm(user)
+      await user.click(screen.getByRole('button', { name: '更新密码' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
+      expect(screen.queryByText('恢复信息已失效，请重新开始。')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('6 位邮箱验证码')).toHaveValue('123456')
+      expect(screen.getByLabelText('新密码')).toHaveValue('correct horse battery')
+      expect(countRequests(fetchMock, '/password-recovery/verify')).toBe(1)
+      expect(countRequests(fetchMock, '/password-recovery/reset')).toBe(0)
+
+      await user.click(screen.getByRole('button', { name: '重新尝试' }))
+      await waitFor(() => expect(countRequests(fetchMock, '/password-recovery/verify')).toBe(2))
+      expect(countRequests(fetchMock, '/password-recovery/reset')).toBe(0)
+    },
+  )
+
+  it.each(recoverableRecoveryErrors)(
+    'keeps verified reset state and retries only password reset after %s',
+    async (errorCode, errorMessage) => {
+      const user = userEvent.setup()
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        if (String(url).includes('/password-recovery/verify')) {
+          return Promise.resolve(jsonResponse({ status: 'RECOVERY_CODE_VERIFIED' }))
+        }
+        if (String(url).includes('/password-recovery/reset')) {
+          return recoveryErrorResponse(errorCode)
+        }
+        throw new Error(`Unexpected request: ${String(url)}`)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderAuthPage('/reset-password')
+      await fillResetPasswordForm(user)
+      await user.click(screen.getByRole('button', { name: '更新密码' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
+      expect(screen.queryByText('恢复信息已失效，请重新开始。')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('6 位邮箱验证码')).toHaveValue('123456')
+      expect(screen.getByLabelText('新密码')).toHaveValue('correct horse battery')
+      expect(countRequests(fetchMock, '/password-recovery/verify')).toBe(1)
+      expect(countRequests(fetchMock, '/password-recovery/reset')).toBe(1)
+
+      await user.click(screen.getByRole('button', { name: '重新尝试' }))
+      await waitFor(() => expect(countRequests(fetchMock, '/password-recovery/reset')).toBe(2))
+      expect(countRequests(fetchMock, '/password-recovery/verify')).toBe(1)
+    },
+  )
+
+  it.each(terminalRecoveryErrors)(
+    'opens a fresh recovery request from the code-verification terminal error %s',
+    async (errorCode, errorMessage) => {
+      const user = userEvent.setup()
+      vi.stubGlobal('fetch', vi.fn(() => recoveryErrorResponse(errorCode)))
+
+      renderAuthPage('/reset-password')
+      await fillResetPasswordForm(user)
+      await user.click(screen.getByRole('button', { name: '更新密码' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
+      await user.click(screen.getByRole('link', { name: '重新申请重置' }))
+      expect(await screen.findByRole('heading', { name: '忘记密码' })).toBeInTheDocument()
+      expect(screen.queryByLabelText('6 位邮箱验证码')).not.toBeInTheDocument()
+    },
+  )
+
+  it.each(terminalRecoveryErrors)(
+    'opens a fresh recovery request from the password-reset terminal error %s',
+    async (errorCode, errorMessage) => {
+      const user = userEvent.setup()
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        if (String(url).includes('/password-recovery/verify')) {
+          return Promise.resolve(jsonResponse({ status: 'RECOVERY_CODE_VERIFIED' }))
+        }
+        return recoveryErrorResponse(errorCode)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderAuthPage('/reset-password')
+      await fillResetPasswordForm(user)
+      await user.click(screen.getByRole('button', { name: '更新密码' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
+      await user.click(screen.getByRole('link', { name: '重新申请重置' }))
+      expect(await screen.findByRole('heading', { name: '忘记密码' })).toBeInTheDocument()
+      expect(screen.queryByLabelText('6 位邮箱验证码')).not.toBeInTheDocument()
+    },
+  )
 
   it('keeps recovery shells public without persisting email, code, or passwords', async () => {
     const user = userEvent.setup()
