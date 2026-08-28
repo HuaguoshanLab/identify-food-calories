@@ -154,6 +154,10 @@ describe('authentication forms', () => {
 
     renderAuthPage('/register/verify')
     const codeInput = await screen.findByRole('textbox', { name: '6 位邮箱验证码' })
+    expect(screen.getByText('步骤 2/2')).toBeInTheDocument()
+    expect(codeInput).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(codeInput).toHaveAttribute('inputmode', 'numeric')
+    expect(codeInput).toHaveAttribute('maxlength', '6')
     fireEvent.change(codeInput, { target: { value: '１２３４５６' } })
     expect(codeInput).toHaveValue('')
 
