@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
 import { AuthProvider } from './AuthProvider'
+import { RequireAuthentication } from './RouteGuards'
 import { parseReturnTo } from './returnTo'
 
 function renderApp(initialEntry: string) {
@@ -93,5 +94,35 @@ describe('protected user routes', () => {
 
     expect(await screen.findByRole('heading', { name: '账号与会话' })).toBeInTheDocument()
     expect(screen.getByText('database@example.com')).toBeInTheDocument()
+  })
+
+  it('renders nested protected routes through the guard Outlet after identity recovery', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) {
+        return new Response(JSON.stringify({ access_token: 'runtime-only-access', expires_in: 900, token_type: 'bearer' }))
+      }
+      if (url.endsWith('/users/me')) {
+        return new Response(JSON.stringify({ id: '00000000-0000-0000-0000-000000000001', email: 'database@example.com', email_verified_at: null, is_active: true, role: 'user' }))
+      }
+      return new Response(JSON.stringify({ error: { code: 'UNEXPECTED' } }), { status: 500 })
+    }))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MemoryRouter initialEntries={['/app/test']}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Routes>
+              <Route element={<RequireAuthentication />}>
+                <Route path="/app/test" element={<h1>受保护的嵌套路由</h1>} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: '受保护的嵌套路由' })).toBeInTheDocument()
   })
 })
