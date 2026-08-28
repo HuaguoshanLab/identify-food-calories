@@ -24,18 +24,29 @@ describe('public user routes', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('keeps landing, legal and account-entry pages public', () => {
-    renderRoute('/')
-    expect(
-      screen.getByRole('heading', { name: '拍下或描述一餐，获得可追问的饮食分析' }),
-    ).toBeInTheDocument()
+    const { container } = renderRoute('/')
+    const landingHeading = screen.getByRole('heading', {
+      name: '拍下或描述一餐，获得可追问的饮食分析',
+    })
+
+    expect(landingHeading).toBeInTheDocument()
+    expect(landingHeading).toHaveFocus()
     expect(screen.getByRole('link', { name: '创建账号' })).toHaveAttribute('href', '/register')
+    expect(screen.getByRole('link', { name: '创建账号' })).toHaveClass('bg-primary')
     expect(screen.getByRole('link', { name: '登录' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: '登录' })).toHaveClass('border-border')
+    expect(screen.getByRole('link', { name: '查看隐私说明' })).toHaveAttribute('href', '/privacy')
+    expect(screen.getByRole('link', { name: '查看使用条款' })).toHaveAttribute('href', '/terms')
+    expect(screen.queryByRole('button', { name: /上传|分析|示例|Agent/i })).not.toBeInTheDocument()
+    expect(container.querySelector('.min-h-dvh')).not.toBeInTheDocument()
 
     renderRoute('/privacy')
     expect(screen.getByRole('heading', { name: '隐私说明' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回首页' })).toHaveAttribute('href', '/')
 
     renderRoute('/terms')
     expect(screen.getByRole('heading', { name: '使用条款' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: '返回首页' }).at(-1)).toHaveAttribute('href', '/')
   })
 
   it('declares authentication entry routes and sends the protected app route to login', async () => {
