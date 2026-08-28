@@ -15,3 +15,4 @@
 | 文件 | 职责 |
 |---|---|
 | `01-auth-and-backend-foundation.md` | Phase 1 认证、权限、事务和测试链教学指南 |
+| `02-phase-1-code-walkthrough.md` | 从 React 页面追踪到 FastAPI、Service、Repository 与 PostgreSQL 的 Phase 1 代码导读 |
