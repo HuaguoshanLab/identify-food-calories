@@ -1,8 +1,15 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+} from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { AppHeader } from './AppHeader'
+import { AppShell } from './AppShell'
 import { DetailLayout } from './DetailLayout'
 import { MobileFrame } from './MobileFrame'
 import { PageScrollArea } from './PageScrollArea'
@@ -84,5 +91,74 @@ describe('layout foundations', () => {
     expect(screen.getByRole('link', { name: '返回我的' })).toHaveAttribute('href', '/app/me')
     expect(screen.getByRole('main')).toHaveTextContent('会话列表')
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  })
+})
+
+describe('tab shell navigation', () => {
+  function createTabRouter(initialEntry = '/app/me') {
+    return createMemoryRouter(
+      [
+        {
+          element: <AppShell />,
+          path: '/app',
+          children: [
+            { element: <h1>分析</h1>, path: 'analyze' },
+            { element: <h1>记录</h1>, path: 'records' },
+            { element: <h1>计划</h1>, path: 'plans' },
+            { element: <h1>我的</h1>, path: 'me' },
+          ],
+        },
+      ],
+      { initialEntries: [initialEntry] },
+    )
+  }
+
+  it('renders the four controlled route tabs in the fixed order with the active page exposed', () => {
+    const router = createTabRouter()
+    const { container } = render(<RouterProvider router={router} />)
+
+    const navigation = screen.getByRole('navigation', { name: '主要导航' })
+    const tabs = screen.getAllByRole('link')
+
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['分析', '记录', '计划', '我的'])
+    expect(tabs.map((tab) => tab.getAttribute('href'))).toEqual([
+      '/app/analyze',
+      '/app/records',
+      '/app/plans',
+      '/app/me',
+    ])
+    expect(screen.getByRole('link', { name: '我的' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: '我的' })).toHaveClass('font-semibold', 'text-primary')
+    expect(navigation).toHaveClass('shrink-0')
+    expect(navigation).not.toHaveClass('fixed')
+    expect(container.querySelectorAll('[data-lucide]')).toHaveLength(4)
+  })
+
+  it('keeps ordinary tab navigation in browser history and exposes a visible-focus skip link', async () => {
+    const user = userEvent.setup()
+    const router = createTabRouter()
+    render(<RouterProvider router={router} />)
+
+    const skipLink = screen.getByRole('link', { name: '跳到主要内容' })
+    expect(skipLink).toHaveAttribute('href', '#main-content')
+    expect(skipLink).toHaveClass('focus:not-sr-only')
+
+    await user.click(screen.getByRole('link', { name: '计划' }))
+    expect(router.state.location.pathname).toBe('/app/plans')
+
+    await router.navigate(-1)
+    expect(router.state.location.pathname).toBe('/app/me')
+  })
+
+  it('keeps the main scroll region and bottom navigation as frame siblings', () => {
+    const router = createTabRouter('/app/analyze')
+    render(<RouterProvider router={router} />)
+
+    const frame = screen.getByTestId('mobile-frame')
+    const main = screen.getByRole('main')
+    const navigation = screen.getByRole('navigation', { name: '主要导航' })
+
+    expect(main.parentElement).toBe(frame)
+    expect(navigation.parentElement).toBe(frame)
   })
 })
