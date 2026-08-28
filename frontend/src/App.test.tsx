@@ -107,16 +107,16 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: '我的' })).toHaveFocus()
 
     await user.click(screen.getByRole('link', { name: /账号资料/ }))
-    expect(await screen.findByRole('heading', { name: '账号资料' })).toHaveFocus()
+    expect(await screen.findByRole('heading', { level: 1, name: '账号资料' })).toHaveFocus()
     analyzeRoute.unmount()
 
     const meRoute = renderApp(['/app/me'])
     await screen.findByRole('heading', { name: '我的' })
     await user.click(screen.getByRole('link', { name: /登录会话/ }))
-    expect(await screen.findByRole('heading', { name: '登录会话' })).toHaveFocus()
+    expect(await screen.findByRole('heading', { level: 1, name: '登录会话' })).toHaveFocus()
     meRoute.unmount()
 
     renderApp(['/app/me/account'])
-    expect(await screen.findByRole('heading', { name: '账号资料' })).toHaveFocus()
+    expect(await screen.findByRole('heading', { level: 1, name: '账号资料' })).toHaveFocus()
   })
 })
