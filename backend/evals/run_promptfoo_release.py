@@ -29,7 +29,7 @@ MAX_OUTPUT_TOKENS = 512
 REQUEST_OVERHEAD_TOKEN_CAP = 1024
 BUDGET_CNY = Decimal("0.20")
 FX_CNY_PER_USD_CEILING = Decimal("8")
-JUDGE_PROMPT_CONTRACT_VERSION = "phase02-judge-json.v2"
+JUDGE_PROMPT_CONTRACT_VERSION = "phase02-judge-json-mode.v3"
 REQUIRED_CONFIRMATIONS = (
     "food_code",
     "blocking_fields",
@@ -93,6 +93,7 @@ def main() -> int:
     config_bytes = args.config.read_bytes()
     _validate_config(config_bytes)
     judge_prompt_contract_version, judge_prompt = _judge_prompt_contract(config_bytes)
+    judge_response_format = _judge_response_format(config_bytes)
     dataset_hash = _sha256(args.dataset.read_bytes())
     code_eval_hash = _sha256(args.code_eval.read_bytes())
     input_price = _decimal(settings.deepseek_input_usd_per_m)
@@ -115,6 +116,7 @@ def main() -> int:
         "config_hash": _sha256(config_bytes),
         "judge_prompt_contract_version": judge_prompt_contract_version,
         "judge_prompt_hash": _sha256(judge_prompt.encode("utf-8")),
+        "judge_response_format": judge_response_format,
         "price_snapshot_version": settings.deepseek_price_snapshot_version,
         "price_snapshot_fingerprint": _sha256(
             f"{settings.deepseek_price_snapshot_version}:{input_price}:{output_price}".encode()
@@ -315,6 +317,7 @@ def _validate_config(config_bytes: bytes) -> None:
     )
     if any(term not in prompt for term in required_prompt_terms):
         raise ValueError("release prompt is missing the strict JSON score contract")
+    _judge_response_format(config_bytes)
 
 
 def _judge_prompt_contract(config_bytes: bytes) -> tuple[str, str]:
@@ -337,6 +340,24 @@ def _judge_prompt_contract(config_bytes: bytes) -> tuple[str, str]:
     if not isinstance(version, str) or not isinstance(prompt, str):
         raise ValueError("release judge prompt contract is invalid")
     return version, prompt
+
+
+def _judge_response_format(config_bytes: bytes) -> dict[str, str]:
+    try:
+        document = yaml.safe_load(config_bytes)
+    except yaml.YAMLError as error:
+        raise ValueError("release config is not valid YAML") from error
+    providers = document.get("providers") if isinstance(document, dict) else None
+    if not isinstance(providers, list) or len(providers) != 1:
+        raise ValueError("release config must contain one provider")
+    provider = providers[0]
+    config = provider.get("config") if isinstance(provider, dict) else None
+    response_format = (
+        config.get("response_format") if isinstance(config, dict) else None
+    )
+    if response_format != {"type": "json_object"}:
+        raise ValueError("release config must force JSON-object response format")
+    return response_format
 
 
 def _call_evidence(
@@ -637,12 +658,15 @@ def _materialize_signoff(
 
 
 def _judge_score(value: Any) -> int:
-    if not isinstance(value, str):
+    if isinstance(value, str):
+        try:
+            payload = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise OutputParseError("judge_score") from error
+    elif isinstance(value, dict):
+        payload = value
+    else:
         raise OutputParseError("judge_score")
-    try:
-        payload = json.loads(value)
-    except json.JSONDecodeError as error:
-        raise OutputParseError("judge_score") from error
     score = (
         payload.get("score")
         if isinstance(payload, dict) and set(payload) == {"score"}

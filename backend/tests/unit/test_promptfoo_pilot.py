@@ -25,6 +25,7 @@ from evals.run_promptfoo_release import (  # noqa: E402
     _call_evidence,
     _failure_stage,
     _judge_prompt_contract,
+    _judge_response_format,
     _judge_score,
     _materialize_signoff,
     _result_row,
@@ -85,9 +86,29 @@ def test_release_prompt_uses_a_new_strict_json_contract() -> None:
         Path("evals/promptfooconfig.yaml").read_bytes()
     )
 
-    assert version == "phase02-judge-json.v2"
+    assert version == "phase02-judge-json-mode.v3"
     assert '精确为 {"score": <1-5 的整数>}' in prompt
     assert "额外键" in prompt
+    assert _judge_response_format(Path("evals/promptfooconfig.yaml").read_bytes()) == {
+        "type": "json_object"
+    }
+
+
+def test_release_json_mode_is_transmitted_by_local_promptfoo_openai_provider() -> None:
+    package = BACKEND_ROOT.parent / "frontend/node_modules/promptfoo/package.json"
+    provider_source = next(
+        (BACKEND_ROOT.parent / "frontend/node_modules/promptfoo/dist/src").glob(
+            "providers-*.js"
+        )
+    )
+
+    assert json.loads(package.read_text(encoding="utf-8"))["version"] == "0.122.0"
+    source = provider_source.read_text(encoding="utf-8")
+    assert (
+        "config.response_format ? { response_format: maybeLoadResponseFormatFromExternalFile"
+        in source
+    )
+    assert "...responseFormat," in source
 
 
 @pytest.mark.parametrize(
@@ -101,12 +122,13 @@ def test_release_prompt_uses_a_new_strict_json_contract() -> None:
     ],
 )
 def test_release_judge_score_requires_exact_non_boolean_integer_object(
-    value: str,
+    value: object,
 ) -> None:
     with pytest.raises(OutputParseError, match="judge_score"):
         _judge_score(value)
 
     assert _judge_score('{"score": 5}') == 5
+    assert _judge_score({"score": 4}) == 4
 
 
 def test_release_failure_stage_is_whitelisted_without_retaining_stderr() -> None:

@@ -22,7 +22,7 @@
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
 | `expert-signoff-phase2.reference.md` | 与空白表相同案例顺序的格式参考；展示五个具名确认、Medium 评分与独立 Judge 分数的正确写法，不是签署证据。 |
-| `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-json.v2`，强制唯一 `{"score": 1-5整数}` JSON。它与旧的 v1 提示词运行不可直接比较。 |
+| `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-json-mode.v3`，除严格唯一 `{"score": 1-5整数}` 合同外，还启用 OpenAI-compatible `response_format: {type: json_object}`。本地 Promptfoo 0.122.0 OpenAI provider 会将该配置传给请求；v3 与旧 v1/v2 运行不可直接比较。 |
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
 | `run_promptfoo_pilot.py` | 仅在本地子进程读取 `.env` 的安全 pilot 执行器：调用前按价格快照预留上限、每次后按 usage 复算并在首个异常停止。 |
 | `promptfoo-pilot-phase2.json` | 不含原始文案、输出或密钥的 pilot 证据：调用数、usage、成本、hash、失败类别与非发布标识。 |

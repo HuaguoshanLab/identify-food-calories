@@ -9,6 +9,8 @@ providers:
       maxRetries: 0
       max_tokens: 512
       temperature: 0
+      response_format:
+        type: json_object
 prompts:
   - |
     你是只评估用户可见中文追问/失败反馈质量的 Judge。不能判断营养真值。
@@ -33,9 +35,10 @@ evaluateOptions:
   cache: false
 metadata:
   machine_output_required: true
-  judge_prompt_contract_version: phase02-judge-json.v2
-  judge_prompt_contract_status: "new_contract_not_comparable_to_phase02-judge-json.v1"
+  judge_prompt_contract_version: phase02-judge-json-mode.v3
+  judge_prompt_contract_status: "new_contract_not_comparable_to_phase02-judge-json.v1-or-v2"
   judge_output_schema: '{"score": <integer 1-5>}'
+  judge_response_format: "openai-json_object"
   release_call_limit: 36
   output_token_cap: 512
   retry_policy: "provider maxRetries=0; release runner stops after first failure"
