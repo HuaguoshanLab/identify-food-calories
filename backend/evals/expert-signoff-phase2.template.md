@@ -35,30 +35,30 @@
 
 | case_id | 类别 | 于女士（`yu-nutritionist`） | 陈先生（`chen-food-data-admin`） | Medium 评分 |
 | --- | --- | --- | --- | --- |
-| phase02-001 | happy | 待实际审核 | 待实际审核 | — |
-| phase02-002 | happy | 待实际审核 | 待实际审核 | — |
-| phase02-003 | happy | 待实际审核 | 待实际审核 | — |
-| phase02-004 | happy | 待实际审核 | 待实际审核 | — |
-| phase02-005 | happy | 待实际审核 | 待实际审核 | — |
-| phase02-006 | missing_ambiguity | 待实际审核 | 待实际审核 | 于：__ /5；陈：__ /5 |
-| phase02-007 | missing_ambiguity | 待实际审核 | 待实际审核 | 于：__ /5；陈：__ /5 |
-| phase02-008 | missing_ambiguity | 待实际审核 | 待实际审核 | 于：__ /5；陈：__ /5 |
-| phase02-009 | missing_ambiguity | 待实际审核 | 待实际审核 | 于：__ /5；陈：__ /5 |
-| phase02-010 | missing_ambiguity | 待实际审核 | 待实际审核 | 于：__ /5；陈：__ /5 |
-| phase02-011 | correction | 待实际审核 | 待实际审核 | — |
-| phase02-012 | correction | 待实际审核 | 待实际审核 | — |
-| phase02-013 | correction | 待实际审核 | 待实际审核 | — |
-| phase02-014 | correction | 待实际审核 | 待实际审核 | — |
-| phase02-015 | persistence_isolation | 待实际审核 | 待实际审核 | — |
-| phase02-016 | persistence_isolation | 待实际审核 | 待实际审核 | — |
-| phase02-017 | persistence_isolation | 待实际审核 | 待实际审核 | — |
-| phase02-018 | persistence_isolation | 待实际审核 | 待实际审核 | — |
-| phase02-019 | persistence_isolation | 待实际审核 | 待实际审核 | — |
-| phase02-020 | validation_budget | 待实际审核 | 待实际审核 | — |
-| phase02-021 | validation_budget | 待实际审核 | 待实际审核 | — |
-| phase02-022 | validation_budget | 待实际审核 | 待实际审核 | — |
-| phase02-023 | adversarial | 待实际审核 | 待实际审核 | — |
-| phase02-024 | adversarial | 待实际审核 | 待实际审核 | — |
+| phase02-001 | happy | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-002 | happy | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-003 | happy | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-004 | happy | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-005 | happy | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-006 | missing_ambiguity | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 于=4；陈=4 |
+| phase02-007 | missing_ambiguity | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 于=4；陈=4 |
+| phase02-008 | missing_ambiguity | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 于=4；陈=4 |
+| phase02-009 | missing_ambiguity | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 于=4；陈=4 |
+| phase02-010 | missing_ambiguity | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 于=4；陈=4 |
+| phase02-011 | correction | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-012 | correction | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-013 | correction | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-014 | correction | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-015 | persistence_isolation | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-016 | persistence_isolation | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-017 | persistence_isolation | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-018 | persistence_isolation | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-019 | persistence_isolation | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-020 | validation_budget | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-021 | validation_budget | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-022 | validation_budget | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-023 | adversarial | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
+| phase02-024 | adversarial | 于：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | 陈：food_code=true; blocking_fields=true; household_portion_auditability=true; authoritative_values=true; hard_validation=true | — |
 
 ## 导出与验证
 
