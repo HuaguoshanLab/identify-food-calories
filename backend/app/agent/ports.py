@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Protocol
 
 from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, AgentThread
@@ -53,5 +52,3 @@ class AgentRepository(Protocol):
     ) -> AgentLease | None: ...
 
     def add_lease(self, lease: AgentLease) -> AgentLease: ...
-
-    def now(self) -> datetime: ...

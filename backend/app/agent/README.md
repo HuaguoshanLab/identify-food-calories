@@ -22,3 +22,4 @@
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState |
 | `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
+| `supervisor.py` | 通过 Agent Service/Repository 领取 PostgreSQL 持久化 run lease 的生命周期组件 |

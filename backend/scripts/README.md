@@ -15,3 +15,4 @@
 | 路径 | 职责 |
 |---|---|
 | `run_initialized_app.py` | 固定执行安全 schema reset → Alembic → Checkpointer setup → seed apply → Uvicorn；任一步失败即停止。 |
+| `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 显式执行一次 AsyncPostgresSaver schema setup。 |
