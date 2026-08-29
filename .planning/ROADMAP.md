@@ -77,7 +77,7 @@ Plans:
 4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
 5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
 
-**Plans:** 5/18 plans executed
+**Plans:** 6/18 plans executed
 
 **Wave 1**
 
@@ -92,7 +92,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-07-PLAN.md — 建立 Agent 账本、Graph State、工具与持久化基础
+- [x] 02-07-PLAN.md — 建立 Agent 账本、Graph State、工具与持久化基础
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -217,7 +217,7 @@ Plans:
 |---|---|---|---|
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
 | 01.1. H5 UI 基座与现有页面迁移 | 10/10 | Complete   | 2026-08-28 |
-| 2. 可追问的 Agent 核心 | 5/18 | In Progress|  |
+| 2. 可追问的 Agent 核心 | 6/18 | In Progress|  |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
 | 5. 饮食规划子图 | Pending | 0/TBD | - |
