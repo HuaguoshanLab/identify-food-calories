@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     deepseek_price_snapshot_version: str | None = None
     deepseek_input_usd_per_m: Decimal | None = None
     deepseek_output_usd_per_m: Decimal | None = None
+    tracing_enabled: bool = False
+    tracing_collector_endpoint: str | None = None
+    tracing_hmac_key: SecretStr | None = None
+    tracing_service_name: str | None = None
+    tracing_service_version: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -93,6 +98,21 @@ class Settings(BaseSettings):
             raise ConfigurationError(
                 "DEEPSEEK_INPUT_USD_PER_M and DEEPSEEK_OUTPUT_USD_PER_M are required"
             )
+        if self.tracing_enabled:
+            if not self.tracing_collector_endpoint:
+                raise ConfigurationError(
+                    "TRACING_COLLECTOR_ENDPOINT is required when tracing is enabled"
+                )
+            if self.tracing_hmac_key is None or not self.tracing_hmac_key.get_secret_value():
+                raise ConfigurationError("TRACING_HMAC_KEY is required when tracing is enabled")
+            if not self.tracing_service_name:
+                raise ConfigurationError(
+                    "TRACING_SERVICE_NAME is required when tracing is enabled"
+                )
+            if not self.tracing_service_version:
+                raise ConfigurationError(
+                    "TRACING_SERVICE_VERSION is required when tracing is enabled"
+                )
 
         return self
 
