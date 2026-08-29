@@ -39,4 +39,31 @@ describe('AnalyzePage', () => {
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
     expect(screen.getByText('合计 130.0 kcal')).toBeInTheDocument()
   })
+
+  it('presents one complete clarification batch without selecting a candidate by default', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'waiting', revision: 1,
+      report: {
+        understood_items: [{ item_id: 'rice-1', name: '米饭', grams: null }],
+        questions: [{
+          item_id: 'rice-1', field: 'food', message: '请选择米饭对应的食物。',
+          candidates: [
+            { item_id: 'rice-1', food_id: '11111111-1111-4111-8111-111111111111', catalog_version: 'fdc-v1', label: '熟米饭' },
+            { item_id: 'rice-1', food_id: '22222222-2222-4222-8222-222222222222', catalog_version: 'fdc-v1', label: '生米饭' },
+          ],
+        }],
+        unaccounted_items: [], is_partial: false, waiting_input: true,
+      },
+    }), { status: 201 }))
+    renderPage(request)
+
+    await user.type(screen.getByLabelText('餐食描述'), '米饭')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+
+    expect(await screen.findByRole('heading', { name: '需要补充的信息' })).toBeInTheDocument()
+    expect(screen.getByText('已理解的项目')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '熟米饭' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '生米饭' })).toHaveAttribute('aria-pressed', 'false')
+  })
 })
