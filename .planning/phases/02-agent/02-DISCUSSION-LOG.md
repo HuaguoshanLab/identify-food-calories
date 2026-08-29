@@ -192,6 +192,20 @@
 - LangGraph State、节点、条件边、事件 Schema、幂等机制、预算数值和重连退避的技术实现。
 - 在已锁定语义内调整状态文案、候选说明和非阻塞警告样式。
 
+## Planning Clarification：数据保留
+
+计划校验发现运行数据保留期尚未锁定，因此在 plan-phase 中补充确认。
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| 分层保留 | Checkpoint/SSE 7 天、最小审计元数据 30 天、用户删除后 24 小时内级联清理 | ✓ |
+| 全部保留 30 天 | 恢复窗口更长，但保存更多短期状态和事件数据 | |
+| 全部保留 7 天 | 数据最小化最强，但审计与较晚恢复能力更弱 | |
+
+**User's choice:** 分层保留。
+
+**Notes:** Provider 结果未知时固定进入 `PROVIDER_OUTCOME_UNKNOWN` 且不自动重试；未经营养专业复核的中文“一碗/一份”换算不得发布。
+
 ## Deferred Ideas
 
 - 图片与 Qwen-VL 分析留到 Phase 3。

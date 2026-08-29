@@ -77,6 +77,71 @@ Plans:
 4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
 5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
 
+**Plans:** 0/18 plans executed
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — 建立供应链证据门、hash-complete 依赖锁与实际执行环境
+- [ ] 02-03-PLAN.md — 建立 Reasoning Provider DTO、端口、Fake 与测试工厂
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — 建立 PostgreSQL 测试环境、初始化启动器与 Playwright 安全链
+- [ ] 02-04-PLAN.md — 建立 Agent H5 feature 骨架、SSE 解析依赖与目录合同
+- [ ] 02-06-PLAN.md — 建立营养领域模型、Repository、Service 与确定性工具
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-07-PLAN.md — 建立 Agent 账本、Graph State、工具与持久化基础
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-05-PLAN.md — 建立无业务 seed 的迁移与首批冻结评测案例
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-08-PLAN.md — 建立 Checkpointer、FDC seed 与幂等初始化链
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 02-09-PLAN.md — 建立完整 Agent API 哨兵合同与 OpenAPI 跨栈生成门
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 02-10-PLAN.md — 交付登录用户文字餐食分析的首个真实纵向 GREEN
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 02-11-PLAN.md — 交付集中追问、消歧、partial 与定向修正
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 02-12-PLAN.md — 交付崩溃恢复、SSE 重连、有界自治与最终 24-case 数据集
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 02-13-PLAN.md — 接入 DeepSeek、运行时依赖锁与 Phoenix 真实调用观测
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
+- [ ] 02-14-PLAN.md — 实现 D-18 自动保留、租约与 24h/7d/30d 清理
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [ ] 02-15-PLAN.md — 交付用户删除入口与候选视觉基线
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [ ] 02-16-PLAN.md — 生成 24-case 机器评测与专家、Promptfoo 发布合同
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [ ] 02-17-PLAN.md — 执行专家、费用与视觉人工审批门
+
+**Wave 15** *(blocked on Wave 14 completion)*
+
+- [ ] 02-18-PLAN.md — 生成发布报告并完成浏览器验收、视觉晋升和教学文档
+
 ### Phase 3: 多模态餐食分析闭环
 
 **Goal:** 用户上传餐食图片后，Qwen-VL 感知结果进入 Agent 图，并在必要追问后输出可信的多菜营养报告。
@@ -152,7 +217,7 @@ Plans:
 |---|---|---|---|
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
 | 01.1. H5 UI 基座与现有页面迁移 | 10/10 | Complete   | 2026-08-28 |
-| 2. 可追问的 Agent 核心 | Pending | 0/TBD | - |
+| 2. 可追问的 Agent 核心 | 0/18 | Planned    |  |
 | 3. 多模态餐食分析闭环 | Pending | 0/TBD | - |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
 | 5. 饮食规划子图 | Pending | 0/TBD | - |
