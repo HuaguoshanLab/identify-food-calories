@@ -50,6 +50,11 @@ def test_empty_database_upgrades_0001_to_0002_and_downgrades_cleanly(
     test_engine: Engine,
 ) -> None:
     try:
+        # Checkpointer tables are intentionally outside Alembic. Start this migration
+        # proof from a genuinely empty isolated schema rather than another test's setup.
+        with test_engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
         _alembic("downgrade", "base")
         assert set(inspect(test_engine).get_table_names(schema="public")) == {
             "alembic_version"
