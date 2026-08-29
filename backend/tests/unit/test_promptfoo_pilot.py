@@ -14,6 +14,11 @@ from evals.run_promptfoo_pilot import (  # noqa: E402
     _failure_category,
     _validate_config,
 )
+from evals.run_promptfoo_release import (  # noqa: E402
+    MAX_CALLS as RELEASE_MAX_CALLS,
+    _materialize_signoff,
+    _validate_config as validate_release_config,
+)
 
 
 PILOT_CONFIG = Path("evals/promptfoo-pilot-phase2.yaml")
@@ -31,3 +36,26 @@ def test_pilot_failure_accounting_keeps_network_and_product_distinct() -> None:
     assert _failure_category(result_output="connect ECONNRESET", returncode=1) == "network_failure"
     assert _failure_category(result_output="request rejected", returncode=1) == "product_failure"
     assert _failure_category(result_output="", returncode=1) == "unclassified_failure"
+
+
+def test_release_contract_is_fixed_and_materializes_only_explicit_expert_fields(tmp_path: Path) -> None:
+    config = Path("evals/promptfooconfig.yaml")
+    validate_release_config(config.read_bytes())
+    output = tmp_path / "expert-signoff.json"
+
+    _materialize_signoff(
+        template=Path("evals/expert-signoff-phase2.template.md"),
+        output=output,
+        dataset_hash="a" * 64,
+        code_eval_hash="b" * 64,
+        judge_scores={f"phase02-{number:03d}": 5 for number in range(6, 11)},
+    )
+
+    import json
+
+    document = json.loads(output.read_text(encoding="utf-8"))
+    assert RELEASE_MAX_CALLS == 36
+    assert len(document["reviews"]) == 48
+    assert {item["case_id"] for item in document["judge_scores"]} == {
+        f"phase02-{number:03d}" for number in range(6, 11)
+    }

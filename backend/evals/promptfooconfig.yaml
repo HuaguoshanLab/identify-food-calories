@@ -6,6 +6,9 @@ providers:
     config:
       apiBaseUrl: "https://api.deepseek.com/v1"
       apiKeyEnvar: DEEPSEEK_API_KEY
+      maxRetries: 0
+      max_tokens: 512
+      temperature: 0
 prompts:
   - |
     你是只评估用户可见中文追问/失败反馈质量的 Judge。不能判断营养真值。
@@ -26,6 +29,10 @@ tests:
 evaluateOptions:
   repeat: 3
   maxConcurrency: 1
+  cache: false
 metadata:
   machine_output_required: true
+  release_call_limit: 36
+  output_token_cap: 512
+  retry_policy: "provider maxRetries=0; release runner stops after first failure"
   failure_accounting: "network_failure and product_failure must be reported separately"
