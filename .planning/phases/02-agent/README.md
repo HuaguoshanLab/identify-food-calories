@@ -33,6 +33,7 @@
 | `02-08-PLAN.md` | Alembic、Checkpointer、FDC 导入与幂等初始化计划 |
 | `02-08-SUMMARY.md` | 离线 hash 受控 FDC seed、显式 Checkpointer setup 与真实 PostgreSQL 幂等初始化执行摘要 |
 | `02-09-PLAN.md` | Agent API 全量哨兵合同与 OpenAPI→TS/Zod/client 漂移门计划 |
+| `02-09-SUMMARY.md` | 六个认证 501 sentinel、运行时 OpenAPI 机械生成与逐字漂移门执行摘要 |
 | `02-10-PLAN.md` | 登录用户文字餐食分析首个真实纵向 GREEN 计划 |
 | `02-11-PLAN.md` | interrupt/resume、集中追问与同线程恢复计划 |
 | `02-12-PLAN.md` | partial、排除项、定向修正与 SSE 恢复增强计划 |
