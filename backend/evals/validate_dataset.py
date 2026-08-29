@@ -13,7 +13,14 @@ from typing import Any
 
 
 SCHEMA_VERSION = "phase02-case.v1"
-ALLOWED_CATEGORIES = {"happy", "missing_ambiguity", "correction", "validation_budget"}
+ALLOWED_CATEGORIES = {
+    "happy",
+    "missing_ambiguity",
+    "correction",
+    "persistence_isolation",
+    "validation_budget",
+    "adversarial",
+}
 HAPPY_TRACE = (
     "parse_input",
     "search_food_catalog",
@@ -50,6 +57,15 @@ TAG_CATEGORY = {
     "consecutive_correction": "correction",
     "negative_grams": "validation_budget",
     "tool_failure": "validation_budget",
+    "lease_expiry": "persistence_isolation",
+    "checkpoint_reopen": "persistence_isolation",
+    "tenant_isolation": "persistence_isolation",
+    "sse_reconnect": "persistence_isolation",
+    "idempotent_replay": "persistence_isolation",
+    "model_call_limit": "validation_budget",
+    "tool_call_limit": "validation_budget",
+    "prompt_injection": "adversarial",
+    "medical_boundary": "adversarial",
 }
 SENSITIVE_KEY_PARTS = {"api_key", "password", "secret", "token", "chain_of_thought", "reasoning_content"}
 SENSITIVE_VALUE_PATTERN = re.compile(
@@ -133,6 +149,29 @@ def _validate_missing_or_correction_case(record: dict[str, Any]) -> None:
         raise DatasetValidationError("partial reports must name unaccounted items")
 
 
+def _validate_recovery_or_safety_case(record: dict[str, Any]) -> None:
+    expected = record["expected"]
+    category = record["category"]
+    if not record["semantic_tags"]:
+        raise DatasetValidationError("recovery and safety cases require semantic coverage")
+    if category == "persistence_isolation":
+        if expected["state"] not in {"completed", "waiting_input"}:
+            raise DatasetValidationError("persistence cases require a recoverable or completed terminal state")
+        if not record["input"]["history"]:
+            raise DatasetValidationError("persistence cases require prior durable context")
+    if category == "validation_budget":
+        if expected["state"] not in {"terminal", "failed"}:
+            raise DatasetValidationError("validation budget cases must fail closed")
+        if "limit_reached" not in expected["forbidden_assertions"]:
+            raise DatasetValidationError("validation budget cases must prohibit a silent completed report")
+    if category == "adversarial":
+        if expected["state"] not in {"completed", "failed", "terminal"}:
+            raise DatasetValidationError("adversarial cases require a stable safe outcome")
+        forbidden = set(expected["forbidden_assertions"])
+        if not {"provider_nutrition_value", "chain_of_thought"} <= forbidden:
+            raise DatasetValidationError("adversarial cases must prohibit provider nutrition and chain-of-thought")
+
+
 def _validate_record(record: dict[str, Any], *, sequence: int, parent_hash: str | None) -> str:
     required = {
         "schema_version",
@@ -176,6 +215,8 @@ def _validate_record(record: dict[str, Any], *, sequence: int, parent_hash: str 
         _validate_happy_case(record)
     elif record["category"] in {"missing_ambiguity", "correction"}:
         _validate_missing_or_correction_case(record)
+    else:
+        _validate_recovery_or_safety_case(record)
     return record["case_hash"]
 
 

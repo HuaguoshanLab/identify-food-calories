@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CircleAlert, CircleCheck } from 'lucide-react'
 
 import { useAuth } from '@/auth/useAuth'
@@ -34,7 +34,7 @@ type AnalysisReport = {
 
 export function AnalyzePage() {
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const { request } = useAuth()
+  const { request, status: authenticationStatus } = useAuth()
   const [description, setDescription] = useState('')
   const [fieldError, setFieldError] = useState<string>()
   const [status, setStatus] = useState<AnalysisStatus>('idle')
@@ -44,11 +44,38 @@ export function AnalyzePage() {
   const [gramAnswers, setGramAnswers] = useState<Record<string, string>>({})
   const [correction, setCorrection] = useState('')
 
+  const applySnapshot = useCallback(async (response: Response) => {
+    const body = await response.json().catch(() => undefined)
+    if (!response.ok) throw new Error('agent snapshot request failed')
+    const next = agentThreadSnapshotSchema.parse(body)
+    setSnapshot(next)
+    setStatus(next.status === 'completed' ? 'completed' : 'idle')
+    setSelectedCandidates({})
+    setGramAnswers({})
+    const url = new URL(window.location.href)
+    url.searchParams.set('thread', next.thread_id)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [])
+
   useEffect(() => { headingRef.current?.focus() }, [])
+  useEffect(() => {
+    if (authenticationStatus !== 'authenticated') return
+    const threadId = new URL(window.location.href).searchParams.get('thread')
+    if (!threadId || snapshot?.thread_id === threadId) return
+    void request(`/agent/threads/${encodeURIComponent(threadId)}`)
+      .then(applySnapshot)
+      .catch(() => {
+        // A deleted or foreign URL thread stays undisclosed; discard only its local reference.
+        const url = new URL(window.location.href)
+        url.searchParams.delete('thread')
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+      })
+  }, [applySnapshot, authenticationStatus, request, snapshot?.thread_id])
   useAgentEventStream({
     threadId: snapshot?.thread_id,
     request,
     onEvent: (event) => setProgress(event.summary),
+    onSnapshot: applySnapshot,
   })
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -69,11 +96,7 @@ export function AnalyzePage() {
       const response = await request('/agent/threads', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input_text: inputText }),
       })
-      const body = await response.json().catch(() => undefined)
-      if (!response.ok) throw new Error('agent request failed')
-      const next = agentThreadSnapshotSchema.parse(body)
-      setSnapshot(next)
-      setStatus(next.status === 'completed' ? 'completed' : 'idle')
+      await applySnapshot(response)
     } catch {
       setStatus('error')
       setProgress('暂时无法完成分析，请检查描述后重试。')
@@ -82,13 +105,7 @@ export function AnalyzePage() {
 
   async function refreshSnapshot(threadId: string) {
     const response = await request(`/agent/threads/${encodeURIComponent(threadId)}`)
-    const body = await response.json().catch(() => undefined)
-    if (!response.ok) throw new Error('agent snapshot request failed')
-    const next = agentThreadSnapshotSchema.parse(body)
-    setSnapshot(next)
-    setStatus(next.status === 'completed' ? 'completed' : 'idle')
-    setSelectedCandidates({})
-    setGramAnswers({})
+    await applySnapshot(response)
   }
 
   async function submitFollowup(payload: Record<string, unknown>) {

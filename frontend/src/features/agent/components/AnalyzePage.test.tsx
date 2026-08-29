@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '@/auth/AuthContext'
 import { AnalyzePage } from './AnalyzePage'
@@ -10,6 +10,7 @@ function renderPage(request: AuthContextValue['request'] = vi.fn(async () => new
 }
 
 describe('AnalyzePage', () => {
+  afterEach(() => window.history.replaceState({}, '', '/'))
   it('uses a labelled text input and does not invent a report before an API response', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()

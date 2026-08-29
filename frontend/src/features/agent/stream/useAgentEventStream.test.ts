@@ -27,7 +27,8 @@ function Probe({ request }: { request: (path: string, init?: RequestInit) => Pro
 
 describe('useAgentEventStream', () => {
   it('fetches the authority snapshot before parsing fragmented CRLF SSE and replays from Last-Event-ID', async () => {
-    const request = vi.fn(async (path: string) => {
+    const request = vi.fn(async (path: string, _init?: RequestInit) => {
+      void _init
       if (path.endsWith('/events')) {
         return streamResponse([
           'id: 1\r\nevent: agent\r\ndata: {"type":"running",',
@@ -43,5 +44,23 @@ describe('useAgentEventStream', () => {
     expect(request.mock.calls[0]?.[0]).toBe('/agent/threads/thread-1')
     expect(request.mock.calls[1]?.[0]).toBe('/agent/threads/thread-1/events')
     expect(new Headers(request.mock.calls[1]?.[1]?.headers).get('Last-Event-ID')).toBe('0')
+  })
+
+  it('drops duplicates and heals one sequence gap from a fresh snapshot without inventing events', async () => {
+    let streamAttempt = 0
+    const request = vi.fn(async (path: string, _init?: RequestInit) => {
+      void _init
+      if (!path.endsWith('/events')) return new Response('{"thread_id":"thread-1"}', { status: 200 })
+      streamAttempt += 1
+      return streamResponse(streamAttempt === 1
+        ? ['id: 1\ndata: {"type":"running","summary":"one"}\n\nid: 1\ndata: {"type":"running","summary":"duplicate"}\n\nid: 3\ndata: {"type":"completed","summary":"three"}\n\n']
+        : ['id: 2\ndata: {"type":"catalog","summary":"two"}\n\nid: 3\ndata: {"type":"completed","summary":"three"}\n\n'])
+    })
+
+    const view = render(createElement(Probe, { request }))
+
+    await waitFor(() => expect(view.getByText('1:running:one|2:catalog:two|3:completed:three')).toBeInTheDocument())
+    const eventCalls = request.mock.calls.filter(([path]) => path.endsWith('/events'))
+    expect(new Headers(eventCalls[1]?.[1]?.headers).get('Last-Event-ID')).toBe('1')
   })
 })

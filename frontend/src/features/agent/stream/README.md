@@ -15,4 +15,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `useAgentEventStream.ts` | 认证 fetch SSE 重放、分片解析和取消边界；不拼装报告。 |
+| `useAgentEventStream.ts` | snapshot-first 的认证 fetch SSE 重放、Last-Event-ID 去重/gap 恢复、分片解析和取消边界；不拼装报告。 |
+| `useAgentEventStream.test.ts` | CRLF/分片、多行 data、序号去重与 gap 重新获取快照的无网络 hook 回归。 |
