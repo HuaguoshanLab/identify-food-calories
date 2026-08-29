@@ -272,9 +272,10 @@ def test_postgres_retention_lease_allows_one_worker_and_recovers_after_connectio
         env=os.environ.copy(),
         check=True,
     )
-    engine = create_engine(test_url)
-    first = Session(engine)
-    second = Session(engine)
+    first_engine = create_engine(test_url)
+    second_engine = create_engine(test_url)
+    first = Session(first_engine)
+    second = Session(second_engine)
     try:
         assert first.scalar(
             text("SELECT pg_try_advisory_lock(:lock_key)"),
@@ -287,6 +288,7 @@ def test_postgres_retention_lease_allows_one_worker_and_recovers_after_connectio
         # Closing the first worker's DB connection models a process crash: PostgreSQL releases
         # its session advisory locks, so another worker can resume without a manual repair.
         first.close()
+        first_engine.dispose()
         assert second.scalar(
             text("SELECT pg_try_advisory_lock(:lock_key)"),
             {"lock_key": _RETENTION_ADVISORY_LOCK_KEY},
@@ -294,4 +296,5 @@ def test_postgres_retention_lease_allows_one_worker_and_recovers_after_connectio
     finally:
         first.close()
         second.close()
-        engine.dispose()
+        first_engine.dispose()
+        second_engine.dispose()
