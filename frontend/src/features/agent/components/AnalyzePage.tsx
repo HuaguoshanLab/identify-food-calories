@@ -12,6 +12,42 @@ import { agentThreadSnapshotSchema, type AgentThreadSnapshot } from '../api/sche
 import { useAgentEventStream } from '../stream/useAgentEventStream'
 
 const MAX_DESCRIPTION_LENGTH = 1000
+// The catalog remains authoritative and English-keyed. This UI-only map gives its bounded,
+// known foods Chinese display names without translating unknown model or catalog text.
+const CONTROLLED_FOOD_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  'rice': '米饭',
+  'cooked rice': '米饭',
+  'rice, white, long-grain, regular, cooked, enriched': '米饭',
+  'chicken breast': '鸡胸肉',
+  'cooked chicken breast': '鸡胸肉',
+  'chicken breast, cooked, skinless': '鸡胸肉',
+  'boiled egg': '水煮蛋',
+  'hard boiled egg': '水煮蛋',
+  'egg, whole, cooked, hard-boiled': '水煮蛋',
+  'broccoli': '西兰花',
+  'cooked broccoli': '西兰花',
+  'broccoli, cooked': '西兰花',
+  'potato': '土豆',
+  'boiled potato': '土豆',
+  'potatoes, boiled': '土豆',
+  'salmon': '三文鱼',
+  'cooked salmon': '三文鱼',
+  'salmon, atlantic, cooked': '三文鱼',
+  'ground beef': '牛肉末',
+  'lean ground beef': '牛肉末',
+  'beef, ground, lean, cooked': '牛肉末',
+}
+
+function displayFoodName(name: string): string {
+  return CONTROLLED_FOOD_DISPLAY_NAMES[name.trim().toLocaleLowerCase()] ?? name
+}
+
+function displayFoodCandidate(label: string): string {
+  const name = label.replace(/(?:（[^）]+）|\([^)]+\))$/, '').trim()
+  const localizedName = displayFoodName(name)
+  return localizedName === name ? label : localizedName
+}
+
 type AnalysisStatus = 'idle' | 'submitting' | 'deleting' | 'error' | 'completed'
 
 type ReportItem = {
@@ -150,7 +186,9 @@ export function AnalyzePage() {
 
   function submitCorrection() {
     const normalized = correction.trim()
-    const target = report?.items?.find((item) => normalized.includes(item.name) && item.item_id)
+    const target = report?.items?.find((item) => (
+      item.item_id && (normalized.includes(item.name) || normalized.includes(displayFoodName(item.name)))
+    ))
     const grams = normalized.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:g|克)?/i)?.[1]
     if (!target?.item_id || (!grams && !normalized.includes('排除'))) {
       setProgress('请写明要修改的食物和克数，或明确写“排除”。')
@@ -208,12 +246,12 @@ export function AnalyzePage() {
             <CircleAlert aria-hidden="true" className="size-5 text-muted-foreground" />
             <h2 className="text-xl font-semibold">需要补充的信息</h2>
           </div>
-          {report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{item.name}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}
+          {report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}
           {report.questions?.map((question) => (
             <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}>
               <legend className="text-sm font-medium">{question.message}</legend>
               {question.field === 'grams' ? <input aria-label={`${question.item_id} 克数`} className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base" inputMode="decimal" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /> : null}
-              {question.field === 'food' ? <div className="grid gap-2">{question.candidates.map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 rounded-lg border border-input px-3 py-2 text-left text-sm focus-visible:ring-3 focus-visible:ring-ring/50" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{candidate.label}</button>)}</div> : null}
+              {question.field === 'food' ? <div className="grid gap-2">{question.candidates.map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 rounded-lg border border-input px-3 py-2 text-left text-sm focus-visible:ring-3 focus-visible:ring-ring/50" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}
             </fieldset>
           ))}
           <Button className="h-11 w-full" disabled={status === 'submitting'} onClick={submitClarification} type="button">提交补充信息</Button>
@@ -223,7 +261,7 @@ export function AnalyzePage() {
       {snapshot?.status === 'completed' && report?.totals ? (
         <section aria-label="营养分析报告" className="space-y-3 rounded-lg border bg-card p-4">
           <div className="flex items-center gap-2"><CircleCheck aria-hidden="true" className="size-5 text-muted-foreground" /><h2 className="text-xl font-semibold">营养分析报告</h2></div>
-          {report.items?.map((item) => <p key={`${item.name}-${item.grams}`} className="tabular-nums text-sm">{item.name} · {item.grams}g · {item.energy_kcal} kcal</p>)}
+          {report.items?.map((item) => <p key={item.item_id ?? `${item.name}-${item.grams}`} className="tabular-nums text-sm">{displayFoodName(item.name)} · {item.grams}g · {item.energy_kcal} kcal</p>)}
           <p className="tabular-nums text-base font-semibold">合计 {report.totals.energy_kcal} kcal</p>
           <p className="tabular-nums text-sm text-muted-foreground">蛋白质 {report.totals.protein_g}g · 脂肪 {report.totals.fat_g}g · 碳水 {report.totals.carbohydrate_g}g</p>
           <p className="text-[13px] leading-5 text-muted-foreground">{report.disclaimer}</p>

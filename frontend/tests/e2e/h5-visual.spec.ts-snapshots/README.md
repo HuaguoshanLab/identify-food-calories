@@ -22,7 +22,7 @@
 | `account-430-chromium-darwin.png` | 账号资料 |
 | `sessions-430-chromium-darwin.png` | 登录会话 |
 | `revoke-dialog-430-chromium-darwin.png` | 撤销会话确认弹窗 |
-| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate；等待 02-17 人工审批，绝不是 official baseline。 |
+| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate，受控目录食物名以中文显示；等待 02-17 人工审批，绝不是 official baseline。 |
 
 ## Phase 2 Candidate Integrity
 
@@ -30,5 +30,5 @@
 
 - official before: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
 - official after: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
-- candidate: `19d4e5035919e8b28691f6e165012702f1a62404c082f21ddbb3925acf29ca2e`
+- candidate: `530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562`
 - `cmp`: PASS

@@ -18,6 +18,7 @@ test.describe('phase 2 direct grams contract', () => {
     await page.getByRole('button', { name: '开始分析' }).click()
 
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    await expect(page.getByText('米饭 · 100g · 130.0 kcal')).toBeVisible()
     await expect(page.getByText('合计 130.0 kcal')).toBeVisible()
     await expect(page.getByText('蛋白质 2.7g · 脂肪 0.3g · 碳水 28.2g')).toBeVisible()
     await expect(page.getByText('普通饮食参考，不替代医疗建议。')).toBeVisible()

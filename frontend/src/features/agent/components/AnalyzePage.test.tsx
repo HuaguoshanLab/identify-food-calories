@@ -28,17 +28,23 @@ describe('AnalyzePage', () => {
     expect(screen.getByText('描述最多可输入 1000 个字符。')).toBeInTheDocument()
   })
 
-  it('renders only the authoritative completed snapshot', async () => {
+  it('renders authoritative nutrition values with Chinese controlled-food display names', async () => {
     const user = userEvent.setup()
     const request = vi.fn(async () => new Response(JSON.stringify({
       thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
-      report: { items: [{ name: '米饭', grams: '100', energy_kcal: '130.0' }], totals: { energy_kcal: '130.0', protein_g: '2.7', fat_g: '0.3', carbohydrate_g: '28.2' }, disclaimer: '普通饮食参考，不替代医疗建议。' },
+      report: { items: [
+        { item_id: 'rice-1', name: 'Rice, white, long-grain, regular, cooked, enriched', grams: '100', energy_kcal: '130.0' },
+        { item_id: 'chicken-1', name: 'Chicken breast, cooked, skinless', grams: '120', energy_kcal: '198.0' },
+      ], totals: { energy_kcal: '328.0', protein_g: '39.9', fat_g: '4.6', carbohydrate_g: '28.2' }, disclaimer: '普通饮食参考，不替代医疗建议。' },
     }), { status: 201 }))
     renderPage(request)
     await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
-    expect(screen.getByText('合计 130.0 kcal')).toBeInTheDocument()
+    expect(screen.getByText('米饭 · 100g · 130.0 kcal')).toBeInTheDocument()
+    expect(screen.getByText('鸡胸肉 · 120g · 198.0 kcal')).toBeInTheDocument()
+    expect(screen.queryByText(/Rice, white/)).not.toBeInTheDocument()
+    expect(screen.getByText('合计 328.0 kcal')).toBeInTheDocument()
   })
 
   it('requires confirmation before closing the stream, cache, and thread after deletion', async () => {
@@ -88,5 +94,29 @@ describe('AnalyzePage', () => {
     expect(screen.getByText('已理解的项目')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '熟米饭' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: '生米饭' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('localizes known catalog candidate labels while preserving unknown labels', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'waiting', revision: 1,
+      report: {
+        questions: [{
+          item_id: 'rice-1', field: 'food', message: '请选择候选食物。',
+          candidates: [
+            { item_id: 'rice-1', food_id: '11111111-1111-4111-8111-111111111111', catalog_version: 'fdc-v1', label: 'Rice, white, long-grain, regular, cooked, enriched（cooked）' },
+            { item_id: 'rice-1', food_id: '22222222-2222-4222-8222-222222222222', catalog_version: 'fdc-v1', label: 'Custom pantry label' },
+          ],
+        }],
+        unaccounted_items: [], is_partial: false, waiting_input: true,
+      },
+    }), { status: 201 }))
+    renderPage(request)
+
+    await user.type(screen.getByLabelText('餐食描述'), '米饭')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+
+    expect(await screen.findByRole('button', { name: '米饭' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Custom pantry label' })).toHaveAttribute('aria-pressed', 'false')
   })
 })
