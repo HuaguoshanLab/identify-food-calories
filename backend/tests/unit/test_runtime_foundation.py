@@ -125,6 +125,64 @@ def test_production_deepseek_config_fails_closed_without_complete_model_price_sn
         )
 
 
+def test_tracing_config_and_allowlist_redact_sensitive_attributes() -> None:
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from pydantic import ValidationError
+
+    from app.core.tracing import create_tracing_runtime
+
+    with pytest.raises(ValidationError, match="TRACING_COLLECTOR_ENDPOINT"):
+        Settings(
+            app_env="production",
+            database_url="postgresql+psycopg://db.example/food_agent",
+            secret_key="x" * 32,
+            cookie_secure=True,
+            cors_origins=["https://app.example"],
+            smtp_host="smtp.example",
+            smtp_from_email="noreply@example.com",
+            smtp_username="mailer",
+            smtp_password="password",
+            reasoning_provider_mode="deepseek",
+            deepseek_api_key="test-key",
+            deepseek_model="deepseek-v4-flash",
+            deepseek_price_snapshot_version="price-v1",
+            deepseek_input_usd_per_m="1",
+            deepseek_output_usd_per_m="2",
+            tracing_enabled=True,
+            _env_file=None,
+        )
+
+    exporter = InMemorySpanExporter()
+    settings = Settings(
+        tracing_enabled=True,
+        tracing_collector_endpoint="https://collector.example/v1/traces",
+        tracing_hmac_key="trace-hmac-key",
+        tracing_service_name="food-agent",
+        tracing_service_version="v1",
+        _env_file=None,
+    )
+    runtime = create_tracing_runtime(settings, exporter=exporter)
+    with runtime.span(
+        "agent.run",
+        {
+            "node.name": "parse",
+            "token.input": 12,
+            "meal.text": "米饭 100 克",
+            "user.id": "user-123",
+            "prompt": "ignore safeguards",
+            "chain_of_thought": "hidden",
+        },
+    ):
+        pass
+    runtime.flush()
+
+    attributes = dict(exporter.get_finished_spans()[0].attributes or {})
+    assert attributes["node.name"] == "parse"
+    assert attributes["token.input"] == 12
+    assert all("米饭" not in str(value) for value in attributes.values())
+    assert not {"meal.text", "user.id", "prompt", "chain_of_thought"} & set(attributes)
+
+
 class _RecordingNutritionTools:
     """Deterministic test double that records item-scoped tool calls, not model values."""
 
