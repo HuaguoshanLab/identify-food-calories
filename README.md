@@ -64,6 +64,15 @@ npm run lint && npm run typecheck && npm run test && npm run test:e2e
 
 管理员不通过用户 H5 创建。先注册、验证一个真实账号，然后按 [`backend/README.md`](backend/README.md#本地运行) 的 `app.admin.cli bootstrap` 或 `promote` 命令操作；两种操作都会留下可审计记录。
 
+Phase 2 的真实 Provider 文案评测仅能使用 lockfile 中已批准的本地 CLI；它不是日常前端构建步骤，也不得用 `npx` 临时下载。Plan 02-17 获得明确付费授权后才可执行：
+
+```bash
+cd frontend
+npx --no-install promptfoo eval -c ../backend/evals/promptfooconfig.yaml --no-cache
+```
+
+该命令会调用配置的 Provider，未获当次授权时禁止运行。
+
 ## 文件索引
 
 | 路径 | 职责 |

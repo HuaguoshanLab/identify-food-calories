@@ -10,6 +10,7 @@
 - React Hook Form、Zod 与 `@hookform/resolvers` 负责客户端表单体验；FastAPI 始终是输入校验权威。
 - Tailwind CSS、shadcn、Base UI 与 Lucide 是批准的 UI 工具。
 - Vitest、Testing Library、MSW 与 Playwright 负责前端和跨栈测试。
+- `promptfoo==0.122.0` 仅作为 Phase 2 已批准、lockfile 固定的发布评测 CLI；不得用于用户端运行时，也不得用临时 `npx` 下载替代。
 - 禁止导入 backend 源码、数据库客户端、服务端密钥或 Next.js 运行时。
 
 ## 本地运行
@@ -36,6 +37,8 @@ Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Tes
 ```bash
 npm run test:e2e
 ```
+
+Promptfoo 的真实 Provider 评测需要 Phase 02-17 单独的人类费用授权；授权后只允许使用已有 lockfile 的 CLI：`npx --no-install promptfoo`。不能运行 `npx promptfoo` 或 `npx -y`，因为它们会绕过锁定版本并下载未知依赖。
 
 Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit，再从 `backend/` 通过 `.env.test.example` 和 `tests/run_pg.py` 启动唯一初始化器。初始化器只使用 guard 返回的测试 URL，固定执行安全 reset、迁移、Checkpointer setup、seed apply，再启动 FastAPI；`DATABASE_URL` 始终保留开发哨兵，`TEST_DATABASE_URL` 始终保留隔离库。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
 
