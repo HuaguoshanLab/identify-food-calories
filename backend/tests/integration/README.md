@@ -19,3 +19,4 @@
 | `test_auth_database_protocols.py` | 0001→0002 往返、约束/savepoint 与并发登录限流的真实 PostgreSQL 证据 |
 | `test_refresh_concurrency.py` | 两个独立 PostgreSQL 事务的 refresh 单赢家、replay family revoke 与失败 rollback 证据 |
 | `test_admin_audit.py` | 真实 PostgreSQL admin RBAC、角色审计和事务回滚证据 |
+| `test_agent_bootstrap.py` | 真实 PostgreSQL 的 migration → checkpoint setup → FDC seed 幂等初始化链 |
