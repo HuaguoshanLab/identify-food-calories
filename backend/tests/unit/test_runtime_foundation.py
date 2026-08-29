@@ -15,6 +15,111 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 
 
+def test_deepseek_provider_uses_schema_and_never_retries_unknown_transport_outcome() -> None:
+    """The paid adapter must stay testable through HTTPX MockTransport only."""
+
+    import httpx
+
+    from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
+    from app.providers.reasoning.dto import ParseMealRequest, ProviderCallError, ProviderFailureKind
+
+    requests: list[httpx.Request] = []
+
+    def network_failure(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        raise httpx.ReadTimeout("response status is unknown", request=request)
+
+    provider = DeepSeekReasoningModelProvider(
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=20,
+        price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        transport=httpx.MockTransport(network_failure),
+    )
+
+    with pytest.raises(ProviderCallError) as error:
+        asyncio.run(provider.parse_meal(ParseMealRequest(meal_description="米饭 100 克")))
+
+    assert error.value.kind is ProviderFailureKind.OUTCOME_UNKNOWN
+    assert error.value.code == "PROVIDER_OUTCOME_UNKNOWN"
+    assert len(requests) == 1
+
+
+def test_deepseek_provider_retries_only_safe_transient_response_and_validates_json() -> None:
+    import httpx
+
+    from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
+    from app.providers.reasoning.dto import ParseMealRequest, ProviderCallError, ProviderFailureKind
+
+    attempts = 0
+
+    def transient_then_valid(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(429, request=request, json={"error": {"message": "hidden"}})
+        return httpx.Response(
+            200,
+            request=request,
+            headers={"x-request-id": "safe-request-id"},
+            json={
+                "choices": [{"message": {"content": '{"items":[{"item_id":"rice-1","food_name":"米饭","grams":"100"}]}'}}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+            },
+        )
+
+    provider = DeepSeekReasoningModelProvider(
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=20,
+        price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        transport=httpx.MockTransport(transient_then_valid),
+    )
+    result = asyncio.run(provider.parse_meal(ParseMealRequest(meal_description="米饭 100 克")))
+
+    assert attempts == 2
+    assert result.metadata.provider_request_id == "safe-request-id"
+    assert result.metadata.usage.cost_usd == Decimal("0.00014")
+
+    invalid_schema = DeepSeekReasoningModelProvider(
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=20,
+        price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                request=request,
+                json={"choices": [{"message": {"content": "{}"}}], "usage": {}},
+            )
+        ),
+    )
+    with pytest.raises(ProviderCallError) as schema_error:
+        asyncio.run(invalid_schema.parse_meal(ParseMealRequest(meal_description="米饭 100 克")))
+    assert schema_error.value.kind is ProviderFailureKind.PERMANENT
+    assert schema_error.value.code == "PROVIDER_SCHEMA_INVALID"
+
+
+def test_production_deepseek_config_fails_closed_without_complete_model_price_snapshot() -> None:
+    from app.core.config import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="DEEPSEEK_MODEL"):
+        Settings(
+            app_env="production",
+            database_url="postgresql+psycopg://db.example/food_agent",
+            secret_key="x" * 32,
+            cookie_secure=True,
+            cors_origins=["https://app.example"],
+            smtp_host="smtp.example",
+            smtp_from_email="noreply@example.com",
+            smtp_username="mailer",
+            smtp_password="password",
+            reasoning_provider_mode="deepseek",
+            deepseek_api_key="test-key",
+            _env_file=None,
+        )
+
+
 class _RecordingNutritionTools:
     """Deterministic test double that records item-scoped tool calls, not model values."""
 
