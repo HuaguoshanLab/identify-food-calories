@@ -8,6 +8,7 @@ details evolve behind the service boundary.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -64,6 +65,7 @@ class AgentDeletionAcceptedResponse(BaseModel):
 
     thread_id: uuid.UUID
     status: AgentThreadStatus = AgentThreadStatus.DELETION_PENDING
+    due_at: datetime
 
 
 class AgentErrorDetail(BaseModel):

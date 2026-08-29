@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from app.agent.models import AgentEvent, AgentRun, AgentThread
+from app.agent.models import AgentDeletionIntent, AgentEvent, AgentRun, AgentThread
 from app.auth.api import get_authentication_service
 from app.auth.models import AuthSession, User, UserRole
 from app.auth.repository import SqlAlchemyAuthRepository
@@ -91,6 +91,58 @@ def test_direct_grams_real_pg_api_sse_and_checkpoint() -> None:
             assert session.query(AgentEvent).filter_by(user_id=user.id).count() >= 2
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT count(*) FROM checkpoints")) >= 1
+    finally:
+        engine.dispose()
+
+
+def test_delete_thread_is_idempotent_and_hides_pending_thread_from_every_surface() -> None:
+    """A pending deletion is already unavailable; UUIDs must not become an oracle."""
+
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run([sys.executable, "scripts/run_initialized_app.py", "--prepare-only"], cwd=BACKEND_ROOT, env=os.environ.copy(), check=True)
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            owner, _owner_session, owner_token = _create_user(session, label="delete-owner")
+            _other, _other_session, other_token = _create_user(session, label="delete-other")
+            authentication = AuthenticationService(
+                repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback,
+            )
+            application = create_app(settings)
+            application.dependency_overrides[get_authentication_service] = lambda: authentication
+            owner_headers = {"Authorization": f"Bearer {owner_token}"}
+            other_headers = {"Authorization": f"Bearer {other_token}"}
+            with TestClient(application) as client:
+                created = client.post("/api/v1/agent/threads", json={"input_text": "米饭 100 克"}, headers=owner_headers)
+                assert created.status_code == 201, created.text
+                thread_id = created.json()["thread_id"]
+                before = datetime.now(UTC)
+                deleted = client.delete(f"/api/v1/agent/threads/{thread_id}", headers=owner_headers)
+                assert deleted.status_code == 202, deleted.text
+                body = deleted.json()
+                assert body["status"] == "deletion_pending"
+                due_at = datetime.fromisoformat(body["due_at"].replace("Z", "+00:00"))
+                assert before <= due_at <= before + timedelta(hours=24)
+                repeated = client.delete(f"/api/v1/agent/threads/{thread_id}", headers=owner_headers)
+                assert repeated.status_code == 202
+                assert repeated.json()["due_at"] == body["due_at"]
+                for path, method in [
+                    (f"/api/v1/agent/threads/{thread_id}", "get"),
+                    (f"/api/v1/agent/threads/{thread_id}/events", "get"),
+                    (f"/api/v1/agent/threads/{thread_id}/input", "post"),
+                    (f"/api/v1/agent/threads/{thread_id}/retry", "post"),
+                ]:
+                    if method == "post" and path.endswith("/input"):
+                        response = client.post(path, headers=owner_headers, json={"kind": "description", "text": "100 克"})
+                    else:
+                        response = getattr(client, method)(path, headers=owner_headers)
+                    assert response.status_code == 404, (path, response.text)
+                assert client.get(f"/api/v1/agent/threads/{thread_id}", headers=other_headers).status_code == 404
+                assert client.delete(f"/api/v1/agent/threads/{uuid.uuid4()}", headers=other_headers).status_code == 404
+            intent = session.query(AgentDeletionIntent).filter_by(thread_id=uuid.UUID(thread_id), user_id=owner.id).one()
+            assert intent.status == "pending" and intent.purge_after == due_at
     finally:
         engine.dispose()
 

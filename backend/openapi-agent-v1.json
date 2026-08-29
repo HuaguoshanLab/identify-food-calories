@@ -23,6 +23,11 @@
       "AgentDeletionAcceptedResponse": {
         "additionalProperties": false,
         "properties": {
+          "due_at": {
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/AgentThreadStatus",
             "default": "deletion_pending"
@@ -34,7 +39,8 @@
           }
         },
         "required": [
-          "thread_id"
+          "thread_id",
+          "due_at"
         ],
         "title": "AgentDeletionAcceptedResponse",
         "type": "object"
@@ -316,6 +322,7 @@
     },
     "/api/v1/agent/threads/{thread_id}": {
       "delete": {
+        "description": "Persist the bounded deletion deadline before waking the lifespan-owned worker.",
         "operationId": "deleteAgentThread",
         "parameters": [
           {

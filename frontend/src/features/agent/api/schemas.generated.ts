@@ -10,6 +10,7 @@ export type AgentCommandAcceptedResponse = z.infer<typeof agentCommandAcceptedRe
 export const agentDeletionAcceptedResponseSchema = z.object({
   "thread_id": z.string().uuid(),
   "status": z.lazy(() => agentThreadStatusSchema).default("deletion_pending").optional(),
+  "due_at": z.string(),
 }).strict()
 export type AgentDeletionAcceptedResponse = z.infer<typeof agentDeletionAcceptedResponseSchema>
 

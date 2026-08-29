@@ -218,8 +218,15 @@ def stream_agent_events(thread_id: uuid.UUID, request: Request, principal: Agent
 
 
 @router.post("/threads/{thread_id}/retry", operation_id="retryAgentRun", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)
-def retry_agent_run(thread_id: uuid.UUID, principal: AgentPrincipal) -> JSONResponse:
-    _ = thread_id, principal
+def retry_agent_run(
+    thread_id: uuid.UUID,
+    principal: AgentPrincipal,
+    service: AgentService = Depends(get_agent_service),
+) -> JSONResponse:
+    try:
+        service.get_thread(thread_id=thread_id, user_id=principal)
+    except AgentThreadUnavailable:
+        raise _unavailable() from None
     return _error(status.HTTP_409_CONFLICT, "RETRY_REQUIRES_INPUT", "请重新提交餐食描述。")
 
 
@@ -233,21 +240,24 @@ def delete_agent_thread(
     """Persist the bounded deletion deadline before waking the lifespan-owned worker."""
 
     settings = request.app.state.settings
-    service.request_thread_deletion(
-        thread_id=thread_id,
-        user_id=principal,
-        policy=RetentionPolicy(
-            checkpoint_event_days=settings.retention_checkpoint_event_days,
-            audit_days=settings.retention_audit_days,
-            deletion_due_delta=settings.retention_deletion_due_delta,
-            poll_interval=timedelta(seconds=settings.retention_poll_interval_seconds),
-        ),
-    )
+    try:
+        intent = service.request_thread_deletion(
+            thread_id=thread_id,
+            user_id=principal,
+            policy=RetentionPolicy(
+                checkpoint_event_days=settings.retention_checkpoint_event_days,
+                audit_days=settings.retention_audit_days,
+                deletion_due_delta=settings.retention_deletion_due_delta,
+                poll_interval=timedelta(seconds=settings.retention_poll_interval_seconds),
+            ),
+        )
+    except AgentThreadUnavailable:
+        raise _unavailable() from None
     worker = cast(PostgresLeaseSupervisor, _runtime(request).supervisor).retention_worker
     if worker is None:
         raise HTTPException(status_code=503, detail="Agent retention runtime is unavailable.")
     worker.wake()
-    return AgentDeletionAcceptedResponse(thread_id=thread_id)
+    return AgentDeletionAcceptedResponse(thread_id=thread_id, due_at=intent.purge_after)
 
 
 def _authentication_required() -> HTTPException:
