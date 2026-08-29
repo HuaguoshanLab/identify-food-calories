@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'jsdom',
       globals: true,
-      include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      include: ['src/**/*.{test,spec}.{ts,tsx}', 'playwright.config.test.ts'],
       setupFiles: ['./src/test-setup.ts'],
     },
   }

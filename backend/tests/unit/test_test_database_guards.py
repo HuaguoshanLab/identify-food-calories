@@ -176,6 +176,24 @@ def test_startup_failure_stops_before_uvicorn_not_started(
     ][: ("reset_test_schema", "upgrade_alembic", "setup_checkpointer", "apply_seed").index(failing_step) + 1]
 
 
+def test_startup_command_failure_does_not_echo_guarded_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_compose_test_environment(monkeypatch)
+    startup = _startup_module()
+
+    def fail_command(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.CalledProcessError(2, ["setup", COMPOSE_TEST_URL])
+
+    monkeypatch.setattr(startup.subprocess, "run", fail_command)
+
+    with pytest.raises(startup.InitializationStepError) as error:
+        startup.setup_checkpointer(COMPOSE_TEST_URL)
+
+    assert COMPOSE_TEST_URL not in str(error.value)
+    assert "postgres:postgres" not in str(error.value)
+
+
 def settings_for_test(**overrides: str | None) -> Settings:
     values: dict[str, str | None] = {
         "app_env": "test",

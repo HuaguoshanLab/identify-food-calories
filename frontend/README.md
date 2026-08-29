@@ -37,7 +37,7 @@ Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Tes
 npm run test:e2e
 ```
 
-Playwright 会启动隔离的 `postgres-test` 与 Mailpit，清空该测试库后从 `0001` 明确迁移到 `head`，再以固定 test 环境启动 FastAPI 和 Vite preview。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
+Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit，再从 `backend/` 通过 `.env.test.example` 和 `tests/run_pg.py` 启动唯一初始化器。初始化器只使用 guard 返回的测试 URL，固定执行安全 reset、迁移、Checkpointer setup、seed apply，再启动 FastAPI；`DATABASE_URL` 始终保留开发哨兵，`TEST_DATABASE_URL` 始终保留隔离库。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
 
 ## 文件索引
 
@@ -52,5 +52,6 @@ Playwright 会启动隔离的 `postgres-test` 与 Mailpit，清空该测试库�
 | `index.html` | Vite HTML 入口 |
 | `components.json` | shadcn 官方 Base UI registry、样式入口与路径 aliases |
 | `playwright.config.ts` | 确定性的基础设施、FastAPI 与 Vite E2E 生命周期 |
+| `playwright.config.test.ts` | Playwright provisioning 的真实 wrapper child 与配置安全合同 |
 | `src/` | React 运行时代码与目录契约 |
 | `tests/` | 前端测试边界与 Playwright E2E 用例 |
