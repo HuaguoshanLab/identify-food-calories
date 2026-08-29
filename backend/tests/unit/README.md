@@ -19,3 +19,4 @@
 | `test_nutrition.py` | 用内存 fake repository 锁定受控营养查询、Decimal 计算和确定性校验动作 |
 | `test_eval_dataset.py` | 验证 Phase 2 冻结主路径语义、分类门与 append-only hash 链 |
 | `test_nutrition_importer.py` | 验证离线 FDC manifest hash、资格边界与幂等 import 语义 |
+| `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |
