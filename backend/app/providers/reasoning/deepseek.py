@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from app.core.tracing import DisabledTracingRuntime, TracingRuntime
 from app.providers.reasoning.dto import (
     ApplyCorrectionRequest,
     ApplyCorrectionResult,
@@ -42,6 +43,7 @@ class DeepSeekReasoningModelProvider:
         timeout_seconds: int,
         price_snapshot: Mapping[str, str | Decimal],
         transport: httpx.AsyncBaseTransport | None = None,
+        tracing: TracingRuntime | None = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("DeepSeek API key is required")
@@ -55,6 +57,7 @@ class DeepSeekReasoningModelProvider:
         self._input_price = _price(price_snapshot, "input_usd_per_m")
         self._output_price = _price(price_snapshot, "output_usd_per_m")
         self._transport = transport
+        self._tracing = tracing or DisabledTracingRuntime()
 
     async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
         payload, metadata = await self._request(
@@ -102,14 +105,18 @@ class DeepSeekReasoningModelProvider:
         started = monotonic()
         for attempt in range(2):
             try:
-                async with httpx.AsyncClient(
-                    timeout=httpx.Timeout(self._timeout_seconds), transport=self._transport
-                ) as client:
-                    response = await client.post(
-                        DEEPSEEK_RESPONSES_URL,
-                        headers={"Authorization": f"Bearer {self._api_key}"},
-                        json=body,
-                    )
+                with self._tracing.span(
+                    "agent.provider",
+                    {"provider.model": self._model, "node.name": operation},
+                ):
+                    async with httpx.AsyncClient(
+                        timeout=httpx.Timeout(self._timeout_seconds), transport=self._transport
+                    ) as client:
+                        response = await client.post(
+                            DEEPSEEK_RESPONSES_URL,
+                            headers={"Authorization": f"Bearer {self._api_key}"},
+                            json=body,
+                        )
             except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as error:
                 # Once a request is prepared, transport loss is not provably pre-send. Never retry.
                 raise ProviderCallError(

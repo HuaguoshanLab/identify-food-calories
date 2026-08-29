@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.agent.models import AgentLease
 from app.agent.repository import SqlAlchemyAgentRepository
 from app.agent.service import AgentService
+from app.core.tracing import DisabledTracingRuntime, TracingRuntime
 
 
 class PostgresLeaseSupervisor:
@@ -23,6 +25,7 @@ class PostgresLeaseSupervisor:
         holder_id: str,
         lease_duration: timedelta = timedelta(seconds=30),
         now: Callable[[], datetime] | None = None,
+        tracing: TracingRuntime | None = None,
     ) -> None:
         if not holder_id.strip():
             raise ValueError("lease holder_id is required")
@@ -32,6 +35,7 @@ class PostgresLeaseSupervisor:
         self._holder_id = holder_id
         self._lease_duration = lease_duration
         self._now = now or (lambda: datetime.now(UTC))
+        self._tracing = tracing or DisabledTracingRuntime()
         self._started = False
 
     @property
@@ -44,7 +48,36 @@ class PostgresLeaseSupervisor:
         self._started = True
 
     async def stop(self) -> None:
-        self._started = False
+        try:
+            self._tracing.flush()
+        finally:
+            self._tracing.shutdown()
+            self._started = False
+
+    @contextmanager
+    def run_span(
+        self,
+        *,
+        thread_id: uuid.UUID,
+        graph_version: str,
+        prompt_version: str,
+        tool_version: str,
+    ) -> Iterator[None]:
+        """Scope a single graph run without exporting identity or submitted meal content."""
+
+        if not self._started:
+            raise RuntimeError("lease supervisor has not started")
+        with self._tracing.span(
+            "agent.run",
+            {
+                "node.name": "meal_analysis",
+                "graph.version": graph_version,
+                "prompt.version": prompt_version,
+                "tool.version": tool_version,
+                "thread.fingerprint": self._tracing.scoped_hmac(str(thread_id)),
+            },
+        ):
+            yield
 
     def claim(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> AgentLease:
         if not self._started:

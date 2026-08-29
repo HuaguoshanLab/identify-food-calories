@@ -75,6 +75,36 @@ class DisabledTracingRuntime:
         return None
 
 
+class TracedNutritionToolAdapter:
+    """Add fixed, payload-free spans around the graph's deterministic tool port.
+
+    Core tracing deliberately stays independent from nutrition schemas.  The graph already
+    receives the narrow tool adapter port, so this structural wrapper can instrument its three
+    methods without observing food names, grams, catalog identifiers, or returned nutrients.
+    """
+
+    def __init__(self, *, delegate: object, tracing: TracingRuntime) -> None:
+        self._delegate = delegate
+        self._tracing = tracing
+
+    def search_food_catalog(self, request: object) -> Any:
+        return self._call("nutrition.search_food_catalog", "search_food_catalog", request)
+
+    def calculate_nutrition(self, request: object) -> Any:
+        return self._call("nutrition.calculate_nutrition", "calculate_nutrition", request)
+
+    def validate_nutrition_result(self, request: object) -> Any:
+        return self._call("nutrition.validate_nutrition_result", "validate_nutrition_result", request)
+
+    def _call(self, span_name: str, method_name: str, request: object) -> Any:
+        method = getattr(self._delegate, method_name)
+        with self._tracing.span(
+            span_name,
+            {"tool.name": method_name, "tool.version": "nutrition-tools-v1"},
+        ):
+            return method(request)
+
+
 class AllowlistTracingRuntime:
     """Own a private provider so application instrumentation cannot mutate global state."""
 
