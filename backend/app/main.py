@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from fastapi import FastAPI, Request
@@ -30,8 +30,11 @@ from app.providers.reasoning.fake import RiceOnlyFakeReasoningModelProvider
 class PersistedAgentRuntimeFactory:
     """Create all long-lived runtime resources once; setup remains a deployment CLI concern."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, *, retention_now: Callable[[], datetime] | None = None
+    ) -> None:
         self._settings = settings
+        self._retention_now = retention_now or (lambda: datetime.now(UTC))
         self._saver_context: AbstractAsyncContextManager[Any] | None = None
 
     async def create(self) -> AgentRuntime:
@@ -67,6 +70,7 @@ class PersistedAgentRuntimeFactory:
                 deletion_due_delta=self._settings.retention_deletion_due_delta,
                 poll_interval=timedelta(seconds=self._settings.retention_poll_interval_seconds),
             ),
+            now=self._retention_now,
         )
         return AgentRuntime(
             graph=graph,

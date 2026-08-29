@@ -53,7 +53,10 @@ class RetentionWorker:
         self._task: asyncio.Task[None] | None = None
         self._stopping = False
         self._wake = asyncio.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._last_stats = RetentionRunStats()
+        self._completed_sweeps = 0
+        self._sweep_completed = asyncio.Condition()
 
     @property
     def started(self) -> bool:
@@ -63,14 +66,22 @@ class RetentionWorker:
     def last_stats(self) -> RetentionRunStats:
         return self._last_stats
 
+    @property
+    def completed_sweeps(self) -> int:
+        return self._completed_sweeps
+
     def wake(self) -> None:
         """Wake this process after a persisted deletion intent; the database remains authority."""
 
+        if self._loop is not None and self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._wake.set)
+            return
         self._wake.set()
 
     async def start(self) -> None:
         if self._task is None:
             self._stopping = False
+            self._loop = asyncio.get_running_loop()
             self._task = asyncio.create_task(self._run(), name="agent-retention-worker")
 
     async def stop(self) -> None:
@@ -79,6 +90,14 @@ class RetentionWorker:
         if self._task is not None:
             await self._task
             self._task = None
+        self._loop = None
+
+    async def wait_for_sweep(self, *, after: int) -> int:
+        """Observe a scheduler-owned cycle in tests without starting cleanup directly."""
+
+        async with self._sweep_completed:
+            await self._sweep_completed.wait_for(lambda: self._completed_sweeps > after)
+            return self._completed_sweeps
 
     async def _run(self) -> None:
         while not self._stopping:
@@ -97,6 +116,9 @@ class RetentionWorker:
             sweep = self._select_sweep()
             stats = await self._apply_sweep(sweep)
             self._last_stats = stats
+            async with self._sweep_completed:
+                self._completed_sweeps += 1
+                self._sweep_completed.notify_all()
             earliest = self._select_sweep().next_eligible_at
             return self._next_delay(earliest)
         finally:

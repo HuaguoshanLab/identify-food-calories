@@ -11,6 +11,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Generator, Iterator
+from datetime import timedelta
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
@@ -28,7 +29,7 @@ from app.agent.schemas import (
     AgentThreadSnapshot,
     AgentThreadStatus,
 )
-from app.agent.service import AgentService, AgentThreadUnavailable
+from app.agent.service import AgentService, AgentThreadUnavailable, RetentionPolicy
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.auth.api import bearer_scheme, get_authentication_service
 from app.auth.security import InvalidAccessToken
@@ -223,9 +224,30 @@ def retry_agent_run(thread_id: uuid.UUID, principal: AgentPrincipal) -> JSONResp
 
 
 @router.delete("/threads/{thread_id}", operation_id="deleteAgentThread", response_model=AgentDeletionAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)
-def delete_agent_thread(thread_id: uuid.UUID, principal: AgentPrincipal) -> JSONResponse:
-    _ = thread_id, principal
-    return _error(status.HTTP_409_CONFLICT, "DELETION_NOT_AVAILABLE", "删除任务尚未接通。")
+def delete_agent_thread(
+    thread_id: uuid.UUID,
+    request: Request,
+    principal: AgentPrincipal,
+    service: AgentService = Depends(get_agent_service),
+) -> AgentDeletionAcceptedResponse:
+    """Persist the bounded deletion deadline before waking the lifespan-owned worker."""
+
+    settings = request.app.state.settings
+    service.request_thread_deletion(
+        thread_id=thread_id,
+        user_id=principal,
+        policy=RetentionPolicy(
+            checkpoint_event_days=settings.retention_checkpoint_event_days,
+            audit_days=settings.retention_audit_days,
+            deletion_due_delta=settings.retention_deletion_due_delta,
+            poll_interval=timedelta(seconds=settings.retention_poll_interval_seconds),
+        ),
+    )
+    worker = cast(PostgresLeaseSupervisor, _runtime(request).supervisor).retention_worker
+    if worker is None:
+        raise HTTPException(status_code=503, detail="Agent retention runtime is unavailable.")
+    worker.wake()
+    return AgentDeletionAcceptedResponse(thread_id=thread_id)
 
 
 def _authentication_required() -> HTTPException:

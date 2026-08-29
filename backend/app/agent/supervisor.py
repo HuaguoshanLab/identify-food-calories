@@ -44,6 +44,10 @@ class PostgresLeaseSupervisor:
     def started(self) -> bool:
         return self._started
 
+    @property
+    def retention_worker(self) -> RetentionWorker | None:
+        return self._retention_worker
+
     async def start(self) -> None:
         """Mark the lifecycle participant ready; setup remains an explicit CLI step."""
 
@@ -60,7 +64,11 @@ class PostgresLeaseSupervisor:
             self._started = False
 
     async def start_retention(
-        self, *, checkpointer: object, policy: RetentionPolicy
+        self,
+        *,
+        checkpointer: object,
+        policy: RetentionPolicy,
+        now: Callable[[], datetime] | None = None,
     ) -> RetentionWorker:
         """Attach the D-18 scheduler to the same real lifespan as Agent execution."""
 
@@ -71,6 +79,7 @@ class PostgresLeaseSupervisor:
                 session_factory=self._session_factory,
                 checkpointer=checkpointer,
                 policy=policy,
+                now=now,
             )
             await self._retention_worker.start()
         return self._retention_worker

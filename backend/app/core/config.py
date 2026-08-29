@@ -83,19 +83,6 @@ class Settings(BaseSettings):
         if self.app_env != "production":
             return self
 
-        for variable, value in retention_values.items():
-            if value is None or value <= 0:
-                raise ConfigurationError(f"{variable} must be explicitly positive in production")
-            field_name = variable.lower()
-            if field_name not in self.model_fields_set:
-                raise ConfigurationError(f"{variable} must be explicitly configured in production")
-        if (
-            self.retention_deletion_sla_hours is not None
-            and self.retention_poll_interval_seconds is not None
-            and self.retention_deletion_sla_hours * 3600 <= self.retention_poll_interval_seconds
-        ):
-            raise ConfigurationError("retention deletion SLA must exceed the poll interval")
-
         secret = self.secret_key.get_secret_value()
         if len(secret) < 32 or "local-development" in secret or "change-me" in secret:
             raise ConfigurationError("SECRET_KEY must be a strong production secret")
@@ -143,6 +130,14 @@ class Settings(BaseSettings):
                 raise ConfigurationError(
                     "TRACING_SERVICE_VERSION is required when tracing is enabled"
                 )
+
+        for variable, value in retention_values.items():
+            if value is None or value <= 0:
+                raise ConfigurationError(f"{variable} must be explicitly positive in production")
+            if variable.lower() not in self.model_fields_set:
+                raise ConfigurationError(f"{variable} must be explicitly configured in production")
+        if self.retention_deletion_sla_hours * 3600 <= self.retention_poll_interval_seconds:
+            raise ConfigurationError("retention deletion SLA must exceed the poll interval")
 
         return self
 
