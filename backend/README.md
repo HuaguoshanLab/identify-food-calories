@@ -86,6 +86,7 @@ mypy app
 | `validate_supply_chain.py` | 不执行 PATH 扫描器的供应链证据校验与自检 CLI |
 | `alembic.ini` | Alembic CLI 与迁移脚本位置配置 |
 | `app/` | FastAPI 应用代码 |
+| `openapi-agent-v1.json` | 从运行时 FastAPI 生成并冻结的 Agent v1 公开合同；前端生成器会逐字校验 |
 | `migrations/` | Alembic schema 变更脚本目录 |
 | `evals/` | 无真实用户数据的 Phase 2 冻结 Agent 评测案例与离线 hash/语义校验器 |
 | `scripts/` | 受保护的测试数据库初始化与应用启动入口 |

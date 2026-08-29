@@ -2,7 +2,7 @@
 
 ## 职责
 
-本目录只接收由运行时 OpenAPI 合约生成的客户端、类型和校验器。生成产物是浏览器与公开 `/api/v1` 的唯一数据接口；手写 DTO 或把 Graph State 映射进页面都不允许。
+本目录只接收由运行时 OpenAPI 合约生成的客户端、类型和校验器。生成产物是浏览器与公开 `/api/v1` 的唯一数据接口；手写 DTO 或把 Graph State 映射进页面都不允许。每次后端 Agent schema 变化后必须先运行 `node generate-contracts.mjs generate-all`，再运行 `check-all`；后者会从真实 `create_app().openapi()` 在临时目录逐字重建所有工件。
 
 ## 允许依赖
 
@@ -11,4 +11,8 @@
 
 ## 文件索引
 
-当前没有生成文件。生成器与冻结 OpenAPI 工件将在后续计划接入；在那之前，组件不能伪造 API 响应。
+| 文件 | 职责 |
+|---|---|
+| `generate-contracts.mjs` | 唯一的运行时 OpenAPI → frozen JSON → TypeScript/Zod → operation client 生成与逐字漂移检查入口 |
+| `schemas.generated.ts` | 从 OpenAPI schema 生成的 TypeScript 声明与 Zod runtime validator；禁止手改 |
+| `client.generated.ts` | 从 operationId 生成、且只经认证 request 边界访问公开 Agent API 的客户端；禁止手改 |
