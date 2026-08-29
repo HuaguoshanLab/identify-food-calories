@@ -21,8 +21,8 @@
 - [ ] **AGT-03**：菜品模糊、识别失败或份量不足时，图通过 interrupt 暂停并向用户追问。
 - [ ] **AGT-04**：用户回复后，系统使用同一 `thread_id` 从持久化 Checkpoint 恢复，而不是重跑整条链路。
 - [ ] **AGT-05**：图设置最大循环、最大工具调用、超时和终止条件，不能无限重试。
-- [ ] **AGT-06**：每个节点、条件边和工具调用都可通过确定性测试替身验证。
-- [ ] **AGT-07**：Agent 运行记录包含图版本、模型版本、提示词版本、工具版本、状态与耗时。
+- [x] **AGT-06**：每个节点、条件边和工具调用都可通过确定性测试替身验证。
+- [x] **AGT-07**：Agent 运行记录包含图版本、模型版本、提示词版本、工具版本、状态与耗时。
 
 ### 多模态餐食分析
 
@@ -79,14 +79,14 @@
 - [x] **ARC-03**：SQLAlchemy Model、Pydantic Schema、LangGraph State 与 Provider DTO 分离。
 - [x] **ARC-04**：PostgreSQL、pgvector 与所需本地依赖通过 Docker Compose 启动，迁移显式执行。
 - [ ] **ARC-05**：前后端使用版本化 OpenAPI 契约；流式 Agent 事件使用 SSE。
-- [ ] **ARC-06**：模型 Provider 可替换且具备 fake 实现，测试不依赖真实付费 API。
+- [x] **ARC-06**：模型 Provider 可替换且具备 fake 实现，测试不依赖真实付费 API。
 - [x] **ARC-07**：仓库根目录、`frontend/` 与 `backend/` 各自维护 `README.md` 和 `AGENTS.md`；新增任何目录时必须在同次提交创建该目录的 `README.md`，写明职责、允许依赖和文件索引。
 - [ ] **ARC-08**：管理后台使用独立的 `admin-frontend/` React 项目，与 `frontend/`、`backend/` 同级并独立构建部署；后台与用户端共用 FastAPI，但后台权限始终由 `/api/v1/admin/*` 的后端 RBAC 强制执行。
 - [x] **EDU-01**：每个后端阶段提供中文教学文档，说明请求链路、设计理由、测试策略和常见错误。
 - [ ] **EDU-02**：README 包含架构图、LangGraph 状态图、关键时序图、启动与调试命令。
 - [ ] **EDU-03**：关键模块配套面试深挖题和可验证答案线索。
 - [ ] **QLT-01**：餐食识别、归一化、估重和营养区间在冻结评测集上达到预先定义门槛。
-- [ ] **QLT-02**：Agent 路由、interrupt/resume、循环终止和工具选择具有状态图测试。
+- [x] **QLT-02**：Agent 路由、interrupt/resume、循环终止和工具选择具有状态图测试。
 - [ ] **QLT-03**：认证、越权、危险图片、提示注入、费用上限、记忆隔离和删除链通过安全测试。
 - [ ] **QLT-04**：CI 运行 lint、类型检查、单元、真实 PostgreSQL 集成、API 合约和 Playwright E2E。
 - [ ] **QLT-05**：Docker 本地环境可一键启动演示，敏感密钥全部来自未提交环境变量。

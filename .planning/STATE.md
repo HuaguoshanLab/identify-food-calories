@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-08-29T07:57:47.344Z"
+stopped_at: Plan 02-17 completed; Plan 02-18 pending
+last_updated: "2026-08-29T10:20:00Z"
 last_activity: 2026-08-29
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
   percent: 25
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 02 (agent) — EXECUTING
-Plan: 16 of 18
-Status: Ready to execute
+Plan: 17 of 18
+Status: Plan 02-17 complete; ready to execute Plan 02-18
 Last activity: 2026-08-29
 
-Progress: [█████████░] 89%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -130,6 +130,9 @@ Recent decisions affecting current work:
 - [Phase 01.1]: 视觉基线只固定 430×932；320px 和桌面使用布局、滚动、键盘与历史断言，避免截图矩阵失控。 — 八张 Git 基线由后续人工 Plan 09 审查。
 - [Phase 01.1]: 内置浏览器验收只通过真实页面与公开 Mailpit HTTP 走认证/会话链，不直接写数据库、复制 token 或读取浏览器存储。 — 让视觉与交互证据保持同一真实信任边界。
 - [Phase 01.1]: 八张 430×932 H5 基线经用户人工批准；首页仅接受 CTA 语义修复导致的文本渲染更新。 — 自动视觉测试不能代替人工设计批准。
+- [Phase 02]: 24-case 双专家签署必须绑定稳定 pseudonym、role、rubric、dataset 与 code-eval hashes；同一 reviewer 可跨 case 审核，但同 case 同角色不得重复。
+- [Phase 02]: Promptfoo 正式 Judge 采用 phase02-judge-json-thinking-disabled.v4，串行 36-call、无缓存、零重试、JSON object 与 thinking.disabled 合同均安全绑定；实际 36/36 完成并以 usage 记账。
+- [Phase 02]: visual candidate 仅以精确 SHA 获批；official baseline 不因 Plan 02-17 而晋升。
 
 ### Pending Todos
 
@@ -149,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T09:04:49.996Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-agent/02-CONTEXT.md
+Last session: 2026-08-29T10:20:00Z
+Stopped at: Completed 02-17-PLAN.md; next 02-18-PLAN.md
+Resume file: .planning/phases/02-agent/02-18-PLAN.md
