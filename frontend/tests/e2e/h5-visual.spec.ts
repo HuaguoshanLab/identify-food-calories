@@ -119,4 +119,19 @@ test.describe('H5 visual and interaction contract', () => {
       await expect(frame).toHaveCSS('overflow-y', 'hidden')
     }
   })
+
+  test('phase 2 visual candidate captures the real completed analysis without changing official baseline', async ({ page, request }) => {
+    const candidateAccount: E2eAccount = {
+      email: 'h5-agent-candidate@example.test',
+      password: 'h5-agent-candidate-password',
+    }
+    await clearMailbox(request)
+    await page.goto('/register')
+    await registerAndActivate(page, request, candidateAccount)
+    await login(page, candidateAccount, '/app/analyze')
+    await page.getByLabel('餐食描述').fill('米饭 100 克')
+    await page.getByRole('button', { name: '开始分析' }).click()
+    await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    await expect(page).toHaveScreenshot('analyze-phase2-candidate-430.png', screenshotOptions)
+  })
 })

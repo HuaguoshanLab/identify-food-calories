@@ -2,7 +2,7 @@
 
 ## 职责
 
-本目录保存 `h5-visual.spec.ts` 的八张 430×932、light、reduced-motion Git 视觉基线。它们只记录用户可见业务页面，不能包含 Mailpit、验证码、Cookie、令牌或其他敏感数据。
+本目录保存 `h5-visual.spec.ts` 的八张 430×932、light、reduced-motion Git 视觉基线和一个 Phase 2 待审批 candidate。它们只记录用户可见业务页面，不能包含 Mailpit、验证码、Cookie、令牌或其他敏感数据。
 
 ## 允许依赖
 
@@ -22,3 +22,13 @@
 | `account-430-chromium-darwin.png` | 账号资料 |
 | `sessions-430-chromium-darwin.png` | 登录会话 |
 | `revoke-dialog-430-chromium-darwin.png` | 撤销会话确认弹窗 |
+| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate；等待 02-17 人工审批，绝不是 official baseline。 |
+
+## Phase 2 Candidate Integrity
+
+`analyze-430-chromium-darwin.png` 是既有 official baseline。生成 candidate 前后必须保存 SHA-256 并逐字 `cmp`；不得通过 `--update-snapshots` 重写该 official 文件。candidate 仅由真实注册、登录、公开分析 API 与完成报告页面生成，固定为 430×932、light、reduced-motion。
+
+- official before: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
+- official after: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
+- candidate: `19d4e5035919e8b28691f6e165012702f1a62404c082f21ddbb3925acf29ca2e`
+- `cmp`: PASS
