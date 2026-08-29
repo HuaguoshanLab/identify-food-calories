@@ -136,3 +136,60 @@ def test_signoff_rejects_review_that_does_not_match_stable_roster_role(
     reviews[0]["role"] = "food_composition_data_steward"
     with pytest.raises(EvaluationContractError, match="does not match reviewer roster"):
         _validate_signoff_without_machine_evidence(monkeypatch, tmp_path, payload)
+
+
+def test_release_recomputes_metrics_from_hash_bound_pairs(tmp_path: Path) -> None:
+    from evals.release_phase2 import build_release, verify_release
+
+    dataset = _dataset()
+    code_eval = Path("evals/phase2-code-eval.json")
+    signoff = json.loads(Path("evals/expert-signoff-phase2.json").read_text(encoding="utf-8"))
+    promptfoo = json.loads(Path("evals/promptfoo-release-phase2-v4.json").read_text(encoding="utf-8"))
+    medium_ids = [f"phase02-{number:03d}" for number in range(6, 11)]
+    paired_scores = dict(zip(medium_ids, [3, 4, 4, 5, 5], strict=True))
+    for review in signoff["reviews"]:
+        if review["case_id"] in medium_ids:
+            review["medium_human_score"] = paired_scores[review["case_id"]]
+    for judge in signoff["judge_scores"]:
+        judge["score"] = paired_scores[judge["case_id"]]
+    promptfoo["judge_scores"] = paired_scores
+    for call in promptfoo["calls"]:
+        if call["case_id"] in medium_ids:
+            call["judge_score"] = paired_scores[call["case_id"]]
+    signoff_path = tmp_path / "signoff.json"
+    promptfoo_path = tmp_path / "promptfoo.json"
+    release_path = tmp_path / "release.json"
+    signoff_path.write_text(json.dumps(signoff), encoding="utf-8")
+    promptfoo_path.write_text(json.dumps(promptfoo), encoding="utf-8")
+
+    release = build_release(
+        dataset=dataset,
+        code_eval=code_eval,
+        signoff=signoff_path,
+        promptfoo=promptfoo_path,
+        output=release_path,
+    )
+
+    assert release["decision"] == "PASS"
+    assert release["metrics"]["spearman"] == 1.0
+    assert verify_release(release_path)["decision"] == "PASS"
+
+
+def test_release_fails_closed_for_constant_real_medium_pairs(tmp_path: Path) -> None:
+    from evals.evaluate_phase2 import EvaluationContractError
+    from evals.release_phase2 import build_release, verify_release
+
+    release_path = tmp_path / "release.json"
+    release = build_release(
+        dataset=_dataset(),
+        code_eval=Path("evals/phase2-code-eval.json"),
+        signoff=Path("evals/expert-signoff-phase2.json"),
+        promptfoo=Path("evals/promptfoo-release-phase2-v4.json"),
+        output=release_path,
+    )
+
+    assert release["decision"] == "FAIL"
+    assert release["metrics"]["spearman"] is None
+    assert release["checks"]["spearman_at_least_0_70"] is False
+    with pytest.raises(EvaluationContractError, match="not PASS"):
+        verify_release(release_path)

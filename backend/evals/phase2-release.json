@@ -1,0 +1,49 @@
+{
+  "schema_version": "phase2-release.v1",
+  "decision": "FAIL",
+  "input_hashes": {
+    "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
+    "code_eval_hash": "df7dbdf3ebc5908c716c082922397f9f687fa2b5243a9f7576bac8dda6acf63c",
+    "signoff_hash": "3b08552003f8213ae90e65022bcd893607f5294f2b7fa4858bf82fcdbb8553fa",
+    "promptfoo_hash": "b5a77623bad3bac760a75291309fab91e71535a73f7434a5ef653e629a2aaf4b"
+  },
+  "promptfoo_contract": {
+    "config_hash": "1fa3307b56acd839b67d9e8b521cb343fe8e68d6431e24713637fba3cce153b3",
+    "judge_prompt_contract_version": "phase02-judge-json-thinking-disabled.v4",
+    "judge_prompt_hash": "35c646974fdeed295c512362d556d7bd2588e45d03e9e09e6a87b6258355bcc9",
+    "judge_response_format": {
+      "type": "json_object"
+    },
+    "judge_thinking": {
+      "type": "disabled"
+    },
+    "failure_counts": {
+      "network_failure": 0,
+      "product_failure": 0,
+      "other_failure": 0
+    }
+  },
+  "thresholds": {
+    "critical_pass_percent": 100.0,
+    "high_pass_percent": 95.0,
+    "medium_average": 4.0,
+    "spearman": 0.7
+  },
+  "metrics": {
+    "critical_pass_percent": 100.0,
+    "high_pass_percent": 100.0,
+    "medium_human_average": 4.0,
+    "medium_judge_average": 4.0,
+    "paired_score_count": 10,
+    "spearman": null
+  },
+  "checks": {
+    "critical_100_percent": true,
+    "high_at_least_95_percent": true,
+    "medium_human_average_at_least_4": true,
+    "medium_judge_average_at_least_4": true,
+    "no_score_one": true,
+    "spearman_at_least_0_70": false
+  },
+  "evidence_hash": "1078745b7c7ab3088cef55ec48d885b410481a6f7549006d57fb1dcb3d0ea6c1"
+}

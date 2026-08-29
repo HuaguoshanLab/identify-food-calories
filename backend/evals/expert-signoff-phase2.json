@@ -210,7 +210,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "yu-nutritionist",
       "role": "nutritionist",
       "rubric_version": "phase02-rubric.v1"
@@ -226,7 +226,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "chen-food-data-admin",
       "role": "food_composition_data_steward",
       "rubric_version": "phase02-rubric.v1"
@@ -242,7 +242,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "yu-nutritionist",
       "role": "nutritionist",
       "rubric_version": "phase02-rubric.v1"
@@ -258,7 +258,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "chen-food-data-admin",
       "role": "food_composition_data_steward",
       "rubric_version": "phase02-rubric.v1"
@@ -274,7 +274,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "yu-nutritionist",
       "role": "nutritionist",
       "rubric_version": "phase02-rubric.v1"
@@ -290,7 +290,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "chen-food-data-admin",
       "role": "food_composition_data_steward",
       "rubric_version": "phase02-rubric.v1"
@@ -306,7 +306,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "yu-nutritionist",
       "role": "nutritionist",
       "rubric_version": "phase02-rubric.v1"
@@ -322,7 +322,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "chen-food-data-admin",
       "role": "food_composition_data_steward",
       "rubric_version": "phase02-rubric.v1"
@@ -338,7 +338,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "yu-nutritionist",
       "role": "nutritionist",
       "rubric_version": "phase02-rubric.v1"
@@ -354,7 +354,7 @@
         "household_portion_auditability": true
       },
       "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-      "medium_human_score": 5,
+      "medium_human_score": 4,
       "pseudonym": "chen-food-data-admin",
       "role": "food_composition_data_steward",
       "rubric_version": "phase02-rubric.v1"

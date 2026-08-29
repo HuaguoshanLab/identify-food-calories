@@ -18,6 +18,7 @@
 | `validate_dataset.py` | 结构、主路径/追问/修正语义、敏感字段和 hash 链的离线 fail-closed 校验器。 |
 | `__init__.py` | 让校验器与评测器以同一 Python package 导入，避免 CLI/pytest 模块漂移。 |
 | `evaluate_phase2.py` | 运行/验证 hash-bound code evidence，并锁定后续专家、Judge、Promptfoo 和 release 的 fail-closed 输入合同。 |
+| `release_phase2.py` | 独立消费已冻结的 code-eval、正式签署和正式 Judge 安全证据，重算阈值与 Spearman，生成唯一、hash-bound 的 `PASS` 或 `FAIL` 发布报告；独立文件避免为报告逻辑改动而使已审核的 code-eval 哈希失效。 |
 | `phase2-code-eval.json` | 当前代码、冻结集、图/Provider/工具/目录/schema 哈希绑定的 24 条真实 Fake Provider→Graph→工具→Checkpoint 观测证据。 |
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
@@ -36,6 +37,7 @@
 | `promptfoo-release-phase2-v4.json` | 独立的 `phase02-judge-json-thinking-disabled.v4` 正式运行证据；36 次串行调用全部完成，记录安全 usage/cost 与稳定 Judge 分数，不包含模型输出或 reasoning。 |
 | `promptfoo-release-network-preflight.json` | 不带凭据、非模型请求的 DNS/TLS/root-401 连通性预检证据。 |
 | `expert-signoff-phase2.json` | 仅当 36-call Judge 完成且 Medium Judge 分数稳定时，从真实专家模板和实际 Judge 分数物化的正式签署证据。 |
+| `phase2-release.json` | 唯一正式发布判定，精确绑定 dataset/code-eval/signoff/Promptfoo 四个 SHA；任何缺失、网络/产品失败、阈值失败或未定义 Spearman 都是 `FAIL`，绝不冒充 `PASS`。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |
 
 ## 机器评测
@@ -59,6 +61,23 @@ cd backend
 `expert-signoff-phase2.json` 只能由真实、不同的营养师和食物成分数据管理员逐 case 填写。先在顶层 `reviewers` roster 登记稳定 pseudonym 与固定 role；同一真实审核人必须在所有自己审核的 case 中复用同一 pseudonym，不能每例换名。每个 case 的每个 role 恰好只能出现一条 review，review 的 pseudonym/role 必须与 roster 对应，且同一人不能在同一 case 充当多个角色。两者必须分别确认食物编码、阻塞字段、家庭份量可审计性、权威数值和硬校验。对 Medium 样本还必须提供与 dataset/code-eval/rubric hash 绑定的人类 1–5 分与 Judge 1–5 分；发布时从逐 case 原始分数重新计算 Spearman，禁止写入一个预计算相关系数冒充证据。
 
 `self-test` 只验证失败夹具覆盖，不能产生签署、不能批准付费运行，也不会把任何阈值标为通过。
+
+## 发布报告
+
+正式 Judge 证据必须来自已授权、36 次串行、无缓存、零重试的安全 runner。随后由独立报告器读取四个不可变输入；它不会读取 `.env`、调用模型、保存任何文案或模型输出。报告器只有在所有门都满足时才会让 `verify-release` 返回成功：Critical 100%、High 至少 95%、两类 Medium 平均至少 4、没有 1 分，且基于每条原始配对分数重算的 Spearman 至少 0.70。常数序列没有可定义的 Spearman，因此必须 `FAIL`。
+
+```bash
+cd backend
+.venv/bin/python evals/release_phase2.py release \
+  --dataset evals/phase02-cases.jsonl \
+  --code-eval evals/phase2-code-eval.json \
+  --signoff evals/expert-signoff-phase2.json \
+  --promptfoo evals/promptfoo-release-phase2-v4.json \
+  --output evals/phase2-release.json
+.venv/bin/python evals/release_phase2.py verify-release evals/phase2-release.json
+```
+
+最后一条命令在 `FAIL` 时以非零状态退出；这是发布门正常的 fail-closed 行为，而不是允许重试或改分的信号。
 
 ## 非发布 Promptfoo pilot
 
