@@ -25,26 +25,34 @@
 | `02-02-PLAN.md` | PostgreSQL 测试环境、初始化启动器与 Playwright 安全链计划 |
 | `02-02-SUMMARY.md` | fail-closed PostgreSQL wrapper、初始化顺序与 Playwright 安全接线执行摘要 |
 | `02-03-PLAN.md` | Reasoning Provider DTO、端口、Fake 与测试工厂计划 |
+| `02-03-SUMMARY.md` | Provider port、DTO、Fake 与测试工厂执行摘要 |
 | `02-04-PLAN.md` | Agent 前端 feature 骨架、SSE 解析依赖与逐级目录索引计划 |
+| `02-04-SUMMARY.md` | Agent 前端骨架、SSE 解析依赖与目录索引执行摘要 |
 | `02-05-PLAN.md` | 冻结评测数据首批主路径与版本合同计划 |
 | `02-05-SUMMARY.md` | 无 seed 0004、真实 PostgreSQL schema 合同与 5-case happy prefix 执行摘要 |
 | `02-06-PLAN.md` | 营养领域模型、Repository、Service 与确定性工具计划 |
+| `02-06-SUMMARY.md` | 营养领域模型、Repository、Service 与确定性工具执行摘要 |
 | `02-07-PLAN.md` | Agent 运行账本、事件、Graph State 与持久化基础计划 |
+| `02-07-SUMMARY.md` | Agent ledger、事件、Graph State 与持久化基础执行摘要 |
 | `02-08-PLAN.md` | Alembic、Checkpointer、FDC 导入与幂等初始化计划 |
 | `02-08-SUMMARY.md` | 离线 hash 受控 FDC seed、显式 Checkpointer setup 与真实 PostgreSQL 幂等初始化执行摘要 |
 | `02-09-PLAN.md` | Agent API 全量哨兵合同与 OpenAPI→TS/Zod/client 漂移门计划 |
 | `02-09-SUMMARY.md` | 六个认证 501 sentinel、运行时 OpenAPI 机械生成与逐字漂移门执行摘要 |
 | `02-10-PLAN.md` | 登录用户文字餐食分析首个真实纵向 GREEN 计划 |
+| `02-10-SUMMARY.md` | 登录用户文字餐食分析首个真实纵向路径执行摘要 |
 | `02-11-PLAN.md` | interrupt/resume、集中追问与同线程恢复计划 |
 | `02-11-SUMMARY.md` | 集中追问、same-thread checkpoint 恢复、partial 披露、定向修正与 14-case 冻结链执行摘要 |
 | `02-12-PLAN.md` | 崩溃/断线恢复、有界自治、snapshot-first SSE 与最终 24-case 数据集计划 |
 | `02-12-SUMMARY.md` | 预算恢复、真实 Saver 重开、snapshot-first SSE 与 24-case 冻结链执行摘要 |
 | `02-13-PLAN.md` | DeepSeek Provider、运行时依赖锁与 Phoenix 可观测性计划 |
+| `02-13-SUMMARY.md` | DeepSeek Provider、运行时依赖锁与 Phoenix 可观测性执行摘要 |
 | `02-14-PLAN.md` | D-18 自动清理调度、租约与 24h/7d/30d 保留计划 |
 | `02-14-SUMMARY.md` | FastAPI lifecycle retention Worker、PostgreSQL lease、精确保留边界和真实数据库隔离证据 |
 | `02-15-PLAN.md` | 用户删除接口、UI 与候选视觉基线计划 |
+| `02-15-SUMMARY.md` | 用户删除、UI、候选视觉基线与保留边界执行摘要 |
 | `02-16-PLAN.md` | 24-case 机器评测、专家签署结构与发布阈值计划 |
 | `02-16-SUMMARY.md` | 24-case 实际机器证据、双角色发布合同、失败夹具与本地 Promptfoo CLI 执行摘要 |
 | `02-17-PLAN.md` | 专家、付费 Promptfoo 与视觉人工审批门计划 |
+| `02-17-SUMMARY.md` | 双角色专家签署、正式 Judge、候选视觉审批与 fail-closed 人工门执行摘要 |
 | `02-18-PLAN.md` | 发布报告、真实浏览器验收、教学文档与阶段索引收口计划 |
 | `README.md` | 本目录职责、依赖边界与文件索引 |

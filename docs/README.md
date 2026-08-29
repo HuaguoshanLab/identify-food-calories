@@ -15,4 +15,5 @@
 | 路径 | 职责 |
 |---|---|
 | `learning/` | 从前端开发者视角解释后端认证与工程基础 |
+| `learning/phase-02-agent-core.md` | 可追问文字餐食 Agent、确定性营养边界、Checkpoint/ledger、SSE、评测和调试的中文教学文档。 |
 | `ui/` | 用户 H5 的跨阶段 UI 基座与组件契约 |
