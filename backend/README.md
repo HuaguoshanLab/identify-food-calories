@@ -16,7 +16,7 @@
 ```bash
 cp .env.example .env
 python3.11 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m pip install --require-hashes -r requirements.lock
 .venv/bin/uvicorn app.main:app --reload
 ```
 
@@ -72,6 +72,8 @@ mypy app
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
+| `requirements.lock` | Python 3.11 下由 pip report 和下载产物生成的 hash-complete 依赖锁 |
+| `lock_dependencies.py` | 生成并校验 pyproject 直接依赖、传递闭包与 SHA-256 锁文件的 CLI |
 | `supply-chain-evidence-v1.schema.json` | 新增依赖人工或固定扫描器审核证据的版本化 JSON Schema |
 | `supply-chain-evidence.json` | 当前新增依赖的 fail-closed 审核状态；`pending` 时禁止安装 |
 | `validate_supply_chain.py` | 不执行 PATH 扫描器的供应链证据校验与自检 CLI |

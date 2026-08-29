@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,7 +17,7 @@ from validate_supply_chain import (
     validate_evidence,
 )
 
-from lock_dependencies import LockValidationError, check_lock
+from lock_dependencies import LOCK_HEADER, LockValidationError, _report_packages, check_lock
 
 
 TIMESTAMP = datetime(2026, 8, 29, 0, 0, tzinfo=UTC).isoformat().replace("+00:00", "Z")
@@ -39,12 +41,12 @@ def _manual_package(name: str, ecosystem: str, version: str) -> dict[str, str]:
     }
 
 
-def _approved_manual_evidence() -> dict[str, object]:
+def _approved_manual_evidence() -> dict[str, Any]:
     packages = [
         _manual_package(name, ecosystem, version)
         for name, ecosystem, version in APPROVED_PACKAGES
     ]
-    manifest = {
+    manifest: dict[str, Any] = {
         "packages": packages,
         "manifest_sha256": "",
     }
@@ -153,15 +155,16 @@ def test_evidence_must_use_exactly_one_approval_branch() -> None:
         validate_evidence(evidence)
 
 
-def test_lock_check_accepts_exact_direct_dependencies_and_hashes(tmp_path: object) -> None:
-    pyproject = tmp_path / "pyproject.toml"  # type: ignore[operator]
-    lock = tmp_path / "requirements.lock"  # type: ignore[operator]
-    pyproject.write_text(  # type: ignore[union-attr]
+def test_lock_check_accepts_exact_direct_dependencies_and_hashes(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    lock = tmp_path / "requirements.lock"
+    pyproject.write_text(
         "[project]\nname = \"demo\"\ndependencies = [\"alpha==1.0.0\"]\n\n"
         "[project.optional-dependencies]\ndev = [\"beta==2.0.0\"]\n",
         encoding="utf-8",
     )
-    lock.write_text(  # type: ignore[union-attr]
+    lock.write_text(
+        f"{LOCK_HEADER}\n"
         "# direct-dependency: alpha==1.0.0\n"
         "# direct-dependency: beta==2.0.0\n"
         "alpha==1.0.0 --hash=sha256:" + HASH + "\n"
@@ -181,16 +184,17 @@ def test_lock_check_accepts_exact_direct_dependencies_and_hashes(tmp_path: objec
     ],
 )
 def test_lock_check_rejects_direct_dependency_drift_or_missing_hash(
-    tmp_path: object, replacement: str, reason: str
+    tmp_path: Path, replacement: str, reason: str
 ) -> None:
-    pyproject = tmp_path / "pyproject.toml"  # type: ignore[operator]
-    lock = tmp_path / "requirements.lock"  # type: ignore[operator]
-    pyproject.write_text(  # type: ignore[union-attr]
+    pyproject = tmp_path / "pyproject.toml"
+    lock = tmp_path / "requirements.lock"
+    pyproject.write_text(
         "[project]\nname = \"demo\"\ndependencies = [\"alpha==1.0.0\"]\n\n"
         "[project.optional-dependencies]\ndev = [\"beta==2.0.0\"]\n",
         encoding="utf-8",
     )
-    lock.write_text(  # type: ignore[union-attr]
+    lock.write_text(
+        f"{LOCK_HEADER}\n"
         "# direct-dependency: alpha==1.0.0\n"
         f"{replacement}\n"
         "alpha==1.0.0 --hash=sha256:" + HASH + "\n"
@@ -200,3 +204,25 @@ def test_lock_check_rejects_direct_dependency_drift_or_missing_hash(
 
     with pytest.raises(LockValidationError, match=reason):
         check_lock(pyproject, lock)
+
+
+def test_lock_report_excludes_the_local_project_but_requires_remote_hashes() -> None:
+    packages = _report_packages(
+        {
+            "install": [
+                {
+                    "metadata": {"name": "food-agent-backend", "version": "0.1.0"},
+                    "download_info": {"url": "file:///workspace/backend", "dir_info": {}},
+                },
+                {
+                    "metadata": {"name": "remote-package", "version": "1.0.0"},
+                    "download_info": {
+                        "url": "https://files.example/remote-package.whl",
+                        "archive_info": {"hash": "sha256=" + HASH},
+                    },
+                },
+            ]
+        }
+    )
+
+    assert packages == {"remote-package": ("remote-package", "1.0.0", HASH)}
