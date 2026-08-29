@@ -21,3 +21,4 @@
 | `admin/` | 后端 RBAC probe、数据库权威角色提升与审计模块 |
 | `accounts/` | 密码恢复 Service、Repository port 与 HTTP 契约 |
 | `notifications/` | 可替换邮件 Provider port 与本地 SMTP adapter |
+| `providers/` | 外部模型 Provider 的独立 Port、DTO、Adapter 与测试替身 |

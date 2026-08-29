@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +12,9 @@ from sqlalchemy.engine import URL, make_url
 
 class ConfigurationError(ValueError):
     """Raised when runtime configuration crosses a security boundary."""
+
+
+ReasoningProviderMode: TypeAlias = Literal["fake", "deepseek"]
 
 
 class Settings(BaseSettings):
@@ -30,6 +33,8 @@ class Settings(BaseSettings):
     smtp_from_email: str | None = "noreply@local.test"
     smtp_username: str | None = None
     smtp_password: SecretStr | None = None
+    reasoning_provider_mode: ReasoningProviderMode = "fake"
+    deepseek_api_key: SecretStr | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -66,6 +71,12 @@ class Settings(BaseSettings):
             raise ConfigurationError("SMTP_USERNAME is required in production")
         if self.smtp_password is None or not self.smtp_password.get_secret_value():
             raise ConfigurationError("SMTP_PASSWORD is required in production")
+        if self.reasoning_provider_mode != "deepseek":
+            raise ConfigurationError(
+                "production requires REASONING_PROVIDER_MODE=deepseek"
+            )
+        if self.deepseek_api_key is None or not self.deepseek_api_key.get_secret_value():
+            raise ConfigurationError("DEEPSEEK_API_KEY is required in production")
 
         return self
 

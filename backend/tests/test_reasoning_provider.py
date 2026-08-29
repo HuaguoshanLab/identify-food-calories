@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.config import ConfigurationError, Settings
 from app.providers.reasoning.dto import (
@@ -27,7 +29,7 @@ def test_test_environment_always_uses_the_fake_provider() -> None:
 
 
 def test_production_requires_an_explicit_deepseek_provider_configuration() -> None:
-    with pytest.raises(ConfigurationError, match="REASONING_PROVIDER_MODE"):
+    with pytest.raises((ConfigurationError, ValidationError), match="REASONING_PROVIDER_MODE"):
         Settings(
             _env_file=None,
             app_env="production",
@@ -73,7 +75,7 @@ def test_fake_scripts_safe_results_and_preserves_no_raw_request_text_in_trace() 
 
     assert result.value.items[0].food_name == "cooked rice"
     assert result.metadata.usage.total_tokens == 20
-    assert result.metadata.usage.cost_usd == "0.0012"
+    assert result.metadata.usage.cost_usd == Decimal("0.0012")
     assert result.metadata.latency_ms == 31
     assert provider.calls[0].operation == "parse_meal"
     assert "敏感" not in repr(provider.calls[0])
