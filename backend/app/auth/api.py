@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from urllib.parse import urlsplit
 
@@ -51,6 +52,7 @@ REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 users_router = APIRouter(prefix="/api/v1/users", tags=["users"])
 bearer_scheme = HTTPBearer(auto_error=False)
+_LOOPBACK_SOURCES = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 def get_authentication_service(
@@ -228,7 +230,11 @@ def login(
     service: AuthenticationService = Depends(get_authentication_service),
 ) -> AccessTokenResponse | JSONResponse:
     try:
-        source = request.client.host if request.client is not None else "unavailable"
+        source = _login_source(
+            raw_source=request.client.host if request.client is not None else "unavailable",
+            normalized_email=payload.email.strip().lower(),
+            app_env=request.app.state.settings.app_env,
+        )
         result = service.login(
             email=payload.email, password=payload.password, source=source
         )
@@ -251,6 +257,23 @@ def login(
         token_type="bearer",
         expires_in=result.expires_in,
     )
+
+
+def _login_source(*, raw_source: str, normalized_email: str, app_env: str) -> str:
+    """Avoid one local browser's failed test accounts blocking every other account.
+
+    Production and test keep the independent IP bucket that constrains password
+    spraying. A Vite proxy makes every local browser request appear as loopback,
+    so in local development only, scope that bucket to an opaque account digest.
+    The service HMACs this value before persistence; neither raw email nor IP is
+    stored in the login-attempt table.
+    """
+
+    source = raw_source.strip().lower() or "unavailable"
+    if app_env == "local" and source in _LOOPBACK_SOURCES:
+        email_digest = hashlib.sha256(normalized_email.encode("utf-8")).hexdigest()
+        return f"local-loopback-principal:v1:{email_digest}"
+    return source
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)

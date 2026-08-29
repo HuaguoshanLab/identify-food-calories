@@ -4,6 +4,8 @@
 
 `auth/` 定义用户、邮箱验证、数据库权威登录限流、登录会话和 refresh token 的权威数据边界。refresh 原文只在 HttpOnly Cookie 与短暂 Service 返回值中存在，数据库只保存 HMAC digest；消费行锁、successor 与 replay family revoke 在同一事务内完成。ORM 只描述持久化结构，Pydantic Schema 只描述运行时公开数据，Service 执行业务协议，Repository port 隔离应用服务与 SQLAlchemy。
 
+本机 Vite 代理会让所有浏览器登录都显示为同一个 loopback 来源。为避免一个测试账号的失败登录误封其他本机测试账号，只有 `APP_ENV=local` 会把该来源桶按不落库的账号 SHA-256 摘要隔离；`test` 与 `production` 始终保留独立的共享来源桶，不能借此弱化生产抗撞库保护。
+
 ## 允许依赖
 
 - `models.py` 只依赖 SQLAlchemy；不得依赖 FastAPI 或公开 Schema。

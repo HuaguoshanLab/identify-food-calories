@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.auth.api import (
     REFRESH_TOKEN_COOKIE,
+    _login_source,
     get_authentication_service,
 )
 from app.auth.models import User, UserRole
@@ -142,6 +143,33 @@ def test_login_rate_limit_has_stable_non_enumerating_error() -> None:
     assert "unknown@example.com" not in response.text
     assert "submitted-secret" not in response.text
     assert "set-cookie" not in response.headers
+
+
+def test_local_loopback_login_source_isolated_by_opaque_principal_digest() -> None:
+    first = _login_source(
+        raw_source="127.0.0.1",
+        normalized_email="first@example.com",
+        app_env="local",
+    )
+    second = _login_source(
+        raw_source="127.0.0.1",
+        normalized_email="second@example.com",
+        app_env="local",
+    )
+
+    assert first != second
+    assert first.startswith("local-loopback-principal:v1:")
+    assert len(first.rsplit(":", maxsplit=1)[-1]) == 64
+    assert "@example.com" not in first
+
+
+@pytest.mark.parametrize("app_env", ["test", "production"])
+def test_non_local_runtime_keeps_shared_source_bucket(app_env: str) -> None:
+    assert _login_source(
+        raw_source="127.0.0.1",
+        normalized_email="person@example.com",
+        app_env=app_env,
+    ) == "127.0.0.1"
 
 
 def _encoded_token(
