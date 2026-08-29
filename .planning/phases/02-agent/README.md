@@ -41,6 +41,7 @@
 | `02-12-SUMMARY.md` | 预算恢复、真实 Saver 重开、snapshot-first SSE 与 24-case 冻结链执行摘要 |
 | `02-13-PLAN.md` | DeepSeek Provider、运行时依赖锁与 Phoenix 可观测性计划 |
 | `02-14-PLAN.md` | D-18 自动清理调度、租约与 24h/7d/30d 保留计划 |
+| `02-14-SUMMARY.md` | FastAPI lifecycle retention Worker、PostgreSQL lease、精确保留边界和真实数据库隔离证据 |
 | `02-15-PLAN.md` | 用户删除接口、UI 与候选视觉基线计划 |
 | `02-16-PLAN.md` | 24-case 机器评测、专家签署结构与发布阈值计划 |
 | `02-17-PLAN.md` | 专家、付费 Promptfoo 与视觉人工审批门计划 |
