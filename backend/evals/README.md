@@ -22,6 +22,9 @@
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
 | `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、网络/产品失败分账、仅 Judge 文案质量的待授权本地 Promptfoo 配置。 |
+| `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
+| `run_promptfoo_pilot.py` | 仅在本地子进程读取 `.env` 的安全 pilot 执行器：调用前按价格快照预留上限、每次后按 usage 复算并在首个异常停止。 |
+| `promptfoo-pilot-phase2.json` | 不含原始文案、输出或密钥的 pilot 证据：调用数、usage、成本、hash、失败类别与非发布标识。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |
 
 ## 机器评测
@@ -45,3 +48,14 @@ cd backend
 `expert-signoff-phase2.json` 只能由真实、不同的营养师和食物成分数据管理员逐 case 填写。先在顶层 `reviewers` roster 登记稳定 pseudonym 与固定 role；同一真实审核人必须在所有自己审核的 case 中复用同一 pseudonym，不能每例换名。每个 case 的每个 role 恰好只能出现一条 review，review 的 pseudonym/role 必须与 roster 对应，且同一人不能在同一 case 充当多个角色。两者必须分别确认食物编码、阻塞字段、家庭份量可审计性、权威数值和硬校验。对 Medium 样本还必须提供与 dataset/code-eval/rubric hash 绑定的人类 1–5 分与 Judge 1–5 分；发布时从逐 case 原始分数重新计算 Spearman，禁止写入一个预计算相关系数冒充证据。
 
 `self-test` 只验证失败夹具覆盖，不能产生签署、不能批准付费运行，也不会把任何阈值标为通过。
+
+## 非发布 Promptfoo pilot
+
+`promptfoo-pilot-phase2.yaml` 仅在用户明确授权后由以下命令运行。执行器在自己的子进程读取未提交的 `.env`，不会输出或写入密钥；它先按版本化价格快照、固定 8.00 CNY/USD 上限和每例 32 output-token 上限预留预算，再逐例串行运行。未通过预检、任一网络/产品/未分类失败、或 usage 成本越界都会立即停止，绝不重试刷绿。
+
+```bash
+cd backend
+.venv/bin/python evals/run_promptfoo_pilot.py
+```
+
+生成的 `promptfoo-pilot-phase2.json` 只保存模型名、hash、调用尝试/完成数、usage、成本和失败类别；不保存原始 case 文案、模型输出、原始 Provider 响应或密钥。它永远不是 12×3 发布通过证据。

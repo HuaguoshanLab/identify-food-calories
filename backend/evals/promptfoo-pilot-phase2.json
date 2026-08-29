@@ -1,0 +1,37 @@
+{
+  "actual_cost_cny_at_ceiling": null,
+  "budget_cny": "3",
+  "cache": "disabled",
+  "calls": [
+    {
+      "case_id": "phase02-001",
+      "completion_tokens": null,
+      "cost_cny_at_ceiling": null,
+      "cost_usd": null,
+      "failure_category": "unclassified_failure",
+      "prompt_tokens": null,
+      "status": "failed",
+      "total_tokens": null
+    }
+  ],
+  "calls_authorized": 8,
+  "calls_attempted": 1,
+  "calls_completed": 0,
+  "code_eval_hash": "df7dbdf3ebc5908c716c082922397f9f687fa2b5243a9f7576bac8dda6acf63c",
+  "config_hash": "9e98fb3c8b84132f2cb54975234b9657c7f7e854b1c4966edeedaa3d21c886fc",
+  "cost_accounting": "unknown_after_failed_call",
+  "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
+  "fx_cny_per_usd_ceiling": "8",
+  "generated_at": "2026-08-29T08:42:22.363999+00:00",
+  "input_token_cap_per_call": 2467,
+  "max_concurrency": 1,
+  "max_retries": 0,
+  "maximum_total_cny_at_caps": "0.02267776",
+  "model": "deepseek-v4-flash",
+  "output_token_cap_per_call": 32,
+  "price_snapshot_fingerprint": "d2708cfcbe63c645d37c64f7e6f2b01842c2b36712066c781bde505ee0a1ed21",
+  "price_snapshot_version": "2026-08-29-deepseek-v4-flash-standard",
+  "release_eligible": false,
+  "schema_version": "phase2-promptfoo-pilot-v1",
+  "status": "stopped"
+}

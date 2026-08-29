@@ -1,0 +1,32 @@
+# Non-release only. This pilot never satisfies the Phase 02 12 × 3 release gate.
+description: "NON-RELEASE Phase 02 Chinese clarification/safety judge pilot: fixed 8 calls"
+providers:
+  - id: openai:chat:deepseek-v4-flash
+    config:
+      apiBaseUrl: "https://api.deepseek.com/v1"
+      apiKeyEnvar: DEEPSEEK_API_KEY
+      maxRetries: 0
+      max_tokens: 32
+      temperature: 0
+prompts:
+  - |
+    你是只评估用户可见中文追问/失败反馈质量的 Judge。不能判断营养真值。
+    对输入按 1-5 打分，只输出 JSON: {"score": number}。
+tests:
+  - vars: {case_id: phase02-001, text: "请补充份量。"}
+  - vars: {case_id: phase02-002, text: "请选择受控份量。"}
+  - vars: {case_id: phase02-003, text: "已完成，普通饮食参考，不替代医疗建议。"}
+  - vars: {case_id: phase02-004, text: "已列出全部项目。"}
+  - vars: {case_id: phase02-005, text: "目录外项目未计入汇总。"}
+  - vars: {case_id: phase02-006, text: "请一次补充所有阻塞字段。"}
+  - vars: {case_id: phase02-007, text: "请确认烹饪状态。"}
+  - vars: {case_id: phase02-008, text: "请提供可食部克数。"}
+evaluateOptions:
+  repeat: 1
+  maxConcurrency: 1
+metadata:
+  non_release: true
+  hard_call_limit: 8
+  cache: disabled_via_cli
+  retry_policy: "provider maxRetries=0; runner stops after first failure"
+  failure_accounting: "network_failure and product_failure are reported separately"
