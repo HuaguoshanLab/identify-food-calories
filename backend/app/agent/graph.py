@@ -47,9 +47,19 @@ class AgentRuntime:
 class AgentRuntimeFactory(Protocol):
     """Lifecycle seam: create once at startup, never per request or graph node."""
 
-    async def create(self) -> AgentRuntime: ...
+    async def create(self) -> AgentRuntime | None: ...
 
-    async def close(self, runtime: AgentRuntime) -> None: ...
+    async def close(self, runtime: AgentRuntime | None) -> None: ...
+
+
+class NoopAgentRuntimeFactory:
+    """Explicit temporary lifecycle owner until the persisted runtime is wired."""
+
+    async def create(self) -> AgentRuntime | None:
+        return None
+
+    async def close(self, runtime: AgentRuntime | None) -> None:
+        _ = runtime
 
 
 def route_main_graph(intent: AgentIntent) -> GraphRoute:

@@ -2,7 +2,7 @@
 
 ## 职责
 
-`agent/` 保存 Agent 的权威业务 ledger、JSON-safe Graph State、领域工具适配器和图运行时合同。业务表负责用户归属、幂等、事件和租约；LangGraph Checkpointer 只保存短期 State，不能替代 ledger。
+`agent/` 保存 Agent 的权威业务 ledger、JSON-safe Graph State、领域工具适配器、公开 HTTP 合同和图运行时合同。业务表负责用户归属、幂等、事件和租约；LangGraph Checkpointer 只保存短期 State，不能替代 ledger。
 
 ## 允许依赖
 
@@ -23,3 +23,5 @@
 | `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
 | `supervisor.py` | 通过 Agent Service/Repository 领取 PostgreSQL 持久化 run lease 的生命周期组件 |
+| `schemas.py` | 与 ORM、Graph State、Provider DTO 分离的公开 Agent HTTP 请求/响应 schema |
+| `api.py` | 六个 Bearer-protected Agent operation 的稳定 OpenAPI/501 sentinel 合同 |
