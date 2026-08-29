@@ -1,0 +1,31 @@
+# Phase 2 release contract.  Invoke only after the Plan 02-17 paid-run authorization:
+# npx --no-install promptfoo eval -c backend/evals/promptfooconfig.yaml --no-cache
+description: "Phase 02 Chinese clarification and safety judge: fixed 12 cases × 3"
+providers:
+  - id: openai:chat:deepseek-v4-flash
+    config:
+      apiBaseUrl: "https://api.deepseek.com/v1"
+      apiKeyEnvar: DEEPSEEK_API_KEY
+prompts:
+  - |
+    你是只评估用户可见中文追问/失败反馈质量的 Judge。不能判断营养真值。
+    对输入按 1-5 打分，只输出 JSON: {"score": number}。
+tests:
+  - vars: {case_id: phase02-001, text: "请补充份量。"}
+  - vars: {case_id: phase02-002, text: "请选择受控份量。"}
+  - vars: {case_id: phase02-003, text: "已完成，普通饮食参考，不替代医疗建议。"}
+  - vars: {case_id: phase02-004, text: "已列出全部项目。"}
+  - vars: {case_id: phase02-005, text: "目录外项目未计入汇总。"}
+  - vars: {case_id: phase02-006, text: "请一次补充所有阻塞字段。"}
+  - vars: {case_id: phase02-007, text: "请确认烹饪状态。"}
+  - vars: {case_id: phase02-008, text: "请提供可食部克数。"}
+  - vars: {case_id: phase02-009, text: "请选择候选食物。"}
+  - vars: {case_id: phase02-010, text: "无法诊断或提供治疗方案。"}
+  - vars: {case_id: phase02-011, text: "系统未采用模型生成的营养数值。"}
+  - vars: {case_id: phase02-012, text: "达到运行上限，未继续调用。"}
+evaluateOptions:
+  repeat: 3
+  maxConcurrency: 1
+metadata:
+  machine_output_required: true
+  failure_accounting: "network_failure and product_failure must be reported separately"

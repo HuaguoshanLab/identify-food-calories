@@ -360,9 +360,11 @@ def load_failure_fixtures(path: Path) -> list[dict[str, object]]:
 
 def _validate_promptfoo_config(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    for required in ("phase02-001", "phase02-012", "tests: 3", "--no-cache", "network_failure", "product_failure"):
+    for required in ("phase02-001", "phase02-012", "repeat: 3", "--no-cache", "network_failure", "product_failure"):
         if required not in text:
             raise EvaluationContractError("promptfoo config lacks fixed release contract")
+    if text.count("case_id:") != 12:
+        raise EvaluationContractError("promptfoo config must contain exactly twelve fixed cases")
 
 
 def validate_contracts(*, dataset: Path, code_eval: Path, signoff_schema: Path, promptfoo_config: Path) -> None:
@@ -389,6 +391,108 @@ def self_test(*, fixtures: Path) -> None:
             raise EvaluationContractError("failure fixture must be fail-closed")
 
 
+def _read_json(path: Path, *, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise EvaluationContractError(f"{label} is unreadable") from error
+    if not isinstance(payload, dict):
+        raise EvaluationContractError(f"{label} must be an object")
+    return payload
+
+
+def validate_signoff(*, dataset: Path, code_eval: Path, signoff: Path) -> dict[str, Any]:
+    records = _dataset_contract(dataset)
+    verify_code_eval(dataset=dataset, result=code_eval)
+    payload = _read_json(signoff, label="expert signoff")
+    if payload.get("schema_version") != "expert-signoff.v1" or payload.get("rubric_version") != RUBRIC_VERSION:
+        raise EvaluationContractError("expert signoff schema or rubric version is invalid")
+    if payload.get("dataset_hash") != file_hash(dataset) or payload.get("code_eval_hash") != file_hash(code_eval):
+        raise EvaluationContractError("expert signoff hash binding is stale")
+    reviews = payload.get("reviews")
+    judges = payload.get("judge_scores")
+    if not isinstance(reviews, list) or not isinstance(judges, list):
+        raise EvaluationContractError("expert signoff reviews or judge scores are missing")
+    case_ids = {record["case_id"] for record in records}
+    required_roles = {"nutritionist", "food_composition_data_steward"}
+    by_case: dict[str, list[dict[str, Any]]] = {case_id: [] for case_id in case_ids}
+    global_pseudonyms: set[str] = set()
+    for review in reviews:
+        if not isinstance(review, dict):
+            raise EvaluationContractError("expert signoff review is invalid")
+        case_id, role, pseudonym = review.get("case_id"), review.get("role"), review.get("pseudonym")
+        if case_id not in by_case or role not in required_roles | {"product", "privacy"} or not isinstance(pseudonym, str):
+            raise EvaluationContractError("expert signoff reviewer identity is invalid")
+        if review.get("rubric_version") != RUBRIC_VERSION or review.get("dataset_hash") != file_hash(dataset) or review.get("code_eval_hash") != file_hash(code_eval):
+            raise EvaluationContractError("expert signoff review hash binding is invalid")
+        confirmations = review.get("confirmations")
+        if not isinstance(confirmations, dict) or set(confirmations) != {"food_code", "blocking_fields", "household_portion_auditability", "authoritative_values", "hard_validation"} or not all(value is True for value in confirmations.values()):
+            raise EvaluationContractError("expert signoff confirmations are incomplete")
+        if pseudonym in global_pseudonyms:
+            raise EvaluationContractError("expert signoff pseudonym must identify one real reviewer")
+        global_pseudonyms.add(pseudonym)
+        by_case[case_id].append(review)
+    medium_case_ids = {record["case_id"] for record in records if record["category"] == "missing_ambiguity"}
+    human_scores: dict[str, int] = {}
+    for case_id, case_reviews in by_case.items():
+        roles = {str(review["role"]) for review in case_reviews}
+        if not required_roles <= roles:
+            raise EvaluationContractError("each case requires nutritionist and food composition data steward")
+        if len({str(review["pseudonym"]) for review in case_reviews}) != len(case_reviews):
+            raise EvaluationContractError("one reviewer cannot satisfy multiple case roles")
+        if case_id in medium_case_ids:
+            scores: list[int] = []
+            for review in case_reviews:
+                score = review.get("medium_human_score")
+                if isinstance(score, int):
+                    scores.append(score)
+            if not scores or any(score < 1 or score > 5 for score in scores):
+                raise EvaluationContractError("medium case is missing a human 1-5 score")
+            human_scores[case_id] = scores[0]
+    judge_scores: dict[str, int] = {}
+    for judge in judges:
+        if not isinstance(judge, dict) or judge.get("case_id") not in medium_case_ids:
+            raise EvaluationContractError("judge score is not bound to a medium case")
+        case_id = str(judge["case_id"])
+        score = judge.get("score")
+        if case_id in judge_scores or not isinstance(score, int) or score < 1 or score > 5:
+            raise EvaluationContractError("judge score is invalid")
+        if judge.get("rubric_version") != RUBRIC_VERSION or judge.get("dataset_hash") != file_hash(dataset) or judge.get("code_eval_hash") != file_hash(code_eval):
+            raise EvaluationContractError("judge score hash binding is invalid")
+        judge_scores[case_id] = score
+    if set(judge_scores) != medium_case_ids or set(human_scores) != medium_case_ids:
+        raise EvaluationContractError("every medium case requires paired human and judge scores")
+    return payload
+
+
+def _rank(values: list[int]) -> list[float]:
+    ordered = sorted(enumerate(values), key=lambda item: item[1])
+    ranks = [0.0] * len(values)
+    position = 0
+    while position < len(ordered):
+        end = position
+        while end + 1 < len(ordered) and ordered[end + 1][1] == ordered[position][1]:
+            end += 1
+        average = (position + 1 + end + 1) / 2
+        for index in range(position, end + 1):
+            ranks[ordered[index][0]] = average
+        position = end + 1
+    return ranks
+
+
+def spearman(human: list[int], judge: list[int]) -> float:
+    if len(human) < 2 or len(human) != len(judge):
+        raise EvaluationContractError("Spearman requires paired per-case scores")
+    left, right = _rank(human), _rank(judge)
+    mean_left, mean_right = sum(left) / len(left), sum(right) / len(right)
+    numerator = sum((a - mean_left) * (b - mean_right) for a, b in zip(left, right, strict=True))
+    left_norm = sum((a - mean_left) ** 2 for a in left) ** 0.5
+    right_norm = sum((b - mean_right) ** 2 for b in right) ** 0.5
+    if not left_norm or not right_norm:
+        raise EvaluationContractError("Spearman scores must not be constant")
+    return round(numerator / (left_norm * right_norm), 6)
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -405,6 +509,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     contract.add_argument("--code-eval", type=Path, required=True)
     contract.add_argument("--signoff-schema", type=Path, required=True)
     contract.add_argument("--promptfoo-config", type=Path, required=True)
+    signoff = commands.add_parser("validate-signoff")
+    signoff.add_argument("--dataset", type=Path, required=True)
+    signoff.add_argument("--code-eval", type=Path, required=True)
+    signoff.add_argument("--signoff", type=Path, required=True)
     return parser.parse_args(argv)
 
 
@@ -417,6 +525,8 @@ def main(argv: list[str] | None = None) -> int:
             verify_code_eval(dataset=arguments.dataset, result=arguments.result)
         elif arguments.command == "self-test":
             self_test(fixtures=arguments.fixtures)
+        elif arguments.command == "validate-signoff":
+            validate_signoff(dataset=arguments.dataset, code_eval=arguments.code_eval, signoff=arguments.signoff)
         else:
             validate_contracts(dataset=arguments.dataset, code_eval=arguments.code_eval, signoff_schema=arguments.signoff_schema, promptfoo_config=arguments.promptfoo_config)
     except EvaluationContractError as error:

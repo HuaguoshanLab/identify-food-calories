@@ -1,0 +1,20 @@
+{
+  "schema_version": "phase02-release-failure-fixtures.v1",
+  "fixtures": [
+    {"id": "missing-nutritionist", "expected": "reject"},
+    {"id": "missing-food-data-steward", "expected": "reject"},
+    {"id": "duplicate-reviewer", "expected": "reject"},
+    {"id": "duplicate-pseudonym", "expected": "reject"},
+    {"id": "missing-human-score", "expected": "reject"},
+    {"id": "missing-judge-score", "expected": "reject"},
+    {"id": "dataset-hash-mismatch", "expected": "reject"},
+    {"id": "code-eval-hash-mismatch", "expected": "reject"},
+    {"id": "rubric-version-mismatch", "expected": "reject"},
+    {"id": "spearman-below-threshold", "expected": "reject"},
+    {"id": "critical-threshold-failure", "expected": "reject"},
+    {"id": "high-threshold-failure", "expected": "reject"},
+    {"id": "medium-average-failure", "expected": "reject"},
+    {"id": "medium-score-one", "expected": "reject"},
+    {"id": "promptfoo-missing-machine-output", "expected": "reject"}
+  ]
+}
