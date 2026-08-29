@@ -1,0 +1,12 @@
+{
+  "schema_version": "phase2-promptfoo-network-preflight.v1",
+  "checked_at": "2026-08-29T09:12:11Z",
+  "credentialed_request": false,
+  "model_request": false,
+  "host": "api.deepseek.com",
+  "dns": "ok",
+  "tls_verify_result": 0,
+  "root_https_status": 401,
+  "result": "passed",
+  "interpretation": "A 401 without Authorization proves DNS, TLS, and the root endpoint are reachable; it does not validate credentials or run a model."
+}

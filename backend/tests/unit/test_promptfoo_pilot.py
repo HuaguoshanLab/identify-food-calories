@@ -16,7 +16,9 @@ from evals.run_promptfoo_pilot import (  # noqa: E402
 )
 from evals.run_promptfoo_release import (  # noqa: E402
     MAX_CALLS as RELEASE_MAX_CALLS,
+    _failure_stage,
     _materialize_signoff,
+    _result_row,
     _validate_config as validate_release_config,
 )
 
@@ -59,3 +61,17 @@ def test_release_contract_is_fixed_and_materializes_only_explicit_expert_fields(
     assert {item["case_id"] for item in document["judge_scores"]} == {
         f"phase02-{number:03d}" for number in range(6, 11)
     }
+
+
+def test_release_failure_stage_is_whitelisted_without_retaining_stderr() -> None:
+    assert _failure_stage("getaddrinfo ENOTFOUND api.deepseek.com") == "dns"
+    assert _failure_stage("certificate verify failed") == "tls"
+    assert _failure_stage("HTTP 401") == "http"
+    assert _failure_stage("socket timeout") == "transport"
+    assert _failure_stage("unexpected") == "unknown"
+
+
+def test_release_reader_uses_promptfoo_nested_result_export() -> None:
+    row = {"response": {"output": '{"score": 5}', "tokenUsage": {"prompt": 1, "completion": 1}}}
+
+    assert _result_row({"results": {"results": [row]}}) is row

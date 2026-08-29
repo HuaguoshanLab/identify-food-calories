@@ -48,6 +48,8 @@ class CallEvidence:
     cost_usd: str | None
     cost_cny_at_ceiling: str | None
     judge_score: int | None
+    promptfoo_exit_code: int | None
+    failure_stage: str | None
 
 
 def main() -> int:
@@ -109,7 +111,7 @@ def main() -> int:
         for repeat_index in range(REPEAT):
             for case_index, case_id in enumerate(CASES):
                 if spent_cny + maximum_per_call_usd * FX_CNY_PER_USD_CEILING > BUDGET_CNY:
-                    calls.append(CallEvidence(case_id, repeat_index + 1, "blocked", "budget", None, None, None, None, None, None))
+                    calls.append(CallEvidence(case_id, repeat_index + 1, "blocked", "budget", None, None, None, None, None, None, None, "budget"))
                     break
                 raw_output = temporary / f"{repeat_index}-{case_index}.json"
                 result = subprocess.run(
@@ -227,9 +229,23 @@ def _call_evidence(
     output_price: Decimal,
 ) -> CallEvidence:
     if result.returncode != 0 or not raw_output.exists():
-        return CallEvidence(case_id, repeat_index, "failed", _failure_category(result.stdout + result.stderr), None, None, None, None, None, None)
+        output = result.stdout + result.stderr
+        return CallEvidence(
+            case_id,
+            repeat_index,
+            "failed",
+            _failure_category(output),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            result.returncode,
+            _failure_stage(output),
+        )
     try:
-        row = json.loads(raw_output.read_text(encoding="utf-8"))["results"][0]
+        row = _result_row(json.loads(raw_output.read_text(encoding="utf-8")))
         response = row.get("response") or row.get("providerResponse") or {}
         usage = response.get("tokenUsage") or row.get("tokenUsage") or {}
         prompt_tokens = _int(usage.get("prompt"))
@@ -239,8 +255,18 @@ def _call_evidence(
         cost_usd = (Decimal(prompt_tokens) * input_price + Decimal(completion_tokens) * output_price) / Decimal("1000000")
         cost_cny = cost_usd * FX_CNY_PER_USD_CEILING
     except (KeyError, TypeError, ValueError, InvalidOperation, json.JSONDecodeError):
-        return CallEvidence(case_id, repeat_index, "failed", "product_failure", None, None, None, None, None, None)
-    return CallEvidence(case_id, repeat_index, "completed", None, prompt_tokens, completion_tokens, total_tokens, str(cost_usd), str(cost_cny), score)
+        return CallEvidence(case_id, repeat_index, "failed", "product_failure", None, None, None, None, None, None, result.returncode, "output_parse")
+    return CallEvidence(case_id, repeat_index, "completed", None, prompt_tokens, completion_tokens, total_tokens, str(cost_usd), str(cost_cny), score, result.returncode, None)
+
+
+def _result_row(document: Any) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        raise ValueError("Promptfoo output is not an object")
+    summary = document.get("results")
+    rows = summary.get("results") if isinstance(summary, dict) else summary
+    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        raise ValueError("Promptfoo output must contain exactly one result")
+    return rows[0]
 
 
 def _materialize_signoff(
@@ -320,6 +346,19 @@ def _failure_category(output: str) -> str:
     if normalized:
         return "product_failure"
     return "unclassified_failure"
+
+
+def _failure_stage(output: str) -> str:
+    normalized = output.lower()
+    if any(marker in normalized for marker in ("enotfound", "getaddrinfo", "nodename", "dns")):
+        return "dns"
+    if any(marker in normalized for marker in ("certificate", "tls", "ssl")):
+        return "tls"
+    if re.search(r"\b(?:401|403|404|408|429|5\d\d)\b", normalized):
+        return "http"
+    if any(marker in normalized for marker in ("econn", "timeout", "network", "socket")):
+        return "transport"
+    return "unknown"
 
 
 def _decimal(value: Decimal | None) -> Decimal:
