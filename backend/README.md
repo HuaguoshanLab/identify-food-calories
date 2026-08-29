@@ -72,6 +72,9 @@ mypy app
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
+| `supply-chain-evidence-v1.schema.json` | 新增依赖人工或固定扫描器审核证据的版本化 JSON Schema |
+| `supply-chain-evidence.json` | 当前新增依赖的 fail-closed 审核状态；`pending` 时禁止安装 |
+| `validate_supply_chain.py` | 不执行 PATH 扫描器的供应链证据校验与自检 CLI |
 | `alembic.ini` | Alembic CLI 与迁移脚本位置配置 |
 | `app/` | FastAPI 应用代码 |
 | `migrations/` | Alembic schema 变更脚本目录 |

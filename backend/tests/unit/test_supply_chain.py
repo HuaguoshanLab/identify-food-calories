@@ -60,6 +60,7 @@ def test_pending_evidence_is_schema_valid_but_cannot_be_approved() -> None:
         "schema_version": "supply-chain-evidence/v1",
         "generated_at": TIMESTAMP,
         "status": "pending",
+        "reason": "human approval is required",
     }
 
     with pytest.raises(ValidationError, match="pending"):
@@ -85,7 +86,7 @@ def test_complete_human_manifest_for_exact_package_set_passes() -> None:
                     "version": "0.0.0",
                 },
             ),
-            "package set",
+            "version",
         ),
         (
             lambda evidence: evidence["manual_manifest"].__setitem__(
@@ -106,6 +107,10 @@ def test_human_manifest_tampering_or_missing_fields_fails(
 ) -> None:
     evidence = copy.deepcopy(_approved_manual_evidence())
     mutate(evidence)  # type: ignore[operator]
+    if reason != "manifest_sha256":
+        evidence["manual_manifest"]["manifest_sha256"] = build_manifest_hash(
+            evidence["manual_manifest"]
+        )
 
     with pytest.raises(ValidationError, match=reason):
         validate_evidence(evidence)

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://food-agent.local/schemas/supply-chain-evidence/v1",
+  "title": "Phase 2 dependency supply-chain evidence",
+  "description": "Approved evidence must use exactly one pinned scanner record or one complete human manifest. Pending evidence is intentionally not approvable.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "status"],
+  "properties": {
+    "schema_version": {"const": "supply-chain-evidence/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["pending", "approved"]},
+    "reason": {"type": "string", "minLength": 1},
+    "scanner": {"$ref": "#/$defs/scanner"},
+    "manual_manifest": {"$ref": "#/$defs/manualManifest"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "pending"}}},
+      "then": {
+        "required": ["reason"],
+        "not": {"anyOf": [{"required": ["scanner"]}, {"required": ["manual_manifest"]}]}
+      },
+      "else": {
+        "oneOf": [
+          {"required": ["scanner"], "not": {"required": ["manual_manifest"]}},
+          {"required": ["manual_manifest"], "not": {"required": ["scanner"]}}
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "package": {
+      "type": "object",
+      "required": ["name", "ecosystem", "version", "registry_url", "owner", "repository_url", "license", "published_at", "checked_at", "reviewer", "registry_response_sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "ecosystem": {"enum": ["pypi", "npm"]},
+        "version": {"type": "string", "minLength": 1},
+        "registry_url": {"type": "string", "format": "uri"},
+        "owner": {"type": "string", "minLength": 1},
+        "repository_url": {"type": "string", "format": "uri"},
+        "license": {"type": "string", "minLength": 1},
+        "published_at": {"type": "string", "format": "date-time"},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "reviewer": {"type": "string", "minLength": 1},
+        "registry_response_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "manualManifest": {
+      "type": "object",
+      "required": ["packages", "manifest_sha256"],
+      "properties": {
+        "packages": {"type": "array", "items": {"$ref": "#/$defs/package"}},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "scanner": {
+      "type": "object",
+      "required": ["scanner_name", "scanner_version", "source_repository", "release_artifact_sha256", "invocation", "package_results"],
+      "properties": {
+        "scanner_name": {"const": "slopcheck"},
+        "scanner_version": {"const": "0.6.1"},
+        "source_repository": {"const": "https://github.com/0xToxSec/slopcheck"},
+        "release_artifact_sha256": {"const": "5d00bd5a235b46d5775f3a7d868bbca2eacf6b33211894ffaaaa6d8f3ea3dac8"},
+        "invocation": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}},
+        "package_results": {"type": "array", "items": {"$ref": "#/$defs/package"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
