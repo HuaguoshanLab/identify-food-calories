@@ -255,6 +255,115 @@ def _graph_with_items(*items: object):
     return MealAnalysisGraph(provider=provider, tools=tools), provider, tools
 
 
+def test_real_agent_provider_tool_spans_are_allowlisted_and_parented() -> None:
+    """A real graph path must produce the three allowed span classes, without payload data."""
+
+    import httpx
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from app.agent.graph import MealAnalysisGraph
+    from app.agent.supervisor import PostgresLeaseSupervisor
+    from app.core.tracing import TracedNutritionToolAdapter, create_tracing_runtime
+    from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
+
+    exporter = InMemorySpanExporter()
+    runtime = create_tracing_runtime(
+        Settings(
+            tracing_enabled=True,
+            tracing_collector_endpoint="https://collector.example/v1/traces",
+            tracing_hmac_key="trace-hmac-key",
+            tracing_service_name="food-agent",
+            tracing_service_version="v1",
+            _env_file=None,
+        ),
+        exporter=exporter,
+    )
+
+    def completed_response(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"items":[{"item_id":"rice-1","food_name":"米饭",'
+                                    '"catalog_query":"米饭","grams":"100"}]}'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+                "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            },
+        )
+
+    provider = DeepSeekReasoningModelProvider(
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=20,
+        price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        transport=httpx.MockTransport(completed_response),
+        tracing=runtime,
+    )
+    tools = TracedNutritionToolAdapter(delegate=_RecordingNutritionTools(), tracing=runtime)
+    graph = MealAnalysisGraph(provider=provider, tools=tools)
+    supervisor = PostgresLeaseSupervisor(
+        session_factory=lambda: pytest.fail("test must not claim a database lease"),
+        holder_id="trace-test",
+        tracing=runtime,
+    )
+
+    asyncio.run(supervisor.start())
+    state = _initial_state()
+    with supervisor.run_span(
+        thread_id=state.thread_id,
+        graph_version=state.graph_version,
+        prompt_version=state.prompt_version,
+        tool_version=state.tool_version,
+    ):
+        result = asyncio.run(graph.ainvoke(state))
+    asyncio.run(supervisor.stop())
+
+    assert result.status.value == "completed"
+    spans = exporter.get_finished_spans()
+    by_name = {span.name: span for span in spans}
+    assert set(by_name) == {
+        "agent.run",
+        "agent.provider",
+        "nutrition.search_food_catalog",
+        "nutrition.calculate_nutrition",
+        "nutrition.validate_nutrition_result",
+    }
+    run = by_name["agent.run"]
+    for name, span in by_name.items():
+        if name == "agent.run":
+            continue
+        assert span.context.trace_id == run.context.trace_id
+        assert span.parent is not None and span.parent.span_id == run.context.span_id
+    forbidden = {"meal.text", "user.id", "prompt", "chain_of_thought", "input", "output"}
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert not forbidden & set(attributes)
+        assert all("米饭" not in str(value) for value in attributes.values())
+
+
+def test_disabled_tracing_has_no_exporter_side_effect() -> None:
+    from app.core.tracing import create_tracing_runtime
+
+    runtime = create_tracing_runtime(Settings(tracing_enabled=False, _env_file=None))
+    with runtime.span("agent.run", {"node.name": "parse"}):
+        pass
+    runtime.flush()
+    runtime.shutdown()
+    assert runtime.scoped_hmac("thread-id") == "disabled"
+
+
 def test_graph_aggregates_questions_and_resume_does_not_repeat_parse() -> None:
     from app.providers.reasoning.dto import ParsedMealItemDTO
 
