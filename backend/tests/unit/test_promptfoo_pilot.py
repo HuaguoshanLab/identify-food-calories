@@ -24,6 +24,8 @@ from evals.run_promptfoo_release import (  # noqa: E402
     OutputParseError,
     _call_evidence,
     _failure_stage,
+    _judge_prompt_contract,
+    _judge_score,
     _materialize_signoff,
     _result_row,
     _validate_config as validate_release_config,
@@ -76,6 +78,35 @@ def test_release_contract_is_fixed_and_materializes_only_explicit_expert_fields(
     assert {item["case_id"] for item in document["judge_scores"]} == {
         f"phase02-{number:03d}" for number in range(6, 11)
     }
+
+
+def test_release_prompt_uses_a_new_strict_json_contract() -> None:
+    version, prompt = _judge_prompt_contract(
+        Path("evals/promptfooconfig.yaml").read_bytes()
+    )
+
+    assert version == "phase02-judge-json.v2"
+    assert '精确为 {"score": <1-5 的整数>}' in prompt
+    assert "额外键" in prompt
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '{"score": 5, "reason": "synthetic"}',
+        '{"score": true}',
+        '{"score": "5"}',
+        '{"score": 5.0}',
+        "not-json",
+    ],
+)
+def test_release_judge_score_requires_exact_non_boolean_integer_object(
+    value: str,
+) -> None:
+    with pytest.raises(OutputParseError, match="judge_score"):
+        _judge_score(value)
+
+    assert _judge_score('{"score": 5}') == 5
 
 
 def test_release_failure_stage_is_whitelisted_without_retaining_stderr() -> None:

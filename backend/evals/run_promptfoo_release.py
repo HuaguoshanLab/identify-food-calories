@@ -16,6 +16,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from app.core.config import Settings
 
 
@@ -27,6 +29,7 @@ MAX_OUTPUT_TOKENS = 512
 REQUEST_OVERHEAD_TOKEN_CAP = 1024
 BUDGET_CNY = Decimal("0.20")
 FX_CNY_PER_USD_CEILING = Decimal("8")
+JUDGE_PROMPT_CONTRACT_VERSION = "phase02-judge-json.v2"
 REQUIRED_CONFIRMATIONS = (
     "food_code",
     "blocking_fields",
@@ -89,6 +92,7 @@ def main() -> int:
     _validate_settings(settings)
     config_bytes = args.config.read_bytes()
     _validate_config(config_bytes)
+    judge_prompt_contract_version, judge_prompt = _judge_prompt_contract(config_bytes)
     dataset_hash = _sha256(args.dataset.read_bytes())
     code_eval_hash = _sha256(args.code_eval.read_bytes())
     input_price = _decimal(settings.deepseek_input_usd_per_m)
@@ -109,6 +113,8 @@ def main() -> int:
         "dataset_hash": dataset_hash,
         "code_eval_hash": code_eval_hash,
         "config_hash": _sha256(config_bytes),
+        "judge_prompt_contract_version": judge_prompt_contract_version,
+        "judge_prompt_hash": _sha256(judge_prompt.encode("utf-8")),
         "price_snapshot_version": settings.deepseek_price_snapshot_version,
         "price_snapshot_fingerprint": _sha256(
             f"{settings.deepseek_price_snapshot_version}:{input_price}:{output_price}".encode()
@@ -295,6 +301,42 @@ def _validate_config(config_bytes: bytes) -> None:
         raise ValueError("release config is missing a hard safety setting")
     if len(re.findall(r"case_id:\s*phase02-\d+", text)) != len(CASES):
         raise ValueError("release config must contain exactly twelve fixed cases")
+    version, prompt = _judge_prompt_contract(config_bytes)
+    if version != JUDGE_PROMPT_CONTRACT_VERSION:
+        raise ValueError(
+            "release config must declare the current judge prompt contract"
+        )
+    required_prompt_terms = (
+        "只输出一个合法 JSON 对象",
+        '精确为 {"score": <1-5 的整数>}',
+        "禁止 Markdown",
+        "额外键",
+        "布尔值",
+    )
+    if any(term not in prompt for term in required_prompt_terms):
+        raise ValueError("release prompt is missing the strict JSON score contract")
+
+
+def _judge_prompt_contract(config_bytes: bytes) -> tuple[str, str]:
+    try:
+        document = yaml.safe_load(config_bytes)
+    except yaml.YAMLError as error:
+        raise ValueError("release config is not valid YAML") from error
+    if not isinstance(document, dict):
+        raise ValueError("release config must be an object")
+    metadata = document.get("metadata")
+    prompts = document.get("prompts")
+    if (
+        not isinstance(metadata, dict)
+        or not isinstance(prompts, list)
+        or len(prompts) != 1
+    ):
+        raise ValueError("release config must contain one versioned judge prompt")
+    version = metadata.get("judge_prompt_contract_version")
+    prompt = prompts[0]
+    if not isinstance(version, str) or not isinstance(prompt, str):
+        raise ValueError("release judge prompt contract is invalid")
+    return version, prompt
 
 
 def _call_evidence(
@@ -601,8 +643,12 @@ def _judge_score(value: Any) -> int:
         payload = json.loads(value)
     except json.JSONDecodeError as error:
         raise OutputParseError("judge_score") from error
-    score = payload.get("score") if isinstance(payload, dict) else None
-    if not isinstance(score, int) or not 1 <= score <= 5:
+    score = (
+        payload.get("score")
+        if isinstance(payload, dict) and set(payload) == {"score"}
+        else None
+    )
+    if type(score) is not int or not 1 <= score <= 5:
         raise OutputParseError("judge_score")
     return score
 

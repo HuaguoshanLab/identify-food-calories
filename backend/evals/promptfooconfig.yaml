@@ -12,7 +12,8 @@ providers:
 prompts:
   - |
     你是只评估用户可见中文追问/失败反馈质量的 Judge。不能判断营养真值。
-    对输入按 1-5 打分，只输出 JSON: {"score": number}。
+    必须只输出一个合法 JSON 对象，且对象必须精确为 {"score": <1-5 的整数>}。
+    禁止 Markdown、代码围栏、解释、前后文字、额外内容、额外键、空值、小数、字符串或布尔值。
 tests:
   - vars: {case_id: phase02-001, text: "请补充份量。"}
   - vars: {case_id: phase02-002, text: "请选择受控份量。"}
@@ -32,6 +33,9 @@ evaluateOptions:
   cache: false
 metadata:
   machine_output_required: true
+  judge_prompt_contract_version: phase02-judge-json.v2
+  judge_prompt_contract_status: "new_contract_not_comparable_to_phase02-judge-json.v1"
+  judge_output_schema: '{"score": <integer 1-5>}'
   release_call_limit: 36
   output_token_cap: 512
   retry_policy: "provider maxRetries=0; release runner stops after first failure"
