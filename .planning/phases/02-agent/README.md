@@ -55,4 +55,5 @@
 | `02-17-PLAN.md` | 专家、付费 Promptfoo 与视觉人工审批门计划 |
 | `02-17-SUMMARY.md` | 双角色专家签署、正式 Judge、候选视觉审批与 fail-closed 人工门执行摘要 |
 | `02-18-PLAN.md` | 发布报告、真实浏览器验收、教学文档与阶段索引收口计划 |
+| `02-18-SUMMARY.md` | hash-bound release `FAIL` 报告、批准视觉晋升、真实 E2E 与中文教学收口；Phase 未标记为发布通过。 |
 | `README.md` | 本目录职责、依赖边界与文件索引 |
