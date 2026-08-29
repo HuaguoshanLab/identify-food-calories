@@ -43,8 +43,8 @@ REQUIRED_FAILURE_FIXTURES = frozenset(
     {
         "missing-nutritionist",
         "missing-food-data-steward",
-        "duplicate-reviewer",
-        "duplicate-pseudonym",
+        "duplicate-case-role",
+        "reviewer-role-mismatch",
         "missing-human-score",
         "missing-judge-score",
         "dataset-hash-mismatch",
@@ -374,7 +374,7 @@ def validate_contracts(*, dataset: Path, code_eval: Path, signoff_schema: Path, 
     except (OSError, json.JSONDecodeError) as error:
         raise EvaluationContractError("expert signoff schema is unreadable") from error
     serialized = json.dumps(schema, ensure_ascii=False, sort_keys=True)
-    for term in ("nutritionist", "food_composition_data_steward", "pseudonym", "dataset_hash", "code_eval_hash", "human_score", "judge_score"):
+    for term in ("nutritionist", "food_composition_data_steward", "reviewers", "pseudonym", "dataset_hash", "code_eval_hash", "human_score", "judge_score"):
         if term not in serialized:
             raise EvaluationContractError("expert signoff schema lacks mandatory release field")
     _validate_promptfoo_config(promptfoo_config)
@@ -409,14 +409,28 @@ def validate_signoff(*, dataset: Path, code_eval: Path, signoff: Path) -> dict[s
         raise EvaluationContractError("expert signoff schema or rubric version is invalid")
     if payload.get("dataset_hash") != file_hash(dataset) or payload.get("code_eval_hash") != file_hash(code_eval):
         raise EvaluationContractError("expert signoff hash binding is stale")
+    reviewers = payload.get("reviewers")
     reviews = payload.get("reviews")
     judges = payload.get("judge_scores")
-    if not isinstance(reviews, list) or not isinstance(judges, list):
-        raise EvaluationContractError("expert signoff reviews or judge scores are missing")
+    if not isinstance(reviewers, list) or not isinstance(reviews, list) or not isinstance(judges, list):
+        raise EvaluationContractError("expert signoff reviewers, reviews, or judge scores are missing")
     case_ids = {record["case_id"] for record in records}
     required_roles = {"nutritionist", "food_composition_data_steward"}
     by_case: dict[str, list[dict[str, Any]]] = {case_id: [] for case_id in case_ids}
-    global_pseudonyms: set[str] = set()
+    reviewer_roles: dict[str, str] = {}
+    for reviewer in reviewers:
+        if not isinstance(reviewer, dict):
+            raise EvaluationContractError("expert signoff reviewer roster is invalid")
+        pseudonym, role = reviewer.get("pseudonym"), reviewer.get("role")
+        if not isinstance(pseudonym, str) or role not in required_roles | {"product", "privacy"}:
+            raise EvaluationContractError("expert signoff reviewer roster identity is invalid")
+        if pseudonym in reviewer_roles:
+            raise EvaluationContractError("expert signoff reviewer roster pseudonym is duplicated")
+        reviewer_roles[pseudonym] = str(role)
+    if not required_roles <= set(reviewer_roles.values()):
+        raise EvaluationContractError("expert signoff reviewer roster lacks required expert roles")
+    case_roles: set[tuple[str, str]] = set()
+    case_pseudonyms: set[tuple[str, str]] = set()
     for review in reviews:
         if not isinstance(review, dict):
             raise EvaluationContractError("expert signoff review is invalid")
@@ -428,9 +442,16 @@ def validate_signoff(*, dataset: Path, code_eval: Path, signoff: Path) -> dict[s
         confirmations = review.get("confirmations")
         if not isinstance(confirmations, dict) or set(confirmations) != {"food_code", "blocking_fields", "household_portion_auditability", "authoritative_values", "hard_validation"} or not all(value is True for value in confirmations.values()):
             raise EvaluationContractError("expert signoff confirmations are incomplete")
-        if pseudonym in global_pseudonyms:
-            raise EvaluationContractError("expert signoff pseudonym must identify one real reviewer")
-        global_pseudonyms.add(pseudonym)
+        if reviewer_roles.get(pseudonym) != role:
+            raise EvaluationContractError("expert signoff review does not match reviewer roster")
+        case_role = (str(case_id), str(role))
+        if case_role in case_roles:
+            raise EvaluationContractError("expert signoff has duplicate role review for a case")
+        case_pseudonym = (str(case_id), pseudonym)
+        if case_pseudonym in case_pseudonyms:
+            raise EvaluationContractError("one reviewer cannot satisfy multiple roles in a case")
+        case_roles.add(case_role)
+        case_pseudonyms.add(case_pseudonym)
         by_case[case_id].append(review)
     medium_case_ids = {record["case_id"] for record in records if record["category"] == "missing_ambiguity"}
     human_scores: dict[str, int] = {}
@@ -438,8 +459,6 @@ def validate_signoff(*, dataset: Path, code_eval: Path, signoff: Path) -> dict[s
         roles = {str(review["role"]) for review in case_reviews}
         if not required_roles <= roles:
             raise EvaluationContractError("each case requires nutritionist and food composition data steward")
-        if len({str(review["pseudonym"]) for review in case_reviews}) != len(case_reviews):
-            raise EvaluationContractError("one reviewer cannot satisfy multiple case roles")
         if case_id in medium_case_ids:
             scores: list[int] = []
             for review in case_reviews:

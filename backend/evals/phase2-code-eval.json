@@ -3,7 +3,7 @@
   "rubric_version": "phase02-rubric.v1",
   "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
   "implementation_hashes": {
-    "evaluator": "48edc7d1a498f102fce42094e301e66172f022bd2cff3b52d5d1423d2e3bf213",
+    "evaluator": "fe708ac80667edb809efc5295bb3dc11c74fc0e868ebe43d935752759e17afcd",
     "graph": "a509de66618cdf58243254b4467f63d3a5a1d43eba45ac5000f38e678c5475af",
     "provider": "da268447ec4498ee90e34752eda5bf12660f9330fa1fd9f5c2b37f30b0f0beae",
     "tools": "a753332b65218615221bc3f24b5da2c28f35633963b063dfc47534db35655ece",
@@ -71,7 +71,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "598fe39dfef56ed98c1f48b899f8a2309e2cd60468ccd2ab86fde5776ac1268f"
+        "state_digest": "3e2417a41f96549f27f106f27c5eaf7e50616c726dcbd36d62a4f50548318865"
       },
       "assertions": {
         "critical": {
@@ -87,8 +87,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "2242a7511f82f18e6c9605737235671bc00fe3945bca54dcf30c3947b4fbe84c",
-        "run_id_digest": "97b6e965afa1719844e50b04a6505a45e90356ffcf902d52852b4a21cf67d24d"
+        "thread_id_digest": "d7229b1248cf46549c4ea53b1477b236bdc7fd171db7d63c831c25d4a80b54c6",
+        "run_id_digest": "be03e769b9c4d31a855c71a014eaefcaadeea0a7335ac300ff0578a98b520937"
       }
     },
     {
@@ -140,7 +140,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "a7044d650a5a5e9d0cc56faa70d95560b88776b38ef019cb9b178a3eff9e248a"
+        "state_digest": "635e98bac8e6624ec52604f23a702422ee196b27044d2941231ef1e027d31a8f"
       },
       "assertions": {
         "critical": {
@@ -156,8 +156,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "ee97dbf14ee14f56eb0fcbae5fc5174c761bd31952f54b58e059a085ce7a3521",
-        "run_id_digest": "3cb3e1797247423af52d3305c772307620e7ff91c019af18e0b8026a28553226"
+        "thread_id_digest": "bd64d77a9e96358db4d7131e6ac134b3b45f2c1972d744538cbbb10290a4f2cb",
+        "run_id_digest": "8a3f7ec43ccf0ebfcd1544b4917e08a6babc7265f2359754e2023353d2af3b05"
       }
     },
     {
@@ -218,7 +218,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "fab57928997e5bdc86d00c44ff910cdeaed886435cf9ba9f4ccc165f284f0111"
+        "state_digest": "848240363ca633a727140380f39c2dc29a5fa267d3b88e1baa459526b4dd64bd"
       },
       "assertions": {
         "critical": {
@@ -234,8 +234,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "f3cf5512df612a039f759fd519c5830c0a5d40c1eb638b91ffce81a6adfef360",
-        "run_id_digest": "89dd79603f8f8942a3682abf61cf0fe4cb35f74bea0135709460331e4943eeb4"
+        "thread_id_digest": "71de2a0695f48efd1f8dfb51aa574d2bdc02daf3ad3313c5c38eabc8db27f28d",
+        "run_id_digest": "90f2faeacf9e109c51c07a8f7e26083af74508ad4ccd6a3fdf18a53af620a088"
       }
     },
     {
@@ -336,7 +336,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8634f217c846544f332dbadc2417a690ff9f970051fe5a9158e5f7cafad2a901"
+        "state_digest": "36108d9186e6942a35da3bfa62953d2d372985cac22b3ed3286cd0af6a71322a"
       },
       "assertions": {
         "critical": {
@@ -352,8 +352,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "171376804572cea3a0ef84782f14df1d77839f057dd945c2eb2d56b74eb41909",
-        "run_id_digest": "c5ad0f7cbf0a06c532814444ae6c9bd41a20fd3d4db19efe7087dba5704443a3"
+        "thread_id_digest": "7722c97fcf050c1fa23340ae4b45b18b6ff2abfee223546bb251b73fa9b3ec6e",
+        "run_id_digest": "153bd00277f2733dd6ab5fe9abd883a166e924cc0a790552f46083ccc27b504f"
       }
     },
     {
@@ -408,7 +408,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "b013ddbba1e7c7d8dd9ada854c552edb88ea50fb0ae0bce645b1dcc9f378949c"
+        "state_digest": "daee2c295d9261c8889190c09301ca854533ad1f4122caa653d5136b91f77e32"
       },
       "assertions": {
         "critical": {
@@ -424,8 +424,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "c95c4ae382b915cea5eb87df318146adae8e7a2b476d41234bddcb7e3f50fcd8",
-        "run_id_digest": "6a03196f408bd051e0455439cd646389da9bca4e00659189c43c0a2289cb268b"
+        "thread_id_digest": "751a37cdfd1177e357e0765594d86d0909ce4daff363c0b92085c16fff1502ca",
+        "run_id_digest": "0adf8c881fd3a0daddf9986313a363140f1791533f73057546e6b917f7ddb658"
       }
     },
     {
@@ -477,7 +477,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "057520acae2489543e26604186325b96c1bebdb1a6bd205ad2f910bb24b781c5"
+        "state_digest": "3c1a5c2690bc6518f4c4c3f80458ec0881d3b393c6b4fc24f10f7037eb2b4355"
       },
       "assertions": {
         "critical": {
@@ -493,8 +493,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "df26c427ea78a66eee5838bea54dfcc81cfe6f12bf43072ef7786928b719f8fd",
-        "run_id_digest": "80499ef9b19bf9dcae7b51b36e50856384c39e5a2e92607d56b18fc9a6746687"
+        "thread_id_digest": "244a87b3b1603e434484089d5dbb93a3fbbcfbc2fb78c1d0b8b328a1ccb0e200",
+        "run_id_digest": "145148db35539d4c84e8e88c953254641db9111aae3e522a2163a9090d1ac472"
       }
     },
     {
@@ -546,7 +546,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "c4ace9751dfb9fb927635fc527e0c7706a532805e5535da92e4aa233a9305e98"
+        "state_digest": "c2424bceac67b97b5678f8d83c5b17f6443acafd7053a4bbb52544ee113e4922"
       },
       "assertions": {
         "critical": {
@@ -562,8 +562,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "1301c3eeda9496d28701179115da1fa91f560beb985290da2bf6834b6dd365c9",
-        "run_id_digest": "4aeb16f3f133ef69aa9cdffdfaee4a413da24ce2a887bd0076c6bb4a6356a642"
+        "thread_id_digest": "cc45e63114412f6b464308685195ae49f6c08fdb4d6a9b9fd768bd1ebd1a39df",
+        "run_id_digest": "d1e7e706ea9774e3c0af760a00bb5d2aac7a3584756888faf7c14b90eabf91a4"
       }
     },
     {
@@ -615,7 +615,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "dd9639a40dd54429ddbea8abe29d9cda95e90315399e14092cbef4abfe149668"
+        "state_digest": "31a3ca1b54fbd88e2d6af6f3832c4a8ad0019949594b0e12530a1ce5fa92e042"
       },
       "assertions": {
         "critical": {
@@ -631,8 +631,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "6b4fb9fb578681ec4e4b9169096ff853a53c5b1fc2a554e5edaaf88c07dabf6e",
-        "run_id_digest": "0550a673bef1265190f0a3faa421dbc5262c25665735ed859421fadb2aa5361f"
+        "thread_id_digest": "464d5709e6b28a7dd599e9b00f9799dc94b2d3b39874efe99503cbe2f8f9c24b",
+        "run_id_digest": "72f6176d4b649291ebfa029677a0b76c5093499c6cc8eb5a9f8ee702d37775cb"
       }
     },
     {
@@ -684,7 +684,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "ae16cfae5c5a1bfde56d82fa760ad6e63df13b48f5b9500d1b3c7b9ff2e17635"
+        "state_digest": "bdbaae48c6a02c5afa5393b0d64fd509c7cf905cd4ce7e65a445bd2203951348"
       },
       "assertions": {
         "critical": {
@@ -700,8 +700,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "a73d71e110979fb8566bafeb8a0b02829d7557bec2a4df3b0096d9df801a3941",
-        "run_id_digest": "04ad958115944eb70b135029b6bdf3624e990b6ce64a61918a2520999427a6ca"
+        "thread_id_digest": "6e9c91fe7400c067b63e684402e66457232b54dc292194f42f6406af4da222f0",
+        "run_id_digest": "f5ddbe23b3b06ddb03efe6c1ff892814f78915299dd1559ff33ad0c17a161182"
       }
     },
     {
@@ -770,7 +770,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "0c3099a353b351636d3192cfdf51f5416b262aa21c87312b24cbe389e7069d17"
+        "state_digest": "9de17da401e4b9a63752a8dbe0ca60d7f8d5217cf40836cebf6ee6b8d6b7ce71"
       },
       "assertions": {
         "critical": {
@@ -786,8 +786,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "cfbe24632882fca897ce6048c4d793606d1054d18234bd6f6c790f1884d8764e",
-        "run_id_digest": "a2337ac072229290845db6caec9f29d1839eb1d11a44afc87c2307086fab085c"
+        "thread_id_digest": "5568d927655fa408ff31f585fd5474622fd158f4cd6e4bda36162f89dcea5858",
+        "run_id_digest": "ce6adc063eef79d4dc2c2e8a38762675520cd4bcff972d6db8da4f6ee8bb13a4"
       }
     },
     {
@@ -850,7 +850,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8481a2a4ae3368af609c1389f365f0a1f1eb22ac640e7b3c645d7903150db841"
+        "state_digest": "021577a8456b430c01617ce87ce5c3921d9caafab16bc88fed8baa7b45f17e74"
       },
       "assertions": {
         "critical": {
@@ -866,8 +866,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "cfe19e707a147a1c09c555edce744ff83ede15750615c602d90382be87e17cd1",
-        "run_id_digest": "34b5c8f2b89a8c9111098b4326c7af25ce831f3e093dce44f940164176ad191a"
+        "thread_id_digest": "15af2698d0f8efc3fe16bbbcba2a34a811bbfecf6127cc99bef450d23924401c",
+        "run_id_digest": "df00daf8fd5785db2959bf7e97efa6eb362a045c18f3b32e83ea0a66255d4056"
       }
     },
     {
@@ -928,7 +928,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8bcf3671492420ee3793ac542397f31e32ecfe547609e1c427695b06f73ec9f4"
+        "state_digest": "db2b41ab9621e1fdc334aefc031f40865cea0bfe0aaa54b51f436677d701073a"
       },
       "assertions": {
         "critical": {
@@ -944,8 +944,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "30ac337273a3881cf61032e0a30d629d9c93e10bf2910e0226b4e8020937bdc3",
-        "run_id_digest": "5bbe331c06c5fa7b39ace9a5705db57a7a3da8f45dfa744844a85c89926cc682"
+        "thread_id_digest": "c50c07e17006a060c91b7c8e5cc23972e3246fd978b87c6f07d598a9c6643210",
+        "run_id_digest": "b7ecf98957edfb84ae5c2507b1a7a2b4cc055de048c89d249fc799fdf3644e78"
       }
     },
     {
@@ -1006,7 +1006,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "864c5fac5ac66bb167ef88298d1648e4d8a367f7229253f09ee88e5af2448cf5"
+        "state_digest": "0ddf5ccb3c0c1b4ddb0fd2689e9d7b706ca44941026057df861f5d4374c53810"
       },
       "assertions": {
         "critical": {
@@ -1022,8 +1022,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "7b72588afc50688d5da9e0338059d1f80a86d5e28e39c32e7a6ca09d48403453",
-        "run_id_digest": "ed36456ea9d3e3cba8fd011de6e41059b2bd79828e182ea07dad5b29ad9d1d66"
+        "thread_id_digest": "d266194a34cddac4081759ff083e928e1bd938fd3404f8bb754e4c16a15782ed",
+        "run_id_digest": "0e96eaa4568d438637ded4847d14affbaa5783e94551fd60c9dc280570b36bf5"
       }
     },
     {
@@ -1084,7 +1084,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "27610c94aec3600ba22d498e4d4db75a2ae0ae37a9d0984f9424aba94c63dc78"
+        "state_digest": "7e4ed7cc386c90ef3a9cfecaa52a54cb20b61e88b82cb692c0cc799752fa0ad3"
       },
       "assertions": {
         "critical": {
@@ -1100,8 +1100,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "557b119b0be0dbaf2e44e992c46fa2bed8b7459048bcf45f8bc75f561055a93b",
-        "run_id_digest": "00036e7adcf425f5b854c6a9f563892b899b110f834a28e4ba5ee1e60323cbcf"
+        "thread_id_digest": "8511c85200eb1a46d014bc31a588f41c055428fc844c90129f1134d212ac1412",
+        "run_id_digest": "06150912530a5c8b9b354010b9cbad417b583e97f3a9b89397ed24952ad7c9c9"
       }
     },
     {
@@ -1162,7 +1162,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "d62b9aa0bf079c807ad7711719eedce25947927d7e8839f060b35c809659cd2b"
+        "state_digest": "f5a0ef4b9f0514a226ea10847a5505f1b7a8884f5cf71ad0dc0f79380afcac46"
       },
       "assertions": {
         "critical": {
@@ -1178,8 +1178,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "153c9fc8fa5b6fa72aabceb7481d12ba8c3d3b9b73247ab7e1e57c0f6cf928f7",
-        "run_id_digest": "3dedaa9c37d91aeb5c29cd550a169bd07a13f007c9caa6d60653f0f1797a6b07"
+        "thread_id_digest": "fe1787538bd5b4fa0a51a3f1b720623f9b09ddcd030747a37bb5b0f3ee83bec7",
+        "run_id_digest": "7de6cab498a2ea48751ed3ce9f3117eaaf613e86b95008d1a05cd8df4d835e91"
       }
     },
     {
@@ -1240,7 +1240,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "46d6327730b9d1c8d066b5b2cf857547c9211cc081accb998666d71a99c84a52"
+        "state_digest": "448edfd87c7053c70679267d203ee5ff4e028d26683a47b6f0f322b3ebb728d8"
       },
       "assertions": {
         "critical": {
@@ -1256,8 +1256,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "8b4162f3283662fe1c04fd66b0ff8228ec53affc3fde0a8caf32f8c827397338",
-        "run_id_digest": "465746c772bab213117557574684107e08a22cab53a04c383d2a549f8ae83f93"
+        "thread_id_digest": "874af1a0100f9c6a4543d4745d8db6c94ee7856aad717b40bfe0255ea13dbba5",
+        "run_id_digest": "079050346d201f856078aba8cfbbe7796542055e11f897dcfae878caeb592f1f"
       }
     },
     {
@@ -1318,7 +1318,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "1382c07b476cbe13ac5ef56d482dd3342781aeee5bde40ccb8bb1efc2229bd2e"
+        "state_digest": "5fccd637e59d088e61d7af83567d6b9eb12c54468ece95e8c881bbb1cb47d64a"
       },
       "assertions": {
         "critical": {
@@ -1334,8 +1334,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "7d6bc171b7d7bc4e15f86965636d53dbde34655f524c7fc2ee660b22f073e4d8",
-        "run_id_digest": "f08b35c0057aaf2423a764348cc3abf83c3a7840b5702cfac2dd0f131e50ba19"
+        "thread_id_digest": "9a6abecbc90f274bf48680d5f064de8b3e274d1a3566c03f0dc8fc90fa7de52c",
+        "run_id_digest": "ea2388bf5a868b53f14e7e8aa75639f12aecf094b70e75873516557f272215be"
       }
     },
     {
@@ -1396,7 +1396,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "ea866980b731dbd7cdfc359bc14705c30e1c8710f51d06cc8ab70e4c8b29baad"
+        "state_digest": "50c210fbea8fc72b81c8349a08d0f141f35b8bb135dd6a7b8c5ce05f84d15aca"
       },
       "assertions": {
         "critical": {
@@ -1412,8 +1412,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "25329b7fc05ce32a0bfe01528f51fccfe055d82f093ae780ca0afd6d6790ff78",
-        "run_id_digest": "c8cc796950cba6b87f8ee1cd1357073939901278e4ea508c2cf63b4f788ae01d"
+        "thread_id_digest": "f66adeef384c3a3a6d95096e41e93517014c2fbc6d045708edf663ba991a9d6e",
+        "run_id_digest": "07bd7df30ce81667ae60a4c58b10b0eb657229c47ce2b07b52f1bbeb0decd8ed"
       }
     },
     {
@@ -1474,7 +1474,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "982f0679ef40abea2850f583b72e208df418f632522ea9a3fc0998e3c012535b"
+        "state_digest": "4e8e37090a461de369e9f68272219c82fa1d27a7a15ff5016ecd9eee227eaf55"
       },
       "assertions": {
         "critical": {
@@ -1490,8 +1490,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "f68097c6da4d05b8ed8d188c4c018fa0b27bbe05caad9f5b128f7b82071f11f1",
-        "run_id_digest": "255d0aa09fb8e3bfd973395bd6d611f594a0e7203b39c7c1d1b3f2364822b20f"
+        "thread_id_digest": "b40f65d0e76ce2f1359d5cf91a57f56c00f3bdf4df1660a93b1094eda5ba35be",
+        "run_id_digest": "e2a6cb3d2eb14336adbd8e040f615f870af8afa2e2242cdfae2d6c054e9af399"
       }
     },
     {
@@ -1516,7 +1516,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "9425c445af3b176d3d21453e2bc0cf3b1606117d03bff32c9ba4d91ce2e1ef40"
+        "state_digest": "b529699e576fd1e58e20a7230d59dfd555145a30035d349db03ec144dbad9bf4"
       },
       "assertions": {
         "critical": {
@@ -1532,8 +1532,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "83c85864ad985ead7f2f40792dc0383f924ab35fae5729e6b47649403098c89c",
-        "run_id_digest": "9e167a3668e630670b50c0b6ee37d91afe40336a199c427f48b7447180d6f3cd"
+        "thread_id_digest": "b37964fd87cefcc597fc8425856f7d2eced9827ab5d4fa75545d02450217e1aa",
+        "run_id_digest": "00066658d7b11cb09c6bbffc64f36c9fe4ae780641140355fc5b137ee3561b32"
       }
     },
     {
@@ -1558,7 +1558,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "0570d99bd5ef42a6a100ffa876dbfcab8d4f71d869c6b72e433f1280f0a8770e"
+        "state_digest": "515952e9af540578e9855b030f978119f55a78dc746559e89c735c61c0fd0090"
       },
       "assertions": {
         "critical": {
@@ -1574,8 +1574,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "d508fc192ecd60d7e2898ccb447b3406bca7e3e5f9a5d44214b48df175389269",
-        "run_id_digest": "4dd243b93edda53c21d380a444fd91b96814e6f8ae162e6efbb98934171fff8a"
+        "thread_id_digest": "448edc1cc0ca87f0e2fb0935acefbe3f0751c25bac696821319b8cda89e665af",
+        "run_id_digest": "b95c90a1d19224d8604a0cd2277ae22d07c989a75ac98b05636f5e943a4881c6"
       }
     },
     {
@@ -1598,7 +1598,7 @@
         },
         "provider_calls": [],
         "checkpoint_reopened": true,
-        "state_digest": "35a10524e606fc2c5261fb72c3b548769d2296140a44debaf6a747c35321cc99"
+        "state_digest": "2f420992ba80a6338a89eb4d6eff9fa72a9710a78c58b602d198f369c9c3cadf"
       },
       "assertions": {
         "critical": {
@@ -1614,8 +1614,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "f27bf15a10fd48f8be8659c6643b19d6b6b1a8e8598abc616338d00548793ec8",
-        "run_id_digest": "3e0bdc459658230ebd5ceba1b57cd4903b3492015eea4e377876690b2ba04d0e"
+        "thread_id_digest": "28b52404e8aede3656c81b45401ef08d05ea248de792792c7a4184191e098fe6",
+        "run_id_digest": "c5fd0402b1258e554ba2cf1c6013ed5048667213b2f6f49c4b34a2494204b509"
       }
     },
     {
@@ -1640,7 +1640,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "9ae6c5fbfd6e3199296b3c340ea172b6076b01b17cb88098394181804a7782ab"
+        "state_digest": "070284ceb4dc1f80c886d43881508aba3eb349ec950bdbc3f87484a7c81c7b32"
       },
       "assertions": {
         "critical": {
@@ -1656,8 +1656,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "a0e3c9c92eebc6b80d00933fa8efd1b9e08823aba966e5075e047e83e5be341e",
-        "run_id_digest": "96038a920743b53524332087de70edebf9ac4edec145c8b6cac3ec4e65da466a"
+        "thread_id_digest": "0643edf9d70612e55d230cf98a072d14d8a257655510f18c8533688f9927ce36",
+        "run_id_digest": "5f828e563afc2a680814d8a4d33c3cdf2859a4f5a268ec770e16665c7735b519"
       }
     },
     {
@@ -1682,7 +1682,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "f33241cdb59bbc69d55b1251012d09d1979d38d16eee4e543b34d12ac089d48b"
+        "state_digest": "6c4bec383f73ddbb3ea3cba052d8a7291afc0100abc256d8d4cda6e4a60dc570"
       },
       "assertions": {
         "critical": {
@@ -1698,8 +1698,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "2bdf505b0884b6b1dfd1d6adf03f1d9fb8167dcebfff3683279273271ecc4633",
-        "run_id_digest": "b68d063422a3837fe00407b13cb6f7827884d69de47f1c6030ed0a911212c68a"
+        "thread_id_digest": "fbe2b21faab5dcd149e5cb8d9fd1750a47b9d4e4d2c39ad0078c11747e7469a4",
+        "run_id_digest": "41adc47f6687503e058d5869f89f60f2809a5eb166ac3f5ef1d5adf5053fa592"
       }
     }
   ],
@@ -1707,5 +1707,5 @@
     "critical_pass_percent": 100.0,
     "high_pass_percent": 100.0
   },
-  "evidence_hash": "4f7dd409a41320242bcf73a9d977ba38c22c9ceb2a69374c8dc0df27ac8373d0"
+  "evidence_hash": "258f2414da7b43d5bb374fd63be8d3b68ecb2efd11bae24f2bb6909ed5557a97"
 }

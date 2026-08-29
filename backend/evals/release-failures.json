@@ -3,8 +3,8 @@
   "fixtures": [
     {"id": "missing-nutritionist", "expected": "reject"},
     {"id": "missing-food-data-steward", "expected": "reject"},
-    {"id": "duplicate-reviewer", "expected": "reject"},
-    {"id": "duplicate-pseudonym", "expected": "reject"},
+    {"id": "duplicate-case-role", "expected": "reject"},
+    {"id": "reviewer-role-mismatch", "expected": "reject"},
     {"id": "missing-human-score", "expected": "reject"},
     {"id": "missing-judge-score", "expected": "reject"},
     {"id": "dataset-hash-mismatch", "expected": "reject"},

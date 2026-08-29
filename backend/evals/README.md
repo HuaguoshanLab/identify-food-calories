@@ -19,7 +19,8 @@
 | `__init__.py` | 让校验器与评测器以同一 Python package 导入，避免 CLI/pytest 模块漂移。 |
 | `evaluate_phase2.py` | 运行/验证 hash-bound code evidence，并锁定后续专家、Judge、Promptfoo 和 release 的 fail-closed 输入合同。 |
 | `phase2-code-eval.json` | 当前代码、冻结集、图/Provider/工具/目录/schema 哈希绑定的 24 条真实 Fake Provider→Graph→工具→Checkpoint 观测证据。 |
-| `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的双角色、不同 reviewer pseudonym、逐 case hash 绑定和 Medium 双评分合同。 |
+| `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
+| `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
 | `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、网络/产品失败分账、仅 Judge 文案质量的待授权本地 Promptfoo 配置。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |
 
@@ -41,6 +42,6 @@ cd backend
 
 ## 发布输入合同
 
-`expert-signoff-phase2.json` 只能由两位真实、不同的评审人逐 case 填写：营养师和食物成分数据管理员。两者必须分别确认食物编码、阻塞字段、家庭份量可审计性、权威数值和硬校验。对 Medium 样本还必须提供与 dataset/code-eval/rubric hash 绑定的人类 1–5 分与 Judge 1–5 分；发布时从逐 case 原始分数重新计算 Spearman，禁止写入一个预计算相关系数冒充证据。
+`expert-signoff-phase2.json` 只能由真实、不同的营养师和食物成分数据管理员逐 case 填写。先在顶层 `reviewers` roster 登记稳定 pseudonym 与固定 role；同一真实审核人必须在所有自己审核的 case 中复用同一 pseudonym，不能每例换名。每个 case 的每个 role 恰好只能出现一条 review，review 的 pseudonym/role 必须与 roster 对应，且同一人不能在同一 case 充当多个角色。两者必须分别确认食物编码、阻塞字段、家庭份量可审计性、权威数值和硬校验。对 Medium 样本还必须提供与 dataset/code-eval/rubric hash 绑定的人类 1–5 分与 Judge 1–5 分；发布时从逐 case 原始分数重新计算 Spearman，禁止写入一个预计算相关系数冒充证据。
 
 `self-test` 只验证失败夹具覆盖，不能产生签署、不能批准付费运行，也不会把任何阈值标为通过。

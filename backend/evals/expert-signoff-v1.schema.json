@@ -1,15 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "food-agent/evals/expert-signoff-v1",
-  "title": "Phase 2 hash-bound dual-expert signoff",
+  "title": "Phase 2 hash-bound dual-expert signoff with stable reviewer identities",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "rubric_version", "dataset_hash", "code_eval_hash", "reviews", "judge_scores"],
+  "required": ["schema_version", "rubric_version", "dataset_hash", "code_eval_hash", "reviewers", "reviews", "judge_scores"],
   "properties": {
     "schema_version": {"const": "expert-signoff.v1"},
     "rubric_version": {"const": "phase02-rubric.v1"},
     "dataset_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "code_eval_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reviewers": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/reviewer"}
+    },
     "reviews": {
       "type": "array",
       "minItems": 48,
@@ -24,6 +29,15 @@
     "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "role": {"enum": ["nutritionist", "food_composition_data_steward", "product", "privacy"]},
     "score": {"type": "integer", "minimum": 1, "maximum": 5},
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pseudonym", "role"],
+      "properties": {
+        "pseudonym": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$"},
+        "role": {"$ref": "#/$defs/role"}
+      }
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,
