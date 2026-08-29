@@ -4,11 +4,15 @@ import { CircleAlert, CircleCheck } from 'lucide-react'
 import { useAuth } from '@/auth/useAuth'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { agentThreadSnapshotSchema, type AgentThreadSnapshot } from '../api/schemas.generated'
 import { useAgentEventStream } from '../stream/useAgentEventStream'
 
 const MAX_DESCRIPTION_LENGTH = 1000
-type AnalysisStatus = 'idle' | 'submitting' | 'error' | 'completed'
+type AnalysisStatus = 'idle' | 'submitting' | 'deleting' | 'error' | 'completed'
 
 type ReportItem = {
   item_id?: string
@@ -43,6 +47,8 @@ export function AnalyzePage() {
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({})
   const [gramAnswers, setGramAnswers] = useState<Record<string, string>>({})
   const [correction, setCorrection] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const applySnapshot = useCallback(async (response: Response) => {
     const body = await response.json().catch(() => undefined)
@@ -153,6 +159,31 @@ export function AnalyzePage() {
     void submitFollowup({ corrections: { [target.item_id]: normalized.includes('排除') ? { exclude: true } : { grams } } })
   }
 
+  async function confirmDeletion() {
+    if (!snapshot) return
+    setStatus('deleting')
+    setDeleteError('')
+    try {
+      const response = await request(`/agent/threads/${encodeURIComponent(snapshot.thread_id)}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error('agent deletion request failed')
+      // Clearing the thread unmounts the stream hook, which aborts any outstanding SSE request.
+      setSnapshot(undefined)
+      setDescription('')
+      setCorrection('')
+      setSelectedCandidates({})
+      setGramAnswers({})
+      setProgress('删除请求已提交：分析、事件流和本地缓存已关闭，数据将在 24 小时内清理。')
+      setStatus('idle')
+      setDeleteOpen(false)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('thread')
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    } catch {
+      setStatus('completed')
+      setDeleteError('无法提交删除请求。请检查网络后重试；当前分析仍保留。')
+    }
+  }
+
   const report = snapshot?.report as AnalysisReport | undefined
   const waiting = snapshot?.status === 'waiting' && report?.questions?.length
 
@@ -201,8 +232,26 @@ export function AnalyzePage() {
             <input className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base" id="meal-correction" onChange={(event) => setCorrection(event.target.value)} placeholder="例如：米饭改为 150 克，或排除米饭" value={correction} />
             <Button className="h-11 w-full" disabled={status === 'submitting'} onClick={submitCorrection} type="button">应用修正</Button>
           </div>
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-sm font-medium">删除这次分析</p>
+            <p className="text-[13px] leading-5 text-muted-foreground">提交后立即关闭此会话的分析、事件流和本地缓存；数据将在 24 小时内删除。</p>
+            <Button className="min-h-11 w-full" disabled={status === 'deleting'} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} type="button" variant="destructive">删除这次分析</Button>
+          </div>
         </section>
       ) : null}
+      <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (status !== 'deleting') setDeleteOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除这次分析？</AlertDialogTitle>
+            <AlertDialogDescription>这会停止当前分析和事件流，并在 24 小时内删除这次会话的数据。此操作无法撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError ? <p className="text-sm text-destructive" role="alert">{deleteError}</p> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={status === 'deleting'}>保留这次分析</AlertDialogCancel>
+            <AlertDialogAction disabled={status === 'deleting'} onClick={() => void confirmDeletion()} variant="destructive">{status === 'deleting' ? '正在提交删除…' : '确认删除'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

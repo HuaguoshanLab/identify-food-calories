@@ -41,6 +41,28 @@ describe('AnalyzePage', () => {
     expect(screen.getByText('合计 130.0 kcal')).toBeInTheDocument()
   })
 
+  it('requires confirmation before closing the stream, cache, and thread after deletion', async () => {
+    const user = userEvent.setup()
+    const snapshotBody = {
+        thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
+        report: { items: [], totals: { energy_kcal: '130.0', protein_g: '2.7', fat_g: '0.3', carbohydrate_g: '28.2' }, disclaimer: '普通饮食参考，不替代医疗建议。' },
+    }
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return new Response(JSON.stringify({ thread_id: snapshotBody.thread_id, status: 'deletion_pending', due_at: '2026-08-30T00:00:00Z' }), { status: 202 })
+      return new Response(JSON.stringify(snapshotBody), { status: path === '/agent/threads' ? 201 : 200 })
+    })
+    renderPage(request)
+    await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await user.click(await screen.findByRole('button', { name: '删除这次分析' }))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.getByText('数据将在 24 小时内删除。', { exact: false })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '确认删除' }))
+    expect(await screen.findByText('删除请求已提交：分析、事件流和本地缓存已关闭，数据将在 24 小时内清理。')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '营养分析报告' })).not.toBeInTheDocument()
+    expect(request).toHaveBeenLastCalledWith('/agent/threads/11111111-1111-4111-8111-111111111111', { method: 'DELETE' })
+  })
+
   it('presents one complete clarification batch without selecting a candidate by default', async () => {
     const user = userEvent.setup()
     const request = vi.fn(async () => new Response(JSON.stringify({
