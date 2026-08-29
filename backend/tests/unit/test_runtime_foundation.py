@@ -63,8 +63,9 @@ def test_deepseek_provider_retries_only_safe_transient_response_and_validates_js
             request=request,
             headers={"x-request-id": "safe-request-id"},
             json={
-                "choices": [{"message": {"content": '{"items":[{"item_id":"rice-1","food_name":"米饭","grams":"100"}]}'}}],
-                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+                "status": "completed",
+                "output": [{"type": "message", "content": [{"type": "output_text", "text": '{"items":[{"item_id":"rice-1","food_name":"米饭","grams":"100"}]}'}]}],
+                "usage": {"input_tokens": 100, "output_tokens": 20, "total_tokens": 120},
             },
         )
 
@@ -90,7 +91,11 @@ def test_deepseek_provider_retries_only_safe_transient_response_and_validates_js
             lambda request: httpx.Response(
                 200,
                 request=request,
-                json={"choices": [{"message": {"content": "{}"}}], "usage": {}},
+                json={
+                    "status": "completed",
+                    "output": [{"type": "message", "content": [{"type": "output_text", "text": "{}"}]}],
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                },
             )
         ),
     )
@@ -101,9 +106,9 @@ def test_deepseek_provider_retries_only_safe_transient_response_and_validates_js
 
 
 def test_production_deepseek_config_fails_closed_without_complete_model_price_snapshot() -> None:
-    from app.core.config import ConfigurationError
+    from pydantic import ValidationError
 
-    with pytest.raises(ConfigurationError, match="DEEPSEEK_MODEL"):
+    with pytest.raises(ValidationError, match="DEEPSEEK_MODEL"):
         Settings(
             app_env="production",
             database_url="postgresql+psycopg://db.example/food_agent",

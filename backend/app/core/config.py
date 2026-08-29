@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from decimal import Decimal
 from typing import Literal, TypeAlias
 
 from pydantic import SecretStr, model_validator
@@ -35,6 +36,10 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     reasoning_provider_mode: ReasoningProviderMode = "fake"
     deepseek_api_key: SecretStr | None = None
+    deepseek_model: str | None = None
+    deepseek_price_snapshot_version: str | None = None
+    deepseek_input_usd_per_m: Decimal | None = None
+    deepseek_output_usd_per_m: Decimal | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -77,6 +82,17 @@ class Settings(BaseSettings):
             )
         if self.deepseek_api_key is None or not self.deepseek_api_key.get_secret_value():
             raise ConfigurationError("DEEPSEEK_API_KEY is required in production")
+        if not self.deepseek_model:
+            raise ConfigurationError("DEEPSEEK_MODEL is required in production")
+        if not self.deepseek_price_snapshot_version:
+            raise ConfigurationError(
+                "DEEPSEEK_PRICE_SNAPSHOT_VERSION is required in production"
+            )
+        prices = (self.deepseek_input_usd_per_m, self.deepseek_output_usd_per_m)
+        if any(price is None or price < 0 for price in prices):
+            raise ConfigurationError(
+                "DEEPSEEK_INPUT_USD_PER_M and DEEPSEEK_OUTPUT_USD_PER_M are required"
+            )
 
         return self
 

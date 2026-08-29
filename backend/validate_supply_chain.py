@@ -19,10 +19,11 @@ from urllib.parse import urlparse
 
 SCHEMA_VERSION = "supply-chain-evidence/v1"
 APPROVED_PACKAGES: tuple[tuple[str, str, str], ...] = (
+    ("fastapi", "pypi", "0.137.0"),
     ("langgraph", "pypi", "1.2.11"),
     ("langgraph-checkpoint-postgres", "pypi", "3.1.2"),
     ("eventsource-parser", "npm", "3.1.0"),
-    ("arize-phoenix", "pypi", "20.3.0"),
+    ("arize-phoenix", "pypi", "18.1.0"),
     ("arize-phoenix-otel", "pypi", "0.17.1"),
     ("openinference-instrumentation-langchain", "pypi", "0.1.72"),
     ("promptfoo", "npm", "0.122.0"),

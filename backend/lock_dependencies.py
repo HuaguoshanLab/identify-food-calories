@@ -65,6 +65,24 @@ def direct_dependencies(pyproject_path: Path) -> list[str]:
     return sorted(item for _, _, item in parsed)
 
 
+def runtime_dependencies(pyproject_path: Path) -> list[str]:
+    """Return only production direct dependencies; dev extras never enter runtime exports."""
+
+    try:
+        project = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise LockValidationError(f"cannot read {pyproject_path}: {error}") from error
+    metadata = project.get("project")
+    dependencies = metadata.get("dependencies", []) if isinstance(metadata, dict) else []
+    if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+        raise LockValidationError("project dependencies must be an array of strings")
+    parsed = [_parse_requirement(item) for item in dependencies]
+    names = [name for name, _, _ in parsed]
+    if len(names) != len(set(names)):
+        raise LockValidationError("a runtime dependency is declared more than once")
+    return sorted(item for _, _, item in parsed)
+
+
 def _read_lock(lock_path: Path) -> tuple[list[str], dict[str, tuple[str, set[str]]]]:
     try:
         lines = lock_path.read_text(encoding="utf-8").splitlines()
@@ -233,17 +251,69 @@ def generate_lock(pyproject_path: Path, lock_path: Path) -> None:
     check_lock(pyproject_path, lock_path)
 
 
+def export_runtime_lock(pyproject_path: Path, lock_path: Path, output_path: Path) -> None:
+    """Export the lock's verified production closure without leaking dev test tooling."""
+
+    check_lock(pyproject_path, lock_path)
+    direct = runtime_dependencies(pyproject_path)
+    _, complete_pins = _read_lock(lock_path)
+    project_dir = pyproject_path.parent
+    with tempfile.TemporaryDirectory(prefix="food-agent-runtime-lock-") as temporary:
+        report_path = Path(temporary) / "runtime-resolution.json"
+        _run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--dry-run",
+                "--ignore-installed",
+                "--report",
+                str(report_path),
+                "--constraint",
+                str(lock_path.resolve()),
+                *direct,
+            ],
+            cwd=project_dir,
+        )
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise LockValidationError(f"cannot parse runtime resolution report: {error}") from error
+    packages = _report_packages(report)
+    selected: dict[str, tuple[str, str, set[str]]] = {}
+    for normalized, (name, version, _digest) in packages.items():
+        complete = complete_pins.get(normalized)
+        if complete is None or complete[0] != version:
+            raise LockValidationError(
+                f"runtime closure is absent from verified complete lock: {name}=={version}"
+            )
+        selected[normalized] = (name, version, complete[1])
+    lines = [LOCK_HEADER, *[f"{DIRECT_PREFIX}{item}" for item in direct], ""]
+    for normalized in sorted(selected):
+        name, version, hashes = selected[normalized]
+        lines.append(
+            f"{name}=={version}" + "".join(f" --hash=sha256:{value}" for value in sorted(hashes))
+        )
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in ("generate", "check"):
+    for command in ("generate", "check", "export-runtime"):
         subcommand = subparsers.add_parser(command)
         subcommand.add_argument("--pyproject", type=Path, required=True)
         subcommand.add_argument("--lock", type=Path, required=True)
+        if command == "export-runtime":
+            subcommand.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "generate":
             generate_lock(args.pyproject, args.lock)
+        elif args.command == "export-runtime":
+            export_runtime_lock(args.pyproject, args.lock, args.output)
         else:
             check_lock(args.pyproject, args.lock)
     except LockValidationError as error:

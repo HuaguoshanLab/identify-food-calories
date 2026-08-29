@@ -1,9 +1,22 @@
 {
   "schema_version": "supply-chain-evidence/v1",
-  "generated_at": "2026-08-29T03:45:00Z",
+  "generated_at": "2026-08-29T06:37:13Z",
   "status": "approved",
   "manual_manifest": {
     "packages": [
+      {
+        "name": "fastapi",
+        "ecosystem": "pypi",
+        "version": "0.137.0",
+        "registry_url": "https://pypi.org/pypi/fastapi/0.137.0/json",
+        "owner": "Sebastián Ramírez <tiangolo@gmail.com>",
+        "repository_url": "https://github.com/fastapi/fastapi",
+        "license": "MIT",
+        "published_at": "2026-06-14T12:51:29Z",
+        "checked_at": "2026-08-29T06:37:13Z",
+        "reviewer": "project owner approved exact version after Phoenix compatibility review",
+        "registry_response_sha256": "dce87dbbdfa8aa905a7061e869bd7969f196cbd2a60e93640cee56b9997df4f1"
+      },
       {
         "name": "langgraph",
         "ecosystem": "pypi",
@@ -46,15 +59,15 @@
       {
         "name": "arize-phoenix",
         "ecosystem": "pypi",
-        "version": "20.3.0",
-        "registry_url": "https://pypi.org/pypi/arize-phoenix/20.3.0/json",
+        "version": "18.1.0",
+        "registry_url": "https://pypi.org/pypi/arize-phoenix/18.1.0/json",
         "owner": "Arize AI <phoenix-devs@arize.com>",
         "repository_url": "https://github.com/Arize-ai/phoenix",
         "license": "Elastic-2.0",
-        "published_at": "2026-08-17T21:57:48.067754Z",
-        "checked_at": "2026-08-29T03:45:00Z",
-        "reviewer": "project owner approved exact version",
-        "registry_response_sha256": "a35b5f7925adab108c55dc905fad803db2baa68417d3bdd6ec03fad6903e39ee"
+        "published_at": "2026-07-17T05:17:24Z",
+        "checked_at": "2026-08-29T06:37:13Z",
+        "reviewer": "project owner authorized replacement after 20.3.0 and 20.4.0 both failed Python 3.11 import with Phoenix mutable-default dataclass error",
+        "registry_response_sha256": "60d4d7616321f77bb3610f04690fe2b21b49a743454066aaafbf01b078ecfc88"
       },
       {
         "name": "arize-phoenix-otel",
@@ -96,6 +109,6 @@
         "registry_response_sha256": "d575776647a7cbdc3acfdbdb4cb0d47308f463280a6ac32ce050cc57f274b531"
       }
     ],
-    "manifest_sha256": "174611b609eaf65a61c34217e2bfb629c801ee021706f3d73a8acce223fa331a"
+    "manifest_sha256": "429e659f8ff9a5d052bb9a865177ef7b4e24a2d3150ae2fbf3a9ccc315e1a464"
   }
 }
