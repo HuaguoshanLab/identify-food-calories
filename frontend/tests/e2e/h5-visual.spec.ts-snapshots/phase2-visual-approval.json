@@ -1,6 +1,6 @@
 {
   "schema_version": "phase2-visual-approval.v1",
-  "status": "approved_candidate_not_promoted",
+  "status": "promoted_to_official",
   "approved_at": "2026-08-29T08:50:45Z",
   "approval_source": "user explicit SHA-256 approval",
   "candidate": {
@@ -12,11 +12,14 @@
     "sha256": "fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a"
   },
   "promotion": {
-    "performed": false,
-    "reason": "Plan 02-17 checkpoint permits read-only candidate approval and forbids modifying the official baseline."
+    "performed": true,
+    "performed_at": "2026-08-29T09:57:25Z",
+    "plan": "02-18",
+    "official_sha256_after": "530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562",
+    "reason": "The user-approved candidate SHA exactly matched the recorded candidate; Plan 02-18 then mechanically promoted it."
   },
   "independent_gates": {
-    "expert_signoff": "pending",
-    "promptfoo_release": "pending"
+    "expert_signoff": "completed",
+    "promptfoo_release": "completed_machine_evidence_release_report_fail"
   }
 }

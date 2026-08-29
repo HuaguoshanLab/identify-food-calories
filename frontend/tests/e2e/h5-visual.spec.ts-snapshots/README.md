@@ -17,21 +17,22 @@
 | `landing-430-chromium-darwin.png` | 公开首页 |
 | `login-430-chromium-darwin.png` | 登录 |
 | `register-430-chromium-darwin.png` | 注册 |
-| `analyze-430-chromium-darwin.png` | 分析 Tab 占位 |
+| `analyze-430-chromium-darwin.png` | 已由用户精确 SHA 批准并在 Plan 02-18 机械晋升的 Phase 2 完成分析 official baseline。 |
 | `me-430-chromium-darwin.png` | 我的 Tab |
 | `account-430-chromium-darwin.png` | 账号资料 |
 | `sessions-430-chromium-darwin.png` | 登录会话 |
 | `revoke-dialog-430-chromium-darwin.png` | 撤销会话确认弹窗 |
-| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate，受控目录食物名以中文显示；已获精确 SHA 人工批准，仍不是 official baseline。 |
-| `phase2-visual-approval.json` | 用户对 Phase 2 candidate 的精确 SHA 批准、official SHA 与时间；记录不晋升 official 的 Plan 02-17 范围约束。 |
+| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面的批准来源工件，受控目录食物名以中文显示；它与 current official baseline 字节相同。 |
+| `phase2-visual-approval.json` | 用户对 Phase 2 candidate 的精确 SHA 批准，以及 Plan 02-18 的机械晋升记录、旧/新 official SHA 与时间。 |
 
 ## Phase 2 Candidate Integrity
 
-`analyze-430-chromium-darwin.png` 是既有 official baseline。生成 candidate 前后必须保存 SHA-256 并逐字 `cmp`；不得通过 `--update-snapshots` 重写该 official 文件。candidate 仅由真实注册、登录、公开分析 API 与完成报告页面生成，固定为 430×932、light、reduced-motion。
+candidate 仅由真实注册、登录、公开分析 API 与完成报告页面生成，固定为 430×932、light、reduced-motion。任何 future visual change 仍必须产生新 candidate、得到新的精确 SHA 人工批准，再以 `cmp` 机械复制；不得通过 `--update-snapshots` 覆盖 official。
 
 - official before: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
-- official after: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
+- approved source candidate: `530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562`
+- official after Plan 02-18 promotion: `530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562`
 - candidate: `530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562`
-- `cmp`: PASS
+- approved candidate → official `cmp`: PASS
 
-`phase2-visual-approval.json` 记录了用户于 `2026-08-29T08:50:45Z` 对上述 candidate SHA 的显式批准。Plan 02-17 只允许审查/记录 candidate，仍禁止改写 official baseline；专家签署和 Promptfoo release 门也不因视觉批准而通过。
+`phase2-visual-approval.json` 记录了用户于 `2026-08-29T08:50:45Z` 对上述 candidate SHA 的显式批准，以及 Plan 02-18 的晋升。视觉批准不等于发布通过：专家签署和 Promptfoo machine evidence 已独立完成，但当前 release report 仍因常数 paired score 的 Spearman 未定义而 `FAIL`。

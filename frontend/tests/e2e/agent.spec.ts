@@ -53,6 +53,40 @@ test.describe('phase 2 direct grams contract', () => {
     expect(followupCommands).toBe(0)
   })
 
+  test('phase 2 resumes a single clarification, applies a correction, and hides a foreign thread', async ({ browser, page, request }) => {
+    await clearMailbox(request)
+    const owner: E2eAccount = { email: 'agent-resume-owner@example.test', password: 'correct-horse-battery-staple' }
+    await page.goto('/register')
+    await registerAndActivate(page, request, owner)
+    await login(page, owner, '/app/analyze')
+
+    await page.getByLabel('餐食描述').fill('米饭')
+    await page.getByRole('button', { name: '开始分析' }).click()
+    await expect(page.getByRole('region', { name: '集中补充信息' })).toBeVisible()
+    await page.getByLabel('rice-1 克数').fill('100')
+    await page.getByRole('button', { name: '提交补充信息' }).click()
+    await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    const threadId = new URL(page.url()).searchParams.get('thread')
+    expect(threadId).toBeTruthy()
+
+    await page.getByLabel('修正或排除项目').fill('米饭改为 150 克')
+    await page.getByRole('button', { name: '应用修正' }).click()
+    await expect(page.getByText('米饭 · 150g · 195.0 kcal')).toBeVisible()
+    await expect(page.getByText('合计 195.0 kcal')).toBeVisible()
+
+    const foreignContext = await browser.newContext()
+    const foreignPage = await foreignContext.newPage()
+    const foreign: E2eAccount = { email: 'agent-foreign@example.test', password: 'correct-horse-battery-staple' }
+    await foreignPage.goto('/register')
+    await registerAndActivate(foreignPage, request, foreign)
+    await login(foreignPage, foreign, '/app/analyze')
+    await foreignPage.goto(`/app/analyze?thread=${threadId}`)
+    await expect(foreignPage).not.toHaveURL(/thread=/)
+    await expect(foreignPage.getByRole('heading', { name: '描述这餐吃了什么' })).toBeVisible()
+    await expect(foreignPage.getByRole('heading', { name: '营养分析报告' })).toBeHidden()
+    await foreignContext.close()
+  })
+
   test('phase 2 delete thread requires confirmation and makes the public thread unavailable', async ({ page, request }) => {
     await clearMailbox(request)
     const deleting: E2eAccount = { email: 'agent-delete@example.test', password: 'correct-horse-battery-staple' }
