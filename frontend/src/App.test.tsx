@@ -66,16 +66,14 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: '创建账号' })).toHaveAttribute('href', '/register')
   })
 
-  it('replaces the protected index with 我的 and preserves normal tab history', async () => {
+  it('replaces the protected index with 分析 and preserves normal tab history', async () => {
     const user = userEvent.setup()
     stubAuthenticatedIdentity()
     renderApp(['/app'])
 
-    expect(await screen.findByRole('heading', { name: '我的' })).toBeInTheDocument()
-    expect(screen.getByTestId('pathname')).toHaveTextContent('/app/me')
+    expect(await screen.findByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()
+    expect(screen.getByTestId('pathname')).toHaveTextContent('/app/analyze')
 
-    await user.click(screen.getByRole('link', { name: '分析' }))
-    expect(await screen.findByRole('heading', { name: '分析' })).toBeInTheDocument()
     await user.click(screen.getByRole('link', { name: '记录' }))
     expect(await screen.findByRole('heading', { name: '记录' })).toBeInTheDocument()
 
