@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 import uuid
 from datetime import UTC, datetime
@@ -134,9 +135,20 @@ def test_agent_import_boundaries_require_graph_to_use_only_tool_adapter() -> Non
 
     graph_source = inspect.getsource(graph)
     tools_source = inspect.getsource(tools)
+    imported_modules = {
+        alias.name
+        for node in ast.walk(ast.parse(graph_source))
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    imported_modules.update(
+        node.module
+        for node in ast.walk(ast.parse(graph_source))
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    )
 
     assert "NutritionToolAdapter" in graph_source
-    assert "sqlalchemy" not in graph_source.lower()
-    assert "app.agent.models" not in graph_source
-    assert "app.agent.repository" not in graph_source
+    assert not any(module.startswith("sqlalchemy") for module in imported_modules)
+    assert "app.agent.models" not in imported_modules
+    assert "app.agent.repository" not in imported_modules
     assert "NutritionService" in tools_source

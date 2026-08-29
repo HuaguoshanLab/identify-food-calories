@@ -20,3 +20,5 @@
 | `repository.py` | flush-only SQLAlchemy Agent ledger adapter |
 | `service.py` | 所有权、命令幂等、事件、调用和租约事务边界 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState |
+| `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
+| `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
