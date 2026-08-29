@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
+from typing import Callable
 
 import pytest
 from pydantic import ValidationError
@@ -94,6 +96,84 @@ print('child-contract-ok')
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "child-contract-ok"
+
+
+def _startup_module() -> ModuleType:
+    from scripts import run_initialized_app
+
+    return run_initialized_app
+
+
+def _set_compose_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", COMPOSE_DEV_URL)
+    monkeypatch.setenv("TEST_DATABASE_URL", COMPOSE_TEST_URL)
+
+
+def test_startup_order_uses_guarded_test_target_and_prepare_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_compose_test_environment(monkeypatch)
+    startup = _startup_module()
+    trace: list[tuple[str, str]] = []
+
+    def record(name: str) -> Callable[[str], None]:
+        return lambda target: trace.append((name, target))
+
+    monkeypatch.setattr(startup, "reset_test_schema", record("reset"))
+    monkeypatch.setattr(startup, "upgrade_alembic", record("migration"))
+    monkeypatch.setattr(startup, "setup_checkpointer", record("checkpoint"))
+    monkeypatch.setattr(startup, "apply_seed", record("seed"))
+    monkeypatch.setattr(
+        startup,
+        "launch_uvicorn",
+        lambda _target, _host, _port: trace.append(("uvicorn", "started")),
+    )
+
+    assert startup.main(["--prepare-only"]) == 0
+    assert trace == [
+        ("reset", COMPOSE_TEST_URL),
+        ("migration", COMPOSE_TEST_URL),
+        ("checkpoint", COMPOSE_TEST_URL),
+        ("seed", COMPOSE_TEST_URL),
+    ]
+
+
+@pytest.mark.parametrize(
+    "failing_step",
+    ["reset_test_schema", "upgrade_alembic", "setup_checkpointer", "apply_seed"],
+    ids=["reset_failure", "migration_failure", "checkpointer_failure", "seed_failure"],
+)
+def test_startup_failure_stops_before_uvicorn_not_started(
+    monkeypatch: pytest.MonkeyPatch, failing_step: str
+) -> None:
+    _set_compose_test_environment(monkeypatch)
+    startup = _startup_module()
+    trace: list[str] = []
+
+    for name in ("reset_test_schema", "upgrade_alembic", "setup_checkpointer", "apply_seed"):
+        def action(_target: str, *, name: str = name) -> None:
+            trace.append(name)
+            if name == failing_step:
+                raise RuntimeError(f"{name} failed")
+
+        monkeypatch.setattr(startup, name, action)
+    monkeypatch.setattr(
+        startup,
+        "launch_uvicorn",
+        lambda _target, _host, _port: trace.append("uvicorn"),
+    )
+
+    with pytest.raises(RuntimeError, match="failed"):
+        startup.main([])
+
+    assert "uvicorn" not in trace
+    assert trace == [
+        "reset_test_schema",
+        "upgrade_alembic",
+        "setup_checkpointer",
+        "apply_seed",
+    ][: ("reset_test_schema", "upgrade_alembic", "setup_checkpointer", "apply_seed").index(failing_step) + 1]
 
 
 def settings_for_test(**overrides: str | None) -> Settings:
