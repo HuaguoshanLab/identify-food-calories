@@ -27,6 +27,7 @@ from evals.run_promptfoo_release import (  # noqa: E402
     _judge_prompt_contract,
     _judge_response_format,
     _judge_score,
+    _judge_thinking,
     _materialize_signoff,
     _result_row,
     _validate_config as validate_release_config,
@@ -86,11 +87,14 @@ def test_release_prompt_uses_a_new_strict_json_contract() -> None:
         Path("evals/promptfooconfig.yaml").read_bytes()
     )
 
-    assert version == "phase02-judge-json-mode.v3"
+    assert version == "phase02-judge-json-thinking-disabled.v4"
     assert '精确为 {"score": <1-5 的整数>}' in prompt
     assert "额外键" in prompt
     assert _judge_response_format(Path("evals/promptfooconfig.yaml").read_bytes()) == {
         "type": "json_object"
+    }
+    assert _judge_thinking(Path("evals/promptfooconfig.yaml").read_bytes()) == {
+        "type": "disabled"
     }
 
 
@@ -109,6 +113,7 @@ def test_release_json_mode_is_transmitted_by_local_promptfoo_openai_provider() -
         in source
     )
     assert "...responseFormat," in source
+    assert "...config.passthrough || {}" in source
 
 
 @pytest.mark.parametrize(
