@@ -15,6 +15,7 @@ import { AccountDetailsPage } from './app/AccountDetailsPage'
 import { MePage } from './app/MePage'
 import { PlaceholderTabPage } from './app/PlaceholderTabPage'
 import { SessionsDetailsPage } from './app/SessionsDetailsPage'
+import { AnalyzePage } from './features/agent/components/AnalyzePage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
@@ -41,9 +42,9 @@ export function App() {
 
       <Route element={<RequireAuthentication />}>
         <Route path="/app">
-          <Route index element={<Navigate replace to="me" />} />
+          <Route index element={<Navigate replace to="analyze" />} />
           <Route element={<AppShell />}>
-            <Route path="analyze" element={<PlaceholderTabPage title="分析" />} />
+            <Route path="analyze" element={<AnalyzePage />} />
             <Route path="records" element={<PlaceholderTabPage title="记录" />} />
             <Route path="plans" element={<PlaceholderTabPage title="计划" />} />
             <Route path="me" element={<MePage />} />

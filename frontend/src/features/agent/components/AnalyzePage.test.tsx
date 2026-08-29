@@ -28,8 +28,8 @@ describe('AnalyzePage', () => {
 
   it('announces submitting and then the honest unavailable state', async () => {
     const user = userEvent.setup()
-    let settle: (() => void) | undefined
-    const submitAnalysis = vi.fn(() => new Promise<void>((resolve) => { settle = resolve }))
+    let settle: ((value: 'unavailable') => void) | undefined
+    const submitAnalysis = vi.fn(() => new Promise<'unavailable'>((resolve) => { settle = resolve }))
     render(<AnalyzePage submitAnalysis={submitAnalysis} />)
 
     await user.type(screen.getByLabelText('餐食描述'), '一碗番茄鸡蛋面')
@@ -38,7 +38,7 @@ describe('AnalyzePage', () => {
     expect(screen.getByRole('button', { name: '正在提交…' })).toBeDisabled()
     expect(screen.getByRole('status')).toHaveTextContent('正在提交描述')
 
-    settle?.()
+    settle?.('unavailable')
     expect(await screen.findByRole('status')).toHaveTextContent('分析能力正在接线中')
   })
 })

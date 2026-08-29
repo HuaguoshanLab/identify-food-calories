@@ -24,3 +24,4 @@
 | `components/` | 应用组件边界与官方 shadcn UI 基础设施（Button/Input/Label/Card/Separator 等原语） |
 | `layouts/` | H5 设备容器、唯一主滚动区、公开/详情/Tab 外壳和底部导航；不承载业务数据或认证协议 |
 | `app/` | 登录后 Tab 根页与详情页的内容组件；不自行包裹页面壳或复制认证/Query 状态 |
+| `features/` | 按业务能力组织的用户功能模块；路由、认证和页面壳保持在既有边界。 |
