@@ -351,7 +351,6 @@ def _call_evidence(
         prompt_tokens = _usage_int(usage.get("prompt"))
         completion_tokens = _usage_int(usage.get("completion"))
         total_tokens = _usage_int(usage.get("total"), prompt_tokens + completion_tokens)
-        score = _judge_score(_response_output(row, response))
         cost_usd = (
             Decimal(prompt_tokens) * input_price
             + Decimal(completion_tokens) * output_price
@@ -389,6 +388,25 @@ def _call_evidence(
             result.returncode,
             "output_parse",
             "cost",
+            shape,
+        )
+    try:
+        score = _judge_score(_response_output(row, response))
+    except OutputParseError as error:
+        return CallEvidence(
+            case_id,
+            repeat_index,
+            "failed",
+            "product_failure",
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            str(cost_usd),
+            str(cost_cny),
+            None,
+            result.returncode,
+            "output_parse",
+            error.stage,
             shape,
         )
     return CallEvidence(

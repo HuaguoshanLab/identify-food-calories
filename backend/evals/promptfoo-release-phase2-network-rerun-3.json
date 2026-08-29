@@ -1,0 +1,62 @@
+{
+  "actual_cost_cny_at_ceiling": null,
+  "budget_cny": "0.20",
+  "cache": "disabled",
+  "calls": [
+    {
+      "case_id": "phase02-001",
+      "completion_tokens": null,
+      "cost_cny_at_ceiling": null,
+      "cost_usd": null,
+      "failure_category": "product_failure",
+      "failure_stage": "output_parse",
+      "judge_score": null,
+      "output_shape": {
+        "document_safe_keys": [
+          "evalId",
+          "results",
+          "runtimeOptions",
+          "shareableUrl"
+        ],
+        "document_type": "object",
+        "nested_results_length": 1,
+        "nested_results_type": "array",
+        "results_safe_keys": [
+          "prompts",
+          "results",
+          "stats",
+          "timestamp",
+          "version"
+        ],
+        "results_type": "object"
+      },
+      "parse_stage": "judge_score",
+      "prompt_tokens": null,
+      "promptfoo_exit_code": 0,
+      "repeat_index": 1,
+      "status": "failed",
+      "total_tokens": null
+    }
+  ],
+  "calls_attempted": 1,
+  "calls_authorized": 36,
+  "calls_completed": 0,
+  "code_eval_hash": "df7dbdf3ebc5908c716c082922397f9f687fa2b5243a9f7576bac8dda6acf63c",
+  "config_hash": "0a624c9bb7d7f88ff94276322e4550a126b43b9589c18a954c8be113984d31b4",
+  "cost_accounting": "unknown_after_failed_call",
+  "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
+  "fx_cny_per_usd_ceiling": "8",
+  "generated_at": "2026-08-29T09:24:45.082780+00:00",
+  "input_token_cap_per_call": 2904,
+  "judge_scores": {},
+  "max_concurrency": 1,
+  "max_retries": 0,
+  "maximum_total_cny_at_caps": "0.15837696",
+  "model": "deepseek-v4-flash",
+  "output_token_cap_per_call": 512,
+  "price_snapshot_fingerprint": "d2708cfcbe63c645d37c64f7e6f2b01842c2b36712066c781bde505ee0a1ed21",
+  "price_snapshot_version": "2026-08-29-deepseek-v4-flash-standard",
+  "release_eligible": false,
+  "schema_version": "phase2-promptfoo-release.v1",
+  "status": "stopped"
+}

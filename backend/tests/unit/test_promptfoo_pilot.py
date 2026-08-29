@@ -150,3 +150,36 @@ def test_release_parse_failure_persists_structure_only_without_sensitive_keys(
         sensitive not in rendered
         for sensitive in ("prompt", "output", "value", "response", "vars")
     )
+
+
+def test_release_judge_parse_failure_keeps_usage_accounting_without_output(
+    tmp_path: Path,
+) -> None:
+    raw_export = tmp_path / "export.json"
+    row = _safe_row()
+    row["response"]["output"] = "synthetic-invalid-score"  # type: ignore[index]
+    raw_export.write_text(json.dumps({"results": {"results": [row]}}), encoding="utf-8")
+
+    evidence = _call_evidence(
+        "phase02-006",
+        1,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+        raw_export,
+        Decimal("1"),
+        Decimal("1"),
+    )
+
+    assert evidence.status == "failed"
+    assert evidence.parse_stage == "judge_score"
+    assert (
+        evidence.prompt_tokens,
+        evidence.completion_tokens,
+        evidence.total_tokens,
+    ) == (
+        1,
+        1,
+        2,
+    )
+    assert evidence.cost_usd == "0.000002"
+    assert evidence.cost_cny_at_ceiling == "0.000016"
+    assert "synthetic-invalid-score" not in json.dumps(evidence.output_shape)
