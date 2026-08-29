@@ -26,7 +26,7 @@
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
 | `run_promptfoo_pilot.py` | 仅在本地子进程读取 `.env` 的安全 pilot 执行器：调用前按价格快照预留上限、每次后按 usage 复算并在首个异常停止。 |
 | `promptfoo-pilot-phase2.json` | 不含原始文案、输出或密钥的 pilot 证据：调用数、usage、成本、hash、失败类别与非发布标识。 |
-| `run_promptfoo_release.py` | 已授权 36-call 正式 Judge runner：每次单独执行、无缓存、零重试、预算预留与 usage 记账；只保存分数和安全元数据。 |
+| `run_promptfoo_release.py` | 已授权 36-call 正式 Judge runner：每次单独执行、无缓存、零重试、预算预留与 usage 记账；失败时仅保存脱敏结构摘要和白名单解析阶段，不保存原始导出、文案、输出或密钥。 |
 | `promptfoo-release-phase2.json` | 正式 Judge 的安全结果；失败时也如实记录尝试数、成本状态和失败类别，不能冒充 release pass。 |
 | `promptfoo-release-phase2-network-rerun.json` | 通过无凭据网络预检后的重新授权正式运行安全证据；它保留独立尝试历史，不能覆盖先前失败。 |
 | `promptfoo-release-phase2-network-rerun-2.json` | 使用修复后的安全解析器进行的独立正式重跑证据；首个可记账异常即停止，不能覆盖或合并此前运行。 |

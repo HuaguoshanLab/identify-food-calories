@@ -50,16 +50,38 @@ class CallEvidence:
     judge_score: int | None
     promptfoo_exit_code: int | None
     failure_stage: str | None
+    parse_stage: str | None
+    output_shape: dict[str, Any] | None
+
+
+class OutputParseError(ValueError):
+    """A fail-closed parsing error whose stage is safe to persist as evidence."""
+
+    def __init__(self, stage: str) -> None:
+        super().__init__(stage)
+        self.stage = stage
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=Path("evals/promptfooconfig.yaml"))
-    parser.add_argument("--dataset", type=Path, default=Path("evals/phase02-cases.jsonl"))
-    parser.add_argument("--code-eval", type=Path, default=Path("evals/phase2-code-eval.json"))
-    parser.add_argument("--template", type=Path, default=Path("evals/expert-signoff-phase2.template.md"))
-    parser.add_argument("--output", type=Path, default=Path("evals/promptfoo-release-phase2.json"))
-    parser.add_argument("--signoff-output", type=Path, default=Path("evals/expert-signoff-phase2.json"))
+    parser.add_argument(
+        "--config", type=Path, default=Path("evals/promptfooconfig.yaml")
+    )
+    parser.add_argument(
+        "--dataset", type=Path, default=Path("evals/phase02-cases.jsonl")
+    )
+    parser.add_argument(
+        "--code-eval", type=Path, default=Path("evals/phase2-code-eval.json")
+    )
+    parser.add_argument(
+        "--template", type=Path, default=Path("evals/expert-signoff-phase2.template.md")
+    )
+    parser.add_argument(
+        "--output", type=Path, default=Path("evals/promptfoo-release-phase2.json")
+    )
+    parser.add_argument(
+        "--signoff-output", type=Path, default=Path("evals/expert-signoff-phase2.json")
+    )
     parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args()
 
@@ -98,10 +120,28 @@ def main() -> int:
         "maximum_total_cny_at_caps": str(maximum_total_cny),
     }
     if maximum_total_cny > BUDGET_CNY:
-        _write(args.output, {**common, "status": "blocked_budget_preflight", "calls_attempted": 0, "calls_completed": 0, "calls": []})
+        _write(
+            args.output,
+            {
+                **common,
+                "status": "blocked_budget_preflight",
+                "calls_attempted": 0,
+                "calls_completed": 0,
+                "calls": [],
+            },
+        )
         return 2
     if args.preflight_only:
-        _write(args.output, {**common, "status": "preflight_passed", "calls_attempted": 0, "calls_completed": 0, "calls": []})
+        _write(
+            args.output,
+            {
+                **common,
+                "status": "preflight_passed",
+                "calls_attempted": 0,
+                "calls_completed": 0,
+                "calls": [],
+            },
+        )
         return 0
 
     calls: list[CallEvidence] = []
@@ -110,8 +150,28 @@ def main() -> int:
         temporary = Path(directory)
         for repeat_index in range(REPEAT):
             for case_index, case_id in enumerate(CASES):
-                if spent_cny + maximum_per_call_usd * FX_CNY_PER_USD_CEILING > BUDGET_CNY:
-                    calls.append(CallEvidence(case_id, repeat_index + 1, "blocked", "budget", None, None, None, None, None, None, None, "budget"))
+                if (
+                    spent_cny + maximum_per_call_usd * FX_CNY_PER_USD_CEILING
+                    > BUDGET_CNY
+                ):
+                    calls.append(
+                        CallEvidence(
+                            case_id,
+                            repeat_index + 1,
+                            "blocked",
+                            "budget",
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            "budget",
+                            None,
+                            None,
+                        )
+                    )
                     break
                 raw_output = temporary / f"{repeat_index}-{case_index}.json"
                 result = subprocess.run(
@@ -147,13 +207,23 @@ def main() -> int:
                     text=True,
                     check=False,
                 )
-                evidence = _call_evidence(case_id, repeat_index + 1, result, raw_output, input_price, output_price)
+                evidence = _call_evidence(
+                    case_id,
+                    repeat_index + 1,
+                    result,
+                    raw_output,
+                    input_price,
+                    output_price,
+                )
                 calls.append(evidence)
                 if evidence.cost_cny_at_ceiling is not None:
                     spent_cny += Decimal(evidence.cost_cny_at_ceiling)
                 if evidence.status != "completed" or spent_cny > BUDGET_CNY:
                     break
-            if len(calls) != (repeat_index + 1) * len(CASES) or calls[-1].status != "completed":
+            if (
+                len(calls) != (repeat_index + 1) * len(CASES)
+                or calls[-1].status != "completed"
+            ):
                 break
 
     score_sets: dict[str, list[int]] = defaultdict(list)
@@ -165,7 +235,9 @@ def main() -> int:
         for case_id, scores in score_sets.items()
         if len(scores) == REPEAT and len(set(scores)) == 1
     }
-    completed = len(calls) == MAX_CALLS and all(call.status == "completed" for call in calls)
+    completed = len(calls) == MAX_CALLS and all(
+        call.status == "completed" for call in calls
+    )
     scores_complete = set(judge_scores) == MEDIUM_CASES
     cost_known = all(call.cost_cny_at_ceiling is not None for call in calls)
     status = "completed" if completed and scores_complete else "stopped"
@@ -175,7 +247,9 @@ def main() -> int:
         "calls_attempted": len(calls),
         "calls_completed": sum(call.status == "completed" for call in calls),
         "actual_cost_cny_at_ceiling": str(spent_cny) if cost_known else None,
-        "cost_accounting": "usage_accounted" if cost_known else "unknown_after_failed_call",
+        "cost_accounting": "usage_accounted"
+        if cost_known
+        else "unknown_after_failed_call",
         "judge_scores": judge_scores,
         "calls": [asdict(call) for call in calls],
         "generated_at": datetime.now(UTC).isoformat(),
@@ -194,7 +268,10 @@ def main() -> int:
 
 
 def _validate_settings(settings: Settings) -> None:
-    if settings.deepseek_api_key is None or not settings.deepseek_api_key.get_secret_value().strip():
+    if (
+        settings.deepseek_api_key is None
+        or not settings.deepseek_api_key.get_secret_value().strip()
+    ):
         raise ValueError("DEEPSEEK_API_KEY is required")
     if settings.deepseek_model != "deepseek-v4-flash":
         raise ValueError("release requires pinned deepseek-v4-flash")
@@ -243,36 +320,189 @@ def _call_evidence(
             None,
             result.returncode,
             _failure_stage(output),
+            None,
+            None,
         )
+    document: Any = None
     try:
-        row = _result_row(json.loads(raw_output.read_text(encoding="utf-8")))
-        response = row.get("response") or row.get("providerResponse") or {}
-        usage = response.get("tokenUsage") or row.get("tokenUsage") or {}
-        prompt_tokens = _int(usage.get("prompt"))
-        completion_tokens = _int(usage.get("completion"))
-        total_tokens = _int(usage.get("total"), prompt_tokens + completion_tokens)
-        score = _judge_score(response.get("output") or row.get("output"))
-        cost_usd = (Decimal(prompt_tokens) * input_price + Decimal(completion_tokens) * output_price) / Decimal("1000000")
+        document = json.loads(raw_output.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return CallEvidence(
+            case_id,
+            repeat_index,
+            "failed",
+            "product_failure",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            result.returncode,
+            "output_parse",
+            "document_json",
+            None,
+        )
+    shape = _safe_output_shape(document)
+    try:
+        row = _result_row(document, case_id)
+        response = _response(row)
+        usage = _usage(row, response)
+        prompt_tokens = _usage_int(usage.get("prompt"))
+        completion_tokens = _usage_int(usage.get("completion"))
+        total_tokens = _usage_int(usage.get("total"), prompt_tokens + completion_tokens)
+        score = _judge_score(_response_output(row, response))
+        cost_usd = (
+            Decimal(prompt_tokens) * input_price
+            + Decimal(completion_tokens) * output_price
+        ) / Decimal("1000000")
         cost_cny = cost_usd * FX_CNY_PER_USD_CEILING
-    except (KeyError, TypeError, ValueError, InvalidOperation, json.JSONDecodeError):
-        return CallEvidence(case_id, repeat_index, "failed", "product_failure", None, None, None, None, None, None, result.returncode, "output_parse")
-    return CallEvidence(case_id, repeat_index, "completed", None, prompt_tokens, completion_tokens, total_tokens, str(cost_usd), str(cost_cny), score, result.returncode, None)
+    except OutputParseError as error:
+        return CallEvidence(
+            case_id,
+            repeat_index,
+            "failed",
+            "product_failure",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            result.returncode,
+            "output_parse",
+            error.stage,
+            shape,
+        )
+    except (TypeError, ValueError, InvalidOperation):
+        return CallEvidence(
+            case_id,
+            repeat_index,
+            "failed",
+            "product_failure",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            result.returncode,
+            "output_parse",
+            "cost",
+            shape,
+        )
+    return CallEvidence(
+        case_id,
+        repeat_index,
+        "completed",
+        None,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        str(cost_usd),
+        str(cost_cny),
+        score,
+        result.returncode,
+        None,
+        None,
+        None,
+    )
 
 
-def _result_row(document: Any) -> dict[str, Any]:
+def _result_row(document: Any, expected_case_id: str) -> dict[str, Any]:
     if not isinstance(document, dict):
-        raise ValueError("Promptfoo output is not an object")
+        raise OutputParseError("result_shape")
     summary = document.get("results")
     rows = summary.get("results") if isinstance(summary, dict) else summary
     if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
-        raise ValueError("Promptfoo output must contain exactly one result")
-    return rows[0]
+        raise OutputParseError("result_shape")
+    row = rows[0]
+    variables = row.get("vars")
+    if not isinstance(variables, dict) or variables.get("case_id") != expected_case_id:
+        raise OutputParseError("target_case")
+    return row
+
+
+def _response(row: dict[str, Any]) -> dict[str, Any]:
+    response = row.get("response") or row.get("providerResponse")
+    if not isinstance(response, dict):
+        raise OutputParseError("response")
+    return response
+
+
+def _usage(row: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    usage = response.get("tokenUsage") or row.get("tokenUsage")
+    if not isinstance(usage, dict):
+        raise OutputParseError("usage")
+    return usage
+
+
+def _response_output(row: dict[str, Any], response: dict[str, Any]) -> Any:
+    value = response.get("output") if "output" in response else row.get("output")
+    if value is None:
+        raise OutputParseError("judge_score")
+    return value
+
+
+def _safe_output_shape(document: Any) -> dict[str, Any]:
+    """Return structure only; never retain prompts, responses, variables, or values."""
+
+    shape: dict[str, Any] = {"document_type": _shape_type(document)}
+    if not isinstance(document, dict):
+        return shape
+    shape["document_safe_keys"] = _safe_keys(document)
+    results = document.get("results")
+    shape["results_type"] = _shape_type(results)
+    if isinstance(results, list):
+        shape["results_length"] = len(results)
+    elif isinstance(results, dict):
+        shape["results_safe_keys"] = _safe_keys(results)
+        nested = results.get("results")
+        shape["nested_results_type"] = _shape_type(nested)
+        if isinstance(nested, list):
+            shape["nested_results_length"] = len(nested)
+    return shape
+
+
+def _shape_type(value: Any) -> str:
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, list):
+        return "array"
+    if value is None:
+        return "null"
+    return type(value).__name__
+
+
+def _safe_keys(value: dict[str, Any]) -> list[str]:
+    sensitive = {
+        "config",
+        "metadata",
+        "output",
+        "prompt",
+        "providerresponse",
+        "response",
+        "text",
+        "traces",
+        "value",
+        "vars",
+    }
+    return sorted(key for key in value if key.lower() not in sensitive)
 
 
 def _materialize_signoff(
-    *, template: Path, output: Path, dataset_hash: str, code_eval_hash: str, judge_scores: dict[str, int]
+    *,
+    template: Path,
+    output: Path,
+    dataset_hash: str,
+    code_eval_hash: str,
+    judge_scores: dict[str, int],
 ) -> None:
-    rows = [line for line in template.read_text(encoding="utf-8").splitlines() if line.startswith("| phase02-")]
+    rows = [
+        line
+        for line in template.read_text(encoding="utf-8").splitlines()
+        if line.startswith("| phase02-")
+    ]
     if len(rows) != 24:
         raise ValueError("expert template must contain exactly 24 case rows")
     reviews: list[dict[str, Any]] = []
@@ -281,10 +511,20 @@ def _materialize_signoff(
         cells = [cell.strip() for cell in row.strip("|").split("|")]
         case_id, _, yu_text, chen_text, medium_text = cells
         if not yu_text.startswith("于：") or not chen_text.startswith("陈："):
-            raise ValueError(f"expert template has ambiguous reviewer columns for {case_id}")
-        if yu_text.removeprefix("于：") != expected_fields or chen_text.removeprefix("陈：") != expected_fields:
-            raise ValueError(f"expert template confirmations are incomplete for {case_id}")
-        for pseudonym, role in (("yu-nutritionist", "nutritionist"), ("chen-food-data-admin", "food_composition_data_steward")):
+            raise ValueError(
+                f"expert template has ambiguous reviewer columns for {case_id}"
+            )
+        if (
+            yu_text.removeprefix("于：") != expected_fields
+            or chen_text.removeprefix("陈：") != expected_fields
+        ):
+            raise ValueError(
+                f"expert template confirmations are incomplete for {case_id}"
+            )
+        for pseudonym, role in (
+            ("yu-nutritionist", "nutritionist"),
+            ("chen-food-data-admin", "food_composition_data_steward"),
+        ):
             review: dict[str, Any] = {
                 "case_id": case_id,
                 "role": role,
@@ -297,10 +537,14 @@ def _materialize_signoff(
             if case_id in MEDIUM_CASES:
                 match = re.fullmatch(r"于=(\d)；陈=(\d)", medium_text)
                 if match is None:
-                    raise ValueError(f"expert template medium scores are ambiguous for {case_id}")
+                    raise ValueError(
+                        f"expert template medium scores are ambiguous for {case_id}"
+                    )
                 score = int(match.group(1 if role == "nutritionist" else 2))
                 if not 1 <= score <= 5:
-                    raise ValueError(f"expert template medium score is out of range for {case_id}")
+                    raise ValueError(
+                        f"expert template medium score is out of range for {case_id}"
+                    )
                 review["medium_human_score"] = score
             reviews.append(review)
     _write(
@@ -312,7 +556,10 @@ def _materialize_signoff(
             "code_eval_hash": code_eval_hash,
             "reviewers": [
                 {"pseudonym": "yu-nutritionist", "role": "nutritionist"},
-                {"pseudonym": "chen-food-data-admin", "role": "food_composition_data_steward"},
+                {
+                    "pseudonym": "chen-food-data-admin",
+                    "role": "food_composition_data_steward",
+                },
             ],
             "reviews": reviews,
             "judge_scores": [
@@ -331,17 +578,23 @@ def _materialize_signoff(
 
 def _judge_score(value: Any) -> int:
     if not isinstance(value, str):
-        raise ValueError("judge output is missing")
-    payload = json.loads(value)
+        raise OutputParseError("judge_score")
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise OutputParseError("judge_score") from error
     score = payload.get("score") if isinstance(payload, dict) else None
     if not isinstance(score, int) or not 1 <= score <= 5:
-        raise ValueError("judge score is invalid")
+        raise OutputParseError("judge_score")
     return score
 
 
 def _failure_category(output: str) -> str:
     normalized = output.lower()
-    if any(marker in normalized for marker in ("econn", "enotfound", "timeout", "network", "socket", "dns")):
+    if any(
+        marker in normalized
+        for marker in ("econn", "enotfound", "timeout", "network", "socket", "dns")
+    ):
         return "network_failure"
     if normalized:
         return "product_failure"
@@ -350,13 +603,18 @@ def _failure_category(output: str) -> str:
 
 def _failure_stage(output: str) -> str:
     normalized = output.lower()
-    if any(marker in normalized for marker in ("enotfound", "getaddrinfo", "nodename", "dns")):
+    if any(
+        marker in normalized
+        for marker in ("enotfound", "getaddrinfo", "nodename", "dns")
+    ):
         return "dns"
     if any(marker in normalized for marker in ("certificate", "tls", "ssl")):
         return "tls"
     if re.search(r"\b(?:401|403|404|408|429|5\d\d)\b", normalized):
         return "http"
-    if any(marker in normalized for marker in ("econn", "timeout", "network", "socket")):
+    if any(
+        marker in normalized for marker in ("econn", "timeout", "network", "socket")
+    ):
         return "transport"
     return "unknown"
 
@@ -367,12 +625,12 @@ def _decimal(value: Decimal | None) -> Decimal:
     return value
 
 
-def _int(value: Any, default: int | None = None) -> int:
+def _usage_int(value: Any, default: int | None = None) -> int:
     if value is None and default is not None:
         return default
     if isinstance(value, int) and value >= 0:
         return value
-    raise ValueError("invalid usage value")
+    raise OutputParseError("usage")
 
 
 def _sha256(value: bytes) -> str:
@@ -380,7 +638,9 @@ def _sha256(value: bytes) -> str:
 
 
 def _write(path: Path, document: dict[str, Any]) -> None:
-    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":
