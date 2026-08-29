@@ -10,13 +10,12 @@ import asyncio
 import hashlib
 import json
 import uuid
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 
 from app.agent.graph import AgentRuntime
 from app.agent.repository import SqlAlchemyAgentRepository
@@ -34,7 +33,6 @@ from app.agent.supervisor import PostgresLeaseSupervisor
 from app.auth.api import bearer_scheme, get_authentication_service
 from app.auth.security import InvalidAccessToken
 from app.auth.service import AuthenticatedUserUnavailable, AuthenticationService
-from app.core.database import get_session
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -60,15 +58,23 @@ def get_agent_principal(
 AgentPrincipal = Annotated[uuid.UUID, Depends(get_agent_principal)]
 
 
-def get_agent_service(session: Session = Depends(get_session)) -> AgentService:
-    return AgentService(repository=SqlAlchemyAgentRepository(session), commit=session.commit, rollback=session.rollback)
-
-
 def _runtime(request: Request) -> AgentRuntime:
     runtime = cast(AgentRuntime | None, getattr(request.app.state, "agent_runtime", None))
     if runtime is None:
         raise HTTPException(status_code=503, detail="Agent runtime is unavailable.")
     return runtime
+
+
+def get_agent_service(request: Request) -> Generator[AgentService, None, None]:
+    """Use the lifecycle-selected DB target; test mode never falls back to DATABASE_URL."""
+
+    session = cast(Any, _runtime(request).session_factory())
+    try:
+        yield AgentService(
+            repository=SqlAlchemyAgentRepository(session), commit=session.commit, rollback=session.rollback
+        )
+    finally:
+        session.close()
 
 
 def _status(run_status: str | None) -> AgentThreadStatus:
@@ -97,7 +103,7 @@ def _command_hash(text: str) -> dict[str, object]:
 
 def _execute(*, service: AgentService, runtime: AgentRuntime, run_id: uuid.UUID, user_id: uuid.UUID, text: str) -> None:
     cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
-    asyncio.run(service.execute_run(run_id=run_id, user_id=user_id, graph=runtime.graph, input_text=text))
+    asyncio.run(service.execute_run(run_id=run_id, user_id=user_id, graph=runtime.graph, checkpointer=runtime.checkpointer, input_text=text))
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)

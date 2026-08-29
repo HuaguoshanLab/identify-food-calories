@@ -19,3 +19,4 @@
 | `auth-skeleton.spec.ts` | 从 Mailpit 取真实验证码的注册、恢复、会话撤销与登出浏览器证据 |
 | `h5-visual.spec.ts` | 430px 八张视觉基线，以及 320px/桌面、键盘、历史和滚动边界回归 |
 | `h5-visual.spec.ts-snapshots/` | Git 维护的八张 H5 视觉基线与其安全更新合同 |
+| `agent.spec.ts` | 真实注册登录后的米饭 100 克 Agent 纵向报告与 SSE 公开路径。 |

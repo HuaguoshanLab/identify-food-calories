@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 from typing import Protocol
+from collections.abc import Callable
 
 from app.agent.state import (
     AgentNextAction,
@@ -53,6 +54,7 @@ class AgentRuntime:
     tools: NutritionToolAdapter
     checkpointer: object
     supervisor: object
+    session_factory: Callable[[], object]
 
 
 class AgentRuntimeFactory(Protocol):

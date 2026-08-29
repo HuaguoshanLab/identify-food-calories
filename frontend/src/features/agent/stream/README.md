@@ -15,4 +15,4 @@
 
 | 文件 | 职责 |
 |---|---|
-| `useAgentEventStream.ts` | 当前禁用且只支持取消的 transport 骨架；后续只在此边界接通认证 fetch。 |
+| `useAgentEventStream.ts` | 认证 fetch SSE 重放、分片解析和取消边界；不拼装报告。 |

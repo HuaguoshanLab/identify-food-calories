@@ -132,7 +132,13 @@ class AgentService:
         return run
 
     async def execute_run(
-        self, *, run_id: uuid.UUID, user_id: uuid.UUID, graph: AgentGraph, input_text: str
+        self,
+        *,
+        run_id: uuid.UUID,
+        user_id: uuid.UUID,
+        graph: AgentGraph,
+        checkpointer: object,
+        input_text: str,
     ) -> AgentRun:
         """Execute one accepted run after tenant ownership has been checked by the caller.
 
@@ -169,6 +175,7 @@ class AgentService:
             status=AgentRuntimeStatus.ACCEPTED,
         )
         finished = await graph.ainvoke(state)
+        await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
         run.graph_steps = max(run.graph_steps, 1)
@@ -201,6 +208,28 @@ class AgentService:
             safe_summary="分析未能完成。",
         )
         return run
+
+    @staticmethod
+    async def _persist_checkpoint(*, checkpointer: object, state: MealAgentState) -> None:
+        """Persist short-lived graph state after terminal routing without exposing it as a snapshot."""
+
+        from langgraph.checkpoint.base import empty_checkpoint
+
+        saver = checkpointer
+        checkpoint = empty_checkpoint()
+        checkpoint["channel_values"] = {"agent_state": state.model_dump(mode="json")}
+        checkpoint["channel_versions"] = {"agent_state": "0000000000000001.0"}
+        await saver.aput(  # type: ignore[attr-defined]
+            {
+                "configurable": {
+                    "thread_id": str(state.thread_id),
+                    "checkpoint_ns": "meal-analysis",
+                }
+            },
+            checkpoint,
+            {"source": "loop", "step": 1, "parents": {}},
+            {"agent_state": "0000000000000001.0"},
+        )
 
     def append_safe_event(
         self,

@@ -20,3 +20,4 @@
 | `test_refresh_concurrency.py` | 两个独立 PostgreSQL 事务的 refresh 单赢家、replay family revoke 与失败 rollback 证据 |
 | `test_admin_audit.py` | 真实 PostgreSQL admin RBAC、角色审计和事务回滚证据 |
 | `test_agent_bootstrap.py` | 真实 PostgreSQL 的 migration → checkpoint setup → FDC seed 幂等初始化链 |
+| `test_agent_vertical.py` | 真实 PostgreSQL 的认证 Agent 纵向链、SSE 安全重放与 Checkpointer 证据。 |

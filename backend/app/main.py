@@ -20,7 +20,7 @@ from app.agent.supervisor import PostgresLeaseSupervisor
 from app.agent.tools import SessionNutritionToolAdapter
 from app.accounts.api import router as account_recovery_router
 from app.core.config import Settings, get_settings
-from app.core.config import validate_test_database_configuration
+from app.core.config import runtime_database_url
 from app.core.database import create_session_factory
 from app.providers.reasoning.fake import RiceOnlyFakeReasoningModelProvider
 
@@ -33,14 +33,8 @@ class PersistedAgentRuntimeFactory:
         self._saver_context: AbstractAsyncContextManager[Any] | None = None
 
     async def create(self) -> AgentRuntime:
-        database_url = (
-            validate_test_database_configuration(self._settings)
-            if self._settings.app_env == "test"
-            else self._settings.database_url
-        )
-        session_factory = create_session_factory(
-            self._settings.model_copy(update={"database_url": database_url})
-        )
+        database_url = runtime_database_url(self._settings)
+        session_factory = create_session_factory(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory)
         provider = RiceOnlyFakeReasoningModelProvider()
         graph = MealAnalysisGraph(provider=provider, tools=tools)
@@ -64,7 +58,11 @@ class PersistedAgentRuntimeFactory:
         self._saver_context = context
         checkpointer = await context.__aenter__()
         return AgentRuntime(
-            graph=graph, tools=tools, checkpointer=checkpointer, supervisor=supervisor
+            graph=graph,
+            tools=tools,
+            checkpointer=checkpointer,
+            supervisor=supervisor,
+            session_factory=session_factory,
         )
 
     async def close(self, runtime: AgentRuntime | None) -> None:

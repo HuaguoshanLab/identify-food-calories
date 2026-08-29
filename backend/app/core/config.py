@@ -124,6 +124,18 @@ def validate_test_database_configuration(settings: Settings) -> str:
     return normalize_database_url(settings.test_database_url)
 
 
+def runtime_database_url(settings: Settings) -> str:
+    """Select the already-validated isolated target only for an explicit test runtime.
+
+    This preserves DATABASE_URL as a development sentinel while ensuring all FastAPI modules
+    (authentication and Agent alike) share one real, disposable PostgreSQL database in tests.
+    """
+
+    if settings.app_env == "test":
+        return validate_test_database_configuration(settings)
+    return settings.database_url
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Load and cache settings only after all environment guards pass."""

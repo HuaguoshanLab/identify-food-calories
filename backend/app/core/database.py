@@ -7,14 +7,14 @@ from collections.abc import Generator
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings, get_settings, runtime_database_url
 
 
 def create_application_engine(settings: Settings | None = None) -> Engine:
     """Create an engine only from DATABASE_URL for normal application runtime."""
 
     active_settings = settings or get_settings()
-    return create_engine(active_settings.database_url, pool_pre_ping=True)
+    return create_engine(runtime_database_url(active_settings), pool_pre_ping=True)
 
 
 def create_session_factory(settings: Settings | None = None) -> sessionmaker[Session]:
