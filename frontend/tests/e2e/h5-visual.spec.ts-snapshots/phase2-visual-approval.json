@@ -1,0 +1,22 @@
+{
+  "schema_version": "phase2-visual-approval.v1",
+  "status": "approved_candidate_not_promoted",
+  "approved_at": "2026-08-29T08:50:45Z",
+  "approval_source": "user explicit SHA-256 approval",
+  "candidate": {
+    "path": "frontend/tests/e2e/h5-visual.spec.ts-snapshots/analyze-phase2-candidate-430-chromium-darwin.png",
+    "sha256": "530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562"
+  },
+  "official_baseline": {
+    "path": "frontend/tests/e2e/h5-visual.spec.ts-snapshots/analyze-430-chromium-darwin.png",
+    "sha256": "fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a"
+  },
+  "promotion": {
+    "performed": false,
+    "reason": "Plan 02-17 checkpoint permits read-only candidate approval and forbids modifying the official baseline."
+  },
+  "independent_gates": {
+    "expert_signoff": "pending",
+    "promptfoo_release": "pending"
+  }
+}

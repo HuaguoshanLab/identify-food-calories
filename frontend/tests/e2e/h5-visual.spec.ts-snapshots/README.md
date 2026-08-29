@@ -22,7 +22,8 @@
 | `account-430-chromium-darwin.png` | 账号资料 |
 | `sessions-430-chromium-darwin.png` | 登录会话 |
 | `revoke-dialog-430-chromium-darwin.png` | 撤销会话确认弹窗 |
-| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate，受控目录食物名以中文显示；等待 02-17 人工审批，绝不是 official baseline。 |
+| `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面 candidate，受控目录食物名以中文显示；已获精确 SHA 人工批准，仍不是 official baseline。 |
+| `phase2-visual-approval.json` | 用户对 Phase 2 candidate 的精确 SHA 批准、official SHA 与时间；记录不晋升 official 的 Plan 02-17 范围约束。 |
 
 ## Phase 2 Candidate Integrity
 
@@ -32,3 +33,5 @@
 - official after: `fba54a9449177837dc6f2496d29e479ad26b3b7d0b707de52c2ca6018df2ab4a`
 - candidate: `530b6bde4cb90cf7d8a99919c76317c58a34b598fa5ed764b7d8adc7f1d47562`
 - `cmp`: PASS
+
+`phase2-visual-approval.json` 记录了用户于 `2026-08-29T08:50:45Z` 对上述 candidate SHA 的显式批准。Plan 02-17 只允许审查/记录 candidate，仍禁止改写 official baseline；专家签署和 Promptfoo release 门也不因视觉批准而通过。
