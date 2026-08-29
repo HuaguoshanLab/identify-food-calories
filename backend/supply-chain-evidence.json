@@ -1,6 +1,6 @@
 {
   "schema_version": "supply-chain-evidence/v1",
-  "generated_at": "2026-08-29T04:00:00Z",
+  "generated_at": "2026-08-29T03:45:00Z",
   "status": "approved",
   "manual_manifest": {
     "packages": [
@@ -13,7 +13,7 @@
         "repository_url": "https://github.com/langchain-ai/langgraph/tree/main/libs/langgraph",
         "license": "MIT",
         "published_at": "2026-08-11T14:00:35.494718Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "850c84cc877c90ffe8003bd043aed799339964ee28e325ba845dd1be3fd0ebaa"
       },
@@ -26,7 +26,7 @@
         "repository_url": "https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres",
         "license": "MIT",
         "published_at": "2026-08-07T20:39:58.994834Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "234b49dfd9744aef8aae10d702b41f051f1daedf8c85084d2ec7c9ae3cd5fba4"
       },
@@ -39,7 +39,7 @@
         "repository_url": "https://github.com/rexxars/eventsource-parser",
         "license": "MIT",
         "published_at": "2026-05-27T20:55:51.466Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "8af106a91c42739f9e7ea2dcc2d56965a7c30129f28763ab99caa14f5a5eec32"
       },
@@ -52,7 +52,7 @@
         "repository_url": "https://github.com/Arize-ai/phoenix",
         "license": "Elastic-2.0",
         "published_at": "2026-08-17T21:57:48.067754Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "a35b5f7925adab108c55dc905fad803db2baa68417d3bdd6ec03fad6903e39ee"
       },
@@ -65,7 +65,7 @@
         "repository_url": "https://github.com/Arize-ai/phoenix",
         "license": "Apache-2.0",
         "published_at": "2026-08-10T17:36:28.038156Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "4291cc504be23f86ea4d15b7defddc519bdbf78c75a5d82d05d6387477ca31de"
       },
@@ -78,7 +78,7 @@
         "repository_url": "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-langchain",
         "license": "Apache-2.0",
         "published_at": "2026-08-25T05:32:52.232175Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "d1a417cdf04a0f6a42ff3124e382580c6590e6cf2e0a05137e7b322ad80a596f"
       },
@@ -91,11 +91,11 @@
         "repository_url": "https://github.com/promptfoo/promptfoo",
         "license": "MIT",
         "published_at": "2026-08-04T17:57:34.633Z",
-        "checked_at": "2026-08-29T04:00:00Z",
+        "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "d575776647a7cbdc3acfdbdb4cb0d47308f463280a6ac32ce050cc57f274b531"
       }
     ],
-    "manifest_sha256": "34eaf5e6fa571b4f653a60265c708c87d472f3acbf1e42a52c5bb4a3beeef92c"
+    "manifest_sha256": "174611b609eaf65a61c34217e2bfb629c801ee021706f3d73a8acce223fa331a"
   }
 }

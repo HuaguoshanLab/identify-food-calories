@@ -67,12 +67,12 @@ def _as_string(value: object, path: str) -> str:
     return value
 
 
-def _validate_timestamp(value: object, path: str) -> None:
+def _validate_timestamp(value: object, path: str) -> datetime:
     text = _as_string(value, path)
     if not text.endswith("Z"):
         raise ValidationError(f"{path} must be an ISO-8601 UTC timestamp ending in Z")
     try:
-        datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as error:
         raise ValidationError(f"{path} must be an ISO-8601 timestamp") from error
 
@@ -100,7 +100,9 @@ def build_manifest_hash(manifest: dict[str, object]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _validate_package(record: object, index: int) -> tuple[str, str, str]:
+def _validate_package(
+    record: object, index: int, evidence_generated_at: datetime
+) -> tuple[str, str, str]:
     package = _as_object(record, f"packages[{index}]")
     actual_fields = set(package)
     if actual_fields != PACKAGE_FIELDS:
@@ -130,8 +132,14 @@ def _validate_package(record: object, index: int) -> tuple[str, str, str]:
     _as_string(package["owner"], f"packages[{index}].owner")
     _validate_https_url(package["repository_url"], f"packages[{index}].repository_url")
     _as_string(package["license"], f"packages[{index}].license")
-    _validate_timestamp(package["published_at"], f"packages[{index}].published_at")
-    _validate_timestamp(package["checked_at"], f"packages[{index}].checked_at")
+    published_at = _validate_timestamp(package["published_at"], f"packages[{index}].published_at")
+    checked_at = _validate_timestamp(package["checked_at"], f"packages[{index}].checked_at")
+    if checked_at < published_at:
+        raise ValidationError(f"packages[{index}].checked_at must not precede published_at")
+    if checked_at > evidence_generated_at:
+        raise ValidationError(
+            f"packages[{index}].checked_at must not follow evidence.generated_at"
+        )
     _as_string(package["reviewer"], f"packages[{index}].reviewer")
     _validate_sha256(
         package["registry_response_sha256"],
@@ -140,10 +148,15 @@ def _validate_package(record: object, index: int) -> tuple[str, str, str]:
     return name, ecosystem, version
 
 
-def _validate_exact_package_set(records: object, path: str) -> None:
+def _validate_exact_package_set(
+    records: object, path: str, evidence_generated_at: datetime
+) -> None:
     if not isinstance(records, list):
         raise ValidationError(f"{path} must be a list")
-    actual = {_validate_package(record, index) for index, record in enumerate(records)}
+    actual = {
+        _validate_package(record, index, evidence_generated_at)
+        for index, record in enumerate(records)
+    }
     if len(actual) != len(records):
         raise ValidationError(f"{path} contains duplicate package records")
     if actual != EXPECTED_PACKAGE_SET:
@@ -152,7 +165,7 @@ def _validate_exact_package_set(records: object, path: str) -> None:
         )
 
 
-def _validate_manual_manifest(value: object) -> None:
+def _validate_manual_manifest(value: object, evidence_generated_at: datetime) -> None:
     manifest = _as_object(value, "manual_manifest")
     if set(manifest) != {"packages", "manifest_sha256"}:
         raise ValidationError("manual_manifest must contain only packages and manifest_sha256")
@@ -160,10 +173,12 @@ def _validate_manual_manifest(value: object) -> None:
     expected_hash = build_manifest_hash(manifest)
     if manifest["manifest_sha256"] != expected_hash:
         raise ValidationError("manual_manifest.manifest_sha256 does not match canonical content")
-    _validate_exact_package_set(manifest["packages"], "manual_manifest.packages")
+    _validate_exact_package_set(
+        manifest["packages"], "manual_manifest.packages", evidence_generated_at
+    )
 
 
-def _validate_scanner(value: object) -> None:
+def _validate_scanner(value: object, evidence_generated_at: datetime) -> None:
     scanner = _as_object(value, "scanner")
     required = {*SCANNER_IDENTITY, "invocation", "package_results"}
     if set(scanner) != required:
@@ -176,7 +191,9 @@ def _validate_scanner(value: object) -> None:
         raise ValidationError("scanner.invocation must record a non-empty structured command")
     if any(not isinstance(argument, str) or not argument for argument in invocation):
         raise ValidationError("scanner.invocation arguments must be non-empty strings")
-    _validate_exact_package_set(scanner["package_results"], "scanner.package_results")
+    _validate_exact_package_set(
+        scanner["package_results"], "scanner.package_results", evidence_generated_at
+    )
 
 
 def validate_evidence(evidence: object) -> None:
@@ -188,7 +205,7 @@ def validate_evidence(evidence: object) -> None:
             raise ValidationError(f"evidence.{field} is required")
     if document["schema_version"] != SCHEMA_VERSION:
         raise ValidationError(f"evidence.schema_version must be {SCHEMA_VERSION}")
-    _validate_timestamp(document["generated_at"], "evidence.generated_at")
+    generated_at = _validate_timestamp(document["generated_at"], "evidence.generated_at")
     status = document["status"]
     if status == "pending":
         _as_string(document.get("reason"), "evidence.reason")
@@ -204,9 +221,9 @@ def validate_evidence(evidence: object) -> None:
     if unexpected:
         raise ValidationError(f"evidence has unexpected fields: {sorted(unexpected)}")
     if approval_branches[0] == "scanner":
-        _validate_scanner(document["scanner"])
+        _validate_scanner(document["scanner"], generated_at)
     else:
-        _validate_manual_manifest(document["manual_manifest"])
+        _validate_manual_manifest(document["manual_manifest"], generated_at)
 
 
 def _load_json(path: Path) -> object:

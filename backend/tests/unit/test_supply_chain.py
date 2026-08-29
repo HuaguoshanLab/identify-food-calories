@@ -104,6 +104,30 @@ def test_complete_human_manifest_for_exact_package_set_passes() -> None:
             ),
             "published_at",
         ),
+        (
+            lambda evidence: evidence["manual_manifest"]["packages"][0].__setitem__(
+                "checked_at", "2026-08-28T00:00:00Z"
+            ),
+            "must not precede",
+        ),
+        (
+            lambda evidence: evidence["manual_manifest"]["packages"][0].__setitem__(
+                "registry_url", "https://registry.example/langgraph/1.2.11"
+            ),
+            "registry_url",
+        ),
+        (
+            lambda evidence: evidence["manual_manifest"]["packages"][0].__setitem__(
+                "repository_url", "http://github.com/example/langgraph"
+            ),
+            "repository_url",
+        ),
+        (
+            lambda evidence: evidence["manual_manifest"]["packages"][0].__setitem__(
+                "license", ""
+            ),
+            "license",
+        ),
     ],
 )
 def test_human_manifest_tampering_or_missing_fields_fails(
@@ -144,6 +168,16 @@ def test_unknown_or_unpinned_scanner_is_rejected_even_when_present() -> None:
     }
 
     with pytest.raises(ValidationError, match="scanner_name"):
+        validate_evidence(evidence)
+
+
+def test_duplicate_package_records_are_rejected_after_manifest_hash_is_recomputed() -> None:
+    evidence = _approved_manual_evidence()
+    manifest = evidence["manual_manifest"]
+    manifest["packages"][1] = copy.deepcopy(manifest["packages"][0])
+    manifest["manifest_sha256"] = build_manifest_hash(manifest)
+
+    with pytest.raises(ValidationError, match="duplicate"):
         validate_evidence(evidence)
 
 
