@@ -13,5 +13,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `AnalyzePage.tsx` | 受保护分析 Tab 的文字输入、快照报告和可恢复状态。 |
-| `AnalyzePage.test.tsx` | 输入校验与权威完成快照的行为测试。 |
+| `AnalyzePage.tsx` | 受保护分析 Tab 的文字输入、集中追问、partial 披露、权威快照报告与定向修正。 |
+| `AnalyzePage.test.tsx` | 输入校验、集中候选不自动选择与权威快照行为测试。 |

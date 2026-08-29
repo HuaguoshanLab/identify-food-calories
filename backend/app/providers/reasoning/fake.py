@@ -145,7 +145,7 @@ class RiceOnlyFakeReasoningModelProvider(FakeReasoningModelProvider):
 
     async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
         normalized = " ".join(request.meal_description.casefold().split())
-        if normalized in {"米饭 100 克", "米饭100克", "cooked rice 100 g"}:
+        if normalized in {"米饭", "米饭 100 克", "米饭100克", "cooked rice 100 g"}:
             outcome = ParseMealResult(
                 value=ParsedMealDTO(
                     items=[
@@ -153,7 +153,7 @@ class RiceOnlyFakeReasoningModelProvider(FakeReasoningModelProvider):
                             item_id="rice-1",
                             food_name="米饭",
                             catalog_query="米饭",
-                            grams=Decimal("100"),
+                            grams=None if normalized == "米饭" else Decimal("100"),
                         )
                     ]
                 ),

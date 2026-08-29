@@ -90,7 +90,7 @@ def _snapshot(service: AgentService, *, thread_id: uuid.UUID, user_id: uuid.UUID
     report: dict[str, object] | None = None
     for event in reversed(events):
         candidate = event.payload.get("report")
-        if event.event_type == "completed" and isinstance(candidate, dict):
+        if event.event_type in {"completed", "waiting_input"} and isinstance(candidate, dict):
             report = candidate
             break
     return AgentThreadSnapshot(thread_id=thread.id, status=_status(run.status if run else None), revision=thread.revision, report=report)

@@ -15,8 +15,8 @@
 |---|---|
 | `test_supply_chain.py` | 验证 Phase 2 新增依赖的版本化、fail-closed 供应链证据门 |
 | `test_test_database_guards.py` | 证明测试数据库配置拒绝危险回退 |
-| `test_runtime_foundation.py` | 验证版本化健康端点、Agent ledger/State 与 Graph→tool import 边界 |
+| `test_runtime_foundation.py` | 验证版本化健康端点、Agent ledger/State、Graph→tool 边界、集中追问与 dirty-item 局部重算 |
 | `test_nutrition.py` | 用内存 fake repository 锁定受控营养查询、Decimal 计算和确定性校验动作 |
-| `test_eval_dataset.py` | 验证 Phase 2 冻结主路径语义、分类门与 append-only hash 链 |
+| `test_eval_dataset.py` | 验证 14 个 Phase 2 冻结语义案例、分类门与 append-only hash 链 |
 | `test_nutrition_importer.py` | 验证离线 FDC manifest hash、资格边界与幂等 import 语义 |
 | `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |

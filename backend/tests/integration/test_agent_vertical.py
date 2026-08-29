@@ -93,3 +93,56 @@ def test_direct_grams_real_pg_api_sse_and_checkpoint() -> None:
             assert connection.scalar(text("SELECT count(*) FROM checkpoints")) >= 1
     finally:
         engine.dispose()
+
+
+def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> None:
+    """A public text reply resumes the same tenant-bound checkpoint, then permits a correction."""
+
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run([sys.executable, "scripts/run_initialized_app.py", "--prepare-only"], cwd=BACKEND_ROOT, env=os.environ.copy(), check=True)
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            user, _auth_session, token = _create_user(session, label="clarification")
+            authentication = AuthenticationService(
+                repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback,
+            )
+            application = create_app(settings)
+            application.dependency_overrides[get_authentication_service] = lambda: authentication
+            headers = {"Authorization": f"Bearer {token}"}
+            with TestClient(application) as client:
+                created = client.post("/api/v1/agent/threads", json={"input_text": "米饭"}, headers=headers)
+                assert created.status_code == 201, created.text
+                waiting = created.json()
+                assert waiting["status"] == "waiting"
+                assert len(waiting["report"]["questions"]) == 1
+                thread_id = waiting["thread_id"]
+                first_run = session.query(AgentRun).filter_by(thread_id=uuid.UUID(thread_id)).one()
+                assert first_run.model_calls == 1 and first_run.tool_calls == 0
+
+                resumed = client.post(
+                    f"/api/v1/agent/threads/{thread_id}/input",
+                    json={"kind": "description", "text": "100 克"}, headers=headers,
+                )
+                assert resumed.status_code == 202, resumed.text
+                snapshot = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers).json()
+                assert snapshot["status"] == "completed"
+                session.expire_all()
+                same_run = session.query(AgentRun).filter_by(id=first_run.id).one()
+                assert same_run.model_calls == 1 and same_run.tool_calls == 3
+
+                correction = client.post(
+                    f"/api/v1/agent/threads/{thread_id}/input",
+                    json={"kind": "description", "text": '{"corrections":{"rice-1":{"grams":"150"}}}'}, headers=headers,
+                )
+                assert correction.status_code == 202, correction.text
+                assert correction.json()["status"] == "completed", correction.text
+                corrected = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers).json()
+                assert corrected["report"]["totals"]["energy_kcal"] == "195.0"
+                latest = session.query(AgentRun).filter_by(thread_id=uuid.UUID(thread_id)).order_by(AgentRun.created_at.desc()).first()
+                assert latest is not None and latest.model_calls == 0 and latest.tool_calls == 2
+                assert session.query(AgentRun).filter_by(user_id=user.id).count() == 2
+    finally:
+        engine.dispose()

@@ -3,14 +3,151 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import inspect
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+
+
+class _RecordingNutritionTools:
+    """Deterministic test double that records item-scoped tool calls, not model values."""
+
+    def __init__(self) -> None:
+        from app.nutrition.schemas import NutritionValues, QualifiedFood
+
+        self.rice = QualifiedFood(
+            id=uuid.UUID('11111111-1111-4111-8111-111111111111'), canonical_name='熟米饭',
+            catalog_version='fdc-v1', prepared_state='cooked', source_name='FDC',
+            source_url='https://fdc.example/rice', license_name='CC0', aliases=('米饭',),
+            nutrients_per_100g=NutritionValues(energy_kcal=Decimal('130'), protein_g=Decimal('2.7'), fat_g=Decimal('0.3'), carbohydrate_g=Decimal('28.2')),
+        )
+        self.egg = QualifiedFood(
+            id=uuid.UUID('22222222-2222-4222-8222-222222222222'), canonical_name='鸡蛋',
+            catalog_version='fdc-v1', prepared_state='whole', source_name='FDC',
+            source_url='https://fdc.example/egg', license_name='CC0', aliases=('鸡蛋',),
+            nutrients_per_100g=NutritionValues(energy_kcal=Decimal('143'), protein_g=Decimal('12.6'), fat_g=Decimal('9.5'), carbohydrate_g=Decimal('0.7')),
+        )
+        self.calls: list[tuple[str, str]] = []
+
+    def search_food_catalog(self, request: object):
+        from app.nutrition.schemas import FoodSearchResult, NutritionAction
+
+        query = request.query
+        self.calls.append(('search', query))
+        if query == 'ambiguous':
+            return FoodSearchResult(action=NutritionAction.ASK, query=query, candidates=(self.rice, self.egg), safe_message='choose')
+        if query == 'unknown':
+            return FoodSearchResult(action=NutritionAction.ASK, query=query, safe_message='unknown')
+        food = self.egg if query == '鸡蛋' else self.rice
+        return FoodSearchResult(action=NutritionAction.PASS, query=query, selected_food=food, safe_message='matched')
+
+    def calculate_nutrition(self, request: object):
+        from app.nutrition.schemas import NutritionAction, NutritionCalculationResult, NutritionValues
+
+        food = self.egg if request.food_id == self.egg.id else self.rice
+        self.calls.append(('calculate', str(food.id)))
+        factor = request.grams / Decimal('100')
+        source = food.nutrients_per_100g
+        return NutritionCalculationResult(
+            action=NutritionAction.PASS, food=food, grams=request.grams,
+            nutrients=NutritionValues(energy_kcal=source.energy_kcal * factor, protein_g=source.protein_g * factor, fat_g=source.fat_g * factor, carbohydrate_g=source.carbohydrate_g * factor),
+            safe_message='calculated',
+        )
+
+    def validate_nutrition_result(self, request: object):
+        from app.nutrition.schemas import NutritionAction, NutritionValidationResult
+
+        self.calls.append(('validate', str(request.calculation.food.id)))
+        return NutritionValidationResult(action=NutritionAction.PASS, rule_id='pass', safe_message='valid')
+
+
+def _initial_state() -> object:
+    from app.agent.state import MealAgentState
+
+    return MealAgentState(
+        user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=('test meal',),
+        graph_version='graph-v1', prompt_version='prompt-v1', tool_version='tools-v1',
+    )
+
+
+def _graph_with_items(*items: object):
+    from app.agent.graph import MealAnalysisGraph
+    from app.providers.reasoning.dto import ParsedMealDTO
+    from app.providers.reasoning.fake import FakeReasoningModelProvider
+
+    provider = FakeReasoningModelProvider()
+    provider.queue_parse_result(ParsedMealDTO(items=list(items)))
+    tools = _RecordingNutritionTools()
+    return MealAnalysisGraph(provider=provider, tools=tools), provider, tools
+
+
+def test_graph_aggregates_questions_and_resume_does_not_repeat_parse() -> None:
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, provider, tools = _graph_with_items(
+        ParsedMealItemDTO(item_id='rice-1', food_name='米饭', catalog_query='米饭'),
+        ParsedMealItemDTO(item_id='egg-1', food_name='鸡蛋', catalog_query='鸡蛋'),
+    )
+    waiting = asyncio.run(graph.ainvoke(_initial_state()))
+
+    assert waiting.status.value == 'waiting_input'
+    assert {question.item_id for question in waiting.clarification_questions} == {'rice-1', 'egg-1'}
+    assert len(provider.calls) == 1
+    assert tools.calls == []
+
+    completed = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'rice-1': {'grams': '100'}, 'egg-1': {'grams': '55'}}}))
+
+    assert completed.status.value == 'completed'
+    assert len(provider.calls) == 1
+    assert completed.report is not None and completed.report['is_partial'] is False
+    assert len(tools.calls) == 6
+
+
+def test_graph_never_auto_selects_ambiguous_candidate_and_keeps_invalid_resume_waiting() -> None:
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, provider, tools = _graph_with_items(
+        ParsedMealItemDTO(item_id='food-1', food_name='米饭', catalog_query='ambiguous', grams=Decimal('100')),
+    )
+    waiting = asyncio.run(graph.ainvoke(_initial_state()))
+
+    assert waiting.status.value == 'waiting_input'
+    question = waiting.clarification_questions[0]
+    assert question.field == 'food' and len(question.candidates) == 2
+    assert waiting.items[0].food_id is None
+    invalid = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'food-1': {'candidate_id': str(uuid.uuid4())}}}))
+    assert invalid == waiting and len(provider.calls) == 1 and len(tools.calls) == 1
+
+    completed = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'food-1': {'candidate_id': str(question.candidates[0].food_id)}}}))
+    assert completed.status.value == 'completed' and len(provider.calls) == 1
+
+
+def test_graph_partial_and_correction_recalculate_only_dirty_item() -> None:
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, _provider, tools = _graph_with_items(
+        ParsedMealItemDTO(item_id='rice-1', food_name='米饭', catalog_query='米饭', grams=Decimal('100')),
+        ParsedMealItemDTO(item_id='unknown-1', food_name='未知菜', catalog_query='unknown', grams=Decimal('50')),
+    )
+    partial = asyncio.run(graph.ainvoke(_initial_state()))
+    assert partial.status.value == 'completed'
+    assert partial.report is not None and partial.report['is_partial'] is True
+    assert partial.unaccounted_items == ('unknown-1',)
+    calls_before = list(tools.calls)
+
+    corrected = asyncio.run(graph.ainvoke(partial, resume={'corrections': {'rice-1': {'grams': '150'}}}))
+    assert corrected.status.value == 'completed'
+    assert corrected.items[1].nutrients is None
+    assert tools.calls[len(calls_before):] == [
+        ('calculate', '11111111-1111-4111-8111-111111111111'),
+        ('validate', '11111111-1111-4111-8111-111111111111'),
+    ]
 
 
 def test_health_endpoint_has_versioned_stable_contract() -> None:

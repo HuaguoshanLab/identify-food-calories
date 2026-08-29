@@ -14,5 +14,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `phase02-cases.jsonl` | append-only 的 Phase 2 冻结案例及可复算 hash 链 |
-| `validate_dataset.py` | 结构、主路径语义、敏感字段和 hash 链的离线 fail-closed 校验器 |
+| `phase02-cases.jsonl` | append-only 的 5 happy、5 missing/ambiguity、4 correction 冻结案例及可复算 hash 链 |
+| `validate_dataset.py` | 结构、主路径/追问/修正语义、敏感字段和 hash 链的离线 fail-closed 校验器 |

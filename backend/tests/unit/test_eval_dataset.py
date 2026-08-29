@@ -26,8 +26,8 @@ def _dataset() -> Path:
 def _validate(path: Path) -> None:
     validate_dataset(
         path,
-        expected_count=5,
-        expected_composition={"happy": 5},
+        expected_count=14,
+        expected_composition={"happy": 5, "missing_ambiguity": 5, "correction": 4},
         required_happy_tags=REQUIRED_TAGS,
     )
 

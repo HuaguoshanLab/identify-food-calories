@@ -201,8 +201,10 @@ class AgentService:
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
         run.graph_steps = max(run.graph_steps, 1)
-        run.model_calls = max(run.model_calls, 1)
-        run.tool_calls = len(finished.tool_summaries)
+        if previous is None and input_text is not None:
+            run.model_calls = max(run.model_calls, 1)
+        prior_tool_calls = len(previous.tool_summaries) if previous is not None else 0
+        run.tool_calls = max(run.tool_calls, len(finished.tool_summaries) - prior_tool_calls)
         run.updated_at = self._now()
         if finished.status is AgentRuntimeStatus.WAITING_INPUT:
             run.status = "waiting_input"
@@ -298,8 +300,17 @@ class AgentService:
 
         saver = checkpointer
         checkpoint = empty_checkpoint()
+        # This application keeps one latest resumable meal-analysis snapshot per thread.  The
+        # saver orders arbitrary checkpoint IDs lexically, so a fresh `empty_checkpoint()` ID
+        # can make an older waiting state look newer than a completed resume.  A stable thread
+        # UUID turns this into an intentional upsert while the business ledger remains the
+        # authority for ownership, audit and SSE.
+        checkpoint["id"] = str(state.thread_id)
         checkpoint["channel_values"] = {"agent_state": state.model_dump(mode="json")}
-        checkpoint["channel_versions"] = {"agent_state": "0000000000000001.0"}
+        # Every persisted state is a new immutable blob version.  Reusing a version would leave
+        # the checkpoint row pointing at an old waiting snapshot after a successful resume.
+        state_version = uuid.uuid4().hex
+        checkpoint["channel_versions"] = {"agent_state": state_version}
         await saver.aput(  # type: ignore[attr-defined]
             {
                 "configurable": {
@@ -309,7 +320,7 @@ class AgentService:
             },
             checkpoint,
             {"source": "loop", "step": 1, "parents": {}},
-            {"agent_state": "0000000000000001.0"},
+            {"agent_state": state_version},
         )
 
     def append_safe_event(

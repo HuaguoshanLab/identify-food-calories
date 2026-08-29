@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = "phase02-case.v1"
-ALLOWED_CATEGORIES = {"happy", "missing_ambiguity", "validation_budget"}
+ALLOWED_CATEGORIES = {"happy", "missing_ambiguity", "correction", "validation_budget"}
 HAPPY_TRACE = (
     "parse_input",
     "search_food_catalog",
@@ -40,6 +40,14 @@ FORBIDDEN_HAPPY_ASSERTIONS = {
 }
 TAG_CATEGORY = {
     "out_of_catalog": "missing_ambiguity",
+    "missing_grams": "missing_ambiguity",
+    "ambiguous_candidate": "missing_ambiguity",
+    "cooking_state": "missing_ambiguity",
+    "edible_portion": "missing_ambiguity",
+    "quantity_correction": "correction",
+    "rename_correction": "correction",
+    "exclude_correction": "correction",
+    "consecutive_correction": "correction",
     "negative_grams": "validation_budget",
     "tool_failure": "validation_budget",
 }
@@ -108,6 +116,23 @@ def _validate_happy_case(record: dict[str, Any]) -> None:
         raise DatasetValidationError("happy cases cannot hide a boundary or tool failure")
 
 
+def _validate_missing_or_correction_case(record: dict[str, Any]) -> None:
+    expected = record["expected"]
+    report = expected["report"]
+    if record["category"] == "missing_ambiguity":
+        if expected["state"] not in {"waiting_input", "completed"}:
+            raise DatasetValidationError("missing or ambiguity cases require waiting or disclosed partial completion")
+        if not record["semantic_tags"]:
+            raise DatasetValidationError("missing or ambiguity cases require semantic coverage")
+    if record["category"] == "correction":
+        if expected["state"] != "completed" or not record["input"]["history"]:
+            raise DatasetValidationError("correction cases require completed state and prior history")
+        if not record["input"]["resume_payload"]:
+            raise DatasetValidationError("correction cases require a resume payload")
+    if report.get("is_partial") and not report.get("unaccounted_items"):
+        raise DatasetValidationError("partial reports must name unaccounted items")
+
+
 def _validate_record(record: dict[str, Any], *, sequence: int, parent_hash: str | None) -> str:
     required = {
         "schema_version",
@@ -149,6 +174,8 @@ def _validate_record(record: dict[str, Any], *, sequence: int, parent_hash: str 
             raise DatasetValidationError("semantic boundary has an invalid case category")
     if record["category"] == "happy":
         _validate_happy_case(record)
+    elif record["category"] in {"missing_ambiguity", "correction"}:
+        _validate_missing_or_correction_case(record)
     return record["case_hash"]
 
 
@@ -181,7 +208,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--dataset", required=True, type=Path)
     parser.add_argument("--expected-count", required=True, type=int)
     parser.add_argument("--expected-composition", required=True)
-    parser.add_argument("--require-happy-tags", required=True)
+    parser.add_argument("--require-happy-tags", default="")
     return parser.parse_args(argv)
 
 

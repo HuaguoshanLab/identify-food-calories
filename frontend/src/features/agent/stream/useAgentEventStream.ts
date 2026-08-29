@@ -17,7 +17,10 @@ type AgentEventStreamOptions = {
  */
 export function useAgentEventStream({ threadId, request, onEvent }: AgentEventStreamOptions) {
   const callbackRef = useRef(onEvent)
-  callbackRef.current = onEvent
+
+  useEffect(() => {
+    callbackRef.current = onEvent
+  }, [onEvent])
 
   useEffect(() => {
     if (!threadId) return
