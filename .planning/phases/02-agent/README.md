@@ -23,6 +23,7 @@
 | `02-01-PLAN.md` | 供应链证据门、依赖锁与实际执行环境同步计划 |
 | `02-01-SUMMARY.md` | 已批准依赖的 hash 证据、Python 3.11 hash lock 与实际环境同步执行摘要 |
 | `02-02-PLAN.md` | PostgreSQL 测试环境、初始化启动器与 Playwright 安全链计划 |
+| `02-02-SUMMARY.md` | fail-closed PostgreSQL wrapper、初始化顺序与 Playwright 安全接线执行摘要 |
 | `02-03-PLAN.md` | Reasoning Provider DTO、端口、Fake 与测试工厂计划 |
 | `02-04-PLAN.md` | Agent 前端 feature 骨架、SSE 解析依赖与逐级目录索引计划 |
 | `02-05-PLAN.md` | 冻结评测数据首批主路径与版本合同计划 |
