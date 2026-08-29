@@ -6,7 +6,11 @@ import hashlib
 import os
 import subprocess
 import sys
+from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy import create_engine, inspect, text
 
 from app.agent import models as agent_models
@@ -83,6 +87,92 @@ def _metadata_table_names() -> set[str]:
     return set(Base.metadata.tables).intersection(AGENT_CORE_TABLES)
 
 
+def _type_contract(
+    column_type: object, *, dialect: Dialect | None = None
+) -> tuple[str, int | None, int | None, int | None, bool | None]:
+    """Keep reflection differences honest while preserving type parameters and timezone."""
+
+    rendered_type = (
+        column_type.compile(dialect=dialect)  # type: ignore[union-attr]
+        if dialect is not None
+        else str(column_type)
+    )
+    rendered = rendered_type.replace(" WITH TIME ZONE", "")
+    return (
+        rendered,
+        getattr(column_type, "length", None),
+        getattr(column_type, "precision", None),
+        getattr(column_type, "scale", None),
+        getattr(column_type, "timezone", None),
+    )
+
+
+def _assert_live_schema_matches_metadata(database_url: str) -> None:
+    """Compare every 0004 ORM table's columns, named constraints, indexes and FKs."""
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        for table_name in sorted(AGENT_CORE_TABLES):
+            model = Base.metadata.tables[table_name]
+            columns = inspector.get_columns(table_name, schema="public")
+            assert [
+                (column["name"], _type_contract(column["type"]), column["nullable"])
+                for column in columns
+            ] == [
+                (
+                    column.name,
+                    _type_contract(column.type, dialect=engine.dialect),
+                    column.nullable,
+                )
+                for column in model.columns
+            ]
+            assert tuple(inspector.get_pk_constraint(table_name)["constrained_columns"]) == tuple(
+                column.name for column in model.primary_key.columns
+            )
+
+            assert {
+                constraint["name"] for constraint in inspector.get_check_constraints(table_name)
+            } == {
+                constraint.name
+                for constraint in model.constraints
+                if constraint.__class__.__name__ == "CheckConstraint"
+            }
+            assert {
+                (constraint["name"], tuple(constraint["column_names"]))
+                for constraint in inspector.get_unique_constraints(table_name)
+            } == {
+                (constraint.name, tuple(column.name for column in constraint.columns))
+                for constraint in model.constraints
+                if constraint.__class__.__name__ == "UniqueConstraint"
+            }
+            assert {
+                (index["name"], tuple(index["column_names"]), index["unique"])
+                for index in inspector.get_indexes(table_name)
+                if not index["unique"]
+            } == {
+                (index.name, tuple(column.name for column in index.columns), index.unique)
+                for index in model.indexes
+            }
+            assert {
+                (
+                    tuple(foreign_key["constrained_columns"]),
+                    foreign_key["referred_table"],
+                    foreign_key["options"].get("ondelete"),
+                )
+                for foreign_key in inspector.get_foreign_keys(table_name)
+            } == {
+                (
+                    tuple(element.parent.name for element in foreign_key.elements),
+                    foreign_key.elements[0].column.table.name,
+                    foreign_key.ondelete,
+                )
+                for foreign_key in model.foreign_key_constraints
+            }
+    finally:
+        engine.dispose()
+
+
 def test_0004_round_trip_matches_agent_and_nutrition_metadata_without_seed_data() -> None:
     test_url = _test_url()
     development_before = _schema_fingerprint(os.environ["DATABASE_URL"])
@@ -108,6 +198,7 @@ def test_0004_round_trip_matches_agent_and_nutrition_metadata_without_seed_data(
                 assert connection.scalar(text("SELECT count(*) FROM food_catalog_items")) == 0
         finally:
             engine.dispose()
+        _assert_live_schema_matches_metadata(test_url)
 
         _alembic("downgrade", "0003")
         engine = create_engine(test_url)
@@ -121,3 +212,11 @@ def test_0004_round_trip_matches_agent_and_nutrition_metadata_without_seed_data(
         _alembic("upgrade", "head")
 
     assert _schema_fingerprint(os.environ["DATABASE_URL"]) == development_before
+
+
+def test_0004_is_the_single_head_and_contains_no_seed_statement() -> None:
+    migration = Path("migrations/versions/0004_agent_core.py")
+    script = ScriptDirectory.from_config(Config("alembic.ini"))
+
+    assert script.get_heads() == ["0004"]
+    assert "INSERT" not in migration.read_text(encoding="utf-8").upper()

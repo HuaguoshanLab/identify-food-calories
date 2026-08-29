@@ -17,3 +17,4 @@
 | `0001_auth_foundation.py` | 用户、验证码、会话与 refresh token 权威 schema |
 | `0002_login_attempts.py` | HMAC-only 登录失败 bucket、窗口与封禁 schema |
 | `0003_admin_audit.py` | 管理员角色提升与不可省略审计证据 schema |
+| `0004_agent_core.py` | 无业务 seed 的 Agent ledger、删除意图与版本化 nutrition catalog schema |

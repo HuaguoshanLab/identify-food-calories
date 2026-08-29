@@ -183,3 +183,34 @@ class AgentLease(Base):
     holder_id: Mapped[str] = mapped_column(String(128), nullable=False)
     acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentDeletionIntent(Base):
+    """A durable, tenant-bound request for later bounded cascade deletion."""
+
+    __tablename__ = "agent_deletion_intents"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'failed')",
+            name="ck_agent_deletion_intents_status",
+        ),
+        CheckConstraint(
+            "purge_after >= requested_at", name="ck_agent_deletion_intents_purge_after"
+        ),
+        UniqueConstraint("thread_id", name="uq_agent_deletion_intents_thread"),
+        Index(
+            "ix_agent_deletion_intents_status_purge_after", "status", "purge_after"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    purge_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -63,6 +63,18 @@ def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
             "refresh_tokens",
             "login_attempts",
             "admin_role_audit",
+            "agent_threads",
+            "agent_runs",
+            "agent_events",
+            "agent_invocations",
+            "agent_leases",
+            "agent_deletion_intents",
+            "nutrition_catalogs",
+            "nutrition_catalog_versions",
+            "nutrition_sources",
+            "food_catalog_items",
+            "food_catalog_aliases",
+            "food_catalog_portions",
         } <= set(inspector.get_table_names())
         assert {item["name"] for item in inspector.get_check_constraints("users")} == {
             "ck_users_email_normalized",
@@ -83,7 +95,7 @@ def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
             "uq_refresh_tokens_token_digest"
         }
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
     finally:
         engine.dispose()
     assert _public_tables(development_url) == development_tables_before

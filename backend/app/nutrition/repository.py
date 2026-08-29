@@ -7,7 +7,12 @@ import uuid
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.nutrition.models import FoodCatalogAlias, FoodCatalogItem
+from app.nutrition.models import (
+    FoodCatalogAlias,
+    FoodCatalogItem,
+    NutritionCatalogVersion,
+    NutritionSource,
+)
 from app.nutrition.schemas import ControlledPortion, NutritionValues, QualifiedFood
 
 
@@ -32,7 +37,7 @@ class SqlAlchemyNutritionRepository:
     ) -> QualifiedFood | None:
         statement = self._qualified_statement().where(
             FoodCatalogItem.id == food_id,
-            FoodCatalogItem.catalog_version == catalog_version,
+            NutritionCatalogVersion.version == catalog_version,
         )
         item = self._session.scalar(statement)
         return self._to_qualified_food(item) if item is not None else None
@@ -44,7 +49,11 @@ class SqlAlchemyNutritionRepository:
             .options(
                 selectinload(FoodCatalogItem.aliases),
                 selectinload(FoodCatalogItem.portions),
+                selectinload(FoodCatalogItem.catalog_version),
+                selectinload(FoodCatalogItem.source),
             )
+            .join(NutritionCatalogVersion)
+            .join(NutritionSource)
             .where(
                 FoodCatalogItem.is_qualified.is_(True),
                 FoodCatalogItem.energy_kcal_per_100g.is_not(None),
@@ -65,11 +74,11 @@ class SqlAlchemyNutritionRepository:
         return QualifiedFood(
             id=item.id,
             canonical_name=item.canonical_name,
-            catalog_version=item.catalog_version,
+            catalog_version=item.catalog_version.version,
             prepared_state=item.prepared_state,
-            source_name=item.source_name,
-            source_url=item.source_url,
-            license_name=item.license_name,
+            source_name=item.source.source_name,
+            source_url=item.source.source_url,
+            license_name=item.source.license_name,
             aliases=tuple(alias.alias for alias in item.aliases if alias.is_controlled),
             portions=tuple(
                 ControlledPortion(

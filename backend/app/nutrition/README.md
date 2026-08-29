@@ -16,6 +16,6 @@
 |---|---|
 | `schemas.py` | 营养工具输入、输出、版本与封闭 action DTO |
 | `ports.py` | 可替换的 qualified catalog Repository Protocol |
-| `models.py` | 共享 Base 的权威营养目录 ORM 模型 |
+| `models.py` | 共享 Base 的 catalog/version/source/food/alias/portion 权威营养目录 ORM 模型 |
 | `repository.py` | flush-only SQLAlchemy 查询 adapter |
 | `service.py` | `search_food_catalog`、`calculate_nutrition`、`validate_nutrition_result` |

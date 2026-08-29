@@ -15,7 +15,7 @@
 | 文件 | 职责 |
 |---|---|
 | `__init__.py` | Python 包标识 |
-| `models.py` | thread/run/event/invocation/lease 的最小权威 ledger ORM |
+| `models.py` | thread/run/event/invocation/lease/deletion-intent 的最小权威 ledger ORM |
 | `ports.py` | Agent Service 的持久化 Protocol |
 | `repository.py` | flush-only SQLAlchemy Agent ledger adapter |
 | `service.py` | 所有权、命令幂等、事件、调用和租约事务边界 |
