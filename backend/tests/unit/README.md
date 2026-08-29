@@ -16,3 +16,4 @@
 | `test_supply_chain.py` | 验证 Phase 2 新增依赖的版本化、fail-closed 供应链证据门 |
 | `test_test_database_guards.py` | 证明测试数据库配置拒绝危险回退 |
 | `test_runtime_foundation.py` | 验证版本化健康端点的稳定合约 |
+| `test_nutrition.py` | 用内存 fake repository 锁定受控营养查询、Decimal 计算和确定性校验动作 |

@@ -80,28 +80,39 @@ class NutritionService:
                 action=NutritionAction.BLOCK,
                 safe_message="所选食物不属于当前可计算的营养目录版本。",
             )
-        if request.grams is None:
+        grams = request.grams
+        if grams is None and request.portion_description is not None:
+            portions = [
+                portion
+                for portion in food.portions
+                if portion.audited
+                and normalize_food_name(portion.description)
+                == normalize_food_name(request.portion_description)
+            ]
+            if len(portions) == 1:
+                grams = portions[0].grams
+        if grams is None:
             return NutritionCalculationResult(
                 action=NutritionAction.ASK,
                 safe_message="请提供可审计的克数或选择受控常见份量。",
             )
-        if request.grams <= 0:
+        if grams <= 0:
             return NutritionCalculationResult(
                 action=NutritionAction.ASK,
                 safe_message="份量必须大于 0 克，请更正后继续。",
             )
-        if request.grams > MAX_ITEM_GRAMS:
+        if grams > MAX_ITEM_GRAMS:
             return NutritionCalculationResult(
                 action=NutritionAction.BLOCK,
                 safe_message="单项份量超过安全计算上限，请拆分或更正输入。",
             )
 
-        factor = request.grams / HUNDRED_GRAMS
+        factor = grams / HUNDRED_GRAMS
         source = food.nutrients_per_100g
         return NutritionCalculationResult(
             action=NutritionAction.PASS,
             food=food,
-            grams=request.grams,
+            grams=grams,
             nutrients=NutritionValues(
                 energy_kcal=source.energy_kcal * factor,
                 protein_g=source.protein_g * factor,
