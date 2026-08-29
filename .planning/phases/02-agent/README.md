@@ -31,6 +31,7 @@
 | `02-06-PLAN.md` | 营养领域模型、Repository、Service 与确定性工具计划 |
 | `02-07-PLAN.md` | Agent 运行账本、事件、Graph State 与持久化基础计划 |
 | `02-08-PLAN.md` | Alembic、Checkpointer、FDC 导入与幂等初始化计划 |
+| `02-08-SUMMARY.md` | 离线 hash 受控 FDC seed、显式 Checkpointer setup 与真实 PostgreSQL 幂等初始化执行摘要 |
 | `02-09-PLAN.md` | Agent API 全量哨兵合同与 OpenAPI→TS/Zod/client 漂移门计划 |
 | `02-10-PLAN.md` | 登录用户文字餐食分析首个真实纵向 GREEN 计划 |
 | `02-11-PLAN.md` | interrupt/resume、集中追问与同线程恢复计划 |
