@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi.testclient import TestClient
 
 from app.main import create_app
 
 
-def test_all_agent_operations_require_authentication_and_return_one_sentinel() -> None:
-    """The predeclared surface must not accidentally expose an anonymous stub."""
+def test_all_agent_operations_require_authentication_without_starting_a_database_runtime() -> None:
+    """The frozen public surface never exposes an anonymous Agent operation."""
 
-    from app.agent.api import get_agent_principal
+    from app.agent.graph import NoopAgentRuntimeFactory
 
-    app = create_app()
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     thread_id = "00000000-0000-0000-0000-000000000001"
     calls = [
         ("post", "/api/v1/agent/threads", {"json": {"input_text": "米饭 100 克"}}),
@@ -30,13 +28,9 @@ def test_all_agent_operations_require_authentication_and_return_one_sentinel() -
     ]
 
     with TestClient(app) as client:
-        assert client.post("/api/v1/agent/threads", json={"input_text": "米饭"}).status_code == 401
-
-        app.dependency_overrides[get_agent_principal] = lambda: uuid.UUID(int=1)
         responses = [client.request(method, path, **kwargs) for method, path, kwargs in calls]
 
-    assert all(response.status_code == 501 for response in responses)
-    assert all(response.json()["error"]["code"] == "AGENT_NOT_IMPLEMENTED" for response in responses)
+    assert all(response.status_code == 401 for response in responses)
 
     openapi = app.openapi()
     operation_ids = {
