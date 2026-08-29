@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from typing import Any, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
-from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, AgentThread
+from app.agent.models import (
+    AgentDeletionIntent,
+    AgentEvent,
+    AgentInvocation,
+    AgentLease,
+    AgentRun,
+    AgentThread,
+)
 
 
 class SqlAlchemyAgentRepository:
@@ -148,3 +158,104 @@ class SqlAlchemyAgentRepository:
         self._session.add(lease)
         self._session.flush()
         return lease
+
+    def add_deletion_intent(self, intent: AgentDeletionIntent) -> AgentDeletionIntent:
+        self._session.add(intent)
+        self._session.flush()
+        return intent
+
+    def get_deletion_intent_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentDeletionIntent | None:
+        statement = select(AgentDeletionIntent).where(
+            AgentDeletionIntent.thread_id == thread_id,
+            AgentDeletionIntent.user_id == user_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def list_due_deletion_intents(self, *, due_at: datetime) -> list[AgentDeletionIntent]:
+        # This join makes the retention worker prove tenant binding in SQL before it receives
+        # any deletion candidate; a thread UUID is never sufficient authorization.
+        return list(
+            self._session.scalars(
+                select(AgentDeletionIntent)
+                .join(AgentThread, AgentThread.id == AgentDeletionIntent.thread_id)
+                .where(
+                    AgentDeletionIntent.status == "pending",
+                    AgentDeletionIntent.purge_after <= due_at,
+                    AgentDeletionIntent.user_id == AgentThread.user_id,
+                )
+                .order_by(AgentDeletionIntent.purge_after, AgentDeletionIntent.id)
+            )
+        )
+
+    def list_threads_inactive_before(self, *, cutoff: datetime) -> list[AgentThread]:
+        return list(
+            self._session.scalars(
+                select(AgentThread)
+                .where(
+                    AgentThread.deleted_at.is_(None),
+                    AgentThread.last_activity_at <= cutoff,
+                )
+                .order_by(AgentThread.last_activity_at, AgentThread.id)
+            )
+        )
+
+    def delete_events_for_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> int:
+        result = cast(
+            CursorResult[Any],
+            self._session.execute(
+                delete(AgentEvent).where(
+                    AgentEvent.thread_id == thread_id,
+                    AgentEvent.user_id == user_id,
+                )
+            ),
+        )
+        self._session.flush()
+        return int(result.rowcount or 0)
+
+    def list_runs_updated_before(self, *, cutoff: datetime) -> list[AgentRun]:
+        return list(
+            self._session.scalars(
+                select(AgentRun)
+                .join(AgentThread, AgentThread.id == AgentRun.thread_id)
+                .where(
+                    AgentRun.updated_at <= cutoff,
+                    AgentRun.user_id == AgentThread.user_id,
+                )
+                .order_by(AgentRun.updated_at, AgentRun.id)
+            )
+        )
+
+    def delete_run_for_user(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        run = self.get_run_for_user(run_id=run_id, user_id=user_id, for_update=True)
+        if run is None:
+            return False
+        self._session.delete(run)
+        self._session.flush()
+        return True
+
+    def delete_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        thread = self.get_thread_for_user(thread_id=thread_id, user_id=user_id, for_update=True)
+        if thread is None:
+            return False
+        self._session.delete(thread)
+        self._session.flush()
+        return True
+
+    def earliest_pending_deletion_at(self) -> datetime | None:
+        return self._session.scalar(
+            select(func.min(AgentDeletionIntent.purge_after)).where(
+                AgentDeletionIntent.status == "pending"
+            )
+        )
+
+    def earliest_thread_activity_at(self) -> datetime | None:
+        return self._session.scalar(
+            select(func.min(AgentThread.last_activity_at)).where(AgentThread.deleted_at.is_(None))
+        )
+
+    def earliest_run_updated_at(self) -> datetime | None:
+        return self._session.scalar(select(func.min(AgentRun.updated_at)))

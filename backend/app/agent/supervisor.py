@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.agent.models import AgentLease
 from app.agent.repository import SqlAlchemyAgentRepository
-from app.agent.service import AgentService
+from app.agent.retention import RetentionWorker
+from app.agent.service import AgentService, RetentionPolicy
 from app.core.tracing import DisabledTracingRuntime, TracingRuntime
 
 
@@ -37,6 +38,7 @@ class PostgresLeaseSupervisor:
         self._now = now or (lambda: datetime.now(UTC))
         self._tracing = tracing or DisabledTracingRuntime()
         self._started = False
+        self._retention_worker: RetentionWorker | None = None
 
     @property
     def started(self) -> bool:
@@ -49,10 +51,29 @@ class PostgresLeaseSupervisor:
 
     async def stop(self) -> None:
         try:
+            if self._retention_worker is not None:
+                await self._retention_worker.stop()
+                self._retention_worker = None
             self._tracing.flush()
         finally:
             self._tracing.shutdown()
             self._started = False
+
+    async def start_retention(
+        self, *, checkpointer: object, policy: RetentionPolicy
+    ) -> RetentionWorker:
+        """Attach the D-18 scheduler to the same real lifespan as Agent execution."""
+
+        if not self._started:
+            raise RuntimeError("lease supervisor has not started")
+        if self._retention_worker is None:
+            self._retention_worker = RetentionWorker(
+                session_factory=self._session_factory,
+                checkpointer=checkpointer,
+                policy=policy,
+            )
+            await self._retention_worker.start()
+        return self._retention_worker
 
     @contextmanager
     def run_span(

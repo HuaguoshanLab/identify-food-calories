@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import timedelta
 from typing import Any, cast
 
 from fastapi import FastAPI, Request
@@ -17,6 +18,7 @@ from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
 from app.agent.graph import AgentRuntime, AgentRuntimeFactory, MealAnalysisGraph
 from app.agent.supervisor import PostgresLeaseSupervisor
+from app.agent.service import RetentionPolicy
 from app.agent.tools import SessionNutritionToolAdapter
 from app.accounts.api import router as account_recovery_router
 from app.core.config import Settings, get_settings
@@ -57,6 +59,15 @@ class PersistedAgentRuntimeFactory:
         )
         self._saver_context = context
         checkpointer = await context.__aenter__()
+        await supervisor.start_retention(
+            checkpointer=checkpointer,
+            policy=RetentionPolicy(
+                checkpoint_event_days=self._settings.retention_checkpoint_event_days,
+                audit_days=self._settings.retention_audit_days,
+                deletion_due_delta=self._settings.retention_deletion_due_delta,
+                poll_interval=timedelta(seconds=self._settings.retention_poll_interval_seconds),
+            ),
+        )
         return AgentRuntime(
             graph=graph,
             tools=tools,

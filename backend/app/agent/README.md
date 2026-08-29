@@ -18,10 +18,11 @@
 | `models.py` | thread/run/event/invocation/lease/deletion-intent 的最小权威 ledger ORM |
 | `ports.py` | Agent Service 的持久化 Protocol |
 | `repository.py` | flush-only SQLAlchemy Agent ledger adapter |
-| `service.py` | 所有权、命令幂等、事件、调用和租约事务边界 |
+| `service.py` | 所有权、命令幂等、事件、调用、租约与 D-18 期限选择事务边界 |
+| `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早 7d/30d/删除期限唤醒，且只记录安全计数 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState |
 | `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
-| `supervisor.py` | 通过 Agent Service/Repository 领取 PostgreSQL 持久化 run lease 的生命周期组件 |
+| `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention Worker |
 | `schemas.py` | 与 ORM、Graph State、Provider DTO 分离的公开 Agent HTTP 请求/响应 schema |
 | `api.py` | 六个 Bearer-protected Agent operation 的稳定 OpenAPI/501 sentinel 合同 |

@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Protocol
 
-from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, AgentThread
+from app.agent.models import (
+    AgentDeletionIntent,
+    AgentEvent,
+    AgentInvocation,
+    AgentLease,
+    AgentRun,
+    AgentThread,
+)
 
 
 class AgentRepository(Protocol):
@@ -60,3 +68,29 @@ class AgentRepository(Protocol):
     ) -> AgentLease | None: ...
 
     def add_lease(self, lease: AgentLease) -> AgentLease: ...
+
+    def add_deletion_intent(self, intent: AgentDeletionIntent) -> AgentDeletionIntent: ...
+
+    def get_deletion_intent_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentDeletionIntent | None: ...
+
+    def list_due_deletion_intents(self, *, due_at: datetime) -> list[AgentDeletionIntent]: ...
+
+    def list_threads_inactive_before(self, *, cutoff: datetime) -> list[AgentThread]: ...
+
+    def delete_events_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID
+    ) -> int: ...
+
+    def list_runs_updated_before(self, *, cutoff: datetime) -> list[AgentRun]: ...
+
+    def delete_run_for_user(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> bool: ...
+
+    def delete_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> bool: ...
+
+    def earliest_pending_deletion_at(self) -> datetime | None: ...
+
+    def earliest_thread_activity_at(self) -> datetime | None: ...
+
+    def earliest_run_updated_at(self) -> datetime | None: ...

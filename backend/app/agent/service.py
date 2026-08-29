@@ -7,10 +7,18 @@ import json
 import re
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, AgentThread
+from app.agent.models import (
+    AgentDeletionIntent,
+    AgentEvent,
+    AgentInvocation,
+    AgentLease,
+    AgentRun,
+    AgentThread,
+)
 from app.agent.ports import AgentRepository
 from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState
 from app.agent.graph import AgentGraph
@@ -33,6 +41,26 @@ class AgentLeaseUnavailable(RuntimeError):
 GRAPH_VERSION = "meal-agent-graph.v1"
 PROMPT_VERSION = "reasoning-parse.v1"
 TOOL_VERSION = "nutrition-tools-v1"
+
+
+@dataclass(frozen=True, slots=True)
+class RetentionPolicy:
+    """Explicit retention periods supplied by the validated runtime configuration."""
+
+    checkpoint_event_days: int
+    audit_days: int
+    deletion_due_delta: timedelta
+    poll_interval: timedelta
+
+
+@dataclass(frozen=True, slots=True)
+class RetentionSweep:
+    """Tenant-bound work selected by Service before the worker touches the saver."""
+
+    due_deletions: tuple[tuple[uuid.UUID, uuid.UUID], ...]
+    inactive_threads: tuple[tuple[uuid.UUID, uuid.UUID], ...]
+    expired_runs: tuple[tuple[uuid.UUID, uuid.UUID], ...]
+    next_eligible_at: datetime | None
 
 
 def canonical_command_hash(command: dict[str, object]) -> str:
@@ -511,9 +539,102 @@ class AgentService:
         self._commit_or_rollback()
         return lease
 
+    def request_thread_deletion(
+        self,
+        *,
+        thread_id: uuid.UUID,
+        user_id: uuid.UUID,
+        policy: RetentionPolicy,
+    ) -> AgentDeletionIntent:
+        """Persist an idempotent deletion deadline before a worker can act on it."""
+
+        thread = self._repository.get_thread_for_user(
+            thread_id=thread_id, user_id=user_id, for_update=True
+        )
+        if thread is None:
+            raise AgentThreadUnavailable("agent thread is unavailable")
+        existing = self._repository.get_deletion_intent_for_thread_for_user(
+            thread_id=thread_id, user_id=user_id, for_update=True
+        )
+        if existing is not None:
+            return existing
+        requested_at = self._now()
+        thread.status = "deleted"
+        thread.deleted_at = requested_at
+        thread.revision += 1
+        intent = self._repository.add_deletion_intent(
+            AgentDeletionIntent(
+                id=uuid.uuid4(),
+                thread_id=thread_id,
+                user_id=user_id,
+                status="pending",
+                requested_at=requested_at,
+                # Leave one bounded scheduler interval before the externally visible 24h SLA.
+                purge_after=requested_at + policy.deletion_due_delta,
+                completed_at=None,
+            )
+        )
+        self._commit_or_rollback()
+        return intent
+
+    def retention_sweep(self, *, policy: RetentionPolicy) -> RetentionSweep:
+        """Select exactly scoped expired records; callers own saver I/O and process leasing."""
+
+        now = self._now()
+        due_deletions = tuple(
+            (intent.thread_id, intent.user_id)
+            for intent in self._repository.list_due_deletion_intents(due_at=now)
+        )
+        inactive_threads = tuple(
+            (thread.id, thread.user_id)
+            for thread in self._repository.list_threads_inactive_before(
+                cutoff=now - timedelta(days=policy.checkpoint_event_days)
+            )
+        )
+        expired_runs = tuple(
+            (run.id, run.user_id)
+            for run in self._repository.list_runs_updated_before(
+                cutoff=now - timedelta(days=policy.audit_days)
+            )
+        )
+        candidates = [
+            self._repository.earliest_pending_deletion_at(),
+            _add_days(self._repository.earliest_thread_activity_at(), policy.checkpoint_event_days),
+            _add_days(self._repository.earliest_run_updated_at(), policy.audit_days),
+        ]
+        return RetentionSweep(
+            due_deletions=due_deletions,
+            inactive_threads=inactive_threads,
+            expired_runs=expired_runs,
+            next_eligible_at=min((item for item in candidates if item is not None), default=None),
+        )
+
+    def finalize_thread_deletion(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Delete only the exact tenant/thread after its saver namespace is gone."""
+
+        deleted = self._repository.delete_thread_for_user(thread_id=thread_id, user_id=user_id)
+        self._commit_or_rollback()
+        return deleted
+
+    def purge_expired_thread_events(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> int:
+        deleted = self._repository.delete_events_for_thread_for_user(
+            thread_id=thread_id, user_id=user_id
+        )
+        self._commit_or_rollback()
+        return deleted
+
+    def purge_expired_run(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        deleted = self._repository.delete_run_for_user(run_id=run_id, user_id=user_id)
+        self._commit_or_rollback()
+        return deleted
+
     def _commit_or_rollback(self) -> None:
         try:
             self._commit()
         except Exception:
             self._rollback()
             raise
+
+
+def _add_days(value: datetime | None, days: int) -> datetime | None:
+    return value + timedelta(days=days) if value is not None else None
