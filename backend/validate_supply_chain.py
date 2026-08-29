@@ -115,7 +115,7 @@ def _validate_package(record: object, index: int) -> tuple[str, str, str]:
     version = _as_string(package["version"], f"packages[{index}].version")
     if ecosystem not in {"pypi", "npm"}:
         raise ValidationError(f"packages[{index}].ecosystem must be pypi or npm")
-    expected_registry_host = "pypi.org" if ecosystem == "pypi" else "www.npmjs.com"
+    expected_registry_host = "pypi.org" if ecosystem == "pypi" else "registry.npmjs.org"
     registry_url = _validate_https_url(
         package["registry_url"], f"packages[{index}].registry_url"
     )
@@ -227,7 +227,7 @@ def _self_test() -> None:
             "registry_url": (
                 f"https://pypi.org/project/{name}/{version}"
                 if ecosystem == "pypi"
-                else f"https://www.npmjs.com/package/{name}/v/{version}"
+                else f"https://registry.npmjs.org/{name}/{version}"
             ),
             "owner": "security-reviewer",
             "repository_url": f"https://github.com/example/{name}",

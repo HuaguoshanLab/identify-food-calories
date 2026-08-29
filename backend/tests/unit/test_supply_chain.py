@@ -21,7 +21,7 @@ HASH = "a" * 64
 
 
 def _manual_package(name: str, ecosystem: str, version: str) -> dict[str, str]:
-    registry = "https://pypi.org/project" if ecosystem == "pypi" else "https://www.npmjs.com/package"
+    registry = "https://pypi.org/project" if ecosystem == "pypi" else "https://registry.npmjs.org"
     return {
         "name": name,
         "ecosystem": ecosystem,
