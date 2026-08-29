@@ -46,10 +46,10 @@ class Settings(BaseSettings):
     tracing_hmac_key: SecretStr | None = None
     tracing_service_name: str | None = None
     tracing_service_version: str | None = None
-    retention_checkpoint_event_days: int | None = None
-    retention_audit_days: int | None = None
-    retention_deletion_sla_hours: int | None = None
-    retention_poll_interval_seconds: int | None = None
+    retention_checkpoint_event_days: int = 7
+    retention_audit_days: int = 30
+    retention_deletion_sla_hours: int = 24
+    retention_poll_interval_seconds: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -86,6 +86,9 @@ class Settings(BaseSettings):
         for variable, value in retention_values.items():
             if value is None or value <= 0:
                 raise ConfigurationError(f"{variable} must be explicitly positive in production")
+            field_name = variable.lower()
+            if field_name not in self.model_fields_set:
+                raise ConfigurationError(f"{variable} must be explicitly configured in production")
         if (
             self.retention_deletion_sla_hours is not None
             and self.retention_poll_interval_seconds is not None
@@ -147,8 +150,6 @@ class Settings(BaseSettings):
     def retention_deletion_due_delta(self) -> timedelta:
         """Latest safe claim deadline, leaving one poll interval before the 24h SLA."""
 
-        if self.retention_deletion_sla_hours is None or self.retention_poll_interval_seconds is None:
-            raise ConfigurationError("retention settings must be explicitly configured")
         return timedelta(hours=self.retention_deletion_sla_hours) - timedelta(
             seconds=self.retention_poll_interval_seconds
         )
