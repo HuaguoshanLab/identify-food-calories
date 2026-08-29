@@ -15,6 +15,8 @@ from validate_supply_chain import (
     validate_evidence,
 )
 
+from lock_dependencies import LockValidationError, check_lock
+
 
 TIMESTAMP = datetime(2026, 8, 29, 0, 0, tzinfo=UTC).isoformat().replace("+00:00", "Z")
 HASH = "a" * 64
@@ -149,3 +151,52 @@ def test_evidence_must_use_exactly_one_approval_branch() -> None:
 
     with pytest.raises(ValidationError, match="exactly one"):
         validate_evidence(evidence)
+
+
+def test_lock_check_accepts_exact_direct_dependencies_and_hashes(tmp_path: object) -> None:
+    pyproject = tmp_path / "pyproject.toml"  # type: ignore[operator]
+    lock = tmp_path / "requirements.lock"  # type: ignore[operator]
+    pyproject.write_text(  # type: ignore[union-attr]
+        "[project]\nname = \"demo\"\ndependencies = [\"alpha==1.0.0\"]\n\n"
+        "[project.optional-dependencies]\ndev = [\"beta==2.0.0\"]\n",
+        encoding="utf-8",
+    )
+    lock.write_text(  # type: ignore[union-attr]
+        "# direct-dependency: alpha==1.0.0\n"
+        "# direct-dependency: beta==2.0.0\n"
+        "alpha==1.0.0 --hash=sha256:" + HASH + "\n"
+        "beta==2.0.0 --hash=sha256:" + HASH + "\n"
+        "transitive==3.0.0 --hash=sha256:" + HASH + "\n",
+        encoding="utf-8",
+    )
+
+    check_lock(pyproject, lock)
+
+
+@pytest.mark.parametrize(
+    ("replacement", "reason"),
+    [
+        ("# direct-dependency: beta==2.1.0", "pyproject drift"),
+        ("alpha==1.0.0", "SHA-256"),
+    ],
+)
+def test_lock_check_rejects_direct_dependency_drift_or_missing_hash(
+    tmp_path: object, replacement: str, reason: str
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"  # type: ignore[operator]
+    lock = tmp_path / "requirements.lock"  # type: ignore[operator]
+    pyproject.write_text(  # type: ignore[union-attr]
+        "[project]\nname = \"demo\"\ndependencies = [\"alpha==1.0.0\"]\n\n"
+        "[project.optional-dependencies]\ndev = [\"beta==2.0.0\"]\n",
+        encoding="utf-8",
+    )
+    lock.write_text(  # type: ignore[union-attr]
+        "# direct-dependency: alpha==1.0.0\n"
+        f"{replacement}\n"
+        "alpha==1.0.0 --hash=sha256:" + HASH + "\n"
+        "beta==2.0.0 --hash=sha256:" + HASH + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LockValidationError, match=reason):
+        check_lock(pyproject, lock)
