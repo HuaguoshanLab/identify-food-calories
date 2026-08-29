@@ -21,6 +21,7 @@
 | `phase2-code-eval.json` | 当前代码、冻结集、图/Provider/工具/目录/schema 哈希绑定的 24 条真实 Fake Provider→Graph→工具→Checkpoint 观测证据。 |
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
+| `expert-signoff-phase2.reference.md` | 与空白表相同案例顺序的格式参考；展示五个具名确认、Medium 评分与独立 Judge 分数的正确写法，不是签署证据。 |
 | `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、网络/产品失败分账、仅 Judge 文案质量的待授权本地 Promptfoo 配置。 |
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
 | `run_promptfoo_pilot.py` | 仅在本地子进程读取 `.env` 的安全 pilot 执行器：调用前按价格快照预留上限、每次后按 usage 复算并在首个异常停止。 |
