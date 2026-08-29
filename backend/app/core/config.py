@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from datetime import timedelta
 from decimal import Decimal
 from typing import Literal, TypeAlias
 
@@ -45,6 +46,10 @@ class Settings(BaseSettings):
     tracing_hmac_key: SecretStr | None = None
     tracing_service_name: str | None = None
     tracing_service_version: str | None = None
+    retention_checkpoint_event_days: int | None = None
+    retention_audit_days: int | None = None
+    retention_deletion_sla_hours: int | None = None
+    retention_poll_interval_seconds: int | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -63,8 +68,30 @@ class Settings(BaseSettings):
         if not self.cors_origins or "*" in self.cors_origins:
             raise ConfigurationError("wildcard CORS origins are forbidden")
 
+        retention_values = {
+            "RETENTION_CHECKPOINT_EVENT_DAYS": self.retention_checkpoint_event_days,
+            "RETENTION_AUDIT_DAYS": self.retention_audit_days,
+            "RETENTION_DELETION_SLA_HOURS": self.retention_deletion_sla_hours,
+            "RETENTION_POLL_INTERVAL_SECONDS": self.retention_poll_interval_seconds,
+        }
+        for variable, value in retention_values.items():
+            if value is not None and value <= 0:
+                raise ConfigurationError(f"{variable} must be positive when configured")
+        if self.retention_poll_interval_seconds is not None and self.retention_poll_interval_seconds > 300:
+            raise ConfigurationError("RETENTION_POLL_INTERVAL_SECONDS must not exceed 300")
+
         if self.app_env != "production":
             return self
+
+        for variable, value in retention_values.items():
+            if value is None or value <= 0:
+                raise ConfigurationError(f"{variable} must be explicitly positive in production")
+        if (
+            self.retention_deletion_sla_hours is not None
+            and self.retention_poll_interval_seconds is not None
+            and self.retention_deletion_sla_hours * 3600 <= self.retention_poll_interval_seconds
+        ):
+            raise ConfigurationError("retention deletion SLA must exceed the poll interval")
 
         secret = self.secret_key.get_secret_value()
         if len(secret) < 32 or "local-development" in secret or "change-me" in secret:
@@ -115,6 +142,16 @@ class Settings(BaseSettings):
                 )
 
         return self
+
+    @property
+    def retention_deletion_due_delta(self) -> timedelta:
+        """Latest safe claim deadline, leaving one poll interval before the 24h SLA."""
+
+        if self.retention_deletion_sla_hours is None or self.retention_poll_interval_seconds is None:
+            raise ConfigurationError("retention settings must be explicitly configured")
+        return timedelta(hours=self.retention_deletion_sla_hours) - timedelta(
+            seconds=self.retention_poll_interval_seconds
+        )
 
 
 def _url(value: str, *, variable: str) -> URL:

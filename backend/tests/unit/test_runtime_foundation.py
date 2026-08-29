@@ -364,6 +364,54 @@ def test_disabled_tracing_has_no_exporter_side_effect() -> None:
     assert runtime.scoped_hmac("thread-id") == "disabled"
 
 
+def test_retention_config_fails_closed_in_production_and_bounds_scheduler() -> None:
+    """D-18 retention is an explicit production contract, never a silent default."""
+
+    from pydantic import ValidationError
+
+    production = {
+        "app_env": "production",
+        "database_url": "postgresql+psycopg://db.example/food_agent",
+        "secret_key": "x" * 32,
+        "cookie_secure": True,
+        "cors_origins": ["https://app.example"],
+        "smtp_host": "smtp.example",
+        "smtp_from_email": "noreply@example.com",
+        "smtp_username": "mailer",
+        "smtp_password": "password",
+        "reasoning_provider_mode": "deepseek",
+        "deepseek_api_key": "test-key",
+        "deepseek_model": "deepseek-v4-flash",
+        "deepseek_price_snapshot_version": "price-v1",
+        "deepseek_input_usd_per_m": "1",
+        "deepseek_output_usd_per_m": "2",
+        "_env_file": None,
+    }
+    with pytest.raises(ValidationError, match="RETENTION_CHECKPOINT_EVENT_DAYS"):
+        Settings(**production)
+
+    with pytest.raises(ValidationError, match="RETENTION_POLL_INTERVAL_SECONDS"):
+        Settings(
+            **production,
+            retention_checkpoint_event_days=7,
+            retention_audit_days=30,
+            retention_deletion_sla_hours=24,
+            retention_poll_interval_seconds=301,
+        )
+
+    settings = Settings(
+        app_env="test",
+        database_url="postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev",
+        test_database_url="postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test",
+        retention_checkpoint_event_days=7,
+        retention_audit_days=30,
+        retention_deletion_sla_hours=24,
+        retention_poll_interval_seconds=300,
+        _env_file=None,
+    )
+    assert settings.retention_deletion_due_delta.total_seconds() == 24 * 60 * 60 - 300
+
+
 def test_graph_aggregates_questions_and_resume_does_not_repeat_parse() -> None:
     from app.providers.reasoning.dto import ParsedMealItemDTO
 
