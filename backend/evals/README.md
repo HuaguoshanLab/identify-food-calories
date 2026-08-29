@@ -32,6 +32,7 @@
 | `promptfoo-release-phase2-network-rerun-2.json` | 使用修复后的安全解析器进行的独立正式重跑证据；首个可记账异常即停止，不能覆盖或合并此前运行。 |
 | `promptfoo-release-phase2-network-rerun-3.json` | 采用结构诊断的独立正式运行安全证据；确认导出形态、case 绑定与 usage 已通过，首个 Judge 分数合同异常即停止。 |
 | `promptfoo-release-phase2-v2.json` | 独立的 `phase02-judge-json.v2` 正式运行证据；绑定 v2 prompt/config hash，并在首个无效 Judge 分数后保留安全 usage/cost 后停止。 |
+| `promptfoo-release-phase2-v3.json` | 独立的 `phase02-judge-json-mode.v3` 正式运行证据；绑定 JSON-object transport/prompt/config 合同，并在首个无效 Judge 分数后保留安全 usage/cost 后停止。 |
 | `promptfoo-release-network-preflight.json` | 不带凭据、非模型请求的 DNS/TLS/root-401 连通性预检证据。 |
 | `expert-signoff-phase2.json` | 仅当 36-call Judge 完成且 Medium Judge 分数稳定时，从真实专家模板和实际 Judge 分数物化的正式签署证据。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |

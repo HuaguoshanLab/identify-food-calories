@@ -1,0 +1,67 @@
+{
+  "actual_cost_cny_at_ceiling": "0.00134624",
+  "budget_cny": "0.20",
+  "cache": "disabled",
+  "calls": [
+    {
+      "case_id": "phase02-001",
+      "completion_tokens": 512,
+      "cost_cny_at_ceiling": "0.00134624",
+      "cost_usd": "0.00016828",
+      "failure_category": "product_failure",
+      "failure_stage": "output_parse",
+      "judge_score": null,
+      "output_shape": {
+        "document_safe_keys": [
+          "evalId",
+          "results",
+          "runtimeOptions",
+          "shareableUrl"
+        ],
+        "document_type": "object",
+        "nested_results_length": 1,
+        "nested_results_type": "array",
+        "results_safe_keys": [
+          "prompts",
+          "results",
+          "stats",
+          "timestamp",
+          "version"
+        ],
+        "results_type": "object"
+      },
+      "parse_stage": "judge_score",
+      "prompt_tokens": 178,
+      "promptfoo_exit_code": 0,
+      "repeat_index": 1,
+      "status": "failed",
+      "total_tokens": 690
+    }
+  ],
+  "calls_attempted": 1,
+  "calls_authorized": 36,
+  "calls_completed": 0,
+  "code_eval_hash": "df7dbdf3ebc5908c716c082922397f9f687fa2b5243a9f7576bac8dda6acf63c",
+  "config_hash": "764fa87fd4fe048c6184f318c6f2f43879494b5a5d3f53d8b6ed824eaa3333af",
+  "cost_accounting": "usage_accounted",
+  "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
+  "fx_cny_per_usd_ceiling": "8",
+  "generated_at": "2026-08-29T09:37:04.675423+00:00",
+  "input_token_cap_per_call": 3367,
+  "judge_prompt_contract_version": "phase02-judge-json-mode.v3",
+  "judge_prompt_hash": "35c646974fdeed295c512362d556d7bd2588e45d03e9e09e6a87b6258355bcc9",
+  "judge_response_format": {
+    "type": "json_object"
+  },
+  "judge_scores": {},
+  "max_concurrency": 1,
+  "max_retries": 0,
+  "maximum_total_cny_at_caps": "0.17704512",
+  "model": "deepseek-v4-flash",
+  "output_token_cap_per_call": 512,
+  "price_snapshot_fingerprint": "d2708cfcbe63c645d37c64f7e6f2b01842c2b36712066c781bde505ee0a1ed21",
+  "price_snapshot_version": "2026-08-29-deepseek-v4-flash-standard",
+  "release_eligible": false,
+  "schema_version": "phase2-promptfoo-release.v1",
+  "status": "stopped"
+}
