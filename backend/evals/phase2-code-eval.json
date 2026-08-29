@@ -1,0 +1,1711 @@
+{
+  "schema_version": "phase2-code-eval.v1",
+  "rubric_version": "phase02-rubric.v1",
+  "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
+  "implementation_hashes": {
+    "evaluator": "2f2b0bc2bbec18ddbba40e8b50b57a9d8b5bb890059bdb06b41c6059e777d44b",
+    "graph": "a509de66618cdf58243254b4467f63d3a5a1d43eba45ac5000f38e678c5475af",
+    "provider": "da268447ec4498ee90e34752eda5bf12660f9330fa1fd9f5c2b37f30b0f0beae",
+    "tools": "a753332b65218615221bc3f24b5da2c28f35633963b063dfc47534db35655ece",
+    "nutrition_service": "69fcda804005e8e0dc274773ffa6d00090821deea614bca95602debbcbda3580",
+    "catalog": "b426fb9e020067a1671614f63b96e2cc1cf139e239c9de10bebac4e6f142908b",
+    "state_schema": "12bf3ce82904434456942ceeecc8e5d1cb14551c05582c758307b0a96e93b689"
+  },
+  "case_count": 24,
+  "cases": [
+    {
+      "case_id": "phase02-001",
+      "case_hash": "7849c8b71f37e94e300a027fabea22cc7384ab9bf6361cc62a76349ab3ff4e69",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "150",
+              "energy_kcal": "195.0",
+              "protein_g": "4.0",
+              "fat_g": "0.4",
+              "carbohydrate_g": "42.3",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "150"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "195.0",
+            "protein_g": "4.0",
+            "fat_g": "0.4",
+            "carbohydrate_g": "42.3"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "fb09811d83c7d245fcb164f9e8630717442d0142e010ad2a8dc175568add939f"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "682814c25e73a3772072cfd3736887ce1de6487fa540968f8adee35112fc6695",
+        "run_id_digest": "420a38c00bd04a70dfe9844a674ef0beba8a0722e94872dd5b30f5289ece82d8"
+      }
+    },
+    {
+      "case_id": "phase02-002",
+      "case_hash": "1d51367fb92e432c4f83ae7235e63c167ce173f303573113875ce15e87ddc5a9",
+      "observed": {
+        "state": "waiting_input",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "米饭",
+              "grams": null
+            }
+          ],
+          "questions": [
+            {
+              "item_id": "rice-1",
+              "field": "grams",
+              "message": "请补充“米饭”的可审计克数。",
+              "candidates": []
+            }
+          ],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": true,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "waiting_input"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "0d75c4dac3c2572bc3f51f586722660ac90cfb31147357156e706d9a225720d1"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "a49e4aa2128bbf60adc441edbe9faae890ddb9ccd554fde96fddea1759d74e39",
+        "run_id_digest": "92f5476e522bcae6d203fcd9ddf5f53d6651c1a2c1cf30303cc9c14b5fd95ac6"
+      }
+    },
+    {
+      "case_id": "phase02-003",
+      "case_hash": "0232cc8751b21c2135c9bf23b719f7d51de65841202d752ac8db207a6043fea7",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "egg-1",
+              "name": "Egg, whole, cooked, hard-boiled",
+              "grams": "55",
+              "energy_kcal": "85.2",
+              "protein_g": "6.9",
+              "fat_g": "5.8",
+              "carbohydrate_g": "0.6",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/171413/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "egg-1",
+              "name": "Egg, whole, cooked, hard-boiled",
+              "grams": "55"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "85.2",
+            "protein_g": "6.9",
+            "fat_g": "5.8",
+            "carbohydrate_g": "0.6"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "78f3a229d3a59e2ebefa5f115be42d12d89e8980973e28ab9cf809bb9bdc89af"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "6ccb3002ddca190e96919aa0c1ef747addebd498ec504bfd3bc8a324813e0a87",
+        "run_id_digest": "eb7e0d0165a5fd8c0effd17254c81dd724429b8bdf2ffde8f15dd5e485d15e3a"
+      }
+    },
+    {
+      "case_id": "phase02-004",
+      "case_hash": "354c5a6c7f9a62c6b76c04b462f6e3de83238ef98d7f252b11d66b1fdf50197c",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "150",
+              "energy_kcal": "195.0",
+              "protein_g": "4.0",
+              "fat_g": "0.4",
+              "carbohydrate_g": "42.3",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            },
+            {
+              "item_id": "chicken-1",
+              "name": "Chicken breast, cooked, skinless",
+              "grams": "120",
+              "energy_kcal": "198.0",
+              "protein_g": "37.2",
+              "fat_g": "4.3",
+              "carbohydrate_g": "0.0",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/172231/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            },
+            {
+              "item_id": "broccoli-1",
+              "name": "Broccoli, cooked",
+              "grams": "80",
+              "energy_kcal": "28.0",
+              "protein_g": "1.9",
+              "fat_g": "0.3",
+              "carbohydrate_g": "5.7",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/170457/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "150"
+            },
+            {
+              "item_id": "chicken-1",
+              "name": "Chicken breast, cooked, skinless",
+              "grams": "120"
+            },
+            {
+              "item_id": "broccoli-1",
+              "name": "Broccoli, cooked",
+              "grams": "80"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "421.0",
+            "protein_g": "43.2",
+            "fat_g": "5.0",
+            "carbohydrate_g": "48.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "81b43356b053f41347b5b42015f6dca4df268e4ba907a5787734c917139cebed"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "d831ad084f2c0d3dbe5e83ced74e1960bc389150d982b7d4767d1041138cc4a4",
+        "run_id_digest": "47438538f3013d9ca0e7bde6717db92ff01e5fb9eb32f4b17ae2c6d4273764d5"
+      }
+    },
+    {
+      "case_id": "phase02-005",
+      "case_hash": "84ac9da7f9e143836c7e4e19f25a05bade23ba27a0665e51427e287fb7182583",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:ASK",
+          "search_food_catalog:ASK"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "drink-1",
+              "name": "无糖豆浆",
+              "grams": "250"
+            },
+            {
+              "item_id": "sauce-1",
+              "name": "酱油",
+              "grams": "10"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [
+            "drink-1",
+            "sauce-1"
+          ],
+          "is_partial": true,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "f910049c1b46096b3935782d52f01197164bd088bb48867958a40511ac4596a5"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "0a5035186135d1d46696a0c563fbb4d31e3b0a87a5d6c42cd4827f926b92cad9",
+        "run_id_digest": "e4e18e45e7b70e8fef3db51fff8b74f07c0928b543cc419cade0c0726d1891b4"
+      }
+    },
+    {
+      "case_id": "phase02-006",
+      "case_hash": "2661331a0ba0ceeffefc1545025853b0f5cf7ad47c27856d46f69bee8edcd866",
+      "observed": {
+        "state": "waiting_input",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "米饭",
+              "grams": null
+            }
+          ],
+          "questions": [
+            {
+              "item_id": "rice-1",
+              "field": "grams",
+              "message": "请补充“米饭”的可审计克数。",
+              "candidates": []
+            }
+          ],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": true,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "waiting_input"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "6a3873a2730b6fdfd4ef640800395c34d7cc7fb375f6ee35cbcf8e7053c03500"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "6a129cea3398880bab7f3b8bbccb57ba4d95f23e7a3028b114265eda620963e4",
+        "run_id_digest": "9b92f5486a946aae6a64ac2e7c4a56816ee3147ca100f4b3e72ef0c0358cbb65"
+      }
+    },
+    {
+      "case_id": "phase02-007",
+      "case_hash": "ec7064d36c88eaffe9685273b6710c59f51f4e00f2edfa01d7d56857f90bddef",
+      "observed": {
+        "state": "waiting_input",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "米饭",
+              "grams": null
+            }
+          ],
+          "questions": [
+            {
+              "item_id": "rice-1",
+              "field": "grams",
+              "message": "请补充“米饭”的可审计克数。",
+              "candidates": []
+            }
+          ],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": true,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "waiting_input"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "54b62e2ff74c1ce67c655a36d5cd769545f1ae54b6ca2e6c7dda7648cbb37bc6"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "b6fe820cbf5a0bba955b895c6b501d32997229f49397f790cfccf10720959df3",
+        "run_id_digest": "e3a0e29476889ca4f23c6d5e6d1a31fc90f608bbe5c1e6f54502a5d4c238b7da"
+      }
+    },
+    {
+      "case_id": "phase02-008",
+      "case_hash": "12b0cbcebc6edebc26da43cc5a48737438b09dd1457bc1ac03840ea9f2badb8a",
+      "observed": {
+        "state": "waiting_input",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "米饭",
+              "grams": null
+            }
+          ],
+          "questions": [
+            {
+              "item_id": "rice-1",
+              "field": "grams",
+              "message": "请补充“米饭”的可审计克数。",
+              "candidates": []
+            }
+          ],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": true,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "waiting_input"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "2159b0b7a829e56279e20c7171398592100acc648f7b0ab9b769a529047c4d8d"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "09d155cf9a3a63711c83f1d5aa481b74401db57b4f174161ed9aa6e8ac7c6174",
+        "run_id_digest": "06a58003f43bb4e775e1d8a7c362854738c213040a3336ee55aaed8605808945"
+      }
+    },
+    {
+      "case_id": "phase02-009",
+      "case_hash": "bc552abbcb257a7efdb890007f6078a28fb685c7873c4db4497587b6266a43a7",
+      "observed": {
+        "state": "waiting_input",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": {
+          "items": [],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "米饭",
+              "grams": null
+            }
+          ],
+          "questions": [
+            {
+              "item_id": "rice-1",
+              "field": "grams",
+              "message": "请补充“米饭”的可审计克数。",
+              "candidates": []
+            }
+          ],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": true,
+          "totals": {
+            "energy_kcal": "0.0",
+            "protein_g": "0.0",
+            "fat_g": "0.0",
+            "carbohydrate_g": "0.0"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "waiting_input"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "688187e12046a7355f607fc189cd7f626d17046ef776caf10a329007ee9de463"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "8a90a2d669c99ee993da68216ac75f6182b1da8855f142844834167cf73c426f",
+        "run_id_digest": "9a17ca84ff4149f7bb2582739f227c53f939e8fb8e3c279d1e01379a8410fac5"
+      }
+    },
+    {
+      "case_id": "phase02-010",
+      "case_hash": "3696affe232ecff89bb25ff86fecde55fb6e1543544db3bb50da977a704164fb",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:ASK",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "unknown-1",
+              "name": "火星菜",
+              "grams": "80"
+            },
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [
+            "unknown-1"
+          ],
+          "is_partial": true,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "8097d97ac0342a343ceaece2eab5d065ac317acd8006910c14581da3aa812596"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "31f16c8f80a231f0c192aa3a2bb9afd1f624b789fe6d556eab7463ff2ddfa956",
+        "run_id_digest": "4de31835ed230f0b994c9a902cd1e022f5683aa6932e96c59d42ee84b5a056e3"
+      }
+    },
+    {
+      "case_id": "phase02-011",
+      "case_hash": "df47c06d53ff06302f73c496c796fe63429a318719a49e75d1c7b7146f61ac53",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "180",
+              "energy_kcal": "234.0",
+              "protein_g": "4.8",
+              "fat_g": "0.5",
+              "carbohydrate_g": "50.7",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "180"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "234.0",
+            "protein_g": "4.8",
+            "fat_g": "0.5",
+            "carbohydrate_g": "50.7"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "d5f9a509a4f7167b59806e131b11fc59676d87232907c5bc6f1275912193be9d"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "8be8d3eaffab5c369c95a9977249a249343744beb312861f035e660e87d93f20",
+        "run_id_digest": "d7b41e11ee4176e8597cd77049f837503c3ccdc0d41eca65b95a8d971d04ab53"
+      }
+    },
+    {
+      "case_id": "phase02-012",
+      "case_hash": "2388ec63b557954f666564a14a88d367e0353dc3c40e5f2bf4f88fa9f1163678",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "dcffd5def4df87edc8641e205c77a3ba05b685e6f24e8acb960cf37257857cf9"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "46c6ea65bc6bf007615f573760d65a497a0b805491ee2cfb8c85dde9ab92ecbd",
+        "run_id_digest": "828f34df48243463c901e9303bfde7d9bdd6dde86d01173928603e817dc0d02f"
+      }
+    },
+    {
+      "case_id": "phase02-013",
+      "case_hash": "2a1c04a404a6802af33b6f0a05eaf11b706bc5337179b91f9736140cdb80295a",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "a5475a2d00bb71553059306bf2a63d1ebbbdcac536dc1bd7ce8ed6140c424b8a"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "a2df6d03014386d4618c14cd4dc4bd3598a80d6073cc522d0c97acc2919d8f06",
+        "run_id_digest": "a27f298f8983bb101f7e74d17063e127dfa15effb00027b04d0ebe01bba041ce"
+      }
+    },
+    {
+      "case_id": "phase02-014",
+      "case_hash": "96bf8d28c53688b5bef496edb1eb7d439c4924f7d7cec1e00d515551405c4ed0",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "066b4a13bb32519f40a40deeafcad4aae0c1df1e89e27ff41531439be6e16342"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "08c36bd58fd2ebd0b26514cd21bf949cc2f523f174ca75c2c77962cc0d242336",
+        "run_id_digest": "d368ba4ce04f7fe7c8def60e4d897989b313ca68b8ece099cc0cab2a702270db"
+      }
+    },
+    {
+      "case_id": "phase02-015",
+      "case_hash": "31a3fa934276e91d1304ce8c59aca0017fbdf264c68809635626921c7a30d990",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "48cc88fbdaee370e5ce506d81388853fabe943a263476ab0d6f5818e6197fa77"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "6119220b3398b46e742c331c5d304ae2f7b64bb3920f62b658d397f2a6875050",
+        "run_id_digest": "60d67a4e34c91a6e25325ddc8981bed35dc4afc073b24f6d638852a3bedb48bf"
+      }
+    },
+    {
+      "case_id": "phase02-016",
+      "case_hash": "60f335c1f8ca16d9f75e4ef7889dc7d4c090dc8c3fcdaea94549f27babbd99fe",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "0357c389cf74a9ff435a765e63ce5d48377868ebdba2999e2c414f172d8cd22a"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "bae0d0cb36f97d4686daec9e418aea4f1a56a790a803e8b44e55f8f3301249a8",
+        "run_id_digest": "da540201542aa160fb7a6ea21a1ace20f01b9e226af6710a880bf392723e2865"
+      }
+    },
+    {
+      "case_id": "phase02-017",
+      "case_hash": "67f3b0de7943ac33686ffa7423bf40b756116211617ad8811f3b10702304f960",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "7862c0873c00cfbeaaeae47f7d6e00471486770c540f95da039c2a3d66a838c4"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "b2d23e9780e00a4bdabda040b6f2dc1653c32087729a90335ef40f3040eb30ab",
+        "run_id_digest": "09d67c90c6e079cbd1d073d425a208861a03917707f91c80524b0156cde53a04"
+      }
+    },
+    {
+      "case_id": "phase02-018",
+      "case_hash": "903b08541828335b6dd6e2ad3a0e1708d0f24797333a4cce82bea80725e64cb8",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "ea2362d123a9a340f1bd58acc630b33d1b3d1ddb5435ce1a1158af02b29d1fa9"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "645e20ba1fba2d1a3950472efcc6ac7a97e4529249f49a06e8fccde62223cdc8",
+        "run_id_digest": "da7462a34d37d68a5dcd3fac5dd3352c2c3de5fa44c54fbf8ff363645df7f285"
+      }
+    },
+    {
+      "case_id": "phase02-019",
+      "case_hash": "0125d95c9fcbe148c9d62a5060b017f782c662aad83c0ee3eaf3139d4fbd4f0d",
+      "observed": {
+        "state": "completed",
+        "trace": [
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
+        ],
+        "report": {
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
+          "understood_items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
+            }
+          ],
+          "questions": [],
+          "unaccounted_items": [],
+          "is_partial": false,
+          "waiting_input": false,
+          "totals": {
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
+          },
+          "disclaimer": "普通饮食参考，不替代医疗建议。"
+        },
+        "events": [
+          "running",
+          "completed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": true
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "22fcf4477c064e2afb44b643707b51003e236f5a90c21a3504feb3b0096af519"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "c2dd8454db0b70251c907f313f7b7fdace27887dcf5f243b9f5a3e9f2d9a22af",
+        "run_id_digest": "9b8722d69f3244dcd799f7fd465de497b92d3818253105684741b9b1c78366bd"
+      }
+    },
+    {
+      "case_id": "phase02-020",
+      "case_hash": "aa1f8e14d0a3c685cf12e6c89280d2ef38a4e23c72bb9890e70d2f58e274daaa",
+      "observed": {
+        "state": "failed",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": null,
+        "events": [
+          "running",
+          "failed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "483a4992d128d8e132e746f3ac9c7b4dc69a30bf95bffa3fa02c2d4eee9e8717"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "a429fe45f6f34b7e3c1a6b417e021ee08a33cf8e3f0f3b854b0acb66fde35404",
+        "run_id_digest": "051cda49adedd0a1404839aba11a32299daa1565a5777ef70d9c3e0a43dfe8e1"
+      }
+    },
+    {
+      "case_id": "phase02-021",
+      "case_hash": "7f92b20b234803c4291b36d20d129d2bd03c07995106835806f8d3ffe3e04e7d",
+      "observed": {
+        "state": "failed",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": null,
+        "events": [
+          "running",
+          "failed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "7b7ae27f1113cab575d2504da73aee7fdd704f4ae671d4111e1fd8113d826c56"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "f19f08f28c6d2df436192fc1c573ad779731fedbb38a07e7c6683ccdbb45690f",
+        "run_id_digest": "bf49063b12cbac024276d5b63b34ea5c3a36dc3f2477693ad09640838d40de6c"
+      }
+    },
+    {
+      "case_id": "phase02-022",
+      "case_hash": "de6688bae87b42553b73dda103c24340cf1d6977e2d2e080bf53589c9c033b77",
+      "observed": {
+        "state": "limit_reached",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": null,
+        "events": [
+          "running",
+          "failed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [],
+        "checkpoint_reopened": true,
+        "state_digest": "1804108535dd0b0daddfcc3ab3d77c78d427ad36229ccf6157e7e8f19d28e324"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "0abc48ad95006a94d07fd791946ed9e866b89291a34bc4038c302258434207bc",
+        "run_id_digest": "44f66533c884e3c9085c49335d2ac74b22d2fe06536158b85e2e5cea71f8755b"
+      }
+    },
+    {
+      "case_id": "phase02-023",
+      "case_hash": "9e8c92f0c723489f15f782eb260e52784802219e95e4c9df1e31b515700267e8",
+      "observed": {
+        "state": "failed",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": null,
+        "events": [
+          "running",
+          "failed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "6810a8b68c9163c10f66f7fc41ac7fe2aafbc5ebf5a33eca65e28592d4038d3c"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "8d55963641f1c9e0c11cb4acaa81c14f0454be4a2cb3e6b2bd753159477ec28d",
+        "run_id_digest": "4a11fe7b5cf3f9a541d268246f8960f39a56a3dd3e42e31c5fb501253429b3ce"
+      }
+    },
+    {
+      "case_id": "phase02-024",
+      "case_hash": "cd19fec405616328cf071fac3063b1085ebd737ef54908da9019c501da838323",
+      "observed": {
+        "state": "failed",
+        "trace": [
+          "fake_provider:parse_meal"
+        ],
+        "report": null,
+        "events": [
+          "running",
+          "failed"
+        ],
+        "forbidden_outcomes": {
+          "provider_nutrition_value": true,
+          "chain_of_thought": true,
+          "no_raw_input_persisted": false
+        },
+        "provider_calls": [
+          "parse_meal"
+        ],
+        "checkpoint_reopened": true,
+        "state_digest": "fe84b45a0bc48e79adb5bd4610db9222f340addf25748a658a27640ffdefd475"
+      },
+      "assertions": {
+        "critical": {
+          "checkpoint_reopened": true,
+          "deterministic_tools_only": true,
+          "no_chain_of_thought": true
+        },
+        "high": {
+          "bounded_provider_calls": true,
+          "safe_event_sequence": true,
+          "no_invented_household_grams": true
+        }
+      },
+      "execution": {
+        "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
+        "thread_id_digest": "5f3d7c068418a4688af5084d4989c7f50117843669242c1059bc01f20ec7d26b",
+        "run_id_digest": "38b2501c559e8166d323263e14f6fd9349ffe8dde7ce0b777bef678acb69d206"
+      }
+    }
+  ],
+  "summary": {
+    "critical_pass_percent": 100.0,
+    "high_pass_percent": 100.0
+  },
+  "evidence_hash": "686771b959be2a08176feb1167bd72c6bff6e87fe4bce81245c9be76071898d9"
+}
