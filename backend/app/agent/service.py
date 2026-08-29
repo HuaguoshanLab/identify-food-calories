@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,7 @@ from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, 
 from app.agent.ports import AgentRepository
 from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState
 from app.agent.graph import AgentGraph
+from langgraph.types import Command
 
 
 class AgentThreadUnavailable(LookupError):
@@ -138,7 +140,8 @@ class AgentService:
         user_id: uuid.UUID,
         graph: AgentGraph,
         checkpointer: object,
-        input_text: str,
+        input_text: str | None = None,
+        resume_payload: dict[str, object] | None = None,
     ) -> AgentRun:
         """Execute one accepted run after tenant ownership has been checked by the caller.
 
@@ -149,7 +152,7 @@ class AgentService:
         run = self._repository.get_run_for_user(run_id=run_id, user_id=user_id, for_update=True)
         if run is None:
             raise AgentThreadUnavailable("agent run is unavailable")
-        if run.status == "completed":
+        if run.status == "completed" and resume_payload is None:
             return run
         self.get_thread(thread_id=run.thread_id, user_id=user_id)
         run.status = "running"
@@ -163,18 +166,37 @@ class AgentService:
             payload={"run_id": str(run.id)},
             safe_summary="分析任务正在运行。",
         )
-        state = MealAgentState(
-            user_id=user_id,
-            thread_id=run.thread_id,
-            run_id=run.id,
-            messages=(input_text,),
-            graph_version=run.graph_version,
-            prompt_version=run.prompt_version,
-            tool_version=run.tool_version,
-            next_action=AgentNextAction.PARSE,
-            status=AgentRuntimeStatus.ACCEPTED,
-        )
-        finished = await graph.ainvoke(state)
+        previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
+        if resume_payload is not None and previous is not None:
+            # Command is intentionally constructed at the API/service recovery boundary.  The
+            # graph consumes only its validated JSON body and therefore never needs HTTP or ORM.
+            command: Command = Command(resume=resume_payload)
+            state = previous.model_copy(
+                update={
+                    "run_id": run.id,
+                    "status": AgentRuntimeStatus.ACCEPTED,
+                }
+            )
+            finished = await graph.ainvoke(state, resume=command.resume)
+        elif input_text is not None:
+            state = MealAgentState(
+                user_id=user_id,
+                thread_id=run.thread_id,
+                run_id=run.id,
+                messages=(input_text,),
+                graph_version=run.graph_version,
+                prompt_version=run.prompt_version,
+                tool_version=run.tool_version,
+                next_action=AgentNextAction.PARSE,
+                status=AgentRuntimeStatus.ACCEPTED,
+            )
+            finished = await graph.ainvoke(state)
+        else:
+            run.status = "failed"
+            run.failure_code = "MISSING_AGENT_COMMAND"
+            run.finished_at = self._now()
+            self._commit_or_rollback()
+            return run
         await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
@@ -182,6 +204,19 @@ class AgentService:
         run.model_calls = max(run.model_calls, 1)
         run.tool_calls = len(finished.tool_summaries)
         run.updated_at = self._now()
+        if finished.status is AgentRuntimeStatus.WAITING_INPUT:
+            run.status = "waiting_input"
+            run.finished_at = None
+            self._commit_or_rollback()
+            self.append_safe_event(
+                thread_id=run.thread_id,
+                user_id=user_id,
+                run_id=run.id,
+                event_type="waiting_input",
+                payload={"run_id": str(run.id), "report": finished.report or {}},
+                safe_summary="需要补充信息后才能继续分析。",
+            )
+            return run
         if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
             run.status = "completed"
             run.finished_at = run.updated_at
@@ -208,6 +243,52 @@ class AgentService:
             safe_summary="分析未能完成。",
         )
         return run
+
+    async def resume_payload_for_text(
+        self, *, checkpointer: object, thread_id: uuid.UUID, text: str
+    ) -> dict[str, object] | None:
+        """Turn the existing public text command into a narrow validated resume payload.
+
+        The frozen API contract deliberately has no raw graph-state field.  The UI can submit a
+        JSON object for multi-question controls, while a one-question text answer remains usable.
+        Invalid text returns ``None`` and leaves the checkpoint waiting.
+        """
+
+        state = await self._load_checkpoint(checkpointer=checkpointer, thread_id=thread_id)
+        if state is None:
+            return None
+        try:
+            candidate = json.loads(text)
+        except json.JSONDecodeError:
+            candidate = None
+        if isinstance(candidate, dict) and set(candidate) <= {"answers", "corrections"}:
+            return candidate
+        if state.next_action is AgentNextAction.ASK_USER and len(state.clarification_questions) == 1:
+            question = state.clarification_questions[0]
+            if question.field == "grams":
+                matched = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*(?:g|克)?", text, re.IGNORECASE)
+                if matched is not None:
+                    return {"answers": {question.item_id: {"grams": matched.group(1)}}}
+            if question.field == "food":
+                normalized = " ".join(text.casefold().split())
+                for index, food in enumerate(question.candidates, start=1):
+                    if normalized in {str(index), " ".join(food.label.casefold().split())}:
+                        return {"answers": {question.item_id: {"candidate_id": str(food.food_id)}}}
+        return None
+
+    @staticmethod
+    async def _load_checkpoint(
+        *, checkpointer: object, thread_id: uuid.UUID
+    ) -> MealAgentState | None:
+        saver = checkpointer
+        checkpoint_tuple = await saver.aget_tuple(  # type: ignore[attr-defined]
+            {"configurable": {"thread_id": str(thread_id), "checkpoint_ns": "meal-analysis"}}
+        )
+        if checkpoint_tuple is None:
+            return None
+        values = checkpoint_tuple.checkpoint.get("channel_values", {})
+        raw_state = values.get("agent_state")
+        return MealAgentState.model_validate(raw_state) if isinstance(raw_state, dict) else None
 
     @staticmethod
     async def _persist_checkpoint(*, checkpointer: object, state: MealAgentState) -> None:

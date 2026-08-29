@@ -101,9 +101,26 @@ def _command_hash(text: str) -> dict[str, object]:
     return {"kind": "description", "input_hash": hashlib.sha256(text.encode("utf-8")).hexdigest()}
 
 
-def _execute(*, service: AgentService, runtime: AgentRuntime, run_id: uuid.UUID, user_id: uuid.UUID, text: str) -> None:
+def _execute(
+    *,
+    service: AgentService,
+    runtime: AgentRuntime,
+    run_id: uuid.UUID,
+    user_id: uuid.UUID,
+    text: str | None = None,
+    resume_payload: dict[str, object] | None = None,
+) -> None:
     cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
-    asyncio.run(service.execute_run(run_id=run_id, user_id=user_id, graph=runtime.graph, checkpointer=runtime.checkpointer, input_text=text))
+    asyncio.run(
+        service.execute_run(
+            run_id=run_id,
+            user_id=user_id,
+            graph=runtime.graph,
+            checkpointer=runtime.checkpointer,
+            input_text=text,
+            resume_payload=resume_payload,
+        )
+    )
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)
@@ -115,12 +132,63 @@ def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, pri
 
 
 @router.post("/threads/{thread_id}/input", operation_id="submitAgentInput", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)
-def submit_agent_input(thread_id: uuid.UUID, payload: AgentInputRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentCommandAcceptedResponse:
+def submit_agent_input(
+    thread_id: uuid.UUID,
+    payload: AgentInputRequest,
+    request: Request,
+    principal: AgentPrincipal,
+    service: AgentService = Depends(get_agent_service),
+) -> AgentCommandAcceptedResponse | JSONResponse:
     try:
-        run = service.create_or_reuse_run(thread_id=thread_id, user_id=principal, command_key=f"input-{uuid.uuid4()}", canonical_command=_command_hash(payload.text))
+        _thread, latest, _events = service.latest_run_and_events(thread_id=thread_id, user_id=principal)
     except AgentThreadUnavailable:
         raise _unavailable() from None
-    _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.text)
+    runtime = _runtime(request)
+    resume_payload = asyncio.run(
+        service.resume_payload_for_text(
+            checkpointer=runtime.checkpointer, thread_id=thread_id, text=payload.text
+        )
+    )
+    if latest is not None and latest.status == "waiting_input":
+        if resume_payload is None:
+            return AgentCommandAcceptedResponse(thread_id=thread_id, status=AgentThreadStatus.WAITING)
+        run = latest
+        _execute(
+            service=service,
+            runtime=runtime,
+            run_id=run.id,
+            user_id=principal,
+            resume_payload=resume_payload,
+        )
+        return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
+    if latest is not None and latest.status == "completed":
+        if resume_payload is None or "corrections" not in resume_payload:
+            return _error(
+                status.HTTP_409_CONFLICT,
+                "CORRECTION_REQUIRES_TARGET",
+                "已完成分析只能提交针对既有项目的修正；新餐请创建新会话。",
+            )
+        run = service.create_or_reuse_run(
+            thread_id=thread_id,
+            user_id=principal,
+            command_key=f"correction-{uuid.uuid4()}",
+            canonical_command=_command_hash(payload.text),
+        )
+        _execute(
+            service=service,
+            runtime=runtime,
+            run_id=run.id,
+            user_id=principal,
+            resume_payload=resume_payload,
+        )
+        return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
+    run = service.create_or_reuse_run(
+        thread_id=thread_id,
+        user_id=principal,
+        command_key=f"input-{uuid.uuid4()}",
+        canonical_command=_command_hash(payload.text),
+    )
+    _execute(service=service, runtime=runtime, run_id=run.id, user_id=principal, text=payload.text)
     return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
 
 

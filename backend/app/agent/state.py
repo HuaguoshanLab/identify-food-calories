@@ -58,6 +58,8 @@ class StateMealItem(BaseModel):
     catalog_version: str | None = Field(default=None, min_length=1, max_length=80)
     input_version: str = Field(min_length=1, max_length=80)
     is_dirty: bool = False
+    search_query: str | None = Field(default=None, min_length=1, max_length=200)
+    nutrients: "StateNutritionResult | None" = None
 
 
 class StateCandidate(BaseModel):
@@ -67,6 +69,31 @@ class StateCandidate(BaseModel):
     food_id: uuid.UUID
     catalog_version: str = Field(min_length=1, max_length=80)
     label: str = Field(min_length=1, max_length=240)
+
+
+class StateNutritionResult(BaseModel):
+    """Deterministic result already earned by an item; no model value is stored here."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    energy_kcal: Decimal
+    protein_g: Decimal
+    fat_g: Decimal
+    carbohydrate_g: Decimal
+    source_name: str = Field(min_length=1, max_length=120)
+    source_url: str = Field(min_length=1, max_length=500)
+    calculation_rule_version: str = Field(min_length=1, max_length=80)
+
+
+class ClarificationQuestion(BaseModel):
+    """JSON-safe, non-sensitive interrupt payload assembled after all deterministic work."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    item_id: str = Field(min_length=1, max_length=128)
+    field: str = Field(min_length=1, max_length=80)
+    message: str = Field(min_length=1, max_length=300)
+    candidates: tuple[StateCandidate, ...] = Field(default=(), max_length=MAX_STATE_CANDIDATES)
 
 
 class StateToolSummary(BaseModel):
@@ -94,6 +121,11 @@ class MealAgentState(BaseModel):
     items: tuple[StateMealItem, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     missing_fields: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     candidates: tuple[StateCandidate, ...] = Field(default=(), max_length=MAX_STATE_CANDIDATES)
+    clarification_questions: tuple[ClarificationQuestion, ...] = Field(
+        default=(), max_length=MAX_STATE_ITEMS
+    )
+    unaccounted_items: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
+    is_partial: bool = False
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=36)
     validation_issues: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     dirty_item_ids: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
