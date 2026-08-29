@@ -44,6 +44,7 @@
 | `02-14-SUMMARY.md` | FastAPI lifecycle retention Worker、PostgreSQL lease、精确保留边界和真实数据库隔离证据 |
 | `02-15-PLAN.md` | 用户删除接口、UI 与候选视觉基线计划 |
 | `02-16-PLAN.md` | 24-case 机器评测、专家签署结构与发布阈值计划 |
+| `02-16-SUMMARY.md` | 24-case 实际机器证据、双角色发布合同、失败夹具与本地 Promptfoo CLI 执行摘要 |
 | `02-17-PLAN.md` | 专家、付费 Promptfoo 与视觉人工审批门计划 |
 | `02-18-PLAN.md` | 发布报告、真实浏览器验收、教学文档与阶段索引收口计划 |
 | `README.md` | 本目录职责、依赖边界与文件索引 |
