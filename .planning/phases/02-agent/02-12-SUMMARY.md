@@ -113,8 +113,8 @@ completed: 2026-08-29
 ## Issues Encountered
 
 - 真实 PostgreSQL 需要受控权限访问隔离的 `food_agent_test`；同一 guarded wrapper 下 Checkpointer 与纵向 API/SSE 回归均通过。
-- Playwright 配置拒绝复用未知的 `127.0.0.1:8000`/`4173` 既有进程。项目规则禁止终止未明确归属的服务，因此新增 reconnect E2E 尚未执行；不能声称该项已通过。
-- 当前执行环境未暴露可调用的内置浏览器控制接口，无法进行该路径的浏览器人工验收；不能以 Playwright 或截图替代。
+- 遗留测试服务停止后，真实 Playwright reconnect E2E 已通过：刷新后仍显示同一报告，且没有第二个分析 POST。
+- 已尝试连接内置浏览器完成真实页面验收，但当前 Codex 会话没有可用浏览器实例；不能以 Playwright 或截图替代这项人工浏览器证据。
 
 ## Known Stubs
 
@@ -126,8 +126,7 @@ None - 使用现有本地 PostgreSQL、Mailpit 与 Fake Provider；无新增外�
 
 ## Next Phase Readiness
 
-- 在获准停止现有 8000/4173 测试服务后，运行 `cd frontend && npm run test:e2e -- --grep "phase 2 reconnect"`。
-- 随后在可调用的内置浏览器中完成注册/登录 → “米饭 100 克” → 刷新 → 同一报告恢复的真实路径验收。
+- 在有可用内置浏览器实例的会话中完成注册/登录 → “米饭 100 克” → 刷新 → 同一报告恢复的真实路径验收。
 
 ## Self-Check: PASSED
 
