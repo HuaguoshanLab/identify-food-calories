@@ -21,6 +21,7 @@
 | `02-RESEARCH.md` | Phase 2 技术研究、依赖核验、数据来源、SSE 与持久化实现建议 |
 | `02-PATTERNS.md` | 现有代码模式、模块边界、文件映射与新增模式约束 |
 | `02-01-PLAN.md` | 供应链证据门、依赖锁与实际执行环境同步计划 |
+| `02-01-SUMMARY.md` | 已批准依赖的 hash 证据、Python 3.11 hash lock 与实际环境同步执行摘要 |
 | `02-02-PLAN.md` | PostgreSQL 测试环境、初始化启动器与 Playwright 安全链计划 |
 | `02-03-PLAN.md` | Reasoning Provider DTO、端口、Fake 与测试工厂计划 |
 | `02-04-PLAN.md` | Agent 前端 feature 骨架、SSE 解析依赖与逐级目录索引计划 |
