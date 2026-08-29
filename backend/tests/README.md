@@ -15,6 +15,7 @@
 | 路径 | 职责 |
 |---|---|
 | `conftest.py` | 测试数据库保护、迁移与事务回滚 fixtures |
+| `run_pg.py` | 只从显式 test env 文件载入变量、拒绝不安全测试目标后才启动 PostgreSQL child 的唯一 wrapper |
 | `architecture/` | README、目录索引与架构边界的自动化合同 |
 | `unit/` | 不依赖外部服务的快速单元测试 |
 | `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试 |

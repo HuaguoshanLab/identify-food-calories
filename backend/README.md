@@ -30,6 +30,12 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 测试必须显式使用 `APP_ENV=test` 和独立的 `TEST_DATABASE_URL`；配置保护会拒绝 SQLite、开发库以及不以 `_test` 结尾的测试库。
 
+所有真实 PostgreSQL 测试 child 必须通过受版本控制的环境合同和唯一 wrapper 启动；wrapper 保持 `DATABASE_URL` 指向开发哨兵、`TEST_DATABASE_URL` 指向隔离库，拒绝同目标、非 loopback、错误端口或错误库名，且不回显密码：
+
+```bash
+.venv/bin/python tests/run_pg.py --env-file .env.test.example -- .venv/bin/python -m pytest tests/integration -q
+```
+
 迁移命令在 `APP_ENV=test` 时只读取通过上述保护的 `TEST_DATABASE_URL`。全栈 E2E 会先清空隔离库，再从 `0001` 显式升级到 `head`；开发库绝不参与这个过程：
 
 ```bash
@@ -71,6 +77,7 @@ mypy app
 | `AGENTS.md` | 后端局部实现与测试约束 |
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
+| `.env.test.example` | 真实 PostgreSQL 测试 child 的固定、互异开发哨兵与测试库环境合同 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
 | `requirements.lock` | Python 3.11 下由 pip report 和下载产物生成的 hash-complete 依赖锁 |
 | `lock_dependencies.py` | 生成并校验 pyproject 直接依赖、传递闭包与 SHA-256 锁文件的 CLI |
