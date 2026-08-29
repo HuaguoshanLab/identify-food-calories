@@ -15,6 +15,7 @@ from app.agent.ports import AgentRepository
 from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState
 from app.agent.graph import AgentGraph
 from langgraph.types import Command
+from langgraph.errors import GraphRecursionError
 
 
 class AgentThreadUnavailable(LookupError):
@@ -167,44 +168,51 @@ class AgentService:
             safe_summary="分析任务正在运行。",
         )
         previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
-        if resume_payload is not None and previous is not None:
-            # Command is intentionally constructed at the API/service recovery boundary.  The
-            # graph consumes only its validated JSON body and therefore never needs HTTP or ORM.
-            command: Command = Command(resume=resume_payload)
-            state = previous.model_copy(
-                update={
-                    "run_id": run.id,
-                    "status": AgentRuntimeStatus.ACCEPTED,
-                }
-            )
-            finished = await graph.ainvoke(state, resume=command.resume)
-        elif input_text is not None:
-            state = MealAgentState(
-                user_id=user_id,
-                thread_id=run.thread_id,
-                run_id=run.id,
-                messages=(input_text,),
-                graph_version=run.graph_version,
-                prompt_version=run.prompt_version,
-                tool_version=run.tool_version,
-                next_action=AgentNextAction.PARSE,
-                status=AgentRuntimeStatus.ACCEPTED,
-            )
-            finished = await graph.ainvoke(state)
-        else:
+        if resume_payload is None and input_text is None:
             run.status = "failed"
             run.failure_code = "MISSING_AGENT_COMMAND"
             run.finished_at = self._now()
             self._commit_or_rollback()
             return run
+        try:
+            if resume_payload is not None and previous is not None:
+                # Command is intentionally constructed at the API/service recovery boundary.  The
+                # graph consumes only its validated JSON body and therefore never needs HTTP or ORM.
+                command: Command = Command(resume=resume_payload)
+                state = previous.model_copy(
+                    update={
+                        "run_id": run.id,
+                        "status": AgentRuntimeStatus.ACCEPTED,
+                    }
+                )
+                finished = await graph.ainvoke(state, resume=command.resume)
+            elif input_text is not None:
+                state = MealAgentState(
+                    user_id=user_id,
+                    thread_id=run.thread_id,
+                    run_id=run.id,
+                    messages=(input_text,),
+                    graph_version=run.graph_version,
+                    prompt_version=run.prompt_version,
+                    tool_version=run.tool_version,
+                    next_action=AgentNextAction.PARSE,
+                    status=AgentRuntimeStatus.ACCEPTED,
+                )
+                finished = await graph.ainvoke(state)
+            else:
+                return await self._fail_run(
+                    run=run, user_id=user_id, code="CHECKPOINT_UNAVAILABLE"
+                )
+        except GraphRecursionError:
+            return await self._fail_run(run=run, user_id=user_id, code="GRAPH_RECURSION_LIMIT")
         await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
-        run.graph_steps = max(run.graph_steps, 1)
-        if previous is None and input_text is not None:
-            run.model_calls = max(run.model_calls, 1)
-        prior_tool_calls = len(previous.tool_summaries) if previous is not None else 0
-        run.tool_calls = max(run.tool_calls, len(finished.tool_summaries) - prior_tool_calls)
+        run.graph_steps = max(run.graph_steps, finished.budget.graph_steps)
+        run.model_calls = max(run.model_calls, finished.budget.model_calls)
+        run.tool_calls = max(run.tool_calls, finished.budget.tool_calls)
+        run.elapsed_ms = max(run.elapsed_ms, finished.budget.active_elapsed_ms)
+        run.estimated_cost_usd = max(run.estimated_cost_usd, finished.budget.estimated_cost_usd)
         run.updated_at = self._now()
         if finished.status is AgentRuntimeStatus.WAITING_INPUT:
             run.status = "waiting_input"
@@ -217,6 +225,20 @@ class AgentService:
                 event_type="waiting_input",
                 payload={"run_id": str(run.id), "report": finished.report or {}},
                 safe_summary="需要补充信息后才能继续分析。",
+            )
+            return run
+        if finished.status is AgentRuntimeStatus.LIMIT_REACHED:
+            run.status = "limit_reached"
+            run.failure_code = "LIMIT_REACHED"
+            run.finished_at = run.updated_at
+            self._commit_or_rollback()
+            self.append_safe_event(
+                thread_id=run.thread_id,
+                user_id=user_id,
+                run_id=run.id,
+                event_type="failed",
+                payload={"run_id": str(run.id), "failure_code": "LIMIT_REACHED"},
+                safe_summary="分析已达到本次运行上限。",
             )
             return run
         if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
@@ -243,6 +265,24 @@ class AgentService:
             event_type="failed",
             payload={"run_id": str(run.id)},
             safe_summary="分析未能完成。",
+        )
+        return run
+
+    async def _fail_run(self, *, run: AgentRun, user_id: uuid.UUID, code: str) -> AgentRun:
+        """Persist a stable failure category without exposing library/provider exception text."""
+
+        run.status = "failed"
+        run.failure_code = code
+        run.finished_at = self._now()
+        run.updated_at = run.finished_at
+        self._commit_or_rollback()
+        self.append_safe_event(
+            thread_id=run.thread_id,
+            user_id=user_id,
+            run_id=run.id,
+            event_type="failed",
+            payload={"run_id": str(run.id), "failure_code": code},
+            safe_summary="分析暂时无法完成，请稍后重试。",
         )
         return run
 

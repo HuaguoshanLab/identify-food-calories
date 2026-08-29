@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ class PostgresLeaseSupervisor:
         session_factory: Callable[[], Session],
         holder_id: str,
         lease_duration: timedelta = timedelta(seconds=30),
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         if not holder_id.strip():
             raise ValueError("lease holder_id is required")
@@ -30,6 +31,7 @@ class PostgresLeaseSupervisor:
         self._session_factory = session_factory
         self._holder_id = holder_id
         self._lease_duration = lease_duration
+        self._now = now or (lambda: datetime.now(UTC))
         self._started = False
 
     @property
@@ -50,6 +52,7 @@ class PostgresLeaseSupervisor:
         with self._session_factory() as session:
             service = AgentService(
                 repository=SqlAlchemyAgentRepository(session),
+                now=self._now,
                 commit=session.commit,
                 rollback=session.rollback,
             )

@@ -31,7 +31,12 @@ from app.nutrition.schemas import (
     NutritionValidationInput,
     QualifiedFood,
 )
-from app.providers.reasoning.dto import ParseMealRequest, ProviderCallError
+from app.providers.reasoning.dto import (
+    ParseMealRequest,
+    ParseMealResult,
+    ProviderCallError,
+    ProviderFailureKind,
+)
 from app.providers.reasoning.ports import ReasoningModelProvider
 
 
@@ -99,10 +104,15 @@ class MealAnalysisGraph:
     """
 
     def __init__(
-        self, *, provider: ReasoningModelProvider, tools: NutritionToolAdapter
+        self,
+        *,
+        provider: ReasoningModelProvider,
+        tools: NutritionToolAdapter,
+        monotonic_ms: Callable[[], int] | None = None,
     ) -> None:
         self._provider = provider
         self._tools = tools
+        self._monotonic_ms = monotonic_ms or _monotonic_ms
 
     async def ainvoke(
         self, state: MealAgentState, *, resume: dict[str, object] | None = None
@@ -114,28 +124,44 @@ class MealAnalysisGraph:
         the affected item dirty before deterministic tools are called again.
         """
 
+        started_ms = self._monotonic_ms()
+        resumed = False
+        # Invalid/no-answer resumes are a no-op, not a graph transition.  Charging a new step
+        # here would make a client typo consume the autonomous-work budget.
         if state.next_action is AgentNextAction.ASK_USER:
             if resume is None:
                 return state
-            resumed = self._apply_resume(state, resume)
-            return self._resolve(resumed) if resumed is not state else state
-        if state.next_action is AgentNextAction.REPORT:
+            preview = self._apply_resume(state, resume)
+            if preview is state:
+                return state
+            state = preview
+            resumed = True
+        elif state.next_action is AgentNextAction.REPORT:
             if resume is None:
                 return state
-            corrected = self._apply_correction(state, resume)
-            return self._resolve(corrected) if corrected is not state else state
+            preview = self._apply_correction(state, resume)
+            if preview is state:
+                return state
+            state = preview
+            resumed = True
+        state = _begin_transition(state)
+        if state.status is AgentRuntimeStatus.LIMIT_REACHED:
+            return state
+        if resumed:
+            return self._finish_transition(self._resolve(state), started_ms)
+        if state.next_action is AgentNextAction.ASK_USER:
+            result = self._resolve(state)
+            return self._finish_transition(result, started_ms)
+        if state.next_action is AgentNextAction.REPORT:
+            result = self._resolve(state)
+            return self._finish_transition(result, started_ms)
         if state.next_action is not AgentNextAction.PARSE or len(state.messages) != 1:
-            return state.model_copy(
+            return self._finish_transition(state.model_copy(
                 update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
-            )
-        try:
-            parsed = await self._provider.parse_meal(
-                ParseMealRequest(meal_description=state.messages[0])
-            )
-        except ProviderCallError:
-            return state.model_copy(
-                update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
-            )
+            ), started_ms)
+        parsed, parsed_state = await self._parse_with_one_transient_retry(state)
+        if parsed is None:
+            return self._finish_transition(parsed_state, started_ms)
         items = tuple(
             StateMealItem(
                 item_id=item.item_id,
@@ -150,8 +176,53 @@ class MealAnalysisGraph:
         missing = tuple(
             f"{field.item_id}:{field.field}" for field in parsed.value.missing_fields
         )
-        return self._resolve(
-            state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
+        return self._finish_transition(self._resolve(
+            parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
+        ), started_ms)
+
+    async def _parse_with_one_transient_retry(
+        self, state: MealAgentState
+    ) -> tuple[ParseMealResult | None, MealAgentState]:
+        """Retry only a classified transient provider failure once.
+
+        The retry is deliberately local to the provider call.  Catalog misses, validation
+        failures and unknown provider outcomes are deterministic terminal paths, not retry fuel.
+        """
+
+        current = state
+        for attempt in range(2):
+            if current.budget.model_calls >= 4:
+                return None, _limit_state(current)
+            current = current.model_copy(
+                update={"budget": current.budget.model_copy(update={"model_calls": current.budget.model_calls + 1})}
+            )
+            try:
+                parsed = await self._provider.parse_meal(
+                    ParseMealRequest(meal_description=current.messages[0])
+                )
+            except ProviderCallError as error:
+                if error.kind is ProviderFailureKind.TRANSIENT and attempt == 0:
+                    continue
+                return None, current.model_copy(
+                    update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
+                )
+            next_cost = current.budget.estimated_cost_usd + parsed.metadata.usage.cost_usd
+            if next_cost > Decimal("0.02"):
+                return None, _limit_state(current)
+            return parsed, current.model_copy(
+                update={"budget": current.budget.model_copy(update={"estimated_cost_usd": next_cost})}
+            )
+        raise AssertionError("provider retry loop must return")
+
+    def _finish_transition(self, state: MealAgentState, started_ms: int) -> MealAgentState:
+        """Charge only executing time; waiting between user turns is outside active budget."""
+
+        elapsed = max(0, self._monotonic_ms() - started_ms)
+        total = state.budget.active_elapsed_ms + elapsed
+        if total > 45_000:
+            return _limit_state(state)
+        return state.model_copy(
+            update={"budget": state.budget.model_copy(update={"active_elapsed_ms": total})}
         )
 
     def _apply_resume(self, state: MealAgentState, payload: dict[str, object]) -> MealAgentState:
@@ -263,6 +334,7 @@ class MealAnalysisGraph:
         updated: list[StateMealItem] = []
         summaries = list(state.tool_summaries)
         unaccounted = list(state.unaccounted_items)
+        tool_calls = state.budget.tool_calls
         for item in state.items:
             if item.item_id in unaccounted:
                 updated.append(item.model_copy(update={"is_dirty": False, "nutrients": None}))
@@ -277,7 +349,10 @@ class MealAnalysisGraph:
             selected_food_id = item.food_id
             catalog_version = item.catalog_version
             if selected_food_id is None or catalog_version is None:
+                if tool_calls >= 12:
+                    return _limit_state(state)
                 search = self._tools.search_food_catalog(FoodSearchInput(query=item.search_query or item.normalized_name))
+                tool_calls += 1
                 summaries.append(_summary(item.item_id, "search", search.action.value, search))
                 if search.selected_food is None:
                     if search.candidates:
@@ -288,11 +363,17 @@ class MealAnalysisGraph:
                     continue
                 selected_food_id = search.selected_food.id
                 catalog_version = search.selected_food.catalog_version
+            if tool_calls >= 12:
+                return _limit_state(state)
             calculation = self._tools.calculate_nutrition(
                 NutritionCalculationInput(food_id=selected_food_id, catalog_version=catalog_version, grams=item.grams)
             )
+            tool_calls += 1
             summaries.append(_summary(item.item_id, "calculate", calculation.action.value, calculation))
+            if tool_calls >= 12:
+                return _limit_state(state)
             validation = self._tools.validate_nutrition_result(NutritionValidationInput(calculation=calculation))
+            tool_calls += 1
             summaries.append(_summary(item.item_id, "validate", validation.action.value, validation))
             if calculation.nutrients is None or calculation.food is None or validation.action.value not in {"PASS", "WARN"}:
                 questions.append(_grams_question(item))
@@ -328,6 +409,7 @@ class MealAnalysisGraph:
                 "unaccounted_items": tuple(dict.fromkeys(unaccounted)),
                 "dirty_item_ids": (),
                 "messages": (),
+                "budget": state.budget.model_copy(update={"tool_calls": tool_calls}),
             }
         )
         if questions:
@@ -346,6 +428,28 @@ class MealAnalysisGraph:
                 "report": _build_report(result, waiting=False),
             }
         )
+
+
+def _begin_transition(state: MealAgentState) -> MealAgentState:
+    """Reject the *next* graph transition before it can trigger model or tools."""
+
+    if state.budget.graph_steps >= 12 or state.budget.active_elapsed_ms >= 45_000 or state.budget.estimated_cost_usd >= Decimal("0.02"):
+        return _limit_state(state)
+    return state.model_copy(
+        update={"budget": state.budget.model_copy(update={"graph_steps": state.budget.graph_steps + 1})}
+    )
+
+
+def _limit_state(state: MealAgentState) -> MealAgentState:
+    return state.model_copy(
+        update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": AgentNextAction.STOP}
+    )
+
+
+def _monotonic_ms() -> int:
+    from time import monotonic
+
+    return int(monotonic() * 1000)
 
 
 def _decimal_answer(value: object) -> Decimal | None:
