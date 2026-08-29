@@ -87,5 +87,6 @@ mypy app
 | `alembic.ini` | Alembic CLI 与迁移脚本位置配置 |
 | `app/` | FastAPI 应用代码 |
 | `migrations/` | Alembic schema 变更脚本目录 |
+| `evals/` | 无真实用户数据的 Phase 2 冻结 Agent 评测案例与离线 hash/语义校验器 |
 | `scripts/` | 受保护的测试数据库初始化与应用启动入口 |
 | `tests/` | 单元、集成和 API 合约测试 |
