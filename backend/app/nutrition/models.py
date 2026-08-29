@@ -57,6 +57,7 @@ class NutritionCatalogVersion(Base):
         UniqueConstraint(
             "catalog_id", "version", name="uq_nutrition_catalog_versions_catalog_version"
         ),
+        UniqueConstraint("content_hash", name="uq_nutrition_catalog_versions_content_hash"),
         Index("ix_nutrition_catalog_versions_catalog_released", "catalog_id", "released_at"),
     )
 
@@ -65,6 +66,7 @@ class NutritionCatalogVersion(Base):
         Uuid, ForeignKey("nutrition_catalogs.id", ondelete="CASCADE"), nullable=False
     )
     version: Mapped[str] = mapped_column(String(80), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     released_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     catalog: Mapped[NutritionCatalog] = relationship(back_populates="versions")

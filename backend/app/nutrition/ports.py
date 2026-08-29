@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Protocol
 
+from app.nutrition.importer import CatalogManifest, ImportedCatalogVersion
 from app.nutrition.schemas import QualifiedFood
 
 
@@ -16,3 +17,13 @@ class NutritionRepository(Protocol):
     def get_qualified_food(
         self, *, food_id: uuid.UUID, catalog_version: str
     ) -> QualifiedFood | None: ...
+
+
+class NutritionCatalogImportRepository(Protocol):
+    """Persistence operations for immutable, offline catalog imports."""
+
+    def get_imported_version(
+        self, *, catalog_key: str, version: str
+    ) -> ImportedCatalogVersion | None: ...
+
+    def add_manifest(self, manifest: CatalogManifest) -> None: ...

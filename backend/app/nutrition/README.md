@@ -19,3 +19,5 @@
 | `models.py` | 共享 Base 的 catalog/version/source/food/alias/portion 权威营养目录 ORM 模型 |
 | `repository.py` | flush-only SQLAlchemy 查询 adapter |
 | `service.py` | `search_food_catalog`、`calculate_nutrition`、`validate_nutrition_result` |
+| `importer.py` | 离线 FDC manifest 校验、不可变版本写入与 CLI |
+| `data/` | 受 hash 保护的 USDA FDC 小型 seed manifest |

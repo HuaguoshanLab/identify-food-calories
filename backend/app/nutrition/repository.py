@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.nutrition.models import (
     FoodCatalogAlias,
+    FoodCatalogPortion,
     FoodCatalogItem,
+    NutritionCatalog,
     NutritionCatalogVersion,
     NutritionSource,
 )
+from app.nutrition.importer import CatalogManifest, ImportedCatalogVersion
 from app.nutrition.schemas import ControlledPortion, NutritionValues, QualifiedFood
 
 
@@ -98,3 +101,92 @@ class SqlAlchemyNutritionRepository:
                 carbohydrate_g=item.carbohydrate_g_per_100g,
             ),
         )
+
+
+class SqlAlchemyNutritionCatalogImportRepository:
+    """Flush-only adapter for the catalog import service.
+
+    Seed data belongs to the immutable catalog lifecycle, not to Alembic.  Keeping
+    these writes here prevents the CLI from obtaining an unbounded ORM session.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_imported_version(
+        self, *, catalog_key: str, version: str
+    ) -> ImportedCatalogVersion | None:
+        row = self._session.scalar(
+            select(NutritionCatalogVersion)
+            .join(NutritionCatalog)
+            .where(NutritionCatalog.catalog_key == catalog_key, NutritionCatalogVersion.version == version)
+        )
+        if row is None:
+            return None
+        return ImportedCatalogVersion(version=row.version, content_hash=row.content_hash)
+
+    def add_manifest(self, manifest: CatalogManifest) -> None:
+        catalog = self._session.scalar(
+            select(NutritionCatalog).where(NutritionCatalog.catalog_key == manifest.catalog_key)
+        )
+        if catalog is None:
+            catalog = NutritionCatalog(
+                catalog_key=manifest.catalog_key,
+                display_name=manifest.catalog_display_name,
+                created_at=manifest.released_at,
+            )
+            self._session.add(catalog)
+            self._session.flush()
+
+        version = NutritionCatalogVersion(
+            catalog_id=catalog.id,
+            version=manifest.version,
+            content_hash=manifest.content_hash,
+            released_at=manifest.released_at,
+        )
+        self._session.add(version)
+        self._session.flush()
+        for food in manifest.foods:
+            source = NutritionSource(
+                catalog_version_id=version.id,
+                source_name=manifest.provenance.source_name,
+                source_url=food.source_url,
+                license_name=manifest.provenance.license_name,
+            )
+            self._session.add(source)
+            self._session.flush()
+            item = FoodCatalogItem(
+                catalog_version_id=version.id,
+                source_id=source.id,
+                stable_id=food.stable_id,
+                canonical_name=food.canonical_name,
+                prepared_state=food.prepared_state,
+                is_qualified=food.is_qualified,
+                energy_kcal_per_100g=food.nutrients_per_100g.energy_kcal,
+                protein_g_per_100g=food.nutrients_per_100g.protein_g,
+                fat_g_per_100g=food.nutrients_per_100g.fat_g,
+                carbohydrate_g_per_100g=food.nutrients_per_100g.carbohydrate_g,
+            )
+            self._session.add(item)
+            self._session.flush()
+            self._session.add_all(
+                FoodCatalogAlias(
+                    food_id=item.id,
+                    alias=alias,
+                    normalized_alias=alias.casefold().strip(),
+                    is_controlled=True,
+                )
+                for alias in food.aliases
+            )
+            self._session.add_all(
+                FoodCatalogPortion(
+                    food_id=item.id,
+                    description=portion.description,
+                    grams=portion.grams,
+                    source_reference=portion.source_reference,
+                    version=portion.version,
+                    audited=portion.audited,
+                )
+                for portion in food.portions
+            )
+        self._session.flush()
