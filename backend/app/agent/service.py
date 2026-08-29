@@ -208,11 +208,30 @@ class AgentService:
         await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
-        run.graph_steps = max(run.graph_steps, finished.budget.graph_steps)
-        run.model_calls = max(run.model_calls, finished.budget.model_calls)
-        run.tool_calls = max(run.tool_calls, finished.budget.tool_calls)
-        run.elapsed_ms = max(run.elapsed_ms, finished.budget.active_elapsed_ms)
-        run.estimated_cost_usd = max(run.estimated_cost_usd, finished.budget.estimated_cost_usd)
+        # A correction may create a new ledger run from an old thread checkpoint.  The state
+        # counters deliberately remain cumulative for the safety limit, while each AgentRun must
+        # record only work charged to that run; otherwise resumed model calls look duplicated.
+        prior_budget = previous.budget if previous is not None else None
+        run.graph_steps = max(
+            run.graph_steps,
+            finished.budget.graph_steps - (prior_budget.graph_steps if prior_budget else 0),
+        )
+        run.model_calls = max(
+            run.model_calls,
+            finished.budget.model_calls - (prior_budget.model_calls if prior_budget else 0),
+        )
+        run.tool_calls = max(
+            run.tool_calls,
+            finished.budget.tool_calls - (prior_budget.tool_calls if prior_budget else 0),
+        )
+        run.elapsed_ms = max(
+            run.elapsed_ms,
+            finished.budget.active_elapsed_ms - (prior_budget.active_elapsed_ms if prior_budget else 0),
+        )
+        run.estimated_cost_usd = max(
+            run.estimated_cost_usd,
+            finished.budget.estimated_cost_usd - (prior_budget.estimated_cost_usd if prior_budget else Decimal("0")),
+        )
         run.updated_at = self._now()
         if finished.status is AgentRuntimeStatus.WAITING_INPUT:
             run.status = "waiting_input"
