@@ -49,6 +49,7 @@ class AgentThreadSnapshot(BaseModel):
     thread_id: uuid.UUID
     status: AgentThreadStatus
     revision: int = Field(ge=0)
+    report: dict[str, object] | None = None
 
 
 class AgentCommandAcceptedResponse(BaseModel):

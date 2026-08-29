@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any, cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -14,9 +15,64 @@ from fastapi.responses import JSONResponse
 from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
-from app.agent.graph import AgentRuntimeFactory, NoopAgentRuntimeFactory
+from app.agent.graph import AgentRuntime, AgentRuntimeFactory, MealAnalysisGraph
+from app.agent.supervisor import PostgresLeaseSupervisor
+from app.agent.tools import SessionNutritionToolAdapter
 from app.accounts.api import router as account_recovery_router
 from app.core.config import Settings, get_settings
+from app.core.config import validate_test_database_configuration
+from app.core.database import create_session_factory
+from app.providers.reasoning.fake import RiceOnlyFakeReasoningModelProvider
+
+
+class PersistedAgentRuntimeFactory:
+    """Create all long-lived runtime resources once; setup remains a deployment CLI concern."""
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._saver_context: AbstractAsyncContextManager[Any] | None = None
+
+    async def create(self) -> AgentRuntime:
+        database_url = (
+            validate_test_database_configuration(self._settings)
+            if self._settings.app_env == "test"
+            else self._settings.database_url
+        )
+        session_factory = create_session_factory(
+            self._settings.model_copy(update={"database_url": database_url})
+        )
+        tools = SessionNutritionToolAdapter(session_factory=session_factory)
+        provider = RiceOnlyFakeReasoningModelProvider()
+        graph = MealAnalysisGraph(provider=provider, tools=tools)
+        supervisor = PostgresLeaseSupervisor(
+            session_factory=session_factory, holder_id="fastapi-agent-runtime"
+        )
+        await supervisor.start()
+        # Checkpointer schema setup is intentionally performed by the explicit bootstrap CLI.
+        # Lifespan only opens the already-initialized saver and gives its handle to the runtime.
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+        from sqlalchemy.engine import make_url
+
+        conninfo = make_url(database_url).set(drivername="postgresql").render_as_string(
+            hide_password=False
+        )
+        context = AsyncPostgresSaver.from_conn_string(
+            conninfo,
+            serde=JsonPlusSerializer(pickle_fallback=False, allowed_msgpack_modules=None),
+        )
+        self._saver_context = context
+        checkpointer = await context.__aenter__()
+        return AgentRuntime(
+            graph=graph, tools=tools, checkpointer=checkpointer, supervisor=supervisor
+        )
+
+    async def close(self, runtime: AgentRuntime | None) -> None:
+        if runtime is not None:
+            await cast(PostgresLeaseSupervisor, runtime.supervisor).stop()
+        if self._saver_context is not None:
+            await self._saver_context.__aexit__(None, None, None)
+            self._saver_context = None
 
 
 @asynccontextmanager
@@ -46,7 +102,7 @@ def create_app(
         lifespan=_agent_lifespan,
     )
     application.state.settings = active_settings
-    application.state.agent_runtime_factory = runtime_factory or NoopAgentRuntimeFactory()
+    application.state.agent_runtime_factory = runtime_factory or PersistedAgentRuntimeFactory(active_settings)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=active_settings.cors_origins,

@@ -33,6 +33,14 @@ class AgentRepository(Protocol):
 
     def add_event(self, event: AgentEvent) -> AgentEvent: ...
 
+    def list_events_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, after_seq: int = 0
+    ) -> list[AgentEvent]: ...
+
+    def get_latest_run_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID
+    ) -> AgentRun | None: ...
+
     def get_invocation_for_user_for_update(
         self,
         *,

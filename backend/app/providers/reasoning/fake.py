@@ -12,6 +12,7 @@ from app.providers.reasoning.dto import (
     CorrectionDTO,
     ParseMealRequest,
     ParseMealResult,
+    ParsedMealItemDTO,
     ParsedMealDTO,
     ProviderCallError,
     ProviderCallMetadataDTO,
@@ -133,6 +134,34 @@ class FakeReasoningModelProvider:
                 latency_ms=metadata.latency_ms,
             )
         )
+
+
+class RiceOnlyFakeReasoningModelProvider(FakeReasoningModelProvider):
+    """The Phase 2 integration fake recognises exactly the direct-grams rice sentinel.
+
+    Keeping this narrow prevents a test double from quietly becoming a second food parser or a
+    source of nutrition facts.  Any other wording follows the normal scripted-failure path.
+    """
+
+    async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
+        normalized = " ".join(request.meal_description.casefold().split())
+        if normalized in {"米饭 100 克", "米饭100克", "cooked rice 100 g"}:
+            outcome = ParseMealResult(
+                value=ParsedMealDTO(
+                    items=[
+                        ParsedMealItemDTO(
+                            item_id="rice-1",
+                            food_name="米饭",
+                            catalog_query="米饭",
+                            grams=Decimal("100"),
+                        )
+                    ]
+                ),
+                metadata=_metadata(),
+            )
+            self._record_call("parse_meal", outcome)
+            return outcome
+        return await super().parse_meal(request)
 
 
 def _metadata(

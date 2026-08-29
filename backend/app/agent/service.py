@@ -11,6 +11,8 @@ from decimal import Decimal
 
 from app.agent.models import AgentEvent, AgentInvocation, AgentLease, AgentRun, AgentThread
 from app.agent.ports import AgentRepository
+from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState
+from app.agent.graph import AgentGraph
 
 
 class AgentThreadUnavailable(LookupError):
@@ -129,6 +131,77 @@ class AgentService:
         self._commit_or_rollback()
         return run
 
+    async def execute_run(
+        self, *, run_id: uuid.UUID, user_id: uuid.UUID, graph: AgentGraph, input_text: str
+    ) -> AgentRun:
+        """Execute one accepted run after tenant ownership has been checked by the caller.
+
+        The command body is transient: durable records receive only event type, progress and the
+        deterministic report.  Provider request text and state messages never enter the ledger.
+        """
+
+        run = self._repository.get_run_for_user(run_id=run_id, user_id=user_id, for_update=True)
+        if run is None:
+            raise AgentThreadUnavailable("agent run is unavailable")
+        if run.status == "completed":
+            return run
+        self.get_thread(thread_id=run.thread_id, user_id=user_id)
+        run.status = "running"
+        run.updated_at = self._now()
+        self._commit_or_rollback()
+        self.append_safe_event(
+            thread_id=run.thread_id,
+            user_id=user_id,
+            run_id=run.id,
+            event_type="running",
+            payload={"run_id": str(run.id)},
+            safe_summary="分析任务正在运行。",
+        )
+        state = MealAgentState(
+            user_id=user_id,
+            thread_id=run.thread_id,
+            run_id=run.id,
+            messages=(input_text,),
+            graph_version=run.graph_version,
+            prompt_version=run.prompt_version,
+            tool_version=run.tool_version,
+            next_action=AgentNextAction.PARSE,
+            status=AgentRuntimeStatus.ACCEPTED,
+        )
+        finished = await graph.ainvoke(state)
+        run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
+        assert run is not None
+        run.graph_steps = max(run.graph_steps, 1)
+        run.model_calls = max(run.model_calls, 1)
+        run.tool_calls = len(finished.tool_summaries)
+        run.updated_at = self._now()
+        if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
+            run.status = "completed"
+            run.finished_at = run.updated_at
+            self._commit_or_rollback()
+            self.append_safe_event(
+                thread_id=run.thread_id,
+                user_id=user_id,
+                run_id=run.id,
+                event_type="completed",
+                payload={"run_id": str(run.id), "report": finished.report},
+                safe_summary="分析报告已生成。",
+            )
+            return run
+        run.status = "failed"
+        run.failure_code = "ANALYSIS_NOT_COMPLETED"
+        run.finished_at = run.updated_at
+        self._commit_or_rollback()
+        self.append_safe_event(
+            thread_id=run.thread_id,
+            user_id=user_id,
+            run_id=run.id,
+            event_type="failed",
+            payload={"run_id": str(run.id)},
+            safe_summary="分析未能完成。",
+        )
+        return run
+
     def append_safe_event(
         self,
         *,
@@ -159,6 +232,22 @@ class AgentService:
         )
         self._commit_or_rollback()
         return event
+
+    def latest_run_and_events(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, after_seq: int = 0
+    ) -> tuple[AgentThread, AgentRun | None, list[AgentEvent]]:
+        """Return only tenant-filtered business ledger data for snapshot/SSE presenters."""
+
+        thread = self.get_thread(thread_id=thread_id, user_id=user_id)
+        return (
+            thread,
+            self._repository.get_latest_run_for_thread_for_user(
+                thread_id=thread_id, user_id=user_id
+            ),
+            self._repository.list_events_for_thread_for_user(
+                thread_id=thread_id, user_id=user_id, after_seq=after_seq
+            ),
+        )
 
     def prepare_invocation(
         self,
