@@ -27,6 +27,7 @@
 | `02-03-PLAN.md` | Reasoning Provider DTO、端口、Fake 与测试工厂计划 |
 | `02-04-PLAN.md` | Agent 前端 feature 骨架、SSE 解析依赖与逐级目录索引计划 |
 | `02-05-PLAN.md` | 冻结评测数据首批主路径与版本合同计划 |
+| `02-05-SUMMARY.md` | 无 seed 0004、真实 PostgreSQL schema 合同与 5-case happy prefix 执行摘要 |
 | `02-06-PLAN.md` | 营养领域模型、Repository、Service 与确定性工具计划 |
 | `02-07-PLAN.md` | Agent 运行账本、事件、Graph State 与持久化基础计划 |
 | `02-08-PLAN.md` | Alembic、Checkpointer、FDC 导入与幂等初始化计划 |
