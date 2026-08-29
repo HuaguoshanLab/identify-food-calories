@@ -13,4 +13,6 @@
 
 | 目录 | 职责 |
 |---|---|
+| `api/` | 仅保存运行时 OpenAPI 生成的公开 API 客户端与校验器。 |
+| `stream/` | 认证 fetch 的 SSE 传输边界；分片由 `eventsource-parser` 处理。 |
 | `components/` | 分析页的可访问 UI 组合；不拥有 Graph State 或营养计算。 |
