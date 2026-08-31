@@ -187,7 +187,7 @@ class MealAnalysisGraph:
                 item.model_copy(update={"grams": grams}) if item.item_id == item_id else item
                 for item in items
             )
-        recovered_portion = _recover_single_explicit_portion(
+        recovered_portion = _recover_single_portion_description(
             message=state.messages[0], items=items
         )
         if recovered_portion is not None:
@@ -514,17 +514,26 @@ def _recover_single_explicit_grams(
     return (items[0].item_id, grams) if grams is not None else None
 
 
-def _recover_single_explicit_portion(
+def _recover_single_portion_description(
     *, message: str, items: tuple[StateMealItem, ...]
 ) -> tuple[str, str] | None:
-    """Preserve one user-stated portion phrase; the catalog still decides whether it is usable."""
+    """Preserve a single item's residual quantity phrase; the catalog decides usability.
+
+    This deliberately has no list of portions.  The parser only separates a recognized food
+    name from the remaining user text; ``calculate_nutrition`` accepts that residual only when
+    the matched food owns one exact, audited controlled portion with the same description.
+    """
 
     if len(items) != 1 or items[0].grams is not None or items[0].portion_description:
         return None
-    normalized = "".join(message.casefold().split())
-    if normalized.count("一拳") != 1 or not normalized.endswith("一拳"):
+    normalized_message = "".join(message.casefold().split())
+    normalized_food = "".join(items[0].normalized_name.casefold().split())
+    if not normalized_food or normalized_message.count(normalized_food) != 1:
         return None
-    return items[0].item_id, "一拳"
+    portion_description = normalized_message.replace(normalized_food, "", 1).strip("，,。.")
+    if not portion_description:
+        return None
+    return items[0].item_id, portion_description
 
 
 def _next_version(value: str) -> str:

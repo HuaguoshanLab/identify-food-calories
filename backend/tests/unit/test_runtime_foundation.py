@@ -460,7 +460,7 @@ def test_graph_recovers_one_explicit_gram_value_omitted_by_provider() -> None:
     ]
 
 
-def test_graph_uses_an_audited_catalog_portion_without_inventing_grams() -> None:
+def test_graph_uses_an_audited_catalog_portion_without_hardcoding_its_name() -> None:
     from app.providers.reasoning.dto import ParsedMealItemDTO
 
     graph, _provider, _tools = _graph_with_items(
