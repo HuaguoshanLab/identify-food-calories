@@ -20,6 +20,7 @@ from app.nutrition.importer import (
 SEED_PATH = Path("app/nutrition/data/fdc-seed-v1.json")
 RICE_FIST_SEED_PATH = Path("app/nutrition/data/fdc-seed-v1-rice-fist-v1.json")
 CHILI_FRY_RECIPE_PATH = Path("app/nutrition/data/chili-fried-pork-reference-v1.json")
+CHILI_FRY_RECIPE_V2_PATH = Path("app/nutrition/data/chili-fried-pork-reference-v2.json")
 
 
 def test_seed_manifest_is_a_qualified_offline_usda_catalog() -> None:
@@ -57,6 +58,14 @@ def test_reference_recipe_manifest_freezes_recipe_yield_and_recalculable_fdc_inp
     recipe = manifest.foods[0]
     assert recipe.aliases[0] == "辣椒炒肉"
     assert recipe.nutrients_per_100g.energy_kcal == Decimal("157.552512")
+
+
+def test_reference_recipe_v2_adds_controlled_english_dish_aliases() -> None:
+    manifest = load_manifest(CHILI_FRY_RECIPE_V2_PATH)
+
+    assert manifest.version == "chili-fried-pork-v2"
+    assert manifest.foods[0].stable_id == "recipe:chili-fried-pork-v2"
+    assert "pork with peppers" in manifest.foods[0].aliases
 
 
 def test_manifest_rejects_a_tampered_content_hash(tmp_path: Path) -> None:

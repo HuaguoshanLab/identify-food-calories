@@ -31,7 +31,9 @@ VISION_JSON_CONTRACT = (
     'Return JSON only, with exactly this top-level object: '
     '{"items":[{"item_id":"item-1","food_name":"string","preparation":"string or null",'
     '"portion_clue":"string or null","estimated_grams":number or null,"confidence":number}]}. '
-    'Use one item per visible food. item_id must be a short unique identifier. confidence must be '
+    'For a finished mixed dish, prefer its common prepared dish name rather than splitting visible '
+    'ingredients; for stir-fried pork with green or red chili peppers, use the food_name "辣椒炒肉". '
+    'Only split components when they are separately served foods. item_id must be a short unique identifier. confidence must be '
     'a number from 0 to 1. estimated_grams must be a positive number in grams when visible, otherwise null. '
     'Do not include nutrition values, explanations, Markdown, or any other fields.'
 )

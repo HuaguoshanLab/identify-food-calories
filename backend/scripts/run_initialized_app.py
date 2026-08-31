@@ -61,7 +61,7 @@ def setup_checkpointer(database_url: str) -> None:
 def apply_seed(database_url: str) -> None:
     for manifest_path in (
         "app/nutrition/data/fdc-seed-v1.json",
-        "app/nutrition/data/chili-fried-pork-reference-v1.json",
+        "app/nutrition/data/chili-fried-pork-reference-v2.json",
     ):
         _run_for_test_target(
             [

@@ -131,7 +131,12 @@ class CatalogManifest(BaseModel):
             if self.provenance.dataset != "public-reference-recipe" or self.provenance.source_name != "ChineseCalorie public reference recipe":
                 raise ValueError("reference recipe provenance is not approved")
             food = self.foods[0]
-            if food.stable_id != "recipe:chili-fried-pork-v1" or food.source_url != self.provenance.source_url:
+            expected_stable_id = f"recipe:{self.version}"
+            if (
+                self.version not in {"chili-fried-pork-v1", "chili-fried-pork-v2"}
+                or food.stable_id != expected_stable_id
+                or food.source_url != self.provenance.source_url
+            ):
                 raise ValueError("reference recipe identity or source is invalid")
             if self.recipe_basis is None or self.recipe_basis.finished_weight_g != Decimal("250"):
                 raise ValueError("reference recipe must declare its fixed 250g cooked yield")

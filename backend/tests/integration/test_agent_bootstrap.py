@@ -67,7 +67,7 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
             assert connection.scalar(
                 text(
                     "SELECT count(*) FROM food_catalog_items "
-                    "WHERE stable_id = 'recipe:chili-fried-pork-v1' AND is_qualified"
+                    "WHERE stable_id = 'recipe:chili-fried-pork-v2' AND is_qualified"
                 )
             ) == 1
         with sessionmaker(engine)() as session:
@@ -75,6 +75,6 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
                 FoodSearchInput(query="辣椒炒肉")
             )
             assert result.selected_food is not None
-            assert result.selected_food.canonical_name == "Chili fried pork, reference recipe v1"
+            assert result.selected_food.canonical_name == "Chili fried pork, reference recipe v2"
     finally:
         engine.dispose()

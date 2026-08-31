@@ -54,6 +54,7 @@ def test_qwen_request_is_non_thinking_json_and_retries_one_safe_transient_respon
     assert sent["enable_thinking"] is False
     assert sent["response_format"] == {"type": "json_object"}
     assert sent["messages"][0]["content"][1]["text"] == VISION_JSON_CONTRACT
+    assert 'food_name "辣椒炒肉"' in sent["messages"][0]["content"][1]["text"]
     assert '"estimated_grams":number or null' in sent["messages"][0]["content"][1]["text"]
     assert sent["messages"][0]["content"][0]["image_url"]["min_pixels"] == MIN_PIXELS
     assert sent["messages"][0]["content"][0]["image_url"]["max_pixels"] == 100_000
