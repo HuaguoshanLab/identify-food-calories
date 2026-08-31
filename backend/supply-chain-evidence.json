@@ -1,6 +1,6 @@
 {
   "schema_version": "supply-chain-evidence/v1",
-  "generated_at": "2026-08-29T06:37:13Z",
+  "generated_at": "2026-08-31T05:10:18Z",
   "status": "approved",
   "manual_manifest": {
     "packages": [
@@ -96,6 +96,19 @@
         "registry_response_sha256": "d1a417cdf04a0f6a42ff3124e382580c6590e6cf2e0a05137e7b322ad80a596f"
       },
       {
+        "name": "pillow",
+        "ecosystem": "pypi",
+        "version": "12.3.0",
+        "registry_url": "https://pypi.org/pypi/pillow/12.3.0/json",
+        "owner": "Jeffrey Alex Clark and Pillow contributors",
+        "repository_url": "https://github.com/python-pillow/Pillow",
+        "license": "MIT-CMU",
+        "published_at": "2026-07-01T11:53:27.808291Z",
+        "checked_at": "2026-08-31T05:10:18Z",
+        "reviewer": "Phase 3 approved image-safety dependency; official PyPI metadata and current security fixes reviewed",
+        "registry_response_sha256": "63159d6013cf20f98ff9caeb8b0b210b7f5877975587f4265397ffb0fd8c72a0"
+      },
+      {
         "name": "promptfoo",
         "ecosystem": "npm",
         "version": "0.122.0",
@@ -109,6 +122,6 @@
         "registry_response_sha256": "d575776647a7cbdc3acfdbdb4cb0d47308f463280a6ac32ce050cc57f274b531"
       }
     ],
-    "manifest_sha256": "429e659f8ff9a5d052bb9a865177ef7b4e24a2d3150ae2fbf3a9ccc315e1a464"
+    "manifest_sha256": "2dfc1d2585874a2f2b0ce5c15c40768e3ed0063e7b6e7f86e66debdfac93b65e"
   }
 }

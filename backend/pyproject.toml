@@ -16,7 +16,7 @@ dependencies = [
   "langgraph==1.2.11",
   "langgraph-checkpoint-postgres==3.1.2",
   "openinference-instrumentation-langchain==0.1.72",
-  "Pillow==11.3.0",
+  "Pillow==12.3.0",
   "PyJWT==2.13.0",
   "psycopg[binary]==3.2.13",
   "pydantic-settings==2.11.0",

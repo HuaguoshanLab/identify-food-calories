@@ -16,3 +16,4 @@
 |---|---|
 | `__init__.py` | Python 包标识 |
 | `reasoning/` | 文本推理 Provider 的独立 DTO、Port、Fake 和工厂 |
+| `vision/` | 图片观察 Provider 的独立 DTO、Port、Fake 和工厂；只接收安全临时引用。 |

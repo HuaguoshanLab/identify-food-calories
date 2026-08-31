@@ -18,6 +18,7 @@ class ConfigurationError(ValueError):
 
 
 ReasoningProviderMode: TypeAlias = Literal["fake", "deepseek"]
+VisionProviderMode: TypeAlias = Literal["fake", "qwen"]
 
 
 class Settings(BaseSettings):
@@ -55,6 +56,16 @@ class Settings(BaseSettings):
     image_max_pixels: int = 20_000_000
     image_temporary_directory: Path = Path("/tmp/food-agent-images")
     image_ttl_seconds: int = 300
+    vision_provider_mode: VisionProviderMode = "fake"
+    qwen_api_key: SecretStr | None = None
+    qwen_model: str | None = None
+    qwen_region: str | None = None
+    qwen_deployment_scope: str | None = None
+    qwen_price_snapshot_version: str | None = None
+    qwen_input_usd_per_m: Decimal | None = None
+    qwen_output_usd_per_m: Decimal | None = None
+    vision_timeout_seconds: int = 20
+    vision_max_pixels: int = 20_000_000
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -158,6 +169,25 @@ class Settings(BaseSettings):
             raise ConfigurationError("IMAGE_TEMPORARY_DIRECTORY is required in production")
         if not self.image_temporary_directory.is_absolute() or self.image_temporary_directory == Path("/"):
             raise ConfigurationError("IMAGE_TEMPORARY_DIRECTORY must be a private absolute directory")
+        if self.vision_provider_mode != "qwen":
+            raise ConfigurationError("production requires VISION_PROVIDER_MODE=qwen")
+        vision_required = {
+            "QWEN_API_KEY": self.qwen_api_key.get_secret_value() if self.qwen_api_key else None,
+            "QWEN_MODEL": self.qwen_model,
+            "QWEN_REGION": self.qwen_region,
+            "QWEN_DEPLOYMENT_SCOPE": self.qwen_deployment_scope,
+            "QWEN_PRICE_SNAPSHOT_VERSION": self.qwen_price_snapshot_version,
+            "QWEN_INPUT_USD_PER_M": self.qwen_input_usd_per_m,
+            "QWEN_OUTPUT_USD_PER_M": self.qwen_output_usd_per_m,
+        }
+        for variable, vision_value in vision_required.items():
+            if vision_value is None or not str(vision_value).strip():
+                raise ConfigurationError(f"{variable} is required in production")
+        if self.vision_timeout_seconds <= 0 or self.vision_max_pixels <= 0:
+            raise ConfigurationError("VISION_TIMEOUT_SECONDS and VISION_MAX_PIXELS must be positive")
+        for field in ("vision_timeout_seconds", "vision_max_pixels"):
+            if field not in self.model_fields_set:
+                raise ConfigurationError(f"{field.upper()} must be explicitly configured in production")
 
         return self
 

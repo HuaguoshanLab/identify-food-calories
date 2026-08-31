@@ -26,6 +26,7 @@ APPROVED_PACKAGES: tuple[tuple[str, str, str], ...] = (
     ("arize-phoenix", "pypi", "18.1.0"),
     ("arize-phoenix-otel", "pypi", "0.17.1"),
     ("openinference-instrumentation-langchain", "pypi", "0.1.72"),
+    ("pillow", "pypi", "12.3.0"),
     ("promptfoo", "npm", "0.122.0"),
 )
 SCANNER_IDENTITY: dict[str, str] = {
