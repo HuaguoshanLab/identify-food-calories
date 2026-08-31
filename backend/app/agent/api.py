@@ -13,7 +13,7 @@ from collections.abc import Generator, Iterator
 from datetime import timedelta
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Security, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
@@ -23,13 +23,17 @@ from app.agent.schemas import (
     AgentCommandAcceptedResponse,
     AgentDeletionAcceptedResponse,
     AgentErrorResponse,
+    AgentImageAcceptedResponse,
     AgentInputRequest,
     AgentThreadCreateRequest,
     AgentThreadSnapshot,
     AgentThreadStatus,
 )
-from app.agent.service import AgentService, AgentThreadUnavailable, RetentionPolicy
+from app.agent.service import AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy
+from app.agent.state import StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
+from app.images.schemas import ImageValidationError, ValidatedImageReference
+from app.images.service import ImageSafetyService
 from app.auth.api import bearer_scheme, get_authentication_service
 from app.auth.security import InvalidAccessToken
 from app.auth.service import AuthenticatedUserUnavailable, AuthenticationService
@@ -101,6 +105,25 @@ def _command_hash(text: str) -> dict[str, object]:
     return {"kind": "description", "input_hash": hashlib.sha256(text.encode("utf-8")).hexdigest()}
 
 
+def _image_command_hash(reference: ValidatedImageReference) -> dict[str, object]:
+    return {"kind": "image", "digest_sha256": reference.digest_sha256}
+
+
+def _image_state(*, image_id: uuid.UUID, reference: ValidatedImageReference) -> StateImageReference:
+    return StateImageReference(
+        image_id=image_id,
+        digest_sha256=reference.digest_sha256,
+        mime_type=reference.mime_type,
+        width=reference.width,
+        height=reference.height,
+        byte_size=reference.byte_size,
+        locator=reference.locator,
+        created_at=reference.created_at,
+        expires_at=reference.expires_at,
+        status="ready",
+    )
+
+
 async def _execute(
     *,
     service: AgentService,
@@ -108,6 +131,7 @@ async def _execute(
     run_id: uuid.UUID,
     user_id: uuid.UUID,
     text: str | None = None,
+    image_reference: StateImageReference | None = None,
     resume_payload: dict[str, object] | None = None,
 ) -> None:
     cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
@@ -117,6 +141,7 @@ async def _execute(
         graph=runtime.graph,
         checkpointer=runtime.checkpointer,
         input_text=text,
+        image_reference=image_reference,
         resume_payload=resume_payload,
     )
 
@@ -127,6 +152,92 @@ async def create_agent_thread(payload: AgentThreadCreateRequest, request: Reques
     run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
     await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
     return _snapshot(service, thread_id=thread.id, user_id=principal)
+
+
+@router.post(
+    "/threads/{thread_id}/images",
+    operation_id="uploadAgentMealImage",
+    response_model=AgentImageAcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses=_ERROR_RESPONSES,
+)
+async def upload_agent_meal_image(
+    thread_id: uuid.UUID,
+    request: Request,
+    principal: AgentPrincipal,
+    command_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=128)],
+    image: UploadFile = File(...),
+    service: AgentService = Depends(get_agent_service),
+) -> AgentImageAcceptedResponse | JSONResponse:
+    """Validate a bounded multipart image after ownership, then erase its temporary handle."""
+
+    try:
+        service.get_thread(thread_id=thread_id, user_id=principal)
+    except AgentThreadUnavailable:
+        raise _unavailable() from None
+    runtime = _runtime(request)
+    settings = request.app.state.settings
+    try:
+        # Read one byte beyond the declared limit; never materialize an unbounded request body.
+        content = await image.read(settings.image_max_bytes + 1)
+        safety = cast(ImageSafetyService, runtime.image_safety)
+        reference = safety.validate_and_store(content=content, declared_mime=image.content_type)
+    except ImageValidationError as error:
+        return _error(status.HTTP_422_UNPROCESSABLE_ENTITY, error.code, error.safe_message)
+    finally:
+        await image.close()
+
+    try:
+        run = service.create_or_reuse_run(
+            thread_id=thread_id,
+            user_id=principal,
+            command_key=command_key,
+            canonical_command=_image_command_hash(reference),
+        )
+        existing_image = service.get_image_for_run(run_id=run.id, user_id=principal)
+        if existing_image is not None:
+            # The caller retried an accepted command. Its newly normalized temporary file is
+            # unnecessary and must not create a second paid invocation or durable image row.
+            safety.delete(reference)
+            return AgentImageAcceptedResponse(
+                thread_id=thread_id,
+                image_id=existing_image.id,
+                status=_status(run.status),
+            )
+        image_record = service.record_validated_image(
+            thread_id=thread_id, run_id=run.id, user_id=principal, reference=reference
+        )
+        image_state = _image_state(image_id=image_record.id, reference=reference)
+        service.prepare_vision_invocation(
+            image_id=image_record.id,
+            run_id=run.id,
+            user_id=principal,
+            request_key=f"{run.id.hex}-{image_record.id.hex}",
+            model_alias=settings.qwen_model or "fake-vision-v1",
+        )
+        await _execute(
+            service=service,
+            runtime=runtime,
+            run_id=run.id,
+            user_id=principal,
+            image_reference=image_state,
+        )
+    except AgentCommandConflict:
+        safety.delete(reference)
+        return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同图片。")
+    except Exception:
+        safety.delete(reference)
+        raise
+    try:
+        safety.delete(reference)
+        service.mark_image_deleted(image_id=image_record.id, user_id=principal)
+    except Exception:
+        service.mark_image_deletion_failed(image_id=image_record.id, user_id=principal)
+    return AgentImageAcceptedResponse(
+        thread_id=thread_id,
+        image_id=image_record.id,
+        status=_status(run.status),
+    )
 
 
 @router.post("/threads/{thread_id}/input", operation_id="submitAgentInput", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)

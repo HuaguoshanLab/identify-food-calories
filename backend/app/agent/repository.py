@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session
 from app.agent.models import (
     AgentDeletionIntent,
     AgentEvent,
+    AgentImage,
     AgentInvocation,
     AgentLease,
     AgentRun,
     AgentThread,
+    AgentVisionInvocation,
 )
 
 
@@ -143,6 +145,83 @@ class SqlAlchemyAgentRepository:
         self._session.flush()
         return invocation
 
+    def add_image(self, image: AgentImage) -> AgentImage:
+        self._session.add(image)
+        self._session.flush()
+        return image
+
+    def get_image_for_user(
+        self, *, image_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentImage | None:
+        statement = select(AgentImage).where(AgentImage.id == image_id, AgentImage.user_id == user_id)
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def get_image_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, image_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentImage | None:
+        statement = select(AgentImage).where(
+            AgentImage.id == image_id,
+            AgentImage.thread_id == thread_id,
+            AgentImage.user_id == user_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def get_image_for_run_for_user(
+        self, *, run_id: uuid.UUID, user_id: uuid.UUID
+    ) -> AgentImage | None:
+        return self._session.scalar(
+            select(AgentImage)
+            .where(AgentImage.run_id == run_id, AgentImage.user_id == user_id)
+            .order_by(AgentImage.created_at)
+        )
+
+    def list_images_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> list[AgentImage]:
+        statement = select(AgentImage).where(
+            AgentImage.thread_id == thread_id,
+            AgentImage.user_id == user_id,
+        )
+        if not include_deleted:
+            statement = statement.where(AgentImage.deleted_at.is_(None))
+        return list(self._session.scalars(statement.order_by(AgentImage.created_at, AgentImage.id)))
+
+    def list_images_expiring_before(self, *, cutoff: datetime) -> list[AgentImage]:
+        return list(
+            self._session.scalars(
+                select(AgentImage)
+                .join(AgentThread, AgentThread.id == AgentImage.thread_id)
+                .where(
+                    AgentImage.expires_at <= cutoff,
+                    AgentImage.deleted_at.is_(None),
+                    AgentImage.user_id == AgentThread.user_id,
+                )
+                .order_by(AgentImage.expires_at, AgentImage.id)
+            )
+        )
+
+    def add_vision_invocation(self, invocation: AgentVisionInvocation) -> AgentVisionInvocation:
+        self._session.add(invocation)
+        self._session.flush()
+        return invocation
+
+    def get_vision_invocation_for_image_for_update(
+        self, *, image_id: uuid.UUID, user_id: uuid.UUID, request_key: str
+    ) -> AgentVisionInvocation | None:
+        return self._session.scalar(
+            select(AgentVisionInvocation)
+            .where(
+                AgentVisionInvocation.image_id == image_id,
+                AgentVisionInvocation.user_id == user_id,
+                AgentVisionInvocation.request_key == request_key,
+            )
+            .with_for_update()
+        )
+
     def get_lease_for_run_for_update(
         self, *, run_id: uuid.UUID, user_id: uuid.UUID
     ) -> AgentLease | None:
@@ -259,3 +338,8 @@ class SqlAlchemyAgentRepository:
 
     def earliest_run_updated_at(self) -> datetime | None:
         return self._session.scalar(select(func.min(AgentRun.updated_at)))
+
+    def earliest_image_expiry_at(self) -> datetime | None:
+        return self._session.scalar(
+            select(func.min(AgentImage.expires_at)).where(AgentImage.deleted_at.is_(None))
+        )

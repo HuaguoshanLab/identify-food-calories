@@ -166,6 +166,75 @@ class AgentInvocation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class AgentImage(Base):
+    """Minimal durable lifecycle metadata for one normalized, private image handle."""
+
+    __tablename__ = "agent_images"
+    __table_args__ = (
+        CheckConstraint("digest_sha256 ~ '^[a-f0-9]{64}$'", name="ck_agent_images_digest"),
+        CheckConstraint(
+            "mime_type IN ('image/jpeg', 'image/png', 'image/webp')",
+            name="ck_agent_images_mime",
+        ),
+        CheckConstraint("width > 0 AND height > 0 AND byte_size > 0", name="ck_agent_images_dimensions"),
+        CheckConstraint(
+            "status IN ('ready', 'processing', 'deletion_pending', 'deleted', 'delete_failed')",
+            name="ck_agent_images_status",
+        ),
+        UniqueConstraint("run_id", "locator", name="uq_agent_images_run_locator"),
+        Index("ix_agent_images_user_thread", "user_id", "thread_id"),
+        Index("ix_agent_images_status_expiry", "status", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    thread_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    digest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    locator: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentVisionInvocation(Base):
+    """Provider-safe invocation ledger: no prompt, image payload, or model body survives."""
+
+    __tablename__ = "agent_vision_invocations"
+    __table_args__ = (
+        CheckConstraint("attempt >= 0", name="ck_agent_vision_invocations_attempt"),
+        CheckConstraint("cost_cny >= 0", name="ck_agent_vision_invocations_cost"),
+        CheckConstraint(
+            "status IN ('prepared', 'running', 'completed', 'failed', 'outcome_unknown')",
+            name="ck_agent_vision_invocations_status",
+        ),
+        UniqueConstraint("image_id", "request_key", name="uq_agent_vision_invocations_image_request"),
+        Index("ix_agent_vision_invocations_user_run", "user_id", "run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    image_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_images.id", ondelete="CASCADE"), nullable=False)
+    thread_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    request_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_alias: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_request_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="prepared")
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_cny: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+    safe_result_digest: Mapped[str | None] = mapped_column(String(64))
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class AgentLease(Base):
     """A PostgreSQL-coordinated execution lease; workers never use process-local locks."""
 

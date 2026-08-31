@@ -24,8 +24,10 @@ from app.agent.state import (
     StateNutritionResult,
     StateToolSummary,
     StateCandidate,
+    StateVisionMetadata,
 )
 from app.agent.tools import NutritionToolAdapter
+from app.images.schemas import ValidatedImageReference
 from app.nutrition.schemas import (
     FoodSearchInput,
     NutritionCalculationInput,
@@ -39,6 +41,8 @@ from app.providers.reasoning.dto import (
     ProviderFailureKind,
 )
 from app.providers.reasoning.ports import ReasoningModelProvider
+from app.providers.vision.dto import VisionMealRequest, VisionMealResult
+from app.providers.vision.ports import VisionModelProvider
 
 
 GRAPH_VERSION = "meal-agent-graph.v1"
@@ -74,6 +78,7 @@ class AgentRuntime:
     checkpointer: object
     supervisor: object
     session_factory: Callable[[], object]
+    image_safety: object
 
 
 class AgentRuntimeFactory(Protocol):
@@ -112,10 +117,18 @@ class MealAnalysisGraph:
         *,
         provider: ReasoningModelProvider,
         tools: NutritionToolAdapter,
+        vision_provider: VisionModelProvider | None = None,
+        vision_model_alias: str = "fake-vision-v1",
+        vision_pixel_budget: int = 20_000_000,
         monotonic_ms: Callable[[], int] | None = None,
     ) -> None:
         self._provider = provider
         self._tools = tools
+        self._vision_provider = vision_provider
+        self._vision_model_alias = vision_model_alias
+        if vision_pixel_budget <= 0 or vision_pixel_budget > 20_000_000:
+            raise ValueError("vision pixel budget is invalid")
+        self._vision_pixel_budget = vision_pixel_budget
         self._monotonic_ms = monotonic_ms or _monotonic_ms
 
     async def ainvoke(
@@ -148,6 +161,14 @@ class MealAnalysisGraph:
                 return state
             state = preview
             resumed = True
+        if state.next_action is AgentNextAction.VISION:
+            state = _begin_transition(state)
+            if state.status is AgentRuntimeStatus.LIMIT_REACHED:
+                return state
+            observed = await self._observe_image(state)
+            if observed.status is not AgentRuntimeStatus.ACCEPTED:
+                return self._finish_transition(observed, started_ms)
+            return self._finish_transition(self._resolve(observed), started_ms)
         state = _begin_transition(state)
         if state.status is AgentRuntimeStatus.LIMIT_REACHED:
             return state
@@ -208,6 +229,54 @@ class MealAnalysisGraph:
         return self._finish_transition(self._resolve(
             parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
         ), started_ms)
+
+    async def _observe_image(self, state: MealAgentState) -> MealAgentState:
+        """Use the Vision port once, then retain only allowlisted observation fields."""
+
+        image = state.vision_image
+        if image is None or state.vision_invocation_status == "outcome_unknown":
+            return state.model_copy(
+                update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
+            )
+        if state.vision_invocation_status == "completed":
+            return state.model_copy(update={"next_action": AgentNextAction.RESOLVE_CATALOG})
+        if self._vision_provider is None:
+            return state.model_copy(
+                update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
+            )
+        reference = ValidatedImageReference(
+            digest_sha256=image.digest_sha256,
+            mime_type=image.mime_type,  # type: ignore[arg-type]
+            width=image.width,
+            height=image.height,
+            byte_size=image.byte_size,
+            locator=image.locator,
+            created_at=image.created_at,
+            expires_at=image.expires_at,
+        )
+        try:
+            observed = await self._vision_provider.analyze_meal_image(
+                VisionMealRequest(
+                    image=reference,
+                    model_alias=self._vision_model_alias,
+                    pixel_budget=self._vision_pixel_budget,
+                    request_key=state.vision_request_key or f"{state.run_id.hex}-{image.image_id.hex}",
+                )
+            )
+        except ProviderCallError as error:
+            invocation_status = (
+                "outcome_unknown"
+                if error.kind is ProviderFailureKind.OUTCOME_UNKNOWN
+                else "failed"
+            )
+            return state.model_copy(
+                update={
+                    "vision_invocation_status": invocation_status,
+                    "status": AgentRuntimeStatus.FAILED,
+                    "next_action": AgentNextAction.STOP,
+                }
+            )
+        return _vision_result_state(state, observed)
 
     async def _parse_with_one_transient_retry(
         self, state: MealAgentState
@@ -478,6 +547,46 @@ def _begin_transition(state: MealAgentState) -> MealAgentState:
 def _limit_state(state: MealAgentState) -> MealAgentState:
     return state.model_copy(
         update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": AgentNextAction.STOP}
+    )
+
+
+def _vision_result_state(state: MealAgentState, observed: VisionMealResult) -> MealAgentState:
+    """Project a strict provider DTO into the distinct graph-state contract."""
+
+    items = tuple(
+        StateMealItem(
+            item_id=item.item_id,
+            normalized_name=item.food_name,
+            grams=item.estimated_grams,
+            portion_description=item.portion_clue,
+            input_version="vision.v1",
+            is_dirty=True,
+            search_query=item.food_name,
+            is_estimated=item.estimated_grams is not None,
+            estimate_confidence=item.confidence,
+        )
+        for item in observed.items
+    )
+    metadata = observed.metadata
+    return state.model_copy(
+        update={
+            "items": items,
+            "messages": (),
+            "vision_metadata": StateVisionMetadata(
+                model_alias=metadata.model_alias,
+                provider_request_id=metadata.provider_request_id,
+                image_tokens=metadata.usage.image_tokens,
+                prompt_tokens=metadata.usage.prompt_tokens,
+                completion_tokens=metadata.usage.completion_tokens,
+                cost_cny=metadata.usage.cost_cny,
+                latency_ms=metadata.latency_ms,
+                prompt_version=metadata.prompt_version,
+                schema_version=metadata.schema_version,
+            ),
+            "vision_invocation_status": "completed",
+            "next_action": AgentNextAction.RESOLVE_CATALOG,
+            "status": AgentRuntimeStatus.ACCEPTED,
+        }
     )
 
 

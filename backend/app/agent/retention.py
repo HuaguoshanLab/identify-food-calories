@@ -8,6 +8,7 @@ tenant's data, and a crashed process releases its connection-bound lease automat
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.repository import SqlAlchemyAgentRepository
 from app.agent.service import AgentService, RetentionPolicy, RetentionSweep
+from app.images.service import ImageSafetyService
 
 
 _RETENTION_ADVISORY_LOCK_KEY = 2_140_022_014
@@ -29,6 +31,7 @@ class RetentionRunStats:
     cleared_checkpoint_namespaces: int = 0
     deleted_events: int = 0
     deleted_runs: int = 0
+    deleted_images: int = 0
 
 
 class RetentionWorker:
@@ -40,6 +43,7 @@ class RetentionWorker:
         session_factory: Callable[[], Session],
         checkpointer: object,
         policy: RetentionPolicy,
+        image_safety: ImageSafetyService,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if policy.poll_interval <= timedelta(0) or policy.poll_interval > timedelta(minutes=5):
@@ -49,6 +53,7 @@ class RetentionWorker:
         self._session_factory = session_factory
         self._checkpointer = checkpointer
         self._policy = policy
+        self._image_safety = image_safety
         self._now = now or (lambda: datetime.now(UTC))
         self._task: asyncio.Task[None] | None = None
         self._stopping = False
@@ -171,9 +176,11 @@ class RetentionWorker:
         checkpoint_namespaces = 0
         deleted_events = 0
         deleted_runs = 0
+        deleted_images = 0
         deletion_threads = {thread_id for thread_id, _user_id in sweep.due_deletions}
 
         for thread_id, user_id in sweep.due_deletions:
+            deleted_images += self._delete_thread_images(thread_id=thread_id, user_id=user_id)
             await self._delete_checkpoint_thread(thread_id)
             checkpoint_namespaces += 1
             session, service = self._service()
@@ -203,12 +210,41 @@ class RetentionWorker:
                 deleted_runs += int(service.purge_expired_run(run_id=run_id, user_id=user_id))
             finally:
                 session.close()
+        for image_id, user_id in sweep.expired_images:
+            deleted_images += self._delete_image(image_id=image_id, user_id=user_id)
         return RetentionRunStats(
             deleted_threads=deleted_threads,
             cleared_checkpoint_namespaces=checkpoint_namespaces,
             deleted_events=deleted_events,
             deleted_runs=deleted_runs,
+            deleted_images=deleted_images,
         )
+
+    def _delete_thread_images(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> int:
+        session, service = self._service()
+        try:
+            references = service.images_for_thread_cleanup(thread_id=thread_id, user_id=user_id)
+            deleted = 0
+            for image, reference in references:
+                self._image_safety.delete(reference)
+                service.mark_image_deleted(image_id=image.id, user_id=user_id)
+                deleted += 1
+            return deleted
+        finally:
+            session.close()
+
+    def _delete_image(self, *, image_id: uuid.UUID, user_id: uuid.UUID) -> int:
+        session, service = self._service()
+        try:
+            candidate = service.image_for_cleanup(image_id=image_id, user_id=user_id)
+            if candidate is None:
+                return 0
+            image, reference = candidate
+            self._image_safety.delete(reference)
+            service.mark_image_deleted(image_id=image.id, user_id=user_id)
+            return 1
+        finally:
+            session.close()
 
     async def _delete_checkpoint_thread(self, thread_id: object) -> None:
         delete_thread = getattr(self._checkpointer, "adelete_thread", None)

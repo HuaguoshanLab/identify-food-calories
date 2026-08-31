@@ -168,9 +168,12 @@ function schemasSource(contract) {
   return `${lines.join('\n')}\n`
 }
 
-function requestBodySchema(operation) {
-  const content = operation.requestBody?.content?.['application/json']?.schema
-  return content?.$ref?.split('/').at(-1) ?? null
+function requestBody(operation) {
+  const content = operation.requestBody?.content ?? {}
+  const jsonSchema = content['application/json']?.schema
+  if (jsonSchema) return { kind: 'json', schema: jsonSchema.$ref?.split('/').at(-1) ?? null }
+  if (content['multipart/form-data']?.schema) return { kind: 'multipart', schema: null }
+  return null
 }
 
 function operationResponseSchema(operation) {
@@ -195,14 +198,16 @@ function clientSource(contract) {
       if (!operationId) throw new Error(`Agent operation lacks operationId: ${method.toUpperCase()} ${path}`)
       const parameters = (operation.parameters ?? []).filter((parameter) => parameter.in === 'path')
       const parameterNames = parameters.map((parameter) => parameter.name)
-      const bodyType = requestBodySchema(operation)
+      const body = requestBody(operation)
       const responseType = operationResponseSchema(operation) ?? 'unknown'
       const argumentsList = ['accessToken: string', ...parameterNames.map((name) => `${identifier(name)}: string`)]
-      if (bodyType) argumentsList.push(`payload: Contract.${bodyType}`)
+      if (body?.kind === 'json' && body.schema) argumentsList.push(`payload: Contract.${body.schema}`)
+      if (body?.kind === 'multipart') argumentsList.push('image: File', 'commandKey: string')
       const browserPath = path.replace(/^\/api\/v1/, '')
       const resolvedPath = browserPath.replace(/\{([^}]+)\}/g, (_match, name) => `\${encodeURIComponent(${identifier(name)})}`)
       const initLines = [`method: '${method.toUpperCase()}'`]
-      if (bodyType) initLines.push("headers: { 'Content-Type': 'application/json' }", 'body: JSON.stringify(payload)')
+      if (body?.kind === 'json' && body.schema) initLines.push("headers: { 'Content-Type': 'application/json' }", 'body: JSON.stringify(payload)')
+      if (body?.kind === 'multipart') initLines.push("headers: { 'Idempotency-Key': commandKey }", "body: (() => { const form = new FormData(); form.append('image', image); return form })()")
       lines.push(`export async function ${identifier(operationId)}(${argumentsList.join(', ')}): Promise<Response> {`)
       lines.push(`  return requestWithAccess(\`${resolvedPath}\`, accessToken, { ${initLines.join(', ')} })`)
       lines.push('}')

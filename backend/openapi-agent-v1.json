@@ -83,6 +83,32 @@
         "title": "AgentErrorResponse",
         "type": "object"
       },
+      "AgentImageAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "Public upload result exposes only opaque IDs and lifecycle state.",
+        "properties": {
+          "image_id": {
+            "format": "uuid",
+            "title": "Image Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentThreadStatus"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id",
+          "status",
+          "image_id"
+        ],
+        "title": "AgentImageAcceptedResponse",
+        "type": "object"
+      },
       "AgentInputKind": {
         "enum": [
           "description"
@@ -176,6 +202,20 @@
         ],
         "title": "AgentThreadStatus",
         "type": "string"
+      },
+      "Body_uploadAgentMealImage": {
+        "properties": {
+          "image": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Image",
+            "type": "string"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "title": "Body_uploadAgentMealImage",
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -551,6 +591,106 @@
           }
         ],
         "summary": "Stream Agent Events",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/threads/{thread_id}/images": {
+      "post": {
+        "description": "Validate a bounded multipart image after ownership, then erase its temporary handle.",
+        "operationId": "uploadAgentMealImage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadAgentMealImage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentImageAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer authentication failed."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Thread is unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Command conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Agent Meal Image",
         "tags": [
           "agent"
         ]

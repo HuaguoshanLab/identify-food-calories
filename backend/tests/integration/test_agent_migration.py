@@ -1,4 +1,4 @@
-"""Real PostgreSQL proof that revision 0005 exactly materializes Agent metadata."""
+"""Real PostgreSQL proof that revision 0006 exactly materializes Agent metadata."""
 
 from __future__ import annotations
 
@@ -26,10 +26,12 @@ _ = (agent_models, nutrition_models)
 AGENT_CORE_TABLES = {
     "agent_deletion_intents",
     "agent_events",
+    "agent_images",
     "agent_invocations",
     "agent_leases",
     "agent_runs",
     "agent_threads",
+    "agent_vision_invocations",
     "food_catalog_aliases",
     "food_catalog_items",
     "food_catalog_portions",
@@ -173,7 +175,7 @@ def _assert_live_schema_matches_metadata(database_url: str) -> None:
         engine.dispose()
 
 
-def test_0005_round_trip_matches_agent_and_nutrition_metadata_without_seed_data() -> None:
+def test_0006_round_trip_matches_agent_and_nutrition_metadata_without_seed_data() -> None:
     test_url = _test_url()
     development_before = _schema_fingerprint(os.environ["DATABASE_URL"])
     try:
@@ -187,14 +189,14 @@ def test_0005_round_trip_matches_agent_and_nutrition_metadata_without_seed_data(
         finally:
             engine.dispose()
 
-        _alembic("upgrade", "0005")
+        _alembic("upgrade", "0006")
         engine = create_engine(test_url)
         try:
             inspector = inspect(engine)
             assert _metadata_table_names() == AGENT_CORE_TABLES
             assert AGENT_CORE_TABLES <= set(inspector.get_table_names(schema="public"))
             with engine.connect() as connection:
-                assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+                assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006"
                 assert connection.scalar(text("SELECT count(*) FROM food_catalog_items")) == 0
         finally:
             engine.dispose()
@@ -214,9 +216,9 @@ def test_0005_round_trip_matches_agent_and_nutrition_metadata_without_seed_data(
     assert _schema_fingerprint(os.environ["DATABASE_URL"]) == development_before
 
 
-def test_0005_is_the_single_head_and_contains_no_seed_statement() -> None:
-    migration = Path("migrations/versions/0005_nutrition_catalog_content_hash.py")
+def test_0006_is_the_single_head_and_contains_no_seed_statement() -> None:
+    migration = Path("migrations/versions/0006_multimodal_images.py")
     script = ScriptDirectory.from_config(Config("alembic.ini"))
 
-    assert script.get_heads() == ["0005"]
+    assert script.get_heads() == ["0006"]
     assert "INSERT" not in migration.read_text(encoding="utf-8").upper()

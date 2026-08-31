@@ -1,6 +1,6 @@
 {
   "schema_version": "supply-chain-evidence/v1",
-  "generated_at": "2026-08-31T05:10:18Z",
+  "generated_at": "2026-08-31T06:00:00Z",
   "status": "approved",
   "manual_manifest": {
     "packages": [
@@ -109,6 +109,19 @@
         "registry_response_sha256": "63159d6013cf20f98ff9caeb8b0b210b7f5877975587f4265397ffb0fd8c72a0"
       },
       {
+        "name": "python-multipart",
+        "ecosystem": "pypi",
+        "version": "0.0.32",
+        "registry_url": "https://pypi.org/pypi/python-multipart/0.0.32/json",
+        "owner": "Kludex (owner); Andrew Dunham and Tom Christie (maintainers)",
+        "repository_url": "https://github.com/Kludex/python-multipart",
+        "license": "Apache-2.0",
+        "published_at": "2026-06-04T16:18:57Z",
+        "checked_at": "2026-08-31T06:00:00Z",
+        "reviewer": "Phase 3 multipart upload dependency reviewed against official PyPI metadata and pinned artifact hash",
+        "registry_response_sha256": "a031fb02f69ea8125edc9473c7bc8d3876556de8812dcd694d76482631d7fc2b"
+      },
+      {
         "name": "promptfoo",
         "ecosystem": "npm",
         "version": "0.122.0",
@@ -122,6 +135,6 @@
         "registry_response_sha256": "d575776647a7cbdc3acfdbdb4cb0d47308f463280a6ac32ce050cc57f274b531"
       }
     ],
-    "manifest_sha256": "2dfc1d2585874a2f2b0ce5c15c40768e3ed0063e7b6e7f86e66debdfac93b65e"
+    "manifest_sha256": "c2317a5382c85bc3341093aaa4f735cdfc9daf4547f8300d4f4637fd8e2a88cd"
   }
 }

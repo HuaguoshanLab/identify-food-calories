@@ -60,6 +60,12 @@ class AgentCommandAcceptedResponse(BaseModel):
     status: AgentThreadStatus
 
 
+class AgentImageAcceptedResponse(AgentCommandAcceptedResponse):
+    """Public upload result exposes only opaque IDs and lifecycle state."""
+
+    image_id: uuid.UUID
+
+
 class AgentDeletionAcceptedResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

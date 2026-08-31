@@ -14,13 +14,16 @@ from decimal import Decimal
 from app.agent.models import (
     AgentDeletionIntent,
     AgentEvent,
+    AgentImage,
     AgentInvocation,
     AgentLease,
     AgentRun,
     AgentThread,
+    AgentVisionInvocation,
 )
+from app.images.schemas import ValidatedImageReference
 from app.agent.ports import AgentRepository
-from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState
+from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState, StateImageReference
 from app.agent.graph import AgentGraph
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
@@ -41,6 +44,7 @@ class AgentLeaseUnavailable(RuntimeError):
 GRAPH_VERSION = "meal-agent-graph.v1"
 PROMPT_VERSION = "reasoning-parse.v1"
 TOOL_VERSION = "nutrition-tools-v1"
+VISION_OPERATION_VERSION = "vision-meal.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +64,7 @@ class RetentionSweep:
     due_deletions: tuple[tuple[uuid.UUID, uuid.UUID], ...]
     inactive_threads: tuple[tuple[uuid.UUID, uuid.UUID], ...]
     expired_runs: tuple[tuple[uuid.UUID, uuid.UUID], ...]
+    expired_images: tuple[tuple[uuid.UUID, uuid.UUID], ...]
     next_eligible_at: datetime | None
 
 
@@ -170,6 +175,7 @@ class AgentService:
         graph: AgentGraph,
         checkpointer: object,
         input_text: str | None = None,
+        image_reference: StateImageReference | None = None,
         resume_payload: dict[str, object] | None = None,
     ) -> AgentRun:
         """Execute one accepted run after tenant ownership has been checked by the caller.
@@ -197,7 +203,7 @@ class AgentService:
         )
         try:
             previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
-            if resume_payload is None and input_text is None:
+            if resume_payload is None and input_text is None and image_reference is None:
                 return await self._fail_run(
                     run=run, user_id=user_id, code="MISSING_AGENT_COMMAND"
                 )
@@ -225,6 +231,21 @@ class AgentService:
                     status=AgentRuntimeStatus.ACCEPTED,
                 )
                 finished = await graph.ainvoke(state)
+            elif image_reference is not None:
+                state = MealAgentState(
+                    user_id=user_id,
+                    thread_id=run.thread_id,
+                    run_id=run.id,
+                    graph_version=run.graph_version,
+                    prompt_version=run.prompt_version,
+                    tool_version=run.tool_version,
+                    next_action=AgentNextAction.VISION,
+                    vision_image=image_reference,
+                    vision_request_key=f"{run.id.hex}-{image_reference.image_id.hex}",
+                    vision_invocation_status="prepared",
+                    status=AgentRuntimeStatus.ACCEPTED,
+                )
+                finished = await graph.ainvoke(state)
             else:
                 return await self._fail_run(
                     run=run, user_id=user_id, code="CHECKPOINT_UNAVAILABLE"
@@ -241,6 +262,7 @@ class AgentService:
             return await self._fail_run(run=run, user_id=user_id, code="CHECKPOINT_PERSIST_FAILED")
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
+        self._sync_vision_invocation(state=finished, user_id=user_id)
         # A correction may create a new ledger run from an old thread checkpoint.  The state
         # counters deliberately remain cumulative for the safety limit, while each AgentRun must
         # record only work charged to that run; otherwise resumed model calls look duplicated.
@@ -511,6 +533,192 @@ class AgentService:
         self._commit_or_rollback()
         return invocation
 
+    def record_validated_image(
+        self,
+        *,
+        thread_id: uuid.UUID,
+        run_id: uuid.UUID,
+        user_id: uuid.UUID,
+        reference: ValidatedImageReference,
+    ) -> AgentImage:
+        """Persist only an already-normalized image handle after proving tenant/run binding."""
+
+        thread = self._repository.get_thread_for_user(
+            thread_id=thread_id, user_id=user_id, for_update=True
+        )
+        run = self._repository.get_run_for_user(run_id=run_id, user_id=user_id, for_update=True)
+        if thread is None or thread.deleted_at is not None or run is None or run.thread_id != thread_id:
+            raise AgentThreadUnavailable("agent thread is unavailable")
+        now = self._now()
+        image = self._repository.add_image(
+            AgentImage(
+                id=uuid.uuid4(),
+                thread_id=thread_id,
+                run_id=run_id,
+                user_id=user_id,
+                digest_sha256=reference.digest_sha256,
+                mime_type=reference.mime_type,
+                width=reference.width,
+                height=reference.height,
+                byte_size=reference.byte_size,
+                locator=reference.locator,
+                status="ready",
+                expires_at=reference.expires_at,
+                deleted_at=None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        self._commit_or_rollback()
+        return image
+
+    def get_image_reference(
+        self, *, thread_id: uuid.UUID, image_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[AgentImage, ValidatedImageReference]:
+        image = self._repository.get_image_for_thread_for_user(
+            thread_id=thread_id, image_id=image_id, user_id=user_id
+        )
+        if image is None or image.deleted_at is not None or image.status not in {"ready", "processing"}:
+            raise AgentThreadUnavailable("agent image is unavailable")
+        return image, ValidatedImageReference(
+            digest_sha256=image.digest_sha256,
+            mime_type=image.mime_type,  # type: ignore[arg-type]
+            width=image.width,
+            height=image.height,
+            byte_size=image.byte_size,
+            locator=image.locator,
+            created_at=image.created_at,
+            expires_at=image.expires_at,
+        )
+
+    def get_image_for_run(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> AgentImage | None:
+        """Expose an existing opaque image record only after the run's tenant check."""
+
+        if self._repository.get_run_for_user(run_id=run_id, user_id=user_id) is None:
+            raise AgentThreadUnavailable("agent run is unavailable")
+        return self._repository.get_image_for_run_for_user(run_id=run_id, user_id=user_id)
+
+    def images_for_thread_cleanup(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[tuple[AgentImage, ValidatedImageReference], ...]:
+        # Pending user deletion deliberately hides the thread from public reads. Cleanup still
+        # needs the same tenant-filtered records before the FK cascade removes their handles.
+        images = self._repository.list_images_for_thread_for_user(
+            thread_id=thread_id, user_id=user_id
+        )
+        return tuple((image, _image_reference(image)) for image in images)
+
+    def image_for_cleanup(
+        self, *, image_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[AgentImage, ValidatedImageReference] | None:
+        image = self._repository.get_image_for_user(image_id=image_id, user_id=user_id)
+        if image is None or image.deleted_at is not None:
+            return None
+        return image, _image_reference(image)
+
+    def prepare_vision_invocation(
+        self,
+        *,
+        image_id: uuid.UUID,
+        run_id: uuid.UUID,
+        user_id: uuid.UUID,
+        request_key: str,
+        model_alias: str,
+    ) -> AgentVisionInvocation:
+        """Create/reuse a safe invocation record; unknown outcomes are never reset here."""
+
+        image = self._repository.get_image_for_user(image_id=image_id, user_id=user_id, for_update=True)
+        run = self._repository.get_run_for_user(run_id=run_id, user_id=user_id, for_update=True)
+        if image is None or run is None or image.run_id != run_id or image.thread_id != run.thread_id:
+            raise AgentThreadUnavailable("agent image is unavailable")
+        existing = self._repository.get_vision_invocation_for_image_for_update(
+            image_id=image_id, user_id=user_id, request_key=request_key
+        )
+        if existing is not None:
+            return existing
+        now = self._now()
+        invocation = self._repository.add_vision_invocation(
+            AgentVisionInvocation(
+                id=uuid.uuid4(),
+                image_id=image_id,
+                thread_id=image.thread_id,
+                run_id=run_id,
+                user_id=user_id,
+                request_key=request_key,
+                model_alias=model_alias,
+                provider_request_id=None,
+                status="prepared",
+                attempt=0,
+                cost_cny=Decimal("0"),
+                safe_result_digest=None,
+                failure_code=None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        image.status = "processing"
+        image.updated_at = now
+        self._commit_or_rollback()
+        return invocation
+
+    def mark_image_deleted(self, *, image_id: uuid.UUID, user_id: uuid.UUID) -> AgentImage:
+        """Record a completed filesystem deletion; callers perform the irreversible I/O first."""
+
+        image = self._repository.get_image_for_user(image_id=image_id, user_id=user_id, for_update=True)
+        if image is None:
+            raise AgentThreadUnavailable("agent image is unavailable")
+        now = self._now()
+        image.status = "deleted"
+        image.deleted_at = now
+        image.updated_at = now
+        self._commit_or_rollback()
+        return image
+
+    def mark_image_deletion_failed(self, *, image_id: uuid.UUID, user_id: uuid.UUID) -> AgentImage:
+        """Keep a retryable lifecycle record when filesystem deletion could not be confirmed."""
+
+        image = self._repository.get_image_for_user(image_id=image_id, user_id=user_id, for_update=True)
+        if image is None:
+            raise AgentThreadUnavailable("agent image is unavailable")
+        image.status = "delete_failed"
+        image.updated_at = self._now()
+        self._commit_or_rollback()
+        return image
+
+    def _sync_vision_invocation(self, *, state: MealAgentState, user_id: uuid.UUID) -> None:
+        """Persist only the completed safe invocation envelope after its checkpoint is durable."""
+
+        if state.vision_image is None or not state.vision_request_key:
+            return
+        invocation = self._repository.get_vision_invocation_for_image_for_update(
+            image_id=state.vision_image.image_id,
+            user_id=user_id,
+            request_key=state.vision_request_key,
+        )
+        if invocation is None:
+            return
+        now = self._now()
+        invocation.status = state.vision_invocation_status or "failed"
+        invocation.attempt = max(invocation.attempt, 1)
+        invocation.updated_at = now
+        if state.vision_metadata is not None:
+            invocation.model_alias = state.vision_metadata.model_alias
+            invocation.provider_request_id = state.vision_metadata.provider_request_id
+            invocation.cost_cny = state.vision_metadata.cost_cny
+            invocation.safe_result_digest = hashlib.sha256(
+                json.dumps(
+                    [item.model_dump(mode="json") for item in state.items],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+        elif invocation.status == "outcome_unknown":
+            invocation.failure_code = "PROVIDER_OUTCOME_UNKNOWN"
+        else:
+            invocation.failure_code = "VISION_PROVIDER_FAILURE"
+        self._commit_or_rollback()
+
     def claim_lease(
         self,
         *,
@@ -602,15 +810,21 @@ class AgentService:
                 cutoff=now - timedelta(days=policy.audit_days)
             )
         )
+        expired_images = tuple(
+            (image.id, image.user_id)
+            for image in self._repository.list_images_expiring_before(cutoff=now)
+        )
         candidates = [
             self._repository.earliest_pending_deletion_at(),
             _add_days(self._repository.earliest_thread_activity_at(), policy.checkpoint_event_days),
             _add_days(self._repository.earliest_run_updated_at(), policy.audit_days),
+            self._repository.earliest_image_expiry_at(),
         ]
         return RetentionSweep(
             due_deletions=due_deletions,
             inactive_threads=inactive_threads,
             expired_runs=expired_runs,
+            expired_images=expired_images,
             next_eligible_at=min((item for item in candidates if item is not None), default=None),
         )
 
@@ -643,3 +857,16 @@ class AgentService:
 
 def _add_days(value: datetime | None, days: int) -> datetime | None:
     return value + timedelta(days=days) if value is not None else None
+
+
+def _image_reference(image: AgentImage) -> ValidatedImageReference:
+    return ValidatedImageReference(
+        digest_sha256=image.digest_sha256,
+        mime_type=image.mime_type,  # type: ignore[arg-type]
+        width=image.width,
+        height=image.height,
+        byte_size=image.byte_size,
+        locator=image.locator,
+        created_at=image.created_at,
+        expires_at=image.expires_at,
+    )

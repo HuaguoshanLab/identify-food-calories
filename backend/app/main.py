@@ -25,6 +25,9 @@ from app.core.config import Settings, get_settings
 from app.core.config import runtime_database_url
 from app.core.database import create_session_factory
 from app.providers.reasoning.factory import create_reasoning_provider
+from app.providers.vision.factory import create_vision_provider
+from app.images.repository import PrivateTemporaryImageRepository
+from app.images.service import ImageSafetyService
 
 
 class PersistedAgentRuntimeFactory:
@@ -42,7 +45,20 @@ class PersistedAgentRuntimeFactory:
         session_factory = create_session_factory(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory)
         provider = create_reasoning_provider(self._settings)
-        graph = MealAnalysisGraph(provider=provider, tools=tools)
+        vision_provider = create_vision_provider(self._settings)
+        image_safety = ImageSafetyService(
+            repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),
+            max_bytes=self._settings.image_max_bytes,
+            max_pixels=self._settings.image_max_pixels,
+            ttl_seconds=self._settings.image_ttl_seconds,
+        )
+        graph = MealAnalysisGraph(
+            provider=provider,
+            vision_provider=vision_provider,
+            vision_model_alias=self._settings.qwen_model or "fake-vision-v1",
+            vision_pixel_budget=self._settings.vision_max_pixels,
+            tools=tools,
+        )
         supervisor = PostgresLeaseSupervisor(
             session_factory=session_factory, holder_id="fastapi-agent-runtime"
         )
@@ -70,6 +86,7 @@ class PersistedAgentRuntimeFactory:
                 deletion_due_delta=self._settings.retention_deletion_due_delta,
                 poll_interval=timedelta(seconds=self._settings.retention_poll_interval_seconds),
             ),
+            image_safety=image_safety,
             now=self._retention_now,
         )
         return AgentRuntime(
@@ -78,6 +95,7 @@ class PersistedAgentRuntimeFactory:
             checkpointer=checkpointer,
             supervisor=supervisor,
             session_factory=session_factory,
+            image_safety=image_safety,
         )
 
     async def close(self, runtime: AgentRuntime | None) -> None:

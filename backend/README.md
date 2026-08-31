@@ -34,6 +34,8 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 视觉模型默认关闭。只有在已人工核实 Model Studio 的区域、业务空间、模型可用性及数据处理条款后，才能在未提交的 `.env` 设置 `VISION_PROVIDER_MODE=qwen`、`QWEN_API_KEY`、业务空间的 `QWEN_BASE_URL`、模型和人民币价格快照。Qwen adapter 仅使用经过安全解码和元数据剥离后的短期图片引用；它不会记录图片、base64、prompt、完整模型输出或密钥。测试环境无条件使用 Fake Provider，不会触发付费模型调用。
 
+图片分析使用认证的 multipart `POST /api/v1/agent/threads/{thread_id}/images`，必须带 `Idempotency-Key`。服务端先验证线程所有权，再按 MIME、大小、像素和真实解码规则归一化图片；持久化层只保留 opaque locator、digest、尺寸、过期/删除状态与受控调用计量。视觉调用结束后立即删除临时文件；保留 worker 会重试清理过期或待删除的 handle。
+
 测试必须显式使用 `APP_ENV=test` 和独立的 `TEST_DATABASE_URL`；配置保护会拒绝 SQLite、开发库以及不以 `_test` 结尾的测试库。
 
 所有真实 PostgreSQL 测试 child 必须通过受版本控制的环境合同和唯一 wrapper 启动；wrapper 保持 `DATABASE_URL` 指向开发哨兵、`TEST_DATABASE_URL` 指向隔离库，拒绝同目标、非 loopback、错误端口或错误库名，且不回显密码：

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-STATE_VERSION = "meal-agent-state.v1"
+STATE_VERSION = "meal-agent-state.v2"
 MAX_STATE_MESSAGES = 4
 MAX_STATE_ITEMS = 20
 MAX_STATE_CANDIDATES = 3
@@ -26,6 +27,7 @@ class AgentRuntimeStatus(StrEnum):
 
 class AgentNextAction(StrEnum):
     PARSE = "parse"
+    VISION = "vision"
     RESOLVE_CATALOG = "resolve_catalog"
     ASK_USER = "ask_user"
     CALCULATE = "calculate"
@@ -60,7 +62,42 @@ class StateMealItem(BaseModel):
     input_version: str = Field(min_length=1, max_length=80)
     is_dirty: bool = False
     search_query: str | None = Field(default=None, min_length=1, max_length=200)
+    is_estimated: bool = False
+    estimate_confidence: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("1"))
     nutrients: "StateNutritionResult | None" = None
+
+
+class StateImageReference(BaseModel):
+    """The graph receives a short-lived opaque handle, never image bytes or upload metadata."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    image_id: uuid.UUID
+    digest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    mime_type: str = Field(pattern=r"^image/(?:jpeg|png|webp)$")
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    byte_size: int = Field(gt=0)
+    locator: str = Field(pattern=r"^[a-f0-9]{32}\.(?:jpg|png|webp)$")
+    created_at: datetime
+    expires_at: datetime
+    status: str = Field(pattern=r"^(?:ready|processing)$")
+
+
+class StateVisionMetadata(BaseModel):
+    """Allowlisted provider accounting; no prompt, raw response, or thought text is retained."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model_alias: str = Field(min_length=1, max_length=128)
+    provider_request_id: str | None = Field(default=None, min_length=1, max_length=128)
+    image_tokens: int = Field(ge=0)
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    cost_cny: Decimal = Field(ge=Decimal("0"))
+    latency_ms: int = Field(ge=0)
+    prompt_version: str = Field(min_length=1, max_length=80)
+    schema_version: str = Field(min_length=1, max_length=80)
 
 
 class StateCandidate(BaseModel):
@@ -138,6 +175,12 @@ class MealAgentState(BaseModel):
     tool_version: str = Field(min_length=1, max_length=80)
     model_version: str | None = Field(default=None, min_length=1, max_length=120)
     status: AgentRuntimeStatus = AgentRuntimeStatus.ACCEPTED
+    vision_image: StateImageReference | None = None
+    vision_metadata: StateVisionMetadata | None = None
+    vision_request_key: str | None = Field(default=None, min_length=1, max_length=128)
+    vision_invocation_status: str | None = Field(
+        default=None, pattern=r"^(?:prepared|completed|failed|outcome_unknown)$"
+    )
     image_refs: tuple[()] = ()
 
     @model_validator(mode="after")
@@ -146,7 +189,9 @@ class MealAgentState(BaseModel):
         if len(item_ids) != len(set(item_ids)):
             raise ValueError("state item ids must be unique")
         if self.image_refs:
-            raise ValueError("Phase 2 state cannot retain image references")
+            raise ValueError("legacy image_refs cannot retain image references")
+        if self.next_action is AgentNextAction.VISION and self.vision_image is None:
+            raise ValueError("vision action requires a validated image reference")
         if self.status is AgentRuntimeStatus.COMPLETED and self.report is None:
             raise ValueError("completed state requires a report")
         return self

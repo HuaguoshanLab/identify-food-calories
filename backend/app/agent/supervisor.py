@@ -14,6 +14,7 @@ from app.agent.repository import SqlAlchemyAgentRepository
 from app.agent.retention import RetentionWorker
 from app.agent.service import AgentService, RetentionPolicy
 from app.core.tracing import DisabledTracingRuntime, TracingRuntime
+from app.images.service import ImageSafetyService
 
 
 class PostgresLeaseSupervisor:
@@ -68,6 +69,7 @@ class PostgresLeaseSupervisor:
         *,
         checkpointer: object,
         policy: RetentionPolicy,
+        image_safety: ImageSafetyService,
         now: Callable[[], datetime] | None = None,
     ) -> RetentionWorker:
         """Attach the D-18 scheduler to the same real lifespan as Agent execution."""
@@ -79,6 +81,7 @@ class PostgresLeaseSupervisor:
                 session_factory=self._session_factory,
                 checkpointer=checkpointer,
                 policy=policy,
+                image_safety=image_safety,
                 now=now,
             )
             await self._retention_worker.start()

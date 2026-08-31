@@ -9,10 +9,12 @@ from typing import Protocol
 from app.agent.models import (
     AgentDeletionIntent,
     AgentEvent,
+    AgentImage,
     AgentInvocation,
     AgentLease,
     AgentRun,
     AgentThread,
+    AgentVisionInvocation,
 )
 
 
@@ -63,6 +65,32 @@ class AgentRepository(Protocol):
 
     def add_invocation(self, invocation: AgentInvocation) -> AgentInvocation: ...
 
+    def add_image(self, image: AgentImage) -> AgentImage: ...
+
+    def get_image_for_user(
+        self, *, image_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentImage | None: ...
+
+    def get_image_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, image_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False
+    ) -> AgentImage | None: ...
+
+    def get_image_for_run_for_user(
+        self, *, run_id: uuid.UUID, user_id: uuid.UUID
+    ) -> AgentImage | None: ...
+
+    def list_images_for_thread_for_user(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> list[AgentImage]: ...
+
+    def list_images_expiring_before(self, *, cutoff: datetime) -> list[AgentImage]: ...
+
+    def add_vision_invocation(self, invocation: AgentVisionInvocation) -> AgentVisionInvocation: ...
+
+    def get_vision_invocation_for_image_for_update(
+        self, *, image_id: uuid.UUID, user_id: uuid.UUID, request_key: str
+    ) -> AgentVisionInvocation | None: ...
+
     def get_lease_for_run_for_update(
         self, *, run_id: uuid.UUID, user_id: uuid.UUID
     ) -> AgentLease | None: ...
@@ -94,3 +122,5 @@ class AgentRepository(Protocol):
     def earliest_thread_activity_at(self) -> datetime | None: ...
 
     def earliest_run_updated_at(self) -> datetime | None: ...
+
+    def earliest_image_expiry_at(self) -> datetime | None: ...

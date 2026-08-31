@@ -14,6 +14,7 @@
 # direct-dependency: pwdlib[argon2]==0.3.1
 # direct-dependency: pydantic-settings==2.11.0
 # direct-dependency: pytest==8.4.2
+# direct-dependency: python-multipart==0.0.32
 # direct-dependency: ruff==0.12.12
 # direct-dependency: sqlalchemy==2.0.52
 # direct-dependency: uvicorn[standard]==0.39.0

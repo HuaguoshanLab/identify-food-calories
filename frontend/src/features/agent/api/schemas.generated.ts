@@ -26,6 +26,13 @@ export const agentErrorResponseSchema = z.object({
 }).strict()
 export type AgentErrorResponse = z.infer<typeof agentErrorResponseSchema>
 
+export const agentImageAcceptedResponseSchema = z.object({
+  "thread_id": z.string().uuid(),
+  "status": z.lazy(() => agentThreadStatusSchema),
+  "image_id": z.string().uuid(),
+}).strict()
+export type AgentImageAcceptedResponse = z.infer<typeof agentImageAcceptedResponseSchema>
+
 export const agentInputKindSchema = z.enum(["description"])
 export type AgentInputKind = z.infer<typeof agentInputKindSchema>
 
@@ -50,6 +57,11 @@ export type AgentThreadSnapshot = z.infer<typeof agentThreadSnapshotSchema>
 
 export const agentThreadStatusSchema = z.enum(["waiting", "partial", "completed", "retryable", "terminal", "deletion_pending"])
 export type AgentThreadStatus = z.infer<typeof agentThreadStatusSchema>
+
+export const body_uploadAgentMealImageSchema = z.object({
+  "image": z.string(),
+}).passthrough()
+export type Body_uploadAgentMealImage = z.infer<typeof body_uploadAgentMealImageSchema>
 
 export const httpValidationErrorSchema = z.object({
   "detail": z.array(z.lazy(() => validationErrorSchema)).optional(),

@@ -22,6 +22,11 @@ export async function streamAgentEvents(accessToken: string, thread_id: string):
 }
 export type streamAgentEventsResponse = unknown
 
+export async function uploadAgentMealImage(accessToken: string, thread_id: string, image: File, commandKey: string): Promise<Response> {
+  return requestWithAccess(`/agent/threads/${encodeURIComponent(thread_id)}/images`, accessToken, { method: 'POST', headers: { 'Idempotency-Key': commandKey }, body: (() => { const form = new FormData(); form.append('image', image); return form })() })
+}
+export type uploadAgentMealImageResponse = Contract.AgentImageAcceptedResponse
+
 export async function submitAgentInput(accessToken: string, thread_id: string, payload: Contract.AgentInputRequest): Promise<Response> {
   return requestWithAccess(`/agent/threads/${encodeURIComponent(thread_id)}/input`, accessToken, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 }
