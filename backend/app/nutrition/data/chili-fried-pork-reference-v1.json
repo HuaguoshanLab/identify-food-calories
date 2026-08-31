@@ -1,0 +1,26 @@
+{
+  "schema_version":"recipe-seed-v1",
+  "catalog_key":"reference-recipes",
+  "catalog_display_name":"Public reference recipe catalog",
+  "version":"chili-fried-pork-v1",
+  "released_at":"2026-08-31T00:00:00+00:00",
+  "provenance":{
+    "dataset":"public-reference-recipe",
+    "release":"chili-fried-pork-v1",
+    "source_name":"ChineseCalorie public reference recipe",
+    "source_url":"https://chinesecalorie.com/china/foods/stir-fry/stir-fried-pork-with-chili-cn/recipes/healthy-stir-fried-pork-with-chili-cn",
+    "license_name":"Reference recipe; nutrient inputs CC0 1.0"
+  },
+  "recipe_basis":{
+    "finished_weight_g":"250",
+    "ingredients":[
+      {"stable_id":"fdc:2646168","source_url":"https://fdc.nal.usda.gov/food-details/2646168/nutrients","grams":"200","nutrients_per_100g":{"energy_kcal":"167.769","protein_g":"21.11875","fat_g":"9.469","carbohydrate_g":"0"}},
+      {"stable_id":"fdc:2258588","source_url":"https://fdc.nal.usda.gov/food-details/2258588/nutrients","grams":"80","nutrients_per_100g":{"energy_kcal":"22.9291","protein_g":"0.715","fat_g":"0.1063","carbohydrate_g":"4.7781"}},
+      {"stable_id":"fdc:2378944","source_url":"https://fdc.nal.usda.gov/food-details/2378944/nutrients","grams":"5","nutrients_per_100g":{"energy_kcal":"800","protein_g":"0","fat_g":"93.3","carbohydrate_g":"0"}}
+    ]
+  },
+  "foods":[
+    {"stable_id":"recipe:chili-fried-pork-v1","source_url":"https://chinesecalorie.com/china/foods/stir-fry/stir-fried-pork-with-chili-cn/recipes/healthy-stir-fried-pork-with-chili-cn","canonical_name":"Chili fried pork, reference recipe v1","prepared_state":"cooked, fixed 250g yield","is_qualified":true,"nutrients_per_100g":{"energy_kcal":"157.552512","protein_g":"17.1238","fat_g":"9.475216","carbohydrate_g":"1.528992"},"aliases":["辣椒炒肉","青椒炒肉","湖南小炒肉"]}
+  ],
+  "content_hash":"b88d242a6dc2c4d8e60fc68083a595aa35ec8584b9330af33d935efdab9d18bb"
+}

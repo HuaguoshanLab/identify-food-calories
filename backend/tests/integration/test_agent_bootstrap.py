@@ -48,7 +48,7 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
         table_names = set(inspect(engine).get_table_names())
         assert {"checkpoints", "checkpoint_blobs", "checkpoint_writes"} <= table_names
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006"
             assert connection.scalar(
                 text(
                     "SELECT content_hash FROM nutrition_catalog_versions "
@@ -59,6 +59,12 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
                 text(
                     "SELECT count(*) FROM food_catalog_items "
                     "WHERE stable_id = 'fdc:169756' AND is_qualified"
+                )
+            ) == 1
+            assert connection.scalar(
+                text(
+                    "SELECT count(*) FROM food_catalog_items "
+                    "WHERE stable_id = 'recipe:chili-fried-pork-v1' AND is_qualified"
                 )
             ) == 1
     finally:

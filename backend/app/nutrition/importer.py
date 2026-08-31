@@ -1,4 +1,4 @@
-"""Offline, hash-verified importer for the bounded USDA FDC seed catalog."""
+"""Offline, hash-verified importer for bounded FDC foods and audited reference recipes."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 import sys
 from collections.abc import Callable
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -33,20 +34,16 @@ class SourceProvenance(BaseModel):
     license_name: str = Field(min_length=1, max_length=120)
 
     @model_validator(mode="after")
-    def requires_usda_cc0(self) -> "SourceProvenance":
-        if self.source_name != "USDA FoodData Central":
-            raise ValueError("seed source must be USDA FoodData Central")
-        if self.license_name != "CC0 1.0":
-            raise ValueError("seed source must be licensed CC0 1.0")
-        if not self.source_url.startswith("https://fdc.nal.usda.gov/"):
-            raise ValueError("seed source URL must be the USDA FDC site")
+    def requires_https_source(self) -> "SourceProvenance":
+        if not self.source_url.startswith("https://"):
+            raise ValueError("seed source URL must use HTTPS")
         return self
 
 
 class SeedFood(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    stable_id: str = Field(pattern=r"^fdc:\d+$")
+    stable_id: str = Field(pattern=r"^(fdc:\d+|recipe:[a-z0-9-]+)$")
     source_url: str = Field(min_length=1, max_length=500)
     canonical_name: str = Field(min_length=1, max_length=200)
     prepared_state: str = Field(min_length=1, max_length=120)
@@ -68,32 +65,88 @@ class SeedFood(BaseModel):
             raise ValueError("the bounded seed must not contain unqualified fallback foods")
         if any(value is None for value in self.nutrients_per_100g.model_dump().values()):
             raise ValueError("null nutrient values must not become zero")
+        return self
+
+
+class RecipeIngredient(BaseModel):
+    """A frozen ingredient input whose nutrient source remains independently auditable."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stable_id: str = Field(pattern=r"^fdc:\d+$")
+    source_url: str = Field(min_length=1, max_length=500)
+    grams: Decimal = Field(gt=0, le=2_000)
+    nutrients_per_100g: NutritionValues
+
+    @model_validator(mode="after")
+    def binds_to_its_fdc_source(self) -> "RecipeIngredient":
         fdc_id = self.stable_id.removeprefix("fdc:")
         if self.source_url != f"https://fdc.nal.usda.gov/food-details/{fdc_id}/nutrients":
-            raise ValueError("food source URL must exactly match its FDC id")
+            raise ValueError("recipe ingredient must bind to an exact FDC source URL")
         return self
+
+
+class RecipeBasis(BaseModel):
+    """Fixed recipe inputs and cooked yield; no runtime model output can alter them."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    finished_weight_g: Decimal = Field(gt=0, le=5_000)
+    ingredients: tuple[RecipeIngredient, ...] = Field(min_length=1, max_length=20)
 
 
 class CatalogManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: str = "fdc-seed-v1"
+    schema_version: str = Field(pattern=r"^(fdc-seed-v1|recipe-seed-v1)$")
     catalog_key: str = Field(pattern=r"^[a-z0-9-]+$")
     catalog_display_name: str = Field(min_length=1, max_length=160)
     version: str = Field(min_length=1, max_length=80)
     released_at: datetime
     provenance: SourceProvenance
     foods: tuple[SeedFood, ...]
+    recipe_basis: RecipeBasis | None = None
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
     @model_validator(mode="after")
-    def enforces_bounded_fdc_seed(self) -> "CatalogManifest":
-        if self.catalog_key != "usda-fdc":
-            raise ValueError("only the approved usda-fdc catalog key is allowed")
-        if not 24 <= len(self.foods) <= 30:
-            raise ValueError("the bounded seed must contain 24 to 30 records")
+    def enforces_known_catalog_contract(self) -> "CatalogManifest":
+        if self.schema_version == "fdc-seed-v1":
+            if self.catalog_key != "usda-fdc":
+                raise ValueError("FDC seed must use the usda-fdc catalog key")
+            if self.provenance.source_name != "USDA FoodData Central" or self.provenance.license_name != "CC0 1.0":
+                raise ValueError("FDC seed must retain USDA FoodData Central CC0 provenance")
+            if not self.provenance.source_url.startswith("https://fdc.nal.usda.gov/"):
+                raise ValueError("FDC seed source URL must be the USDA FDC site")
+            if not 24 <= len(self.foods) <= 30:
+                raise ValueError("the bounded FDC seed must contain 24 to 30 records")
+            for food in self.foods:
+                if not food.stable_id.startswith("fdc:"):
+                    raise ValueError("FDC foods must use fdc stable ids")
+                fdc_id = food.stable_id.removeprefix("fdc:")
+                if food.source_url != f"https://fdc.nal.usda.gov/food-details/{fdc_id}/nutrients":
+                    raise ValueError("food source URL must exactly match its FDC id")
+        elif self.schema_version == "recipe-seed-v1":
+            if self.catalog_key != "reference-recipes" or len(self.foods) != 1:
+                raise ValueError("reference recipe seed must contain exactly one controlled recipe")
+            if self.provenance.dataset != "public-reference-recipe" or self.provenance.source_name != "ChineseCalorie public reference recipe":
+                raise ValueError("reference recipe provenance is not approved")
+            food = self.foods[0]
+            if food.stable_id != "recipe:chili-fried-pork-v1" or food.source_url != self.provenance.source_url:
+                raise ValueError("reference recipe identity or source is invalid")
+            if self.recipe_basis is None or self.recipe_basis.finished_weight_g != Decimal("250"):
+                raise ValueError("reference recipe must declare its fixed 250g cooked yield")
+            expected = NutritionValues(
+                energy_kcal=sum(item.grams * item.nutrients_per_100g.energy_kcal for item in self.recipe_basis.ingredients) / self.recipe_basis.finished_weight_g,
+                protein_g=sum(item.grams * item.nutrients_per_100g.protein_g for item in self.recipe_basis.ingredients) / self.recipe_basis.finished_weight_g,
+                fat_g=sum(item.grams * item.nutrients_per_100g.fat_g for item in self.recipe_basis.ingredients) / self.recipe_basis.finished_weight_g,
+                carbohydrate_g=sum(item.grams * item.nutrients_per_100g.carbohydrate_g for item in self.recipe_basis.ingredients) / self.recipe_basis.finished_weight_g,
+            )
+            if food.nutrients_per_100g != expected:
+                raise ValueError("reference recipe nutrients must equal its frozen ingredient calculation")
+        elif self.recipe_basis is not None:
+            raise ValueError("FDC seed must not define a recipe basis")
         if len({food.stable_id for food in self.foods}) != len(self.foods):
-            raise ValueError("FDC ids must be unique")
+            raise ValueError("catalog stable ids must be unique")
         return self
 
 
@@ -125,7 +178,7 @@ def load_manifest(path: Path) -> CatalogManifest:
     try:
         return CatalogManifest.model_validate(payload)
     except ValidationError as error:
-        raise CatalogImportError("seed manifest violates the FDC catalog contract") from error
+        raise CatalogImportError("seed manifest violates the controlled catalog contract") from error
 
 
 class CatalogImportService:
@@ -198,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         manifest = load_manifest(arguments.path)
         if arguments.check:
-            print(f"valid FDC catalog {manifest.version} {manifest.content_hash}")
+            print(f"valid controlled catalog {manifest.version} {manifest.content_hash}")
             return 0
         changed = apply_manifest(manifest, _database_url(arguments.database_url))
         print("catalog applied" if changed else "catalog already applied")

@@ -59,18 +59,22 @@ def setup_checkpointer(database_url: str) -> None:
 
 
 def apply_seed(database_url: str) -> None:
-    _run_for_test_target(
-        [
-            sys.executable,
-            "-m",
-            "app.nutrition.importer",
-            "--apply",
-            "app/nutrition/data/fdc-seed-v1.json",
-            "--database-url",
+    for manifest_path in (
+        "app/nutrition/data/fdc-seed-v1.json",
+        "app/nutrition/data/chili-fried-pork-reference-v1.json",
+    ):
+        _run_for_test_target(
+            [
+                sys.executable,
+                "-m",
+                "app.nutrition.importer",
+                "--apply",
+                manifest_path,
+                "--database-url",
+                database_url,
+            ],
             database_url,
-        ],
-        database_url,
-    )
+        )
 
 
 def launch_uvicorn(_database_url: str, host: str, port: int) -> None:
