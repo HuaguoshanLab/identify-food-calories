@@ -24,7 +24,6 @@ import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
-import { routePaths } from './routePaths'
 
 export function App() {
   return (
@@ -61,10 +60,10 @@ export function App() {
           <Route element={<DetailLayout title="登录会话" />}>
             <Route path="me/sessions" element={<SessionsDetailsPage />} />
           </Route>
-          <Route element={<DetailLayout backLabel="返回记录" backTo={routePaths.records} title="餐食记录" />}>
+          <Route element={<DetailLayout title="餐食记录" />}>
             <Route path="records/:recordId" element={<MealRecordDetailPage />} />
           </Route>
-          <Route element={<DetailLayout backLabel="返回记录" backTo={routePaths.records} title="编辑餐食" />}>
+          <Route element={<DetailLayout title="编辑餐食" />}>
             <Route path="records/:recordId/edit" element={<MealRecordEditPage />} />
           </Route>
           <Route element={<DetailLayout title="饮食偏好与记忆" />}>

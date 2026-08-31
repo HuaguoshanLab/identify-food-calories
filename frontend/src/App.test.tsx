@@ -91,7 +91,7 @@ describe('App', () => {
 
     renderApp(['/app/me/account'])
     expect(await screen.findByRole('heading', { name: '账号资料' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '返回我的' })).toHaveAttribute('href', '/app/me')
+    expect(screen.getByRole('button', { name: '返回上一页' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
   })
 

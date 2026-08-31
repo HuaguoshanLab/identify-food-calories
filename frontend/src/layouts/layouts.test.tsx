@@ -34,27 +34,29 @@ describe('layout foundations', () => {
     expect(container.querySelectorAll('main')).toHaveLength(1)
   })
 
-  it('renders a focusable deterministic return link in the detail header', () => {
+  it('returns through browser history in the detail header', async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter([
+      { element: <h1>记录</h1>, path: '/app/records' },
+      { element: <AppHeader title="餐食记录" />, path: '/app/records/record-id' },
+    ], { initialEntries: ['/app/records', '/app/records/record-id'], initialIndex: 1 })
+
+    render(<RouterProvider router={router} />)
+
+    const backButton = screen.getByRole('button', { name: '返回上一页' })
+    expect(backButton).toHaveClass('h-11', 'w-11')
+    await user.click(backButton)
+    expect(router.state.location.pathname).toBe('/app/records')
+  })
+
+  it('keeps the detail title focusable', () => {
     render(
       <MemoryRouter>
         <AppHeader title="账号资料" />
       </MemoryRouter>,
     )
 
-    const backLink = screen.getByRole('link', { name: '返回我的' })
-    expect(backLink).toHaveAttribute('href', '/app/me')
-    expect(backLink).toHaveClass('h-11', 'w-11')
     expect(screen.getByRole('heading', { name: '账号资料' })).toHaveClass('truncate')
-  })
-
-  it('supports a feature-specific return destination', () => {
-    render(
-      <MemoryRouter>
-        <AppHeader backLabel="返回记录" backTo="/app/records" title="餐食记录" />
-      </MemoryRouter>,
-    )
-
-    expect(screen.getByRole('link', { name: '返回记录' })).toHaveAttribute('href', '/app/records')
   })
 
   it('uses an entry header without a tab bar for public pages', () => {
@@ -88,7 +90,7 @@ describe('layout foundations', () => {
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
 
-  it('keeps detail pages in their own no-tab layout with a stable my return route', () => {
+  it('keeps detail pages in their own no-tab layout with a history return action', () => {
     render(
       <MemoryRouter initialEntries={['/app/me/sessions']}>
         <Routes>
@@ -99,7 +101,7 @@ describe('layout foundations', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: '返回我的' })).toHaveAttribute('href', '/app/me')
+    expect(screen.getByRole('button', { name: '返回上一页' })).toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveTextContent('会话列表')
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
