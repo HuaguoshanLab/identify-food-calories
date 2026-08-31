@@ -62,7 +62,7 @@ class QwenVisionModelProvider:
         return cls(
             api_key=settings.qwen_api_key.get_secret_value(),
             model=settings.qwen_model,
-            endpoint=settings.qwen_base_url,
+            endpoint=settings.qwen_base_url.rstrip("/") + "/chat/completions",
             timeout_seconds=settings.vision_timeout_seconds,
             max_pixels=settings.vision_max_pixels,
             price_snapshot={"input_usd_per_m": settings.qwen_input_usd_per_m or Decimal("0"), "output_usd_per_m": settings.qwen_output_usd_per_m or Decimal("0")},
