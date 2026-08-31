@@ -75,15 +75,15 @@ Phoenix 只接收脱敏追踪；评测、日志和证据不保存原始餐食、
 ```bash
 # 真实 PostgreSQL + Fake Provider：冻结 24-case 机器证据
 cd backend
-.venv/bin/python tests/run_pg.py --env-file .env.test.example -- \
-  .venv/bin/python evals/evaluate_phase2.py verify-code-eval \
+uv run python tests/run_pg.py --env-file .env.test.example -- \
+  uv run python evals/evaluate_phase2.py verify-code-eval \
   --dataset evals/phase02-cases.jsonl --result evals/phase2-code-eval.json
 
 # formal signoff 与唯一 release report（当前 verify-release 应非零，因为 report 为 FAIL）
-.venv/bin/python evals/evaluate_phase2.py validate-signoff \
+uv run python evals/evaluate_phase2.py validate-signoff \
   --dataset evals/phase02-cases.jsonl --code-eval evals/phase2-code-eval.json \
   --signoff evals/expert-signoff-phase2.json
-.venv/bin/python evals/release_phase2.py verify-release evals/phase2-release.json
+uv run python evals/release_phase2.py verify-release evals/phase2-release.json
 
 # 跨栈 H5 路径（会启动本地 test PostgreSQL/Mailpit）
 cd ../frontend

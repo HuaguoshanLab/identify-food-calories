@@ -4,7 +4,7 @@
 
 ## 架构
 
-- 使用 Python 3.11+、FastAPI、Pydantic v2、SQLAlchemy 2 同步 Session 与 PostgreSQL。
+- 使用 Python 3.12+、FastAPI、Pydantic v2、SQLAlchemy 2 同步 Session 与 PostgreSQL。
 - 保持 API → Application/Service → Repository → Model 依赖方向；路由只处理 HTTP 语义和响应映射。
 - Repository 不决定密码规则、权限或 HTTP 状态码；Service 负责业务规则与多步骤事务边界。
 - Schema、ORM Model、LangGraph State、Provider DTO 必须分离。

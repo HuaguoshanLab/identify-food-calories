@@ -51,11 +51,11 @@
 
 ```bash
 cd backend
-.venv/bin/python tests/run_pg.py --env-file .env.test.example -- \
-  .venv/bin/python evals/evaluate_phase2.py run-code-eval \
+uv run python tests/run_pg.py --env-file .env.test.example -- \
+  uv run python evals/evaluate_phase2.py run-code-eval \
   --dataset evals/phase02-cases.jsonl --output evals/phase2-code-eval.json
-.venv/bin/python tests/run_pg.py --env-file .env.test.example -- \
-  .venv/bin/python evals/evaluate_phase2.py verify-code-eval \
+uv run python tests/run_pg.py --env-file .env.test.example -- \
+  uv run python evals/evaluate_phase2.py verify-code-eval \
   --dataset evals/phase02-cases.jsonl --result evals/phase2-code-eval.json
 ```
 
@@ -73,13 +73,13 @@ cd backend
 
 ```bash
 cd backend
-.venv/bin/python evals/release_phase2.py release \
+uv run python evals/release_phase2.py release \
   --dataset evals/phase02-cases.jsonl \
   --code-eval evals/phase2-code-eval.json \
   --signoff evals/expert-signoff-phase2.json \
   --promptfoo evals/promptfoo-release-phase2-v4.json \
   --output evals/phase2-release.json
-.venv/bin/python evals/release_phase2.py verify-release evals/phase2-release.json
+uv run python evals/release_phase2.py verify-release evals/phase2-release.json
 ```
 
 最后一条命令在 `FAIL` 时以非零状态退出；这是发布门正常的 fail-closed 行为，而不是允许重试或改分的信号。
@@ -90,7 +90,7 @@ cd backend
 
 ```bash
 cd backend
-.venv/bin/python evals/run_promptfoo_pilot.py
+uv run python evals/run_promptfoo_pilot.py
 ```
 
 生成的 `promptfoo-pilot-phase2.json` 只保存模型名、hash、调用尝试/完成数、usage、成本和失败类别；不保存原始 case 文案、模型输出、原始 Provider 响应或密钥。它永远不是 12×3 发布通过证据。

@@ -81,7 +81,7 @@ docker compose up -d --wait postgres postgres-test mailpit
 cd backend
 APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
-.venv/bin/python -m pytest tests/auth/test_registration_verification.py -q
+uv run pytest tests/auth/test_registration_verification.py -q
 ```
 
 测试通过后，在浏览器打开 <http://127.0.0.1:8025> 看本地 Mailpit 邮件。它是本地收件箱，不是生产邮件服务。
@@ -176,7 +176,7 @@ npm run lint && npm run typecheck && npm run test -- --run && npm run build
 cd ../backend
 APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
-.venv/bin/python -m pytest -q
+uv run pytest -q
 ```
 
 看失败时不要只盯着测试结果：先根据失败所属层定位。表单断言失败看 React；401/403 和 Cookie 看 API；并发或迁移失败看真实 PostgreSQL 集成测试。跨层乱查，只会浪费时间。

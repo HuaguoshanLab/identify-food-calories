@@ -31,7 +31,7 @@
 
 ### Backend and Agent
 
-- Python 3.11+、FastAPI、Pydantic
+- Python 3.12+、FastAPI、Pydantic
 - LangGraph + PostgreSQL Checkpointer
 - SQLAlchemy 2、Alembic、PostgreSQL、pgvector
 - Mem0（仅长期偏好，不是权威业务存储）

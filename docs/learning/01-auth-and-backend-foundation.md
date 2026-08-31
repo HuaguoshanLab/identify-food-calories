@@ -48,7 +48,7 @@ RegisterPage (React Hook Form + Zod)
 - promote 要求一个已验证、active 的现有管理员、非空 reason，拒绝自我提升；
 - 角色变更和 `admin_role_audit` 在同一个事务提交，避免“角色已改但没有审计”这种不可追责的坏状态。
 
-用 `python -m app.admin.cli --help` 看参数。实际操作前必须设置生产环境变量；本地演示使用 Mailpit 和本地 PostgreSQL，不能冒充生产审批。
+用 `uv run python -m app.admin.cli --help` 看参数。实际操作前必须设置生产环境变量；本地演示使用 Mailpit 和本地 PostgreSQL，不能冒充生产审批。
 
 ## 测试分层：哪里该测什么
 
@@ -67,8 +67,8 @@ docker compose up -d --wait postgres postgres-test mailpit
 cd backend
 APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
-.venv/bin/python -m pytest tests/auth/test_login_me_api.py -q
-ruff check . && mypy app
+uv run pytest tests/auth/test_login_me_api.py -q
+uv run ruff check . && uv run mypy app
 ```
 
 前端与完整链路：
