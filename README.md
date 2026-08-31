@@ -1,6 +1,6 @@
 # 基于 LangGraph 的多模态饮食健康智能 Agent
 
-本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前阶段先建立 FastAPI、PostgreSQL、认证与权限基座；LangGraph、视觉识别和长期记忆会在后续阶段接入。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标。
+本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、文字餐食分析和图片餐食分析闭环；长期记忆、饮食规划和后台管理仍在后续阶段。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标。
 
 ## 职责
 
@@ -72,6 +72,17 @@ npx --no-install promptfoo eval -c ../backend/evals/promptfooconfig.yaml --no-ca
 ```
 
 该命令会调用配置的 Provider，未获当次授权时禁止运行。
+
+Phase 3 的图片冻结评测不调用真实模型，只回放合成、不可逆 fixture reference；任何哈希漂移、缺案例或关键安全失败都让报告失败：
+
+```bash
+cd backend
+.venv/bin/python evals/evaluate_phase3.py \
+  --dataset evals/phase03-cases.jsonl \
+  --output evals/phase03-release.json
+```
+
+详见 [`docs/learning/phase-03-multimodal-meal-analysis.md`](docs/learning/phase-03-multimodal-meal-analysis.md)。
 
 ## 文件索引
 

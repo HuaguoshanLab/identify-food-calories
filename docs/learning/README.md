@@ -17,3 +17,4 @@
 | `01-auth-and-backend-foundation.md` | Phase 1 认证、权限、事务和测试链教学指南 |
 | `02-phase-1-code-walkthrough.md` | 从 React 页面追踪到 FastAPI、Service、Repository 与 PostgreSQL 的 Phase 1 代码导读 |
 | `phase-02-agent-core.md` | Phase 2 文字餐食 Agent 的认证→API→ledger→LangGraph→确定性营养工具→PostgreSQL/SSE 链路、测试证据、失败发布门与常见错误。 |
+| `phase-03-multimodal-meal-analysis.md` | Phase 3 图片安全、Qwen/Fake Vision Provider、图与确定性营养边界、删除链、冻结评测、浏览器证据和常见错误。 |
