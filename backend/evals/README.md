@@ -44,6 +44,22 @@
 | `phase2-release.json` | 唯一正式发布判定，精确绑定 dataset/code-eval/signoff/Promptfoo 四个 SHA；任何缺失、网络/产品失败、阈值失败或未定义 Spearman 都是 `FAIL`，绝不冒充 `PASS`。 |
 | `phase2-release-85971eb9.json` | 当前 code-eval 的独立 hash-bound 发布判定；本轮为 `FAIL`，因为 Judge 分数序列恒为 4，Spearman 未定义。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |
+| `phase03-cases.jsonl` | 12 条 hash 链接的合成多模态回放案例；不含用户图片，覆盖成功、多菜、模糊、目录外、估重、危险图片、Provider 故障、过期与删除。 |
+| `phase03-eval.schema.json` | Phase 3 冻结案例字段、禁止敏感字段和必需场景的版本化合同。 |
+| `evaluate_phase3.py` | 用 Fake Vision 回放构建 hash-bound 发布报告；零分母、hash 漂移、缺案例、未经授权目录项或任一关键安全断言均 fail closed。 |
+| `phase03-release.json` | 当前 Phase 3 冻结评测结果；只保存安全观察、指标、阈值和 hashes，不保存原图、模型原文或密钥。 |
+
+## Phase 3 多模态冻结门
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/unit/test_phase03_eval_contract.py -q
+.venv/bin/python evals/evaluate_phase3.py \
+  --dataset evals/phase03-cases.jsonl \
+  --output evals/phase03-release.json
+```
+
+报告只在预先定义的目录映射、估重、总量一致性、危险图片拒绝、临时删除和 `OUTCOME_UNKNOWN` 不盲重试门全部满足时写入 `PASS`。这份合成回放证据不替代真实浏览器上传验收，也不代表对真实用户图片的准确率承诺。
 
 ## 机器评测
 

@@ -1,0 +1,6 @@
+{
+  "schema_version": "phase03-eval.schema.v1",
+  "required_case_fields": ["schema_version", "case_id", "sequence", "kind", "fixture_ref", "replay", "expected", "parent_hash", "case_hash"],
+  "forbidden_fields": ["image", "image_bytes", "base64", "raw_response", "api_key", "prompt", "chain_of_thought"],
+  "required_kinds": ["single_dish", "multiple_dishes", "ambiguous_dish", "out_of_catalog", "estimate_high_confidence", "estimate_low_confidence", "dangerous_image", "provider_schema_invalid", "provider_transient", "provider_outcome_unknown", "expired_image", "delete_chain"]
+}

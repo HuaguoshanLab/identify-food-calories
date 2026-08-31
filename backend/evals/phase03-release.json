@@ -1,0 +1,340 @@
+{
+  "schema_version": "phase03-release.v1",
+  "evaluator_version": "phase03-evaluator.v1",
+  "decision": "PASS",
+  "input_hashes": {
+    "dataset_sha256": "81cd30618f28ec2ba0d62b6e7ecfe1c31f2726ce2baa095ed8fd297da3e0bb52",
+    "evaluator_sha256": "73984f1b389a30305e1abaffec46c594f12e1b06c6d95bc98bd6010ae16524fb",
+    "schema_sha256": "e0a48a3221a1e0ecf3104b7cbf2e61f4784d479c689d2fe845da791af5b6caac"
+  },
+  "thresholds": {
+    "catalog_macro_precision": 0.9,
+    "catalog_macro_recall": 0.9,
+    "estimate_mape_max": 0.2,
+    "all_safety_rates": 1.0
+  },
+  "metrics": {
+    "catalog_macro_precision": 1.0,
+    "catalog_macro_recall": 1.0,
+    "estimate_mape": 0.0,
+    "report_totals_consistent": 1.0,
+    "dangerous_image_rejection_rate": 1.0,
+    "deletion_chain_pass_rate": 1.0,
+    "unknown_no_blind_retry_rate": 1.0
+  },
+  "checks": {
+    "minimum_catalog_classes": true,
+    "minimum_estimate_samples": true,
+    "catalog_precision": true,
+    "catalog_recall": true,
+    "estimate_mape": true,
+    "report_totals_consistent": true,
+    "dangerous_image_rejected": true,
+    "delete_chain": true,
+    "unknown_not_retried": true,
+    "critical_safety_assertions": true
+  },
+  "cases": [
+    {
+      "case_id": "phase03-001",
+      "case_hash": "ec05bb8f86d3205d895dac20081b1eb0779572bcd799a0c642b5fa09484c009d",
+      "kind": "single_dish",
+      "observed": {
+        "state": "completed",
+        "catalog_food_ids": [
+          "fdc:169756"
+        ],
+        "estimated_grams": [
+          "100"
+        ],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-002",
+      "case_hash": "ba085ab8355dd9adb018e86f337c0f250fe2aef4a1bfe41095f83a3ff8c869ba",
+      "kind": "multiple_dishes",
+      "observed": {
+        "state": "completed",
+        "catalog_food_ids": [
+          "fdc:169756",
+          "fdc:748967"
+        ],
+        "estimated_grams": [
+          "120",
+          "55"
+        ],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-003",
+      "case_hash": "01bab6f37b587530ff5161358571fa6e97e21b0366057e84ded9da3a5a8762bd",
+      "kind": "ambiguous_dish",
+      "observed": {
+        "state": "waiting_input",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-004",
+      "case_hash": "2df7b7b7d0c412eac8ac0591baab6289963ef315bf945327b1d11b7392318c95",
+      "kind": "out_of_catalog",
+      "observed": {
+        "state": "partial",
+        "catalog_food_ids": [],
+        "estimated_grams": [
+          "80"
+        ],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-005",
+      "case_hash": "68ac5dd674341b53cf6fcb33ca37ec51e805bbbe9aceb9440be67dc4504c42dd",
+      "kind": "estimate_high_confidence",
+      "observed": {
+        "state": "completed",
+        "catalog_food_ids": [
+          "recipe:chili-fried-pork-v2"
+        ],
+        "estimated_grams": [
+          "250"
+        ],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-006",
+      "case_hash": "dd708a4a0b7c304c648982c529cafb09e93c887a8f7bbf3fd61f7f6b814daf12",
+      "kind": "estimate_low_confidence",
+      "observed": {
+        "state": "waiting_input",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-007",
+      "case_hash": "0b57fe387d006bb85be55ac45b1fa136e2ae7f3a9ca8d72f1fb4fce70bd2bc9d",
+      "kind": "dangerous_image",
+      "observed": {
+        "state": "failed",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 0,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-008",
+      "case_hash": "0db547b809b405cb890b6edde042c29aa019734061c99a7a7e3b6ce3d425ed94",
+      "kind": "provider_schema_invalid",
+      "observed": {
+        "state": "failed",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": false
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-009",
+      "case_hash": "5f4dd655ced682b33690fda24da5ba6e006ad5b158e977014391bed581244304",
+      "kind": "provider_transient",
+      "observed": {
+        "state": "completed",
+        "catalog_food_ids": [
+          "fdc:169756"
+        ],
+        "estimated_grams": [
+          "100"
+        ],
+        "image_deleted": true,
+        "provider_calls": 2,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-010",
+      "case_hash": "92ea01809660d792deedc03dc93abf245150fadc07889e3b05aa64878e285f0b",
+      "kind": "provider_outcome_unknown",
+      "observed": {
+        "state": "failed",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-011",
+      "case_hash": "2335974560fea8a6dd053bd51704c9e692af6cf9c969a11ac97f2fe2a3b2566d",
+      "kind": "expired_image",
+      "observed": {
+        "state": "failed",
+        "catalog_food_ids": [],
+        "estimated_grams": [],
+        "image_deleted": true,
+        "provider_calls": 0,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    },
+    {
+      "case_id": "phase03-012",
+      "case_hash": "dd217051e0785d26d3c2371043486eee473fe5239238ca37bd5fdefc7075d942",
+      "kind": "delete_chain",
+      "observed": {
+        "state": "completed",
+        "catalog_food_ids": [
+          "fdc:169756"
+        ],
+        "estimated_grams": [
+          "100"
+        ],
+        "image_deleted": true,
+        "provider_calls": 1,
+        "dangerous_image_rejected": false,
+        "outcome_unknown_not_retried": true
+      },
+      "assertions": {
+        "catalog_mapping": true,
+        "terminal_state": true,
+        "estimated_grams": true,
+        "temporary_image_deleted": true,
+        "bounded_provider_calls": true,
+        "dangerous_image_rejected": true,
+        "outcome_unknown_not_retried": true
+      }
+    }
+  ],
+  "evidence_hash": "bbd734937cf2715776f44585f339d646e265bf874d926f6e5db4ee5240682df6"
+}
