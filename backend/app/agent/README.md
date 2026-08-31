@@ -19,7 +19,7 @@
 | `ports.py` | Agent Service 的持久化 Protocol |
 | `repository.py` | flush-only SQLAlchemy Agent ledger adapter |
 | `service.py` | 所有权、命令幂等、事件、调用、图片/视觉 invocation 与 D-18 期限选择事务边界 |
-| `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早图片过期、7d/30d/删除期限唤醒，且只记录安全计数 |
+| `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早图片过期、7d/30d/删除期限唤醒，并处理记忆删除 outbox 的安全计数 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState |
 | `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |

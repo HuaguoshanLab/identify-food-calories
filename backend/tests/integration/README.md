@@ -24,3 +24,4 @@
 | `test_agent_checkpoint.py` | 预算在下一次调用前终止、瞬时 Provider 仅重试一次及恢复边界的回归证据。 |
 | `test_agent_retention.py` | FastAPI 生命周期中的 PostgreSQL retention lease、24h 用户删除、7d checkpoint/SSE 与 30d 最小审计的精确边界和跨租户证明。 |
 | `test_meal_records.py` | 真实 Agent 完成报告到餐食保存、时间修改、隔离与删除的竖向证据。 |
+| `test_memory_deletion_chain.py` | 真实 PostgreSQL 证明删除后立即不可检索，外部清理失败仅进入安全重试。 |

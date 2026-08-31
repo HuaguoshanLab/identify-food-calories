@@ -32,6 +32,8 @@ class RetentionRunStats:
     deleted_events: int = 0
     deleted_runs: int = 0
     deleted_images: int = 0
+    deleted_memories: int = 0
+    failed_memory_deletions: int = 0
 
 
 class RetentionWorker:
@@ -44,6 +46,7 @@ class RetentionWorker:
         checkpointer: object,
         policy: RetentionPolicy,
         image_safety: ImageSafetyService,
+        memory_cleanup: Callable[[], tuple[int, int]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if policy.poll_interval <= timedelta(0) or policy.poll_interval > timedelta(minutes=5):
@@ -54,6 +57,7 @@ class RetentionWorker:
         self._checkpointer = checkpointer
         self._policy = policy
         self._image_safety = image_safety
+        self._memory_cleanup = memory_cleanup
         self._now = now or (lambda: datetime.now(UTC))
         self._task: asyncio.Task[None] | None = None
         self._stopping = False
@@ -177,6 +181,8 @@ class RetentionWorker:
         deleted_events = 0
         deleted_runs = 0
         deleted_images = 0
+        deleted_memories = 0
+        failed_memory_deletions = 0
         deletion_threads = {thread_id for thread_id, _user_id in sweep.due_deletions}
 
         for thread_id, user_id in sweep.due_deletions:
@@ -219,12 +225,16 @@ class RetentionWorker:
                 session.close()
         for image_id, user_id in sweep.expired_images:
             deleted_images += self._delete_image(image_id=image_id, user_id=user_id)
+        if self._memory_cleanup is not None:
+            deleted_memories, failed_memory_deletions = self._memory_cleanup()
         return RetentionRunStats(
             deleted_threads=deleted_threads,
             cleared_checkpoint_namespaces=checkpoint_namespaces,
             deleted_events=deleted_events,
             deleted_runs=deleted_runs,
             deleted_images=deleted_images,
+            deleted_memories=deleted_memories,
+            failed_memory_deletions=failed_memory_deletions,
         )
 
     def _delete_thread_images(

@@ -70,6 +70,7 @@ class PostgresLeaseSupervisor:
         checkpointer: object,
         policy: RetentionPolicy,
         image_safety: ImageSafetyService,
+        memory_cleanup: Callable[[], tuple[int, int]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> RetentionWorker:
         """Attach the D-18 scheduler to the same real lifespan as Agent execution."""
@@ -82,6 +83,7 @@ class PostgresLeaseSupervisor:
                 checkpointer=checkpointer,
                 policy=policy,
                 image_safety=image_safety,
+                memory_cleanup=memory_cleanup,
                 now=now,
             )
             await self._retention_worker.start()

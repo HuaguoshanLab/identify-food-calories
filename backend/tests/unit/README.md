@@ -24,3 +24,4 @@
 | `test_image_safety.py` | 锁定图片真实解码、metadata 剥离、私有临时存储与到期删除边界。 |
 | `test_vision_provider.py` | 锁定 Vision DTO、Fake trace、失败类别与 test/production Provider 选择。 |
 | `test_meal_record_api.py` | 餐食记录认证、OpenAPI 与安全 DTO 的 HTTP 契约。 |
+| `test_memory_api.py` | 长期记忆认证、DTO 脱敏与跨用户访问 HTTP 契约。 |

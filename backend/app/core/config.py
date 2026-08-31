@@ -19,6 +19,7 @@ class ConfigurationError(ValueError):
 
 ReasoningProviderMode: TypeAlias = Literal["fake", "deepseek"]
 VisionProviderMode: TypeAlias = Literal["fake", "qwen"]
+MemoryProviderMode: TypeAlias = Literal["fake", "mem0"]
 
 
 class Settings(BaseSettings):
@@ -71,6 +72,12 @@ class Settings(BaseSettings):
     qwen_up_to_256k_output_cny_per_m: Decimal | None = None
     vision_timeout_seconds: int = 20
     vision_max_pixels: int = 20_000_000
+    memory_provider_mode: MemoryProviderMode = "fake"
+    mem0_api_key: SecretStr | None = None
+    mem0_endpoint: str | None = None
+    memory_operation_timeout_seconds: int = 10
+    memory_retry_max_attempts: int = 3
+    memory_retry_backoff_seconds: int = 30
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -196,6 +203,20 @@ class Settings(BaseSettings):
         if self.vision_timeout_seconds <= 0 or self.vision_max_pixels <= 0:
             raise ConfigurationError("VISION_TIMEOUT_SECONDS and VISION_MAX_PIXELS must be positive")
         for field in ("vision_timeout_seconds", "vision_max_pixels"):
+            if field not in self.model_fields_set:
+                raise ConfigurationError(f"{field.upper()} must be explicitly configured in production")
+        if self.memory_provider_mode != "mem0":
+            raise ConfigurationError("production requires MEMORY_PROVIDER_MODE=mem0")
+        memory_required = {
+            "MEM0_API_KEY": self.mem0_api_key.get_secret_value() if self.mem0_api_key else None,
+            "MEM0_ENDPOINT": self.mem0_endpoint,
+        }
+        for variable, memory_value in memory_required.items():
+            if memory_value is None or not str(memory_value).strip():
+                raise ConfigurationError(f"{variable} is required in production")
+        if self.memory_operation_timeout_seconds <= 0 or self.memory_retry_max_attempts <= 0 or self.memory_retry_backoff_seconds <= 0:
+            raise ConfigurationError("memory timeout and retry settings must be positive")
+        for field in ("memory_operation_timeout_seconds", "memory_retry_max_attempts", "memory_retry_backoff_seconds"):
             if field not in self.model_fields_set:
                 raise ConfigurationError(f"{field.upper()} must be explicitly configured in production")
 

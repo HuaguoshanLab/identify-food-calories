@@ -17,6 +17,10 @@ from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
 from app.records.api import router as meal_records_router
+from app.memory.api import router as memories_router
+from app.memory.providers import create_memory_provider
+from app.memory.repository import SqlAlchemyMemoryLedgerRepository
+from app.memory.service import MemoryService
 from app.agent.graph import AgentRuntime, AgentRuntimeFactory, MealAnalysisGraph
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.agent.service import RetentionPolicy
@@ -52,6 +56,7 @@ class PersistedAgentRuntimeFactory:
         session_factory = create_session_factory(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory)
         provider = create_reasoning_provider(self._settings)
+        memory_provider = create_memory_provider(self._settings)
         vision_provider = self._vision_provider or create_vision_provider(self._settings)
         image_safety = ImageSafetyService(
             repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),
@@ -94,6 +99,12 @@ class PersistedAgentRuntimeFactory:
                 poll_interval=timedelta(seconds=self._settings.retention_poll_interval_seconds),
             ),
             image_safety=image_safety,
+            memory_cleanup=lambda: _process_memory_deletions(
+                session_factory=session_factory,
+                provider=memory_provider,
+                settings=self._settings,
+                now=self._retention_now,
+            ),
             now=self._retention_now,
         )
         return AgentRuntime(
@@ -154,6 +165,7 @@ def create_app(
     application.include_router(account_recovery_router)
     application.include_router(agent_router)
     application.include_router(meal_records_router)
+    application.include_router(memories_router)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(
@@ -190,6 +202,20 @@ def create_app(
         return {"status": "ok", "version": "v1"}
 
     return application
+
+
+def _process_memory_deletions(*, session_factory: Callable[[], Any], provider: object, settings: Settings, now: Callable[[], datetime]) -> tuple[int, int]:
+    """Keep external cleanup inside the lifespan-owned PostgreSQL lease cycle."""
+    session = session_factory()
+    try:
+        return MemoryService(
+            repository=SqlAlchemyMemoryLedgerRepository(session), provider=cast(Any, provider), now=now,
+            commit=session.commit, rollback=session.rollback,
+            retry_max_attempts=settings.memory_retry_max_attempts,
+            retry_backoff_seconds=settings.memory_retry_backoff_seconds,
+        ).process_due_deletions()
+    finally:
+        session.close()
 
 
 app = create_app()

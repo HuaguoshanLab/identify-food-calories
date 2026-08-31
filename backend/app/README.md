@@ -26,3 +26,4 @@
 | `nutrition/` | 受控营养目录、确定性计算/校验 Service 与 SQLAlchemy adapter |
 | `agent/` | Agent 权威运行账本、JSON-safe State、工具适配器与图编排合同 |
 | `records/` | 用户确认的餐食快照、记忆本地授权账本与外部删除 outbox |
+| `memory/` | 长期偏好 Provider、tenant-bound ledger CRUD 与删除重试服务 |
