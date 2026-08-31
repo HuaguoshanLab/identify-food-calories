@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-08-31T07:10:00.000Z"
+status: verifying
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-08-31T08:30:39.000Z"
 last_activity: 2026-08-31
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 47
-  completed_plans: 46
+  completed_plans: 47
   percent: 38
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 
 Phase: 3 (multimodal-meal-analysis) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Ready for phase verification
 Last activity: 2026-08-31
 
 Progress: [██████████] Phase 02 manually accepted; release evidence remains FAIL
@@ -139,6 +139,7 @@ Recent decisions affecting current work:
 - [Phase 02]: 用户于 2026-08-31 选择保留现有 Spearman 发布合同；本轮 `FAIL` 保持有效，不为通过而重跑 Judge 或调整评分。
 - [Phase 02]: 用户于 2026-08-31 手动接受 Phase 02 阶段工作完成，允许继续后续阶段；此决定不改变 `FAIL` 发布结论，也不允许对外宣称该阶段已发布通过。
 - [Phase 03]: Qwen-VL 使用华北2（北京）默认业务空间与 qwen3-vl-flash；价格按 CNY 分档配置。 — 用户已在 Model Studio 人工核实区域、业务空间、模型和数据处理条款，API Key 仅在未提交环境变量中。
+- [Phase 03]: 多模态 release 只接受合成、不可逆 fixture reference 的 Fake Vision hash-bound 回放；真实浏览器上传只作为可用性证据。 — 防止用户原图进入评测并避免把单次成功夸大为准确率指标。
 
 ### Pending Todos
 
@@ -159,5 +160,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-08-31T07:10:00.000Z
-Stopped at: Completed 03-04-PLAN.md
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None
