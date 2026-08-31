@@ -22,7 +22,8 @@
 | `phase2-code-eval.json` | 当前代码、冻结集、图/Fake 与真实 Provider 选择路径/工具/目录/schema 哈希绑定的 24 条真实 Fake Provider→Graph→工具→Checkpoint 观测证据。 |
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
-| `expert-signoff-phase2-85971eb9.template.md` | 绑定当前 `phase2-code-eval.json` 文件 SHA-256 `85971eb9…` 的空白双角色复审表；旧表已填写内容保留作审计，不得转写为本轮正式签署。 |
+| `expert-signoff-phase2-85971eb9.template.md` | 绑定当前 `phase2-code-eval.json` 文件 SHA-256 `85971eb9…` 的双角色复审工作表；本轮已由于女士、陈先生实际填写，旧表不得转写为本轮正式签署。 |
+| `expert-signoff-phase2-85971eb9.json` | 从于女士与陈先生实际填写的当前工作表、以及本轮独立 Judge 分数物化的 hash-bound 正式签署；通过 `validate-signoff`。 |
 | `expert-signoff-phase2.reference.md` | 与空白表相同案例顺序的格式参考；展示五个具名确认、Medium 评分与独立 Judge 分数的正确写法，不是签署证据。 |
 | `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-json-thinking-disabled.v4`，启用严格唯一 `{"score": 1-5整数}`、OpenAI-compatible `response_format: {type: json_object}`，并经 Promptfoo 0.122.0 OpenAI provider 的 `passthrough` 发送 `thinking: {type: disabled}`。证据只记录该请求合同，不记录 reasoning/response 内容；v4 与旧 v1–v3 运行不可直接比较。 |
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
@@ -36,9 +37,12 @@
 | `promptfoo-release-phase2-v2.json` | 独立的 `phase02-judge-json.v2` 正式运行证据；绑定 v2 prompt/config hash，并在首个无效 Judge 分数后保留安全 usage/cost 后停止。 |
 | `promptfoo-release-phase2-v3.json` | 独立的 `phase02-judge-json-mode.v3` 正式运行证据；绑定 JSON-object transport/prompt/config 合同，并在首个无效 Judge 分数后保留安全 usage/cost 后停止。 |
 | `promptfoo-release-phase2-v4.json` | 独立的 `phase02-judge-json-thinking-disabled.v4` 正式运行证据；36 次串行调用全部完成，记录安全 usage/cost 与稳定 Judge 分数，不包含模型输出或 reasoning。 |
+| `promptfoo-release-phase2-85971eb9-preflight.json` | 当前 code-eval 绑定的无联网预算与合同预检证据。 |
+| `promptfoo-release-phase2-85971eb9.json` | 当前 code-eval 绑定的独立正式 Judge 运行证据：36 次串行、无缓存、零重试、首个异常停止；不覆盖历史运行。 |
 | `promptfoo-release-network-preflight.json` | 不带凭据、非模型请求的 DNS/TLS/root-401 连通性预检证据。 |
 | `expert-signoff-phase2.json` | 仅当 36-call Judge 完成且 Medium Judge 分数稳定时，从真实专家模板和实际 Judge 分数物化的正式签署证据。 |
 | `phase2-release.json` | 唯一正式发布判定，精确绑定 dataset/code-eval/signoff/Promptfoo 四个 SHA；任何缺失、网络/产品失败、阈值失败或未定义 Spearman 都是 `FAIL`，绝不冒充 `PASS`。 |
+| `phase2-release-85971eb9.json` | 当前 code-eval 的独立 hash-bound 发布判定；本轮为 `FAIL`，因为 Judge 分数序列恒为 4，Spearman 未定义。 |
 | `release-failures.json` | 每个专家、hash、评分、相关性、阈值和 Promptfoo 输入门的独立 fail-closed 夹具。 |
 
 ## 机器评测
