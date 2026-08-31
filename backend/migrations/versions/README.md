@@ -21,3 +21,4 @@
 | `0005_nutrition_catalog_content_hash.py` | 为 immutable nutrition catalog version 持久化 content hash，拒绝同版本覆盖 |
 | `0006_multimodal_images.py` | 图片最小生命周期与视觉调用 metadata；只存私有 handle 和安全计量，不存原图或模型原文。 |
 | `0007_meal_records_memory_ledger.py` | 用户确认的餐食营养快照、偏好记忆本地授权账本与外部删除 outbox schema。 |
+| `0008_retrieval_vectors.py` | pgvector 历史餐食与受控营养知识 embedding metadata；个人查询先以关系型 tenant/status 过滤。 |

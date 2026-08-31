@@ -24,6 +24,7 @@ from app.agent.state import (
     StateMealItem,
     StateNutritionResult,
     StateToolSummary,
+    StateContextHint,
     StateCandidate,
     StateVisionMetadata,
 )
@@ -144,6 +145,20 @@ class MealAnalysisGraph:
         """
 
         started_ms = self._monotonic_ms()
+        if state.messages and not state.context_hints:
+            retrieve_context = getattr(self._tools, "retrieve_personal_context", None)
+            if callable(retrieve_context):
+                # Context is optional guidance and is deliberately collected before parsing. It
+                # cannot alter the deterministic Nutrition Service calls below.
+                hints = retrieve_context(user_id=state.user_id, query=state.messages[-1])
+                state = state.model_copy(
+                    update={
+                        "context_hints": tuple(
+                            StateContextHint(source=hint.source, summary=hint.summary)
+                            for hint in hints[:9]
+                        )
+                    }
+                )
         resumed = False
         # Invalid/no-answer resumes are a no-op, not a graph transition.  Charging a new step
         # here would make a client typo consume the autonomous-work budget.
@@ -545,6 +560,24 @@ class MealAnalysisGraph:
                 "budget": state.budget.model_copy(update={"tool_calls": tool_calls}),
             }
         )
+        catalog_version = next(
+            (item.catalog_version for item in result.items if item.catalog_version is not None),
+            None,
+        )
+        retrieve_context = getattr(self._tools, "retrieve_personal_context", None)
+        if catalog_version is not None and callable(retrieve_context):
+            # Re-read after catalog resolution so controlled knowledge is bound to exactly the
+            # version that deterministic calculation used, never to a floating latest catalog.
+            query = next((item.normalized_name for item in result.items), "")
+            hints = retrieve_context(user_id=result.user_id, query=query, catalog_version=catalog_version)
+            result = result.model_copy(
+                update={
+                    "context_hints": tuple(
+                        StateContextHint(source=hint.source, summary=hint.summary)
+                        for hint in hints[:9]
+                    )
+                }
+            )
         if questions:
             return result.model_copy(
                 update={
@@ -758,6 +791,7 @@ def _build_report(state: MealAgentState, *, waiting: bool) -> dict[str, object]:
         "waiting_input": waiting,
         "totals": {field: str(value.quantize(Decimal("0.1"))) for field, value in totals.items()},
         "disclaimer": "普通饮食参考，不替代医疗建议。",
+        "context_references": [hint.summary for hint in state.context_hints],
     }
 
 

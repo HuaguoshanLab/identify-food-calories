@@ -54,9 +54,9 @@ class PersistedAgentRuntimeFactory:
     async def create(self) -> AgentRuntime:
         database_url = runtime_database_url(self._settings)
         session_factory = create_session_factory(self._settings)
-        tools = SessionNutritionToolAdapter(session_factory=session_factory)
-        provider = create_reasoning_provider(self._settings)
         memory_provider = create_memory_provider(self._settings)
+        tools = SessionNutritionToolAdapter(session_factory=session_factory, memory_provider=memory_provider)
+        provider = create_reasoning_provider(self._settings)
         vision_provider = self._vision_provider or create_vision_provider(self._settings)
         image_safety = ImageSafetyService(
             repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),

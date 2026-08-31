@@ -21,7 +21,7 @@
 | `service.py` | 所有权、命令幂等、事件、调用、图片/视觉 invocation 与 D-18 期限选择事务边界 |
 | `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早图片过期、7d/30d/删除期限唤醒，并处理记忆删除 outbox 的安全计数 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState |
-| `tools.py` | Graph 到确定性 Nutrition Service 的唯一工具适配器 |
+| `tools.py` | Graph 到确定性 Nutrition Service 及安全个人上下文检索的唯一工具适配器 |
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
 | `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention Worker |
 | `schemas.py` | 与 ORM、Graph State、Provider DTO 分离的公开 Agent HTTP 请求/响应 schema |

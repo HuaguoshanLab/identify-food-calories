@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -145,6 +146,15 @@ class StateToolSummary(BaseModel):
     result_digest: str = Field(min_length=64, max_length=64)
 
 
+class StateContextHint(BaseModel):
+    """Only user-safe context survives checkpoints; IDs, vectors and retrieval scores do not."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: Literal["preference", "meal_history", "nutrition_knowledge"]
+    summary: str = Field(min_length=1, max_length=500)
+
+
 class MealAgentState(BaseModel):
     """Versioned State passed between graph nodes and serialized by the checkpointer."""
 
@@ -165,6 +175,7 @@ class MealAgentState(BaseModel):
     unaccounted_items: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     is_partial: bool = False
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=36)
+    context_hints: tuple[StateContextHint, ...] = Field(default=(), max_length=9)
     validation_issues: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     dirty_item_ids: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     budget: AgentBudget = Field(default_factory=AgentBudget)
