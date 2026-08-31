@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: release_blocked
-stopped_at: Plan 02-18 executed; Phase 02 release gate blocked by undefined Spearman and incomplete authenticated browser matrix
+stopped_at: Plan 02-18 executed; user retained the Spearman release contract, so Phase 02 remains blocked
 last_updated: "2026-08-31T00:00:00Z"
 last_activity: 2026-08-31
 progress:
@@ -134,6 +134,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Promptfoo 正式 Judge 采用 phase02-judge-json-thinking-disabled.v4，串行 36-call、无缓存、零重试、JSON object 与 thinking.disabled 合同均安全绑定；实际 36/36 完成并以 usage 记账。
 - [Phase 02]: visual candidate 仅以精确 SHA 获批；official baseline 不因 Plan 02-17 而晋升。
 - [Phase 02]: Plan 02-18 的发布报告精确绑定数据集、code-eval、双角色签署和 Promptfoo 证据；当前真实评分序列导致 Spearman 未定义，发布结论为 FAIL，不能以相同分数或重试刷绿。
+- [Phase 02]: 用户于 2026-08-31 选择保留现有 Spearman 发布合同；本轮 `FAIL` 保持有效，Phase 02 继续 `release_blocked`，不为通过而重跑 Judge 或调整评分。
 
 ### Pending Todos
 

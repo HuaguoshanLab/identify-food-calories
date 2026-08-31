@@ -77,7 +77,7 @@ Plans:
 4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
 5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
 
-**Plans:** 18/18 plans executed; **Release:** blocked（真实专家/Judge 配对分数为常数，Spearman 未定义；内置浏览器认证矩阵未完成）
+**Plans:** 18/18 plans executed; **Release:** blocked（用户已保留当前 Spearman 合同；真实专家/Judge 配对分数为常数，Spearman 未定义；内置浏览器认证矩阵未完成）
 
 **Wave 1**
 
