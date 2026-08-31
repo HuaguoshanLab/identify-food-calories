@@ -10,3 +10,9 @@
 | `03-DISCUSSION-LOG.md` | 决策备选与用户选择的审计记录；不作为规划输入。 |
 | `03-RESEARCH.md` | Qwen-VL、图片安全、现有接点与冻结评测的实施研究。 |
 | `03-UI-SPEC.md` | H5 上传、追问、报告与失败恢复的视觉和交互合同。 |
+| `03-PATTERNS.md` | Phase 3 文件到既有代码模式的映射，供计划和执行复用。 |
+| `03-01-PLAN.md` | 安全图片临时处理与 Vision Provider 基座。 |
+| `03-02-PLAN.md` | Qwen-VL adapter、区域核验与安全计量。 |
+| `03-03-PLAN.md` | 图片到 LangGraph/确定性营养/API 的后端闭环。 |
+| `03-04-PLAN.md` | H5 上传、追问、报告与真实浏览器验收。 |
+| `03-05-PLAN.md` | 冻结评测、发布证据和中文教学文档。 |
