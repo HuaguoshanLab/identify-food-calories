@@ -2,7 +2,7 @@
 
 ## 职责
 
-`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供产品落地页、隐私/条款、登录、注册和注册验证码交互，以及同一分析页内的文字或图片餐食分析、追问、估算报告与安全删除。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
+`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供认证、餐食分析、显式保存的餐食记录以及长期偏好管理。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
 
 ## 允许依赖
 

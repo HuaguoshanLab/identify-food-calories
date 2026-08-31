@@ -16,6 +16,11 @@ import { MePage } from './app/MePage'
 import { PlaceholderTabPage } from './app/PlaceholderTabPage'
 import { SessionsDetailsPage } from './app/SessionsDetailsPage'
 import { AnalyzePage } from './features/agent/components/AnalyzePage'
+import { RecordsPage } from './features/records/components/RecordsPage'
+import { MealRecordDetailPage } from './features/records/components/MealRecordDetailPage'
+import { MealRecordEditPage } from './features/records/components/MealRecordEditPage'
+import { MemoryManagementPage } from './features/memory/components/MemoryManagementPage'
+import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
@@ -45,7 +50,7 @@ export function App() {
           <Route index element={<Navigate replace to="analyze" />} />
           <Route element={<AppShell />}>
             <Route path="analyze" element={<AnalyzePage />} />
-            <Route path="records" element={<PlaceholderTabPage title="记录" />} />
+            <Route path="records" element={<RecordsPage />} />
             <Route path="plans" element={<PlaceholderTabPage title="计划" />} />
             <Route path="me" element={<MePage />} />
           </Route>
@@ -54,6 +59,18 @@ export function App() {
           </Route>
           <Route element={<DetailLayout title="登录会话" />}>
             <Route path="me/sessions" element={<SessionsDetailsPage />} />
+          </Route>
+          <Route element={<DetailLayout title="餐食记录" />}>
+            <Route path="records/:recordId" element={<MealRecordDetailPage />} />
+          </Route>
+          <Route element={<DetailLayout title="编辑餐食" />}>
+            <Route path="records/:recordId/edit" element={<MealRecordEditPage />} />
+          </Route>
+          <Route element={<DetailLayout title="饮食偏好与记忆" />}>
+            <Route path="me/memories" element={<MemoryManagementPage />} />
+          </Route>
+          <Route element={<DetailLayout title="编辑记忆" />}>
+            <Route path="me/memories/:memoryId/edit" element={<MemoryEditPage />} />
           </Route>
         </Route>
       </Route>

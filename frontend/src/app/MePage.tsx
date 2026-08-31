@@ -1,4 +1,4 @@
-import { CircleUserRound, MonitorSmartphone } from 'lucide-react'
+import { Brain, CircleUserRound, MonitorSmartphone } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 import { routePaths } from '@/routePaths'
@@ -28,6 +28,12 @@ export function MePage() {
           icon={MonitorSmartphone}
           title="登录会话"
           to={routePaths.sessions}
+        />
+        <SettingsLinkRow
+          description="查看和管理会影响后续建议的偏好。"
+          icon={Brain}
+          title="饮食偏好与记忆"
+          to="/app/me/memories"
         />
       </div>
     </section>

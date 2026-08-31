@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Camera, CircleAlert, CircleCheck, ImagePlus, MessageSquareText, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/auth/useAuth'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -12,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { createAgentImageThread, createAgentThread, deleteAgentThread, getAgentThread, submitAgentInput, uploadAgentMealImage } from '../api/client.generated'
 import { agentErrorResponseSchema, agentImageAcceptedResponseSchema, agentThreadSnapshotSchema, type AgentThreadSnapshot } from '../api/schemas.generated'
 import { useAgentEventStream } from '../stream/useAgentEventStream'
+import { confirmMealRecord } from '@/features/records/api/client'
 
 const MAX_DESCRIPTION_LENGTH = 1000
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -41,6 +43,7 @@ type AnalysisReport = {
   is_partial?: boolean
   totals?: Record<string, string>
   disclaimer?: string
+  context_references?: string[]
 }
 
 function displayFoodName(name: string): string {
@@ -83,6 +86,9 @@ export function AnalyzePage() {
   const [correction, setCorrection] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [savedRecordId, setSavedRecordId] = useState<string>()
+  const [savingRecord, setSavingRecord] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const applySnapshot = useCallback(async (response: Response) => {
     const body = await response.json().catch(() => undefined)
@@ -230,6 +236,15 @@ export function AnalyzePage() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }
 
+  async function confirmSave() {
+    if (!snapshot || savingRecord) return
+    setSavingRecord(true); setSaveError('')
+    try {
+      const record = await confirmMealRecord(request, snapshot.thread_id, `save-${crypto.randomUUID()}`)
+      setSavedRecordId(record.id)
+    } catch { setSaveError('保存失败，请稍后重试。') } finally { setSavingRecord(false) }
+  }
+
   return (
     <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
       <div className="space-y-2"><h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-bold leading-9 tracking-tight">分析这餐</h1><p className="text-[15px] leading-6 text-muted-foreground">图片用于本次估算；营养数值由受控目录计算。</p></div>
@@ -248,7 +263,7 @@ export function AnalyzePage() {
       {recovery ? <Alert variant={recoveryCode === 'OUTCOME_UNKNOWN' ? 'default' : 'destructive'}><CircleAlert aria-hidden="true" /><AlertTitle>{recovery.title}</AlertTitle><AlertDescription className="space-y-3"><p>{recovery.body}</p>{recoveryCode === 'OUTCOME_UNKNOWN' ? <Button className="h-11 w-full" onClick={startNewImageAnalysis} type="button" variant="outline">{recovery.action}</Button> : <Button className="h-11 w-full" onClick={focusTextFallback} type="button" variant="outline">{recovery.action}</Button>}</AlertDescription></Alert> : null}
       {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} inputMode="decimal" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
       {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{report.unaccounted_items?.join('、') || '请查看待补充项'}。</> : <>未匹配菜品：{report.unaccounted_items?.join('、') || '请补充菜品和份量'}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}
-      {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <Card aria-label="营养分析报告" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleCheck aria-hidden="true" className="size-5" />{report.is_partial ? '部分营养报告' : '营养分析报告'}</h2><CardDescription className="tabular-nums text-base font-semibold">{report.is_partial ? '已计入项目合计' : '合计'} {report.totals.energy_kcal} kcal</CardDescription></CardHeader><CardContent className="space-y-3">{report.items?.map((item) => <article className="space-y-1 rounded-lg border border-border p-3" key={item.item_id ?? `${item.name}-${item.grams}`}><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{displayFoodName(item.name)}</h3>{item.is_estimated ? <Badge variant="outline">估算重量</Badge> : null}</div><p className="tabular-nums text-sm">{item.grams}g · {item.energy_kcal} kcal</p>{item.is_estimated ? <p className="text-[13px] leading-5 text-muted-foreground">估算重量，可能与实际份量存在偏差。</p> : null}<p className="tabular-nums text-[13px] leading-5 text-muted-foreground">蛋白质 {item.protein_g}g · 脂肪 {item.fat_g}g · 碳水 {item.carbohydrate_g}g</p></article>)}<p className="tabular-nums text-sm text-muted-foreground">蛋白质 {report.totals.protein_g}g · 脂肪 {report.totals.fat_g}g · 碳水 {report.totals.carbohydrate_g}g</p><p className="text-[13px] leading-5 text-muted-foreground">{report.disclaimer || '本结果仅供一般饮食参考，不替代医疗建议。'}</p><div className="space-y-2 border-t pt-3"><Label htmlFor="meal-correction">修正或排除项目</Label><Input className="h-11" id="meal-correction" onChange={(event) => setCorrection(event.target.value)} placeholder="例如：米饭改为 150 克，或排除米饭" value={correction} /><Button className="h-11 w-full" disabled={isBusy} onClick={submitCorrection} type="button">应用修正</Button></div><div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">删除这次分析</p><p className="text-[13px] leading-5 text-muted-foreground">提交后立即关闭此会话的分析、事件流和本地缓存；数据将在 24 小时内删除。</p><Button className="min-h-11 w-full" disabled={status === 'deleting'} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} type="button" variant="destructive">删除这次分析</Button></div></CardContent></Card> : null}
+      {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <Card aria-label="营养分析报告" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleCheck aria-hidden="true" className="size-5" />{report.is_partial ? '部分营养报告' : '营养分析报告'}</h2><CardDescription className="tabular-nums text-base font-semibold">{report.is_partial ? '已计入项目合计' : '合计'} {report.totals.energy_kcal} kcal</CardDescription></CardHeader><CardContent className="space-y-3">{report.items?.map((item) => <article className="space-y-1 rounded-lg border border-border p-3" key={item.item_id ?? `${item.name}-${item.grams}`}><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{displayFoodName(item.name)}</h3>{item.is_estimated ? <Badge variant="outline">估算重量</Badge> : null}</div><p className="tabular-nums text-sm">{item.grams}g · {item.energy_kcal} kcal</p>{item.is_estimated ? <p className="text-[13px] leading-5 text-muted-foreground">估算重量，可能与实际份量存在偏差。</p> : null}<p className="tabular-nums text-[13px] leading-5 text-muted-foreground">蛋白质 {item.protein_g}g · 脂肪 {item.fat_g}g · 碳水 {item.carbohydrate_g}g</p></article>)}<p className="tabular-nums text-sm text-muted-foreground">蛋白质 {report.totals.protein_g}g · 脂肪 {report.totals.fat_g}g · 碳水 {report.totals.carbohydrate_g}g</p>{report.context_references?.map((reference) => <p className="text-[13px] text-muted-foreground" key={reference}>{reference}</p>)}<p className="text-[13px] leading-5 text-muted-foreground">{report.disclaimer || '本结果仅供一般饮食参考，不替代医疗建议。'}</p>{!report.is_partial ? <div className="border-t pt-3">{savedRecordId ? <div className="space-y-2"><p className="text-sm font-medium text-primary">已保存</p><Link className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-input text-sm font-medium" to={`/app/records/${savedRecordId}`}>查看记录</Link></div> : <><Button className="h-11 w-full" disabled={savingRecord} onClick={() => void confirmSave()} type="button">{savingRecord ? '正在保存…' : '确认并保存'}</Button>{saveError ? <p className="mt-2 text-sm text-destructive">{saveError}</p> : null}</>}</div> : null}<div className="space-y-2 border-t pt-3"><Label htmlFor="meal-correction">修正或排除项目</Label><Input className="h-11" id="meal-correction" onChange={(event) => setCorrection(event.target.value)} placeholder="例如：米饭改为 150 克，或排除米饭" value={correction} /><Button className="h-11 w-full" disabled={isBusy} onClick={submitCorrection} type="button">应用修正</Button></div><div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">删除这次分析</p><p className="text-[13px] leading-5 text-muted-foreground">提交后立即关闭此会话的分析、事件流和本地缓存；数据将在 24 小时内删除。</p><Button className="min-h-11 w-full" disabled={status === 'deleting'} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} type="button" variant="destructive">删除这次分析</Button></div></CardContent></Card> : null}
       <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (status !== 'deleting') setDeleteOpen(open) }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除这次分析？</AlertDialogTitle><AlertDialogDescription>这会停止当前分析和事件流，并在 24 小时内删除这次会话的数据。此操作无法撤销。</AlertDialogDescription></AlertDialogHeader>{deleteError ? <p className="text-sm text-destructive" role="alert">{deleteError}</p> : null}<AlertDialogFooter><AlertDialogCancel disabled={status === 'deleting'}>保留这次分析</AlertDialogCancel><AlertDialogAction disabled={status === 'deleting'} onClick={() => void confirmDeletion()} variant="destructive">{status === 'deleting' ? '正在提交删除…' : '确认删除'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </section>
   )
