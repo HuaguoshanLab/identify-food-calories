@@ -77,7 +77,7 @@ Plans:
 4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
 5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
 
-**Plans:** 17/18 plans executed
+**Plans:** 18/18 plans executed; **Release:** blocked（真实专家/Judge 配对分数为常数，Spearman 未定义；内置浏览器认证矩阵未完成）
 
 **Wave 1**
 
@@ -140,7 +140,7 @@ Plans:
 
 **Wave 15** *(blocked on Wave 14 completion)*
 
-- [ ] 02-18-PLAN.md — 生成发布报告并完成浏览器验收、视觉晋升和教学文档
+- [x] 02-18-PLAN.md — 已生成发布报告、晋升批准视觉并补齐教学文档；发布门禁仍阻断，不能标记 Phase 完成
 
 ### Phase 3: 多模态餐食分析闭环
 

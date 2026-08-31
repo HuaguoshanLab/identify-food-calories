@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Plan 02-17 completed; Plan 02-18 pending
-last_updated: "2026-08-29T10:20:00Z"
-last_activity: 2026-08-29
+status: release_blocked
+stopped_at: Plan 02-18 executed; Phase 02 release gate blocked by undefined Spearman and incomplete authenticated browser matrix
+last_updated: "2026-08-31T00:00:00Z"
+last_activity: 2026-08-31
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
   percent: 25
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 
 ## Current Position
 
-Phase: 02 (agent) — EXECUTING
-Plan: 17 of 18
-Status: Plan 02-17 complete; ready to execute Plan 02-18
-Last activity: 2026-08-29
+Phase: 02 (agent) — RELEASE BLOCKED
+Plan: 18 of 18 executed
+Status: 发布门禁未通过；不得标记 Phase 02 完成或启动依赖它的 Phase 03 实现
+Last activity: 2026-08-31
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100% plans executed; release blocked
 
 ## Performance Metrics
 
@@ -133,6 +133,7 @@ Recent decisions affecting current work:
 - [Phase 02]: 24-case 双专家签署必须绑定稳定 pseudonym、role、rubric、dataset 与 code-eval hashes；同一 reviewer 可跨 case 审核，但同 case 同角色不得重复。
 - [Phase 02]: Promptfoo 正式 Judge 采用 phase02-judge-json-thinking-disabled.v4，串行 36-call、无缓存、零重试、JSON object 与 thinking.disabled 合同均安全绑定；实际 36/36 完成并以 usage 记账。
 - [Phase 02]: visual candidate 仅以精确 SHA 获批；official baseline 不因 Plan 02-17 而晋升。
+- [Phase 02]: Plan 02-18 的发布报告精确绑定数据集、code-eval、双角色签署和 Promptfoo 证据；当前真实评分序列导致 Spearman 未定义，发布结论为 FAIL，不能以相同分数或重试刷绿。
 
 ### Pending Todos
 
@@ -140,6 +141,7 @@ None yet.
 
 ### Blockers/Concerns
 
+- [Phase 02]: 发布门禁仍阻断：真实专家/Judge 配对分数为常数，Spearman 未定义；且认证成功、错误和空态的内置浏览器矩阵未完成。后续 Agent/受控目录改动也会使旧 code-eval 证据过期，需重新授权并按新 SHA 完整评测。
 - [Phase 3]: Qwen-VL 第三方图片处理地区、留存和删除承诺需在接入前核实。
 - [Phase 4]: Mem0 长期记忆必须验证用户隔离、可审计写入和删除链。
 
@@ -152,6 +154,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-29T10:20:00Z
-Stopped at: Completed 02-17-PLAN.md; next 02-18-PLAN.md
-Resume file: .planning/phases/02-agent/02-18-PLAN.md
+Last session: 2026-08-31T00:00:00Z
+Stopped at: 02-18-PLAN.md 已人工收尾；Phase 02 处于 release_blocked。
+Resume file: .planning/phases/02-agent/02-18-SUMMARY.md
