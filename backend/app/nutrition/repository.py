@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.nutrition.models import (
@@ -47,10 +47,18 @@ class SqlAlchemyNutritionRepository:
 
     @staticmethod
     def _qualified_statement() -> Select[tuple[FoodCatalogItem]]:
-        latest_catalog_version = (
+        latest_fdc_version = (
             select(NutritionCatalogVersion.id)
             .join(NutritionCatalog)
             .where(NutritionCatalog.catalog_key == "usda-fdc")
+            .order_by(NutritionCatalogVersion.released_at.desc(), NutritionCatalogVersion.version.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        latest_reference_recipe_version = (
+            select(NutritionCatalogVersion.id)
+            .join(NutritionCatalog)
+            .where(NutritionCatalog.catalog_key == "reference-recipes")
             .order_by(NutritionCatalogVersion.released_at.desc(), NutritionCatalogVersion.version.desc())
             .limit(1)
             .scalar_subquery()
@@ -66,7 +74,10 @@ class SqlAlchemyNutritionRepository:
             .join(NutritionCatalogVersion)
             .join(NutritionSource)
             .where(
-                FoodCatalogItem.catalog_version_id == latest_catalog_version,
+                or_(
+                    FoodCatalogItem.catalog_version_id == latest_fdc_version,
+                    FoodCatalogItem.catalog_version_id == latest_reference_recipe_version,
+                ),
                 FoodCatalogItem.is_qualified.is_(True),
                 FoodCatalogItem.energy_kcal_per_100g.is_not(None),
                 FoodCatalogItem.protein_g_per_100g.is_not(None),

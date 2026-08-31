@@ -14,6 +14,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.core.config import Settings, validate_test_database_configuration
+from app.nutrition.repository import SqlAlchemyNutritionRepository
+from app.nutrition.schemas import FoodSearchInput
+from app.nutrition.service import NutritionService
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -67,5 +70,11 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
                     "WHERE stable_id = 'recipe:chili-fried-pork-v1' AND is_qualified"
                 )
             ) == 1
+        with sessionmaker(engine)() as session:
+            result = NutritionService(repository=SqlAlchemyNutritionRepository(session)).search_food_catalog(
+                FoodSearchInput(query="辣椒炒肉")
+            )
+            assert result.selected_food is not None
+            assert result.selected_food.canonical_name == "Chili fried pork, reference recipe v1"
     finally:
         engine.dispose()
