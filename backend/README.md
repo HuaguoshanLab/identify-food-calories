@@ -32,6 +32,8 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 连接边界：开发库 `localhost:5432/food_agent_dev`，测试库 `localhost:55432/food_agent_test`，Mailpit SMTP `localhost:1025`，UI `http://localhost:8025`。生产配置会拒绝弱密钥、非 Secure Cookie、通配 CORS、本地 Mailpit 和缺失 SMTP 凭据。
 
+视觉模型默认关闭。只有在已人工核实 Model Studio 的区域、业务空间、模型可用性及数据处理条款后，才能在未提交的 `.env` 设置 `VISION_PROVIDER_MODE=qwen`、`QWEN_API_KEY`、业务空间的 `QWEN_BASE_URL`、模型和人民币价格快照。Qwen adapter 仅使用经过安全解码和元数据剥离后的短期图片引用；它不会记录图片、base64、prompt、完整模型输出或密钥。测试环境无条件使用 Fake Provider，不会触发付费模型调用。
+
 测试必须显式使用 `APP_ENV=test` 和独立的 `TEST_DATABASE_URL`；配置保护会拒绝 SQLite、开发库以及不以 `_test` 结尾的测试库。
 
 所有真实 PostgreSQL 测试 child 必须通过受版本控制的环境合同和唯一 wrapper 启动；wrapper 保持 `DATABASE_URL` 指向开发哨兵、`TEST_DATABASE_URL` 指向隔离库，拒绝同目标、非 loopback、错误端口或错误库名，且不回显密码：

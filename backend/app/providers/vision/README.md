@@ -18,3 +18,10 @@
 | `ports.py` | 图可依赖的窄异步 Protocol。 |
 | `fake.py` | 可脚本化成功、结构无效和安全失败的离线替身。 |
 | `factory.py` | test 强制 Fake、production fail-closed 的 Provider 选择。 |
+| `qwen.py` | Qwen-VL 的 OpenAI 兼容 HTTP adapter；仅发送已验证的临时图片，强制 JSON 输出、非 thinking 模式、受限重试和人民币分档计量。 |
+
+## Qwen 生产配置
+
+只有在人工核实 Model Studio 的区域、业务空间、模型可用性和数据处理条款后，生产环境才可设置 `VISION_PROVIDER_MODE=qwen`。`QWEN_API_KEY` 只能保留在未提交的环境变量中；测试环境始终使用 Fake Provider。
+
+`QWEN_BASE_URL` 是业务空间的 OpenAI compatible Base URL，adapter 在内存中追加 `/chat/completions`。价格以当前已核实的人民币每百万 Tokens 分档写入 `QWEN_UP_TO_*_CNY_PER_M`，调用记录只保存估算成本、受控用量和 provider request id，不保存图片、base64、prompt 或模型原文。
