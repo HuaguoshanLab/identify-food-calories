@@ -638,7 +638,10 @@ def _materialize_signoff(
                 "confirmations": {name: True for name in REQUIRED_CONFIRMATIONS},
             }
             if case_id in MEDIUM_CASES:
-                match = re.fullmatch(r"于=(\d)；陈=(\d)", medium_text)
+                # The worksheet exposes the score as an explicit fraction (for example
+                # ``于=4/5；陈=5/5``), so the importer must preserve that human-facing
+                # contract rather than silently accepting a bare ambiguous number.
+                match = re.fullmatch(r"于=(\d)/5；陈=(\d)/5", medium_text)
                 if match is None:
                     raise ValueError(
                         f"expert template medium scores are ambiguous for {case_id}"

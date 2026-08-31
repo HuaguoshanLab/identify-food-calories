@@ -80,6 +80,17 @@ def test_release_contract_is_fixed_and_materializes_only_explicit_expert_fields(
     assert {item["case_id"] for item in document["judge_scores"]} == {
         f"phase02-{number:03d}" for number in range(6, 11)
     }
+    medium_scores = {
+        (item["case_id"], item["pseudonym"]): item["medium_human_score"]
+        for item in document["reviews"]
+        if item["case_id"] in {"phase02-007", "phase02-009"}
+    }
+    assert medium_scores == {
+        ("phase02-007", "yu-nutritionist"): 4,
+        ("phase02-007", "chen-food-data-admin"): 5,
+        ("phase02-009", "yu-nutritionist"): 5,
+        ("phase02-009", "chen-food-data-admin"): 4,
+    }
 
 
 def test_release_prompt_uses_a_new_strict_json_contract() -> None:
