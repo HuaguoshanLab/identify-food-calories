@@ -10,3 +10,7 @@
 | `04-DISCUSSION-LOG.md` | 决策备选与用户选择的审计记录；不作为规划输入。 |
 | `04-RESEARCH.md` | Mem0、pgvector、现有代码接点与安全测试的实施研究。 |
 | `04-UI-SPEC.md` | Phase 4 用户 H5 的视觉和交互设计合同。 |
+| `04-01-PLAN.md` | 餐食与记忆本地权威账本、迁移及餐食记录 API。 |
+| `04-02-PLAN.md` | Mem0 adapter、记忆 CRUD、删除 outbox 与安全测试。 |
+| `04-03-PLAN.md` | pgvector 三来源检索、Agent 工具接线与 Checkpointer 验证。 |
+| `04-04-PLAN.md` | 用户 H5 保存/记录/记忆管理、真实浏览器验收和教学文档。 |
