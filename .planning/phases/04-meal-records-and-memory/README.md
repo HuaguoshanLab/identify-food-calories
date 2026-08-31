@@ -9,3 +9,4 @@
 | `04-CONTEXT.md` | 已锁定的范围和实现决策；研究与计划必须读取。 |
 | `04-DISCUSSION-LOG.md` | 决策备选与用户选择的审计记录；不作为规划输入。 |
 | `04-RESEARCH.md` | Mem0、pgvector、现有代码接点与安全测试的实施研究。 |
+| `04-UI-SPEC.md` | Phase 4 用户 H5 的视觉和交互设计合同。 |
