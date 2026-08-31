@@ -6,7 +6,7 @@
 
 ## 运行时供应链说明
 
-生产可观测性固定使用经实测可导入的 `arize-phoenix==18.1.0`。`20.3.0` 与官方候选 `20.4.0` 虽满足 FastAPI 元数据约束，却都在当前 Python 3.11 的实际 `import phoenix` 触发内部 mutable-default dataclass 错误，不能上线；完整证据、registry 响应哈希与批准理由在 `backend/supply-chain-evidence.json`。
+生产可观测性固定使用经实测可导入的 `arize-phoenix==18.1.0`。`20.3.0` 与官方候选 `20.4.0` 虽满足 FastAPI 元数据约束，却都在 Python 运行时实际执行 `import phoenix` 时触发内部 mutable-default dataclass 错误，不能上线；完整证据、registry 响应哈希与批准理由在 `backend/supply-chain-evidence.json`。
 
 ## 允许依赖
 

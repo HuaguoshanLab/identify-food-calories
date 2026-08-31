@@ -37,10 +37,10 @@ docker compose ps
 docker compose up -d --wait postgres postgres-test mailpit
 
 cd backend
-python3.11 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-.venv/bin/alembic upgrade head
-.venv/bin/uvicorn app.main:app --reload
+uv python install 3.12
+uv sync --extra dev --locked
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 
 cd ../frontend
 npm ci
@@ -53,10 +53,10 @@ npm run dev
 cd backend
 APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
-.venv/bin/alembic upgrade head
+uv run alembic upgrade head
 APP_ENV=test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/food_agent_dev \
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test \
-.venv/bin/python -m pytest -q
+uv run pytest -q
 
 cd ../frontend
 npm run lint && npm run typecheck && npm run test && npm run test:e2e

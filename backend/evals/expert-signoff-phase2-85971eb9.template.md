@@ -72,7 +72,7 @@
 
 ```bash
 cd backend
-.venv/bin/python evals/evaluate_phase2.py validate-signoff \
+uv run python evals/evaluate_phase2.py validate-signoff \
   --dataset evals/phase02-cases.jsonl \
   --code-eval evals/phase2-code-eval.json \
   --signoff evals/expert-signoff-phase2.json
