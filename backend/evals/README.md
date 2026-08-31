@@ -22,6 +22,7 @@
 | `phase2-code-eval.json` | 当前代码、冻结集、图/Fake 与真实 Provider 选择路径/工具/目录/schema 哈希绑定的 24 条真实 Fake Provider→Graph→工具→Checkpoint 观测证据。 |
 | `expert-signoff-v1.schema.json` | Plan 02-17 必须使用的稳定 reviewer roster、双角色、逐 case hash 绑定和 Medium 双评分合同。 |
 | `expert-signoff-phase2.template.md` | 于女士与陈先生实际填写用的中文空白审核表；不是签署证据，不能通过 validator。 |
+| `expert-signoff-phase2-85971eb9.template.md` | 绑定当前 `phase2-code-eval.json` 文件 SHA-256 `85971eb9…` 的空白双角色复审表；旧表已填写内容保留作审计，不得转写为本轮正式签署。 |
 | `expert-signoff-phase2.reference.md` | 与空白表相同案例顺序的格式参考；展示五个具名确认、Medium 评分与独立 Judge 分数的正确写法，不是签署证据。 |
 | `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-json-thinking-disabled.v4`，启用严格唯一 `{"score": 1-5整数}`、OpenAI-compatible `response_format: {type: json_object}`，并经 Promptfoo 0.122.0 OpenAI provider 的 `passthrough` 发送 `thinking: {type: disabled}`。证据只记录该请求合同，不记录 reasoning/response 内容；v4 与旧 v1–v3 运行不可直接比较。 |
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
