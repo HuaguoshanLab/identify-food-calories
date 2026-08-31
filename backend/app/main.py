@@ -24,7 +24,7 @@ from app.accounts.api import router as account_recovery_router
 from app.core.config import Settings, get_settings
 from app.core.config import runtime_database_url
 from app.core.database import create_session_factory
-from app.providers.reasoning.fake import RiceOnlyFakeReasoningModelProvider
+from app.providers.reasoning.factory import create_reasoning_provider
 
 
 class PersistedAgentRuntimeFactory:
@@ -41,7 +41,7 @@ class PersistedAgentRuntimeFactory:
         database_url = runtime_database_url(self._settings)
         session_factory = create_session_factory(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory)
-        provider = RiceOnlyFakeReasoningModelProvider()
+        provider = create_reasoning_provider(self._settings)
         graph = MealAnalysisGraph(provider=provider, tools=tools)
         supervisor = PostgresLeaseSupervisor(
             session_factory=session_factory, holder_id="fastapi-agent-runtime"

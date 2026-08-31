@@ -22,5 +22,5 @@
 | `dto.py` | extra-forbid Provider 输入、输出、用量和安全错误 DTO |
 | `ports.py` | `ReasoningModelProvider` 异步协议 |
 | `fake.py` | 无网络的可编程结果、错误、用量与安全调用轨迹 |
-| `factory.py` | test 强制 Fake、production DeepSeek fail-closed 选择 |
+| `factory.py` | test 强制 Fake；`fake` 保持本机可预测验收；`deepseek` 从完整环境配置创建受限的 DeepSeek adapter，缺项 fail-closed |
 | `deepseek.py` | `/responses` JSON Schema adapter；仅记录安全调用元数据，未知结果绝不重发 |

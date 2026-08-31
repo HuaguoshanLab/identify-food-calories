@@ -19,6 +19,7 @@ from app.providers.reasoning.dto import (
     ProviderUsageDTO,
 )
 from app.providers.reasoning.factory import create_reasoning_provider
+from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
 from app.providers.reasoning.fake import FakeReasoningModelProvider
 
 
@@ -43,9 +44,31 @@ def test_production_requires_an_explicit_deepseek_provider_configuration() -> No
         )
 
 
-def test_missing_deepseek_adapter_fails_closed() -> None:
-    with pytest.raises(ConfigurationError, match="not installed"):
+def test_deepseek_provider_requires_complete_runtime_configuration() -> None:
+    with pytest.raises(ConfigurationError, match="requires Settings"):
         create_reasoning_provider(app_env="production", provider_mode="deepseek")
+
+    with pytest.raises(ConfigurationError, match="DEEPSEEK_API_KEY"):
+        create_reasoning_provider(
+            Settings(app_env="local", reasoning_provider_mode="deepseek", _env_file=None)
+        )
+
+
+def test_deepseek_provider_is_selected_from_local_settings() -> None:
+    provider = create_reasoning_provider(
+        Settings(
+            app_env="local",
+            reasoning_provider_mode="deepseek",
+            deepseek_api_key="test-key",
+            deepseek_model="deepseek-v4-flash",
+            deepseek_price_snapshot_version="price-v1",
+            deepseek_input_usd_per_m="1",
+            deepseek_output_usd_per_m="2",
+            _env_file=None,
+        )
+    )
+
+    assert isinstance(provider, DeepSeekReasoningModelProvider)
 
 
 def test_fake_scripts_safe_results_and_preserves_no_raw_request_text_in_trace() -> None:
