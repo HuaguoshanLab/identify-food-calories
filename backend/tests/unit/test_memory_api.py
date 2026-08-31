@@ -62,10 +62,12 @@ def test_memory_api_openapi_and_dto_exclude_external_provider_fields() -> None:
     with _client(principal=user_id, service=StubMemoryService(memory)) as client:
         paths = client.app.openapi()["paths"]
         assert {"get", "post"} == set(paths["/api/v1/memories"])
-        assert {"patch", "delete"} <= set(paths["/api/v1/memories/{memory_id}"])
+        assert {"get", "patch", "delete"} <= set(paths["/api/v1/memories/{memory_id}"])
         listed = client.get("/api/v1/memories")
+        detail = client.get(f"/api/v1/memories/{memory.id}")
         invalid = client.patch(f"/api/v1/memories/{memory.id}", json={"canonical_text": "不吃花生", "external_memory_id": "forged"})
     assert listed.status_code == 200 and "external_memory_id" not in listed.json()[0]
+    assert detail.status_code == 200 and "external_memory_id" not in detail.json()
     assert invalid.status_code == 422
 
 
@@ -73,5 +75,6 @@ def test_memory_api_cross_user_updates_and_deletes_are_not_found() -> None:
     owner, other = uuid.uuid4(), uuid.uuid4()
     memory = _memory(user_id=owner)
     with _client(principal=other, service=StubMemoryService(memory)) as client:
+        assert client.get(f"/api/v1/memories/{memory.id}").status_code == 404
         assert client.patch(f"/api/v1/memories/{memory.id}", json={"canonical_text": "不吃花生"}).status_code == 404
         assert client.delete(f"/api/v1/memories/{memory.id}").status_code == 404

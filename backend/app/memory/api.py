@@ -56,6 +56,14 @@ def list_memories(principal: AgentPrincipal, service: ServiceDependency) -> list
     return [MemoryResponse.model_validate(memory) for memory in service.list_memories(user_id=principal)]
 
 
+@router.get("/{memory_id}", operation_id="getMemory", response_model=MemoryResponse)
+def get_memory(memory_id: uuid.UUID, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
+    try:
+        return MemoryResponse.model_validate(service.get_memory(memory_id=memory_id, user_id=principal))
+    except MemoryUnavailable:
+        raise _unavailable() from None
+
+
 @router.patch("/{memory_id}", operation_id="updateMemory", response_model=MemoryResponse)
 def update_memory(memory_id: uuid.UUID, payload: MemoryUpdateRequest, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
