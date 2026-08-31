@@ -218,7 +218,7 @@ Plans:
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
 | 01.1. H5 UI 基座与现有页面迁移 | 10/10 | Complete   | 2026-08-28 |
 | 2. 可追问的 Agent 核心 | 17/18 | In Progress|  |
-| 3. 多模态餐食分析闭环 | 1/5 | In Progress|  |
+| 3. 多模态餐食分析闭环 | 2/5 | In Progress|  |
 | 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
 | 5. 饮食规划子图 | Pending | 0/TBD | - |
 | 6. 用户看板与后台管理 | Pending | 0/TBD | - |
