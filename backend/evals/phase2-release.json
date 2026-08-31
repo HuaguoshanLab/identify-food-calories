@@ -3,9 +3,9 @@
   "decision": "FAIL",
   "input_hashes": {
     "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
-    "code_eval_hash": "df7dbdf3ebc5908c716c082922397f9f687fa2b5243a9f7576bac8dda6acf63c",
-    "signoff_hash": "3b08552003f8213ae90e65022bcd893607f5294f2b7fa4858bf82fcdbb8553fa",
-    "promptfoo_hash": "b5a77623bad3bac760a75291309fab91e71535a73f7434a5ef653e629a2aaf4b"
+    "code_eval_hash": "7cb6a35291e1204ecf9ee5f6fa19ebbb27d457e02b7814afd0100f05b8801ebf",
+    "signoff_hash": "67d3ef26256a2e0a820ce653e0126055bc3488601c47b3c9f6440d72c9604ad7",
+    "promptfoo_hash": "608869cd0955d2ea6d778466a05279569b0683949184a45cd7a5eae811e53533"
   },
   "promptfoo_contract": {
     "config_hash": "1fa3307b56acd839b67d9e8b521cb343fe8e68d6431e24713637fba3cce153b3",
@@ -32,7 +32,7 @@
   "metrics": {
     "critical_pass_percent": 100.0,
     "high_pass_percent": 100.0,
-    "medium_human_average": 4.0,
+    "medium_human_average": 4.8,
     "medium_judge_average": 4.0,
     "paired_score_count": 10,
     "spearman": null
@@ -45,5 +45,5 @@
     "no_score_one": true,
     "spearman_at_least_0_70": false
   },
-  "evidence_hash": "1078745b7c7ab3088cef55ec48d885b410481a6f7549006d57fb1dcb3d0ea6c1"
+  "evidence_hash": "561901636a893eac9fcb3561757a86d380586cecb8ea1a044f9a974c6d3194ee"
 }
