@@ -235,11 +235,11 @@ class _RecordingNutritionTools:
         return NutritionValidationResult(action=NutritionAction.PASS, rule_id='pass', safe_message='valid')
 
 
-def _initial_state() -> object:
+def _initial_state(message: str = 'test meal') -> object:
     from app.agent.state import MealAgentState
 
     return MealAgentState(
-        user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=('test meal',),
+        user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=(message,),
         graph_version='graph-v1', prompt_version='prompt-v1', tool_version='tools-v1',
     )
 
@@ -432,6 +432,26 @@ def test_graph_aggregates_questions_and_resume_does_not_repeat_parse() -> None:
     assert len(provider.calls) == 1
     assert completed.report is not None and completed.report['is_partial'] is False
     assert len(tools.calls) == 6
+
+
+def test_graph_recovers_one_explicit_gram_value_omitted_by_provider() -> None:
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, _provider, tools = _graph_with_items(
+        ParsedMealItemDTO(item_id='rice-1', food_name='米饭', catalog_query='米饭')
+    )
+
+    completed = asyncio.run(graph.ainvoke(_initial_state('米饭100g')))
+
+    assert completed.status.value == 'completed'
+    assert completed.clarification_questions == ()
+    assert completed.report is not None
+    assert completed.report['totals']['energy_kcal'] == '130.0'
+    assert tools.calls == [
+        ('search', '米饭'),
+        ('calculate', '11111111-1111-4111-8111-111111111111'),
+        ('validate', '11111111-1111-4111-8111-111111111111'),
+    ]
 
 
 def test_graph_never_auto_selects_ambiguous_candidate_and_keeps_invalid_resume_waiting() -> None:

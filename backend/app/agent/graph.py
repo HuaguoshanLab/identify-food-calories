@@ -8,6 +8,7 @@ checkpointer after AgentService has already proved thread ownership.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -41,6 +42,9 @@ from app.providers.reasoning.ports import ReasoningModelProvider
 
 
 GRAPH_VERSION = "meal-agent-graph.v1"
+_EXPLICIT_GRAMS = re.compile(
+    r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:g(?![A-Za-z])|克)", re.IGNORECASE
+)
 
 
 class AgentIntent(StrEnum):
@@ -173,8 +177,21 @@ class MealAnalysisGraph:
             )
             for item in parsed.value.items
         )
+        recovered_grams = _recover_single_explicit_grams(
+            message=state.messages[0], items=items
+        )
+        if recovered_grams is not None:
+            item_id, grams = recovered_grams
+            items = tuple(
+                item.model_copy(update={"grams": grams}) if item.item_id == item_id else item
+                for item in items
+            )
         missing = tuple(
-            f"{field.item_id}:{field.field}" for field in parsed.value.missing_fields
+            f"{field.item_id}:{field.field}"
+            for field in parsed.value.missing_fields
+            if recovered_grams is None
+            or field.item_id != recovered_grams[0]
+            or field.field != "grams"
         )
         return self._finish_transition(self._resolve(
             parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
@@ -458,6 +475,25 @@ def _decimal_answer(value: object) -> Decimal | None:
     except Exception:
         return None
     return grams if Decimal("0") < grams <= Decimal("2000") else None
+
+
+def _recover_single_explicit_grams(
+    *, message: str, items: tuple[StateMealItem, ...]
+) -> tuple[str, Decimal] | None:
+    """Recover one literal grams value the provider omitted, without inferring food facts.
+
+    A model observation is allowed to identify food, but it must not make an explicit user
+    quantity disappear.  The narrow shape below avoids assigning one quantity across a mixed
+    meal: exactly one parsed item, exactly one ``g``/``克`` literal, and no model-supplied grams.
+    """
+
+    if len(items) != 1 or items[0].grams is not None:
+        return None
+    matches = _EXPLICIT_GRAMS.findall(message)
+    if len(matches) != 1:
+        return None
+    grams = _decimal_answer(matches[0])
+    return (items[0].item_id, grams) if grams is not None else None
 
 
 def _next_version(value: str) -> str:
