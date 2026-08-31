@@ -8,6 +8,7 @@ checkpointer after AgentService has already proved thread ownership.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -46,6 +47,7 @@ from app.providers.vision.ports import VisionModelProvider
 
 
 GRAPH_VERSION = "meal-agent-graph.v1"
+LOGGER = logging.getLogger(__name__)
 _EXPLICIT_GRAMS = re.compile(
     r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:g(?![A-Za-z])|克)", re.IGNORECASE
 )
@@ -266,6 +268,13 @@ class MealAnalysisGraph:
             try:
                 observed = await self._vision_provider.analyze_meal_image(request)
             except ProviderCallError as error:
+                # The provider envelope is intentionally safe: log only its stable category and
+                # code, never the image, authorization header, vendor body, or model reasoning.
+                LOGGER.warning(
+                    "vision_provider_failed kind=%s code=%s",
+                    error.kind.value,
+                    error.code,
+                )
                 if error.kind is ProviderFailureKind.TRANSIENT and attempts < 2:
                     continue
                 invocation_status = (

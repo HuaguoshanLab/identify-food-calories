@@ -90,6 +90,8 @@ export function AnalyzePage() {
     const next = agentThreadSnapshotSchema.parse(body)
     setSnapshot(next)
     setStatus(next.status === 'completed' ? 'completed' : next.status === 'retryable' || next.status === 'terminal' ? 'error' : 'idle')
+    if (next.status === 'completed') setProgress('分析报告已生成。')
+    if (next.status === 'retryable' || next.status === 'terminal') setProgress('分析未能完成。')
     setSelectedCandidates({})
     setGramAnswers({})
     const url = new URL(window.location.href)
@@ -112,7 +114,10 @@ export function AnalyzePage() {
       window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
     })
   }, [applySnapshot, authenticationStatus, request, snapshot?.thread_id])
-  useAgentEventStream({ threadId: snapshot?.thread_id, request, onEvent: (event) => setProgress(event.summary), onSnapshot: applySnapshot })
+  useAgentEventStream({ threadId: snapshot?.thread_id, request, onEvent: (event) => {
+    if (snapshot?.status === 'retryable' || snapshot?.status === 'terminal' || snapshot?.status === 'completed') return
+    setProgress(event.summary)
+  }, onSnapshot: applySnapshot })
 
   const isBusy = ['validating-image', 'uploading-image', 'submitting', 'deleting'].includes(status)
   const report = snapshot?.report as AnalysisReport | undefined

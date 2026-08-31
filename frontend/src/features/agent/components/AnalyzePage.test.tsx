@@ -65,6 +65,20 @@ describe('AnalyzePage', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('does not leave an old running summary beside a terminal image failure', async () => {
+    const threadId = '11111111-1111-4111-8111-111111111111'
+    window.history.replaceState({}, '', `/app/analyze?thread=${threadId}`)
+    const request = vi.fn(async (path: string) => {
+      if (path.endsWith('/events')) return new Response('', { status: 200 })
+      return new Response(JSON.stringify({ thread_id: threadId, status: 'retryable', revision: 2, report: null, recovery_code: 'VISION_ANALYSIS_FAILED' }))
+    })
+    renderPage(request)
+
+    expect(await screen.findByText('分析未能完成。')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('图片未能识别')
+    expect(screen.queryByText('分析任务正在运行。')).not.toBeInTheDocument()
+  })
+
   it('renders authoritative nutrition values with Chinese controlled-food display names', async () => {
     const user = userEvent.setup()
     const request = vi.fn(async () => new Response(JSON.stringify({

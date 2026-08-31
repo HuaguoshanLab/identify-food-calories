@@ -111,7 +111,7 @@ def test_vision_items_become_safe_estimated_state_and_one_combined_clarification
     assert "base64" not in serialized and "normalized-image-bytes" not in serialized
 
 
-def test_outcome_unknown_does_not_retry_the_same_image() -> None:
+def test_outcome_unknown_does_not_retry_the_same_image(caplog: object) -> None:
     vision = FakeVisionModelProvider()
     vision.queue_error(kind=ProviderFailureKind.OUTCOME_UNKNOWN, code="PROVIDER_OUTCOME_UNKNOWN")
     graph = MealAnalysisGraph(
@@ -125,6 +125,7 @@ def test_outcome_unknown_does_not_retry_the_same_image() -> None:
     assert result.status is AgentRuntimeStatus.FAILED
     assert result.vision_invocation_status == "outcome_unknown"
     assert len(vision.calls) == 1
+    assert "vision_provider_failed kind=PROVIDER_OUTCOME_UNKNOWN code=PROVIDER_OUTCOME_UNKNOWN" in caplog.text  # type: ignore[attr-defined]
 
 
 def test_transient_vision_failure_retries_once_and_records_attempt_count() -> None:
