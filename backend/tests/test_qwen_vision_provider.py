@@ -12,21 +12,21 @@ import pytest
 from app.images.schemas import ValidatedImageReference
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
 from app.providers.vision.dto import VisionMealRequest
-from app.providers.vision.qwen import QwenPriceTier, QwenVisionModelProvider
+from app.providers.vision.qwen import MIN_PIXELS, QwenPriceTier, QwenVisionModelProvider
 
 
 def _request() -> VisionMealRequest:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     return VisionMealRequest(
         image=ValidatedImageReference(digest_sha256="a" * 64, mime_type="image/jpeg", width=12, height=8, byte_size=12, locator="b" * 32 + ".jpg", created_at=now, expires_at=now + timedelta(minutes=5)),
-        model_alias="qwen-vl-test", pixel_budget=10_000, request_key="safe-request-key",
+        model_alias="qwen-vl-test", pixel_budget=100_000, request_key="safe-request-key",
     )
 
 
 def _provider(transport: httpx.AsyncBaseTransport) -> QwenVisionModelProvider:
     return QwenVisionModelProvider(
         api_key="secret-key", model="qwen-vl-test", endpoint="https://qwen.example/v1/chat/completions",
-        timeout_seconds=20, max_pixels=20_000, price_tiers=(QwenPriceTier(32_000, "0.15", "1.5"), QwenPriceTier(128_000, "0.3", "3"), QwenPriceTier(256_000, "0.6", "6")),
+        timeout_seconds=20, max_pixels=20_000_000, price_tiers=(QwenPriceTier(32_000, "0.15", "1.5"), QwenPriceTier(128_000, "0.3", "3"), QwenPriceTier(256_000, "0.6", "6")),
         image_loader=lambda reference: b"normalized-image-bytes", transport=transport,
     )
 
@@ -53,7 +53,8 @@ def test_qwen_request_is_non_thinking_json_and_retries_one_safe_transient_respon
     sent = json.loads(requests[-1].content)
     assert sent["enable_thinking"] is False
     assert sent["response_format"] == {"type": "json_object"}
-    assert sent["messages"][0]["content"][0]["image_url"]["max_pixels"] == 10_000
+    assert sent["messages"][0]["content"][0]["image_url"]["min_pixels"] == MIN_PIXELS
+    assert sent["messages"][0]["content"][0]["image_url"]["max_pixels"] == 100_000
     assert sent["messages"][0]["content"][0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert requests[-1].headers["x-request-id"] == "safe-request-key"
     assert result.metadata.provider_request_id == "provider-request"

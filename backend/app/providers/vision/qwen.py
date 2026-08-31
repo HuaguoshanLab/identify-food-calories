@@ -23,7 +23,10 @@ from app.providers.vision.dto import VisionCallMetadataDTO, VisionMealRequest, V
 
 LOGGER = logging.getLogger(__name__)
 MAX_COMPLETION_TOKENS = 800
-MIN_PIXELS = 3_136
+# Qwen3-VL requires 65,536 pixels as its minimum image token budget.  The
+# older 3,136 value applies to earlier VL families and causes the current
+# Model Studio endpoint to reject otherwise valid image requests.
+MIN_PIXELS = 65_536
 
 
 class QwenVisionModelProvider:
