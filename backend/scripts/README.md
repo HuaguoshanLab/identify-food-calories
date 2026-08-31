@@ -7,7 +7,7 @@
 ## 允许依赖
 
 - 可调用 `app.core.config` 的 fail-closed 配置 guard、Alembic 与既有命令行入口。
-- 真实 PostgreSQL 动作只允许使用 `validate_test_database_configuration()` 返回的隔离测试 URL。
+- 测试数据库动作只允许使用 `validate_test_database_configuration()` 返回的隔离测试 URL；本机开发 Checkpointer 初始化只允许固定的 loopback `food_agent_dev`。
 - 禁止读取或改写 `DATABASE_URL` 以把开发库伪装成测试库，禁止把密码写进错误输出。
 
 ## 文件索引
@@ -16,3 +16,4 @@
 |---|---|
 | `run_initialized_app.py` | 固定执行安全 schema reset → Alembic → Checkpointer setup → seed apply → Uvicorn；任一步失败即停止。 |
 | `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 显式执行一次 AsyncPostgresSaver schema setup。 |
+| `setup_local_checkpointer.py` | 只对 `APP_ENV=local` 的 loopback `food_agent_dev` 幂等创建 LangGraph Checkpointer 表；不接收 URL、不 reset、不迁移、不 seed。 |

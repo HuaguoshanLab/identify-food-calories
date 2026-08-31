@@ -17,8 +17,12 @@
 cp .env.example .env
 python3.11 -m venv .venv
 .venv/bin/python -m pip install --require-hashes -r requirements.lock
+.venv/bin/alembic upgrade head
+.venv/bin/python scripts/setup_local_checkpointer.py
 .venv/bin/uvicorn app.main:app --reload
 ```
+
+`setup_local_checkpointer.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
 
 健康检查位于 `GET /api/v1/health`。从仓库根目录启动数据库和 Mailpit：
 
@@ -89,5 +93,5 @@ mypy app
 | `openapi-agent-v1.json` | 从运行时 FastAPI 生成并冻结的 Agent v1 公开合同；前端生成器会逐字校验 |
 | `migrations/` | Alembic schema 变更脚本目录 |
 | `evals/` | 无真实用户数据的 Phase 2 冻结 Agent 评测案例与离线 hash/语义校验器 |
-| `scripts/` | 受保护的测试数据库初始化与应用启动入口 |
+| `scripts/` | 受保护的测试数据库初始化、开发 Checkpointer 初始化与应用启动入口 |
 | `tests/` | 单元、集成和 API 合约测试 |
