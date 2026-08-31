@@ -24,7 +24,7 @@ class FakeVisionProviderCall:
     image_tokens: int
     prompt_tokens: int
     completion_tokens: int
-    cost_usd: Decimal
+    cost_cny: Decimal
     latency_ms: int
 
 
@@ -73,7 +73,7 @@ class FakeVisionModelProvider:
                 image_tokens=metadata.usage.image_tokens,
                 prompt_tokens=metadata.usage.prompt_tokens,
                 completion_tokens=metadata.usage.completion_tokens,
-                cost_usd=metadata.usage.cost_usd,
+                cost_cny=metadata.usage.cost_cny,
                 latency_ms=metadata.latency_ms,
             )
         )
@@ -87,6 +87,6 @@ def _metadata(
 ) -> VisionCallMetadataDTO:
     return VisionCallMetadataDTO(
         model_alias=model_alias,
-        usage=usage or VisionUsageDTO(image_tokens=0, prompt_tokens=0, completion_tokens=0, cost_usd=Decimal("0")),
+        usage=usage or VisionUsageDTO(image_tokens=0, prompt_tokens=0, completion_tokens=0, cost_cny=Decimal("0")),
         latency_ms=latency_ms,
     )

@@ -63,8 +63,12 @@ class Settings(BaseSettings):
     qwen_deployment_scope: str | None = None
     qwen_base_url: str | None = None
     qwen_price_snapshot_version: str | None = None
-    qwen_input_usd_per_m: Decimal | None = None
-    qwen_output_usd_per_m: Decimal | None = None
+    qwen_up_to_32k_input_cny_per_m: Decimal | None = None
+    qwen_up_to_32k_output_cny_per_m: Decimal | None = None
+    qwen_up_to_128k_input_cny_per_m: Decimal | None = None
+    qwen_up_to_128k_output_cny_per_m: Decimal | None = None
+    qwen_up_to_256k_input_cny_per_m: Decimal | None = None
+    qwen_up_to_256k_output_cny_per_m: Decimal | None = None
     vision_timeout_seconds: int = 20
     vision_max_pixels: int = 20_000_000
 
@@ -179,8 +183,12 @@ class Settings(BaseSettings):
             "QWEN_DEPLOYMENT_SCOPE": self.qwen_deployment_scope,
             "QWEN_BASE_URL": self.qwen_base_url,
             "QWEN_PRICE_SNAPSHOT_VERSION": self.qwen_price_snapshot_version,
-            "QWEN_INPUT_USD_PER_M": self.qwen_input_usd_per_m,
-            "QWEN_OUTPUT_USD_PER_M": self.qwen_output_usd_per_m,
+            "QWEN_UP_TO_32K_INPUT_CNY_PER_M": self.qwen_up_to_32k_input_cny_per_m,
+            "QWEN_UP_TO_32K_OUTPUT_CNY_PER_M": self.qwen_up_to_32k_output_cny_per_m,
+            "QWEN_UP_TO_128K_INPUT_CNY_PER_M": self.qwen_up_to_128k_input_cny_per_m,
+            "QWEN_UP_TO_128K_OUTPUT_CNY_PER_M": self.qwen_up_to_128k_output_cny_per_m,
+            "QWEN_UP_TO_256K_INPUT_CNY_PER_M": self.qwen_up_to_256k_input_cny_per_m,
+            "QWEN_UP_TO_256K_OUTPUT_CNY_PER_M": self.qwen_up_to_256k_output_cny_per_m,
         }
         for variable, vision_value in vision_required.items():
             if vision_value is None or not str(vision_value).strip():

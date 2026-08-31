@@ -34,7 +34,7 @@ def test_fake_scripts_success_and_safe_failure_categories_without_retaining_imag
     provider = FakeVisionModelProvider()
     provider.queue_result(
         [VisionMealItemDTO(item_id="rice", food_name="米饭", estimated_grams="100", confidence="0.9")],
-        usage=VisionUsageDTO(image_tokens=12, prompt_tokens=3, completion_tokens=4, cost_usd="0.001"),
+        usage=VisionUsageDTO(image_tokens=12, prompt_tokens=3, completion_tokens=4, cost_cny="0.001"),
     )
     result = asyncio.run(provider.analyze_meal_image(_request()))
 

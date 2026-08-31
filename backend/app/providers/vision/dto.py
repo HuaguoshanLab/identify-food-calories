@@ -26,7 +26,7 @@ class VisionUsageDTO(VisionProviderDTO):
     prompt_tokens: int = Field(ge=0)
     completion_tokens: int = Field(ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
-    cost_usd: Decimal = Field(ge=Decimal("0"))
+    cost_cny: Decimal = Field(ge=Decimal("0"))
 
     def model_post_init(self, __context: object) -> None:
         expected = self.image_tokens + self.prompt_tokens + self.completion_tokens

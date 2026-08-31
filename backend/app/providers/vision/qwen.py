@@ -5,7 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from time import monotonic
 from typing import Any
@@ -36,7 +37,7 @@ class QwenVisionModelProvider:
         endpoint: str,
         timeout_seconds: int,
         max_pixels: int,
-        price_snapshot: Mapping[str, str | Decimal],
+        price_tiers: tuple[QwenPriceTier, ...],
         image_loader: Callable[[ValidatedImageReference], bytes],
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
@@ -49,8 +50,9 @@ class QwenVisionModelProvider:
         self._endpoint = endpoint
         self._timeout_seconds = timeout_seconds
         self._max_pixels = max_pixels
-        self._input_price = _price(price_snapshot, "input_usd_per_m")
-        self._output_price = _price(price_snapshot, "output_usd_per_m")
+        if not price_tiers or tuple(tier.max_input_tokens for tier in price_tiers) != tuple(sorted(tier.max_input_tokens for tier in price_tiers)):
+            raise ValueError("Qwen price tiers must be non-empty and sorted")
+        self._price_tiers = price_tiers
         self._image_loader = image_loader
         self._transport = transport
 
@@ -65,7 +67,11 @@ class QwenVisionModelProvider:
             endpoint=settings.qwen_base_url.rstrip("/") + "/chat/completions",
             timeout_seconds=settings.vision_timeout_seconds,
             max_pixels=settings.vision_max_pixels,
-            price_snapshot={"input_usd_per_m": settings.qwen_input_usd_per_m or Decimal("0"), "output_usd_per_m": settings.qwen_output_usd_per_m or Decimal("0")},
+            price_tiers=(
+                QwenPriceTier(32_000, settings.qwen_up_to_32k_input_cny_per_m or Decimal("0"), settings.qwen_up_to_32k_output_cny_per_m or Decimal("0")),
+                QwenPriceTier(128_000, settings.qwen_up_to_128k_input_cny_per_m or Decimal("0"), settings.qwen_up_to_128k_output_cny_per_m or Decimal("0")),
+                QwenPriceTier(256_000, settings.qwen_up_to_256k_input_cny_per_m or Decimal("0"), settings.qwen_up_to_256k_output_cny_per_m or Decimal("0")),
+            ),
             image_loader=lambda reference: repository.read_path(reference).read_bytes(),
         )
 
@@ -108,7 +114,7 @@ class QwenVisionModelProvider:
                 payload = json.loads(content)
                 if not isinstance(payload, dict) or set(payload) != {"items"}:
                     raise ValueError("Vision response JSON is not an object")
-                metadata = _metadata(document, response.headers, self._model, latency_ms, self._input_price, self._output_price)
+                metadata = _metadata(document, response.headers, self._model, latency_ms, self._price_tiers)
                 result = VisionMealResult.model_validate({**payload, "metadata": metadata})
             except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as error:
                 raise ProviderCallError(kind=ProviderFailureKind.PERMANENT, code="PROVIDER_SCHEMA_INVALID") from error
@@ -146,7 +152,26 @@ def _content(document: object) -> str:
     return message["content"]
 
 
-def _metadata(document: dict[str, Any], headers: httpx.Headers, model: str, latency_ms: int, input_price: Decimal, output_price: Decimal) -> VisionCallMetadataDTO:
+@dataclass(frozen=True, slots=True)
+class QwenPriceTier:
+    max_input_tokens: int
+    input_cny_per_m: Decimal
+    output_cny_per_m: Decimal
+
+    def __post_init__(self) -> None:
+        if self.max_input_tokens <= 0:
+            raise ValueError("max_input_tokens must be positive")
+        for field_name in ("input_cny_per_m", "output_cny_per_m"):
+            try:
+                value = Decimal(str(getattr(self, field_name)))
+            except (InvalidOperation, ValueError) as exc:
+                raise ValueError(f"{field_name} must be a decimal value") from exc
+            if value < 0:
+                raise ValueError(f"{field_name} must not be negative")
+            object.__setattr__(self, field_name, value)
+
+
+def _metadata(document: dict[str, Any], headers: httpx.Headers, model: str, latency_ms: int, price_tiers: tuple[QwenPriceTier, ...]) -> VisionCallMetadataDTO:
     usage = document.get("usage")
     if not isinstance(usage, dict):
         raise ValueError("response has no usage")
@@ -157,11 +182,14 @@ def _metadata(document: dict[str, Any], headers: httpx.Headers, model: str, late
     if image_tokens > raw_prompt:
         raise ValueError("image tokens exceed prompt tokens")
     text_prompt = raw_prompt - image_tokens
+    tier = next((item for item in price_tiers if raw_prompt <= item.max_input_tokens), None)
+    if tier is None:
+        raise ValueError("input tokens exceed configured Qwen pricing tiers")
     request_id = _safe_identifier(headers.get("x-request-id") or document.get("id"))
     return VisionCallMetadataDTO(
         model_alias=model,
         provider_request_id=request_id,
-        usage=VisionUsageDTO(image_tokens=image_tokens, prompt_tokens=text_prompt, completion_tokens=completion, cost_usd=(Decimal(raw_prompt) * input_price + Decimal(completion) * output_price) / Decimal("1000000")),
+        usage=VisionUsageDTO(image_tokens=image_tokens, prompt_tokens=text_prompt, completion_tokens=completion, cost_cny=(Decimal(raw_prompt) * tier.input_cny_per_m + Decimal(completion) * tier.output_cny_per_m) / Decimal("1000000")),
         latency_ms=latency_ms,
     )
 
@@ -181,17 +209,7 @@ def _safe_identifier(value: object) -> str | None:
     return value if 1 <= len(value) <= 128 else None
 
 
-def _price(snapshot: Mapping[str, str | Decimal], name: str) -> Decimal:
-    try:
-        value = Decimal(str(snapshot[name]))
-    except (KeyError, InvalidOperation) as error:
-        raise ValueError(f"price snapshot missing {name}") from error
-    if value < 0:
-        raise ValueError(f"price snapshot {name} must be non-negative")
-    return value
-
-
 def _safe_log(metadata: VisionCallMetadataDTO, image_digest: str) -> None:
     """Only an irreversible digest and aggregate accounting are operationally useful."""
 
-    LOGGER.info("qwen_vision_complete request_id=%s model=%s tokens=%s cost=%s latency_ms=%s image_digest=%s", metadata.provider_request_id, metadata.model_alias, metadata.usage.total_tokens, metadata.usage.cost_usd, metadata.latency_ms, image_digest)
+    LOGGER.info("qwen_vision_complete request_id=%s model=%s tokens=%s cost_cny=%s latency_ms=%s image_digest=%s", metadata.provider_request_id, metadata.model_alias, metadata.usage.total_tokens, metadata.usage.cost_cny, metadata.latency_ms, image_digest)

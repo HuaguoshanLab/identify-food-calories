@@ -12,7 +12,7 @@ import pytest
 from app.images.schemas import ValidatedImageReference
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
 from app.providers.vision.dto import VisionMealRequest
-from app.providers.vision.qwen import QwenVisionModelProvider
+from app.providers.vision.qwen import QwenPriceTier, QwenVisionModelProvider
 
 
 def _request() -> VisionMealRequest:
@@ -26,7 +26,7 @@ def _request() -> VisionMealRequest:
 def _provider(transport: httpx.AsyncBaseTransport) -> QwenVisionModelProvider:
     return QwenVisionModelProvider(
         api_key="secret-key", model="qwen-vl-test", endpoint="https://qwen.example/v1/chat/completions",
-        timeout_seconds=20, max_pixels=20_000, price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        timeout_seconds=20, max_pixels=20_000, price_tiers=(QwenPriceTier(32_000, "0.15", "1.5"), QwenPriceTier(128_000, "0.3", "3"), QwenPriceTier(256_000, "0.6", "6")),
         image_loader=lambda reference: b"normalized-image-bytes", transport=transport,
     )
 
@@ -59,7 +59,7 @@ def test_qwen_request_is_non_thinking_json_and_retries_one_safe_transient_respon
     assert result.metadata.provider_request_id == "provider-request"
     assert result.metadata.usage.image_tokens == 7
     assert result.metadata.usage.prompt_tokens == 13
-    assert str(result.metadata.usage.cost_usd) == "0.00003"
+    assert str(result.metadata.usage.cost_cny) == "0.0000105"
 
 
 @pytest.mark.parametrize(
