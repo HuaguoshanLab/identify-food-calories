@@ -180,7 +180,14 @@ class RetentionWorker:
         deletion_threads = {thread_id for thread_id, _user_id in sweep.due_deletions}
 
         for thread_id, user_id in sweep.due_deletions:
-            deleted_images += self._delete_thread_images(thread_id=thread_id, user_id=user_id)
+            image_count, images_removed = self._delete_thread_images(
+                thread_id=thread_id, user_id=user_id
+            )
+            deleted_images += image_count
+            if not images_removed:
+                # Do not cascade away the only durable retry record when private-file deletion
+                # failed. A later sweep will select the same delete_failed image again.
+                continue
             await self._delete_checkpoint_thread(thread_id)
             checkpoint_namespaces += 1
             session, service = self._service()
@@ -220,16 +227,22 @@ class RetentionWorker:
             deleted_images=deleted_images,
         )
 
-    def _delete_thread_images(self, *, thread_id: uuid.UUID, user_id: uuid.UUID) -> int:
+    def _delete_thread_images(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[int, bool]:
         session, service = self._service()
         try:
             references = service.images_for_thread_cleanup(thread_id=thread_id, user_id=user_id)
             deleted = 0
             for image, reference in references:
-                self._image_safety.delete(reference)
+                try:
+                    self._image_safety.delete(reference)
+                except (OSError, ValueError):
+                    service.mark_image_deletion_failed(image_id=image.id, user_id=user_id)
+                    return deleted, False
                 service.mark_image_deleted(image_id=image.id, user_id=user_id)
                 deleted += 1
-            return deleted
+            return deleted, True
         finally:
             session.close()
 
@@ -240,7 +253,11 @@ class RetentionWorker:
             if candidate is None:
                 return 0
             image, reference = candidate
-            self._image_safety.delete(reference)
+            try:
+                self._image_safety.delete(reference)
+            except (OSError, ValueError):
+                service.mark_image_deletion_failed(image_id=image.id, user_id=user_id)
+                return 0
             service.mark_image_deleted(image_id=image.id, user_id=user_id)
             return 1
         finally:

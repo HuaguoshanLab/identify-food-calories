@@ -26,6 +26,7 @@ from app.core.config import runtime_database_url
 from app.core.database import create_session_factory
 from app.providers.reasoning.factory import create_reasoning_provider
 from app.providers.vision.factory import create_vision_provider
+from app.providers.vision.ports import VisionModelProvider
 from app.images.repository import PrivateTemporaryImageRepository
 from app.images.service import ImageSafetyService
 
@@ -34,10 +35,15 @@ class PersistedAgentRuntimeFactory:
     """Create all long-lived runtime resources once; setup remains a deployment CLI concern."""
 
     def __init__(
-        self, settings: Settings, *, retention_now: Callable[[], datetime] | None = None
+        self,
+        settings: Settings,
+        *,
+        retention_now: Callable[[], datetime] | None = None,
+        vision_provider: VisionModelProvider | None = None,
     ) -> None:
         self._settings = settings
         self._retention_now = retention_now or (lambda: datetime.now(UTC))
+        self._vision_provider = vision_provider
         self._saver_context: AbstractAsyncContextManager[Any] | None = None
 
     async def create(self) -> AgentRuntime:
@@ -45,7 +51,7 @@ class PersistedAgentRuntimeFactory:
         session_factory = create_session_factory(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory)
         provider = create_reasoning_provider(self._settings)
-        vision_provider = create_vision_provider(self._settings)
+        vision_provider = self._vision_provider or create_vision_provider(self._settings)
         image_safety = ImageSafetyService(
             repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),
             max_bytes=self._settings.image_max_bytes,

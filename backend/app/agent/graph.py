@@ -231,7 +231,7 @@ class MealAnalysisGraph:
         ), started_ms)
 
     async def _observe_image(self, state: MealAgentState) -> MealAgentState:
-        """Use the Vision port once, then retain only allowlisted observation fields."""
+        """Use the Vision port with one classified transient retry and safe state only."""
 
         image = state.vision_image
         if image is None or state.vision_invocation_status == "outcome_unknown":
@@ -254,29 +254,42 @@ class MealAnalysisGraph:
             created_at=image.created_at,
             expires_at=image.expires_at,
         )
-        try:
-            observed = await self._vision_provider.analyze_meal_image(
-                VisionMealRequest(
-                    image=reference,
-                    model_alias=self._vision_model_alias,
-                    pixel_budget=self._vision_pixel_budget,
-                    request_key=state.vision_request_key or f"{state.run_id.hex}-{image.image_id.hex}",
+        request = VisionMealRequest(
+            image=reference,
+            model_alias=self._vision_model_alias,
+            pixel_budget=self._vision_pixel_budget,
+            request_key=state.vision_request_key or f"{state.run_id.hex}-{image.image_id.hex}",
+        )
+        attempts = state.vision_attempts
+        for _ in range(2 - attempts):
+            attempts += 1
+            try:
+                observed = await self._vision_provider.analyze_meal_image(request)
+            except ProviderCallError as error:
+                if error.kind is ProviderFailureKind.TRANSIENT and attempts < 2:
+                    continue
+                invocation_status = (
+                    "outcome_unknown"
+                    if error.kind is ProviderFailureKind.OUTCOME_UNKNOWN
+                    else "failed"
                 )
-            )
-        except ProviderCallError as error:
-            invocation_status = (
-                "outcome_unknown"
-                if error.kind is ProviderFailureKind.OUTCOME_UNKNOWN
-                else "failed"
-            )
-            return state.model_copy(
-                update={
-                    "vision_invocation_status": invocation_status,
-                    "status": AgentRuntimeStatus.FAILED,
-                    "next_action": AgentNextAction.STOP,
-                }
-            )
-        return _vision_result_state(state, observed)
+                return state.model_copy(
+                    update={
+                        "vision_attempts": attempts,
+                        "vision_invocation_status": invocation_status,
+                        "status": AgentRuntimeStatus.FAILED,
+                        "next_action": AgentNextAction.STOP,
+                    }
+                )
+            return _vision_result_state(state.model_copy(update={"vision_attempts": attempts}), observed)
+        return state.model_copy(
+            update={
+                "vision_attempts": attempts,
+                "vision_invocation_status": "failed",
+                "status": AgentRuntimeStatus.FAILED,
+                "next_action": AgentNextAction.STOP,
+            }
+        )
 
     async def _parse_with_one_transient_retry(
         self, state: MealAgentState

@@ -699,7 +699,7 @@ class AgentService:
             return
         now = self._now()
         invocation.status = state.vision_invocation_status or "failed"
-        invocation.attempt = max(invocation.attempt, 1)
+        invocation.attempt = max(invocation.attempt, state.vision_attempts, 1)
         invocation.updated_at = now
         if state.vision_metadata is not None:
             invocation.model_alias = state.vision_metadata.model_alias

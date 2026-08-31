@@ -181,6 +181,7 @@ class MealAgentState(BaseModel):
     vision_invocation_status: str | None = Field(
         default=None, pattern=r"^(?:prepared|completed|failed|outcome_unknown)$"
     )
+    vision_attempts: int = Field(default=0, ge=0, le=2)
     image_refs: tuple[()] = ()
 
     @model_validator(mode="after")

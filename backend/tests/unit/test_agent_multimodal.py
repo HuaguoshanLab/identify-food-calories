@@ -127,6 +127,25 @@ def test_outcome_unknown_does_not_retry_the_same_image() -> None:
     assert len(vision.calls) == 1
 
 
+def test_transient_vision_failure_retries_once_and_records_attempt_count() -> None:
+    vision = FakeVisionModelProvider()
+    vision.queue_error(kind=ProviderFailureKind.TRANSIENT, code="VISION_TEMPORARY")
+    vision.queue_result(
+        [VisionMealItemDTO(item_id="rice-1", food_name="米饭", estimated_grams=None, confidence="0.6")]
+    )
+    graph = MealAnalysisGraph(
+        provider=FakeReasoningModelProvider(),
+        vision_provider=vision,
+        tools=cast(NutritionToolAdapter, _UnusedTools()),
+    )
+
+    result = asyncio.run(graph.ainvoke(_state()))
+
+    assert result.status is AgentRuntimeStatus.WAITING_INPUT
+    assert result.vision_attempts == 2
+    assert len(vision.calls) == 2
+
+
 def test_estimated_weight_reaches_only_deterministic_nutrition_and_is_reported() -> None:
     vision = FakeVisionModelProvider()
     vision.queue_result(

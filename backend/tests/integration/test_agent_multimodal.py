@@ -23,6 +23,9 @@ from app.auth.security import issue_access_token
 from app.auth.service import AuthenticationService
 from app.core.config import Settings, validate_test_database_configuration
 from app.main import create_app
+from app.main import PersistedAgentRuntimeFactory
+from app.providers.vision.dto import VisionMealItemDTO
+from app.providers.vision.fake import FakeVisionModelProvider
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -87,7 +90,18 @@ def test_upload_ownership_and_deletion_erases_the_normalized_file(tmp_path: Path
                 repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
                 issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback,
             )
-            application = create_app(settings)
+            vision = FakeVisionModelProvider()
+            vision.queue_result(
+                [
+                    VisionMealItemDTO(
+                        item_id="rice-1", food_name="米饭", estimated_grams="100", confidence="0.9"
+                    )
+                ]
+            )
+            application = create_app(
+                settings,
+                runtime_factory=PersistedAgentRuntimeFactory(settings, vision_provider=vision),
+            )
             application.dependency_overrides[get_authentication_service] = lambda: authentication
             with TestClient(application) as client:
                 headers = {"Authorization": f"Bearer {owner_token}"}
@@ -107,6 +121,11 @@ def test_upload_ownership_and_deletion_erases_the_normalized_file(tmp_path: Path
                 )
                 assert uploaded.status_code == 202, uploaded.text
                 image_id = uuid.UUID(uploaded.json()["image_id"])
+                assert uploaded.json()["status"] == "completed"
+                snapshot = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers)
+                assert snapshot.status_code == 200
+                assert snapshot.json()["report"]["items"][0]["energy_kcal"] == "130.0"
+                assert snapshot.json()["report"]["items"][0]["is_estimated"] is True
                 repeated = client.post(
                     f"/api/v1/agent/threads/{thread_id}/images",
                     headers={**headers, "Idempotency-Key": "owner-image"},
@@ -122,7 +141,7 @@ def test_upload_ownership_and_deletion_erases_the_normalized_file(tmp_path: Path
             assert not (tmp_path / "images" / image.locator).exists()
             invocation = session.query(AgentVisionInvocation).filter_by(image_id=image_id).one()
             assert invocation.user_id == owner.id
-            assert invocation.status == "failed"
+            assert invocation.status == "completed"
             assert session.query(AgentImage).filter_by(user_id=owner.id).count() == 1
             assert session.query(AgentVisionInvocation).filter_by(user_id=owner.id).count() == 1
             persisted_columns = set(AgentImage.__table__.columns.keys()) | set(AgentVisionInvocation.__table__.columns.keys())
