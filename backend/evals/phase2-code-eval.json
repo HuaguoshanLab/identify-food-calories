@@ -4,7 +4,7 @@
   "dataset_hash": "0c837864750b30d97f545010c763f2540086d545922b515923c684cae57b66ac",
   "implementation_hashes": {
     "evaluator": "20625d17b109d48f0493401383224a1fa7fbdb4cd2bf75287456815ffbb6e2b4",
-    "graph": "a509de66618cdf58243254b4467f63d3a5a1d43eba45ac5000f38e678c5475af",
+    "graph": "399f93794d024580a635319e2ff8f345037dd2d84d66b1721751646c98f729d4",
     "provider": "da268447ec4498ee90e34752eda5bf12660f9330fa1fd9f5c2b37f30b0f0beae",
     "provider_factory": "5266f8bfa352042ba96a23f809236a9410d1a53ae39a2e6d86f5a71f0c6786ea",
     "deepseek_adapter": "bf82e12b4097208357c965dfc6f403c5a5875ef107486123d8ea26109f2df8bd",
@@ -12,7 +12,7 @@
     "tools": "a753332b65218615221bc3f24b5da2c28f35633963b063dfc47534db35655ece",
     "nutrition_service": "69fcda804005e8e0dc274773ffa6d00090821deea614bca95602debbcbda3580",
     "catalog": "b426fb9e020067a1671614f63b96e2cc1cf139e239c9de10bebac4e6f142908b",
-    "state_schema": "12bf3ce82904434456942ceeecc8e5d1cb14551c05582c758307b0a96e93b689"
+    "state_schema": "6172adb96de74eaab1b041092996ecbbd3b329a62670d4b0e19a5c7541a8b2b5"
   },
   "case_count": 24,
   "cases": [
@@ -74,7 +74,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "3362b3da0f4d0dce9b74b9c39e48e59cf62ba5b403a6a80dedf7bb0a2faf5ab4"
+        "state_digest": "f1b17740c13498f35753a0cd0b5373acecc27d8f36e690c594c751bd92b5cca7"
       },
       "assertions": {
         "critical": {
@@ -90,8 +90,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "d500e1e043242f12cac7aafa6a3825992e324a7127d1ddbb7254cae72fdd525d",
-        "run_id_digest": "575829b75e3e3d91ed620274bf3fc8d7430056727e998f6c64c63c7570f6e141"
+        "thread_id_digest": "c841a98f99e62a1f717d290c36e9eda71a0c45b2f130884d47f7f59747c2b478",
+        "run_id_digest": "0aecf459c034185988457d20892c0905767ae0a653188609019a4cbea3d8df9b"
       }
     },
     {
@@ -100,7 +100,10 @@
       "observed": {
         "state": "waiting_input",
         "trace": [
-          "fake_provider:parse_meal"
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:ASK",
+          "validate_nutrition_result:ASK"
         ],
         "report": {
           "items": [],
@@ -143,7 +146,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "f55df0675017ffde0bb57149b021f345f06f51f82e8918b4a1b68509416f5e4f"
+        "state_digest": "55170a45b970ec38eb830dbe05a20d110eb7bad240cd6f692aa9a07213f1a6c3"
       },
       "assertions": {
         "critical": {
@@ -159,8 +162,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "cfa83c57744e2b04883109bf17f02e5baeb163d40b8873dd0153e9c437c109e7",
-        "run_id_digest": "b326cbb89926e0b31d0ad124b268e65effccde5c935490e11d9eb2dedca75650"
+        "thread_id_digest": "dd5b2bebe261d6243942afaedfe249d1e0fe15007d2e53eda9e97de46b917097",
+        "run_id_digest": "dad269214302cdb17b4b39d3b4513b23956e71727ac6f59f89ab9bedc69ce25f"
       }
     },
     {
@@ -221,7 +224,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "edfd521f10f292dc19aaff93e56c63293eadc3d8221a06df495eaa0461e35583"
+        "state_digest": "15eb08711d1106abff6981d5cf7f450a15b332abcb1eae8c6328f4c6ed928ab5"
       },
       "assertions": {
         "critical": {
@@ -237,8 +240,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "49bdfc112f866a48ce99e2fa96d14ee1da16a084763d1071ccd7296eb1a0538d",
-        "run_id_digest": "4355202eec8b5692d4d1adb57819aa7404147e2530c1749b1778554ddc433d5b"
+        "thread_id_digest": "6a4171f308a04c87a5f362e9a142ec95bd959b01fd75457b7b6221359b06e98e",
+        "run_id_digest": "756afaab7cc5528dbfbe97a988cabd327ca5f09d184c2c8d5cd7c77bb764e36d"
       }
     },
     {
@@ -339,7 +342,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "79add11c0c16d3bfa9988a4e4898c6970a5a8bce8010cf4c56b8da350e0b917f"
+        "state_digest": "521aa1a1243150a6b4606837c1153f4685f1033b4e7953d294edc0a30982f758"
       },
       "assertions": {
         "critical": {
@@ -355,8 +358,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "c8bc76df05aadc5732afc1eb185d353d80b65e3bcd449e69507521f31998ac0f",
-        "run_id_digest": "92a157da822f758ecf859a51f25b304b3cbc63ef3619444532b0a48f11890d3f"
+        "thread_id_digest": "de405956900048edb3557365c27b1b71a14131252368580190ee4a26bc412260",
+        "run_id_digest": "31b974660aed41297f00ccd6f1bc179ffccf0e64ad2b5c6b39dc50a8238cb3a8"
       }
     },
     {
@@ -411,7 +414,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "0da087534368bf6c9d009ae469996384c89c9acc53153f9a94a5e99fbe60e5ed"
+        "state_digest": "51ffac8876128f7b0770908ae3ab1518e7ab046b37be76508d865ba00a195e6e"
       },
       "assertions": {
         "critical": {
@@ -427,8 +430,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "1c9ed2cfd25e1363d6fc21d9bc8e3df24e047ccb77fb078e66d334d246e29861",
-        "run_id_digest": "ec36f55ea1a50a6968449b1b9fcb4ec92e97eaa2f6045d3b9a9fc16d58cc7bc1"
+        "thread_id_digest": "ff24393468098098798da1b7a9bc27013a4b364e5652ac994cd545e17fdc44c1",
+        "run_id_digest": "58b196a2b772d265e5df58bf8b75132d56a2f55720ee16fbe5bb16999b5904f2"
       }
     },
     {
@@ -480,7 +483,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "37c29a0d8ab8c5d76fa68879427fa42745f72560cc4a375891906c97bc5035b0"
+        "state_digest": "95dadcdac7e79a4f60dd5ec4e0c521d85c64527736059d2d988902406158134c"
       },
       "assertions": {
         "critical": {
@@ -496,49 +499,58 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "5739d0886b7a2ebc01055421fbb2aef7300810cb934fa32792cb18b403606758",
-        "run_id_digest": "09bc39e73dced9875a49275e822ce3b8dc86d11da2766396faf88c93757a212d"
+        "thread_id_digest": "7be6bb84a5f04b38c1ff28760f6439efd235eb7dc6a5b3f77670dedeaf621bbb",
+        "run_id_digest": "54f4b6d236ea69f20da6d57d699c1c3aee869f208da38e5e8a29388e73d6ce2e"
       }
     },
     {
       "case_id": "phase02-007",
       "case_hash": "ec7064d36c88eaffe9685273b6710c59f51f4e00f2edfa01d7d56857f90bddef",
       "observed": {
-        "state": "waiting_input",
+        "state": "completed",
         "trace": [
-          "fake_provider:parse_meal"
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
         ],
         "report": {
-          "items": [],
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "120",
+              "energy_kcal": "156.0",
+              "protein_g": "3.2",
+              "fat_g": "0.3",
+              "carbohydrate_g": "33.8",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
           "understood_items": [
             {
               "item_id": "rice-1",
-              "name": "米饭",
-              "grams": null
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "120"
             }
           ],
-          "questions": [
-            {
-              "item_id": "rice-1",
-              "field": "grams",
-              "message": "请补充“米饭”的可审计克数。",
-              "candidates": []
-            }
-          ],
+          "questions": [],
           "unaccounted_items": [],
           "is_partial": false,
-          "waiting_input": true,
+          "waiting_input": false,
           "totals": {
-            "energy_kcal": "0.0",
-            "protein_g": "0.0",
-            "fat_g": "0.0",
-            "carbohydrate_g": "0.0"
+            "energy_kcal": "156.0",
+            "protein_g": "3.2",
+            "fat_g": "0.3",
+            "carbohydrate_g": "33.8"
           },
           "disclaimer": "普通饮食参考，不替代医疗建议。"
         },
         "events": [
           "running",
-          "waiting_input"
+          "completed"
         ],
         "forbidden_outcomes": {
           "provider_nutrition_value": true,
@@ -549,7 +561,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8f9780de8f0ebfed83812710b6143d4d95278e99a12ced0cec69be13fa6e25b6"
+        "state_digest": "f283923d727727a2bb790afc2e6031d9adece3950e0a11dbc57b6e94da5db369"
       },
       "assertions": {
         "critical": {
@@ -565,49 +577,58 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "c9d76b496294fecb8cfa50d754c70a86e79afc98d94b8691956e5b5d7f0d84b4",
-        "run_id_digest": "7d0f466a62594eb709a9f6b8aec2075bd19bb187487f5542bd9f4af121f15277"
+        "thread_id_digest": "0409bf13b1d3b1078a634c00f41987a98d003ab65b61d5e1030f74cc8eaac4c7",
+        "run_id_digest": "b64476af33803683389de3b065c747e37f8c548c603f6e7fd37605ad8989d2aa"
       }
     },
     {
       "case_id": "phase02-008",
       "case_hash": "12b0cbcebc6edebc26da43cc5a48737438b09dd1457bc1ac03840ea9f2badb8a",
       "observed": {
-        "state": "waiting_input",
+        "state": "completed",
         "trace": [
-          "fake_provider:parse_meal"
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
         ],
         "report": {
-          "items": [],
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "180",
+              "energy_kcal": "234.0",
+              "protein_g": "4.8",
+              "fat_g": "0.5",
+              "carbohydrate_g": "50.7",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
           "understood_items": [
             {
               "item_id": "rice-1",
-              "name": "米饭",
-              "grams": null
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "180"
             }
           ],
-          "questions": [
-            {
-              "item_id": "rice-1",
-              "field": "grams",
-              "message": "请补充“米饭”的可审计克数。",
-              "candidates": []
-            }
-          ],
+          "questions": [],
           "unaccounted_items": [],
           "is_partial": false,
-          "waiting_input": true,
+          "waiting_input": false,
           "totals": {
-            "energy_kcal": "0.0",
-            "protein_g": "0.0",
-            "fat_g": "0.0",
-            "carbohydrate_g": "0.0"
+            "energy_kcal": "234.0",
+            "protein_g": "4.8",
+            "fat_g": "0.5",
+            "carbohydrate_g": "50.7"
           },
           "disclaimer": "普通饮食参考，不替代医疗建议。"
         },
         "events": [
           "running",
-          "waiting_input"
+          "completed"
         ],
         "forbidden_outcomes": {
           "provider_nutrition_value": true,
@@ -618,7 +639,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "3931fdc30afcad3526b25eff85eb123c4251e72a8fd1a4120cd1d2b3a1b10ad7"
+        "state_digest": "6cd9f44e4e3256fc9978ee7995965e6a02e599578a8a9607fa180868f10a0364"
       },
       "assertions": {
         "critical": {
@@ -634,49 +655,58 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "a84f9a25e8c40316c0a49421a36278cbbb08ed6746cbef9b88d7c43fea1fe999",
-        "run_id_digest": "6ba88929111c920958d0ed739e73016285f3dcc88e808f5bc4fbfacfbcc9bacd"
+        "thread_id_digest": "657e1dbd222100834de199330eef26f74bc4a80950b9a684f5ae7cde678de490",
+        "run_id_digest": "c987daab2025c5aab14fa0bed1aeb8ddd1837936217c1381c3e6c62483ab0132"
       }
     },
     {
       "case_id": "phase02-009",
       "case_hash": "bc552abbcb257a7efdb890007f6078a28fb685c7873c4db4497587b6266a43a7",
       "observed": {
-        "state": "waiting_input",
+        "state": "completed",
         "trace": [
-          "fake_provider:parse_meal"
+          "fake_provider:parse_meal",
+          "search_food_catalog:PASS",
+          "calculate_nutrition:PASS",
+          "validate_nutrition_result:PASS"
         ],
         "report": {
-          "items": [],
+          "items": [
+            {
+              "item_id": "rice-1",
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100",
+              "energy_kcal": "130.0",
+              "protein_g": "2.7",
+              "fat_g": "0.3",
+              "carbohydrate_g": "28.2",
+              "source_name": "USDA FoodData Central",
+              "source_url": "https://fdc.nal.usda.gov/food-details/169756/nutrients",
+              "calculation_rule_version": "per-100g-v1"
+            }
+          ],
           "understood_items": [
             {
               "item_id": "rice-1",
-              "name": "米饭",
-              "grams": null
+              "name": "Rice, white, long-grain, regular, cooked, enriched",
+              "grams": "100"
             }
           ],
-          "questions": [
-            {
-              "item_id": "rice-1",
-              "field": "grams",
-              "message": "请补充“米饭”的可审计克数。",
-              "candidates": []
-            }
-          ],
+          "questions": [],
           "unaccounted_items": [],
           "is_partial": false,
-          "waiting_input": true,
+          "waiting_input": false,
           "totals": {
-            "energy_kcal": "0.0",
-            "protein_g": "0.0",
-            "fat_g": "0.0",
-            "carbohydrate_g": "0.0"
+            "energy_kcal": "130.0",
+            "protein_g": "2.7",
+            "fat_g": "0.3",
+            "carbohydrate_g": "28.2"
           },
           "disclaimer": "普通饮食参考，不替代医疗建议。"
         },
         "events": [
           "running",
-          "waiting_input"
+          "completed"
         ],
         "forbidden_outcomes": {
           "provider_nutrition_value": true,
@@ -687,7 +717,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8d3c88ac7666de127c8a344f2bb991bddaf0478a291788601785ff0a86f9b779"
+        "state_digest": "2f921fb38ab4fcdc6f9a63d9cdfe76094897f5afe3f7602a2f13173059a2f397"
       },
       "assertions": {
         "critical": {
@@ -703,8 +733,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "9d2247a79cf2e15945e7a5e76c2429ace70f176607a02af82e0a17ee0a80ed6f",
-        "run_id_digest": "ba328b562adc290f6f8a7505572d16d92067b93e8ab4e2df6f55bb2d83b194cb"
+        "thread_id_digest": "24b15706a28dd1920f6762305fb675cc43d9f4ad19ab643192bcacc30df2f0e5",
+        "run_id_digest": "9fe14b79f3f065a400a4828897e707e7c1a4ea261e779ffa8484a404e8ad1b90"
       }
     },
     {
@@ -773,7 +803,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "094097d21e93201f3cd9947677ae1b7125a53c2d666d0ed458932183871d1a36"
+        "state_digest": "0601f8d8ddf53773ee6bee4cf07c5d66a5c4a42926406355999f3a2ea1ed89a4"
       },
       "assertions": {
         "critical": {
@@ -789,8 +819,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "cfaea57c354b46c0636b473a03dce73988dbaddf8f46b7984b8389a82c2efb4c",
-        "run_id_digest": "3db56b46f966340dcbbe1c34a641156b455c12a1f9aadeb0e3dc9596f67dc0f3"
+        "thread_id_digest": "b622554be6d6bace3e3f043fb8923d0722ffc9290005dc0382091a06cddd5ae9",
+        "run_id_digest": "ba10fc154ea28829f6d1571f2206e54195b4047d24138165de72aa6b3f45fa3d"
       }
     },
     {
@@ -853,7 +883,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "1bd7da5fb3e5db8f75f60f2890c7885b253d204664954eb31c5829de963379ef"
+        "state_digest": "895e831fcc2849317be230d961d2c06fd147e3e4cce15785da5fc98ab40d1acd"
       },
       "assertions": {
         "critical": {
@@ -869,8 +899,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "81b0300a8dca0e9aab9ca9fe08cd2cb6d57de35e0fa8e50033b07f01bc875f9e",
-        "run_id_digest": "de73818b76377def6c6ad9e622cede6af730a0193443dfdde7a2f552cd8060bd"
+        "thread_id_digest": "3edc9584c161358342c13fe79416171a24c497e0bbc5a6d6258c5ab49035db06",
+        "run_id_digest": "edc129e40433ba6fdda306085041f9c8340e596d414dd6aa087b5306789c3da5"
       }
     },
     {
@@ -931,7 +961,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "6f24bc81e7cb88469e5b2326e01832125a5bdd25838681f2d90d33047f179333"
+        "state_digest": "3a0b349f39839efb85f6743e72e57be233d65b733180d45dfda79b3edb8ce396"
       },
       "assertions": {
         "critical": {
@@ -947,8 +977,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "ca21185a980c8126e0fa431f8699abb26e27e292386d493153882e5cd6f34d5c",
-        "run_id_digest": "ee5ba0418f200d4ecaeffb2f2a4b8d2845190cbaeceb1e9f60db2f79bb9bbe55"
+        "thread_id_digest": "4a70242b05113095ad1909f094d6185ef63655764c39e231682bef2f689ccb57",
+        "run_id_digest": "98db85c4cac9201d25ce8046de125c2143ccf4ec1c2836ae156564efadf9621e"
       }
     },
     {
@@ -1009,7 +1039,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "5882394f153dc8b78431cb789675dcb9e998a4b8a9c29074b6f6f8e983a163fe"
+        "state_digest": "e1fbcc3fb7fa6815d872a03e3e8421f70734bcb023ea6f6cbf02d40ad684908a"
       },
       "assertions": {
         "critical": {
@@ -1025,8 +1055,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "bd1a707da820624a66328ed07272fbc55feb313f7a9a1bb5b1126489192c90ff",
-        "run_id_digest": "30743ea8443f73536abd4f0b2c12c5c5ccf215171fd163ab8b081f4f56fbf103"
+        "thread_id_digest": "78eb318866991f92936e16319b2c23e6738be998fe0cd90e2c419ae2711b7560",
+        "run_id_digest": "f931af2a18912730e21df5d3df128a6a81bf2929564ce68421649d19f763f588"
       }
     },
     {
@@ -1087,7 +1117,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "a29caadda146c86befdec9ed5b7aa8bad4639ea12047cf34bd0b15cbc0b2dbca"
+        "state_digest": "c6668a80fb0ada0b1711cc17fb40a8a8a1e0850722caef7dc081ba492ef2ef41"
       },
       "assertions": {
         "critical": {
@@ -1103,8 +1133,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "8792405dfa88f0d8ddd8436a423cde7413b1fe4daae86ce55be89948e3bf6a1c",
-        "run_id_digest": "0c4d2359d7424e899a2ba9231d78377d125451a66e3d34a77657a95abd842361"
+        "thread_id_digest": "21ad728231b2d3da1332a8a2d57a8f770e30e4e37d3caa52b293cd6f16f04028",
+        "run_id_digest": "fc7c62e374c970ea20869f65a4daa51c85c4d531345c9f15159498a1059f0d0d"
       }
     },
     {
@@ -1165,7 +1195,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "cfb9c34c202473ba8f2b8f76777aea7da076e36244512d608c6318a4a657f83a"
+        "state_digest": "ce6097934c7689f28ae9c0e6026efda94f8b743e427813d687aaa0d630f80937"
       },
       "assertions": {
         "critical": {
@@ -1181,8 +1211,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "7ad337f7820e0d541c225a71894dce11dcea857f94993974db5f7202a286d3a9",
-        "run_id_digest": "a2a3cc29094461c406225ed567e005dfde40da46e3bfdd81f4cd112092f760ab"
+        "thread_id_digest": "8b36324c6ad86b323ffed1bb1ac53f2da0f4c4be794191cbf63348dfdac5ff2d",
+        "run_id_digest": "c08f5428d5e805f481cf3add27e17c3829568fcafe3b06f05982bc78986df9e4"
       }
     },
     {
@@ -1243,7 +1273,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8b01803dfb1cfdb9709a2a7581499e9e27dd24ae7f9f575d6a76cf1b54c71ca2"
+        "state_digest": "638f86d31d1eb6cb6ae786f58dfdc8f22d09c92473ebf6fa8bff834653d0c927"
       },
       "assertions": {
         "critical": {
@@ -1259,8 +1289,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "868265b261eb726571614dd352b6900982d646f8c15b9504f7b76bf2920139f9",
-        "run_id_digest": "c9b1c10ae255762cfc6bc5f861ccf00cae286f5e1e845e06a640d194564d6523"
+        "thread_id_digest": "67753cafed92ba8bb1e0db13e296c9772a1da01dcce67cda2c49c1827a2fd481",
+        "run_id_digest": "b7323fd7670e0051d34a561a516ca983c37eb8cd36fefa7e83e23c096237a0bc"
       }
     },
     {
@@ -1321,7 +1351,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "8b157a54c8e15075740ad7fd6e4256f1d0dce256fd2f94e3da556101edabbe48"
+        "state_digest": "72ca994353c42289a6d0066fdd20357f0727df3a860165138e6a05c0f6c8321a"
       },
       "assertions": {
         "critical": {
@@ -1337,8 +1367,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "2d065a035b1433b5012abd571c9cd67ae4aae80d3b2ffb1cafd2df73de2604bc",
-        "run_id_digest": "c7069ea1c143a0bd12034723a9c098eaa23aa5c013b7682a2c0e9b35be5f28a6"
+        "thread_id_digest": "58d7077565c3ecf9703f2cb377584c3b02d484a2ea5f07eb9b59ceda866868f9",
+        "run_id_digest": "506a8f25362b6aa5a0f7950f84c4965ace6e79b8c8969a106a94f0634bf1c90c"
       }
     },
     {
@@ -1399,7 +1429,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "28cbdfcc73670c2a2ef75fc9695e68ca933d1d613467fe3abe33e73ec6352eb6"
+        "state_digest": "48228586b878e6ed02b307ebbaa2047a0dcdafa8d6c56884010e6e3fa7fd022b"
       },
       "assertions": {
         "critical": {
@@ -1415,8 +1445,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "759446c17a23173034f1fba04306700785de15a8be26f477be4d461463e702ce",
-        "run_id_digest": "a94343941fc87df7ca92995b670caecf7f8f861a240928a43c22b5e08b827bc6"
+        "thread_id_digest": "9e1ff6e9714b44cd86884f373a1b3ab0ac967d06898d250f4e09697faf127c65",
+        "run_id_digest": "3104cdfdf5af54ae2fdf162d0aaa138ed0fb0cb4953093e8f61bdc8f88e41b35"
       }
     },
     {
@@ -1477,7 +1507,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "fe1e77602c1f1827eaa13ed2c0aba64aeb6f618e16b4e7efcbc4275c665e4d5b"
+        "state_digest": "0fbff0f558c9669567100223a0e65e1b28bdc2bd08854ba0de4241d2843f2237"
       },
       "assertions": {
         "critical": {
@@ -1493,8 +1523,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "d75202b288c2cb72cc738125cab5c2c1cf5e403154dc7487de694707ab80aae0",
-        "run_id_digest": "8bff7ca3dd42504dbec6d09e2fd2d8687c5d68985d387d95bda2991e6c640b61"
+        "thread_id_digest": "5e4046550e444218d4900e28771cf8a47ec68917fa66550d91caf5fc69a008c2",
+        "run_id_digest": "d6b454f3f245e1ffea39e33441e8303c0ab95efe8a076a398ef3c2ac0aad4923"
       }
     },
     {
@@ -1519,7 +1549,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "409911eed145923a030e1f25347a7ecff85dbf98b591ed302a3714861cc7f723"
+        "state_digest": "e5c146ffc1c5014ebf27cad249e3ec6964694286d1f96c67fbb99434a11e2e32"
       },
       "assertions": {
         "critical": {
@@ -1535,8 +1565,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "f56ee09437ea0284165c4ee896017b88f299326289050274e273bbca649893b4",
-        "run_id_digest": "a4417a0d6335c75877790f334d4c8cc351eec101fbd948c5a0bf1654a7262da6"
+        "thread_id_digest": "606e002c010fc9146eb63de9155f9eb8b03728b63954f748aa5a43f2b8b18966",
+        "run_id_digest": "562408eee065e801526761ca5b97343434a9bb324e4a8c6cde05cb5d34a72d13"
       }
     },
     {
@@ -1561,7 +1591,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "de54e9ac1e6aa3f2b4fbbd2c208338786196564b9d43315193142dbba7b0f70c"
+        "state_digest": "ed37a086afcbad9e6a9c11c2804b825796f444ca3c592e3fe922e5e86335df9a"
       },
       "assertions": {
         "critical": {
@@ -1577,8 +1607,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "57305c4311d9811e1e6193e113657e7aeba17442d86ceb3a63a86f4db88b3ff7",
-        "run_id_digest": "beb74c6b12070c7a6675f5ef09cf7ff4a80f338d56abd27ed9641ecf3c244e42"
+        "thread_id_digest": "3d5b38800890d89b3ee3c19a9c04fc91e580080968e4b47e3c8a289129f3a355",
+        "run_id_digest": "35ef57de6a5103ef65f622bf366243cba8efdcdad9eb0feb2b5c71847e7f904c"
       }
     },
     {
@@ -1601,7 +1631,7 @@
         },
         "provider_calls": [],
         "checkpoint_reopened": true,
-        "state_digest": "87dd76ee115c51614548d49ebca5a99428206ccb840722a5abfb75a35e015738"
+        "state_digest": "010a09776b38b935c88f180eac4d3ac6ae5f6bc5e939bbb43c3a779219db827d"
       },
       "assertions": {
         "critical": {
@@ -1617,8 +1647,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "5892ecdad5354d9eb2e2aa6eaa79e1f76c80a87a3813e9e1baf3a764f67c86bd",
-        "run_id_digest": "d38beae7e4327c202eb3bf6da1a133e7a5505f903896b165671d7b5ac67b6073"
+        "thread_id_digest": "f62f47901d4079fc4649baf8ec5670cb9a0fc9aaa185390c62805dd39375daff",
+        "run_id_digest": "5def5dfcf3f7464b2e66078997f3fd31091e2495972646c4d45aa102040d9e16"
       }
     },
     {
@@ -1643,7 +1673,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "98bb1c565c93eff26e9a70f6d203b0f8f396ca806c9bf113409cc70f061cd29d"
+        "state_digest": "ace60b0c4a05c1ebb7d6befa7c4815c53cbe98606ebcd41272bf7b23b502798b"
       },
       "assertions": {
         "critical": {
@@ -1659,8 +1689,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "cd06a09717ce4e839f45c897f4c763bf63f40ffff7b8546667a8bebb1cd3a4f3",
-        "run_id_digest": "2f67100b8ecacd7b59fcf96edc0ce0ff232bf73937a5d32e7995162524e7b336"
+        "thread_id_digest": "5df9a8f84faf5095e068d40641f07ad2cc3e6177b33ecd2b8d40e7aca125df86",
+        "run_id_digest": "d257224fddff07698a881748c96d77b14fa984c944e0d168eb337fb636e4ab7e"
       }
     },
     {
@@ -1685,7 +1715,7 @@
           "parse_meal"
         ],
         "checkpoint_reopened": true,
-        "state_digest": "e7942a753aac3320f767c013bc8afec3d14a449a8115d03d80ba1416ac876cfe"
+        "state_digest": "50c975a73f69f5d2d011334cdc37431ff2df1006d023993e66b42be8c48e0c86"
       },
       "assertions": {
         "critical": {
@@ -1701,8 +1731,8 @@
       },
       "execution": {
         "runner": "fake-provider->meal-graph->postgres-tools->postgres-checkpointer",
-        "thread_id_digest": "206fcc8c1588a90c1e8476d751cb20b93fd9d6e0078f95e4885c98e2f47d950a",
-        "run_id_digest": "c2b7e8ce657fe02b083963daa32670a2db2be8765c11fd2930afdc8e4a891406"
+        "thread_id_digest": "88088e46bd8261416df34e269f69704b79c0a631981833f9da55d7ed3b262b5d",
+        "run_id_digest": "f19d35378a313fc7003b11eb7af8dbc55bdfa55c982bf5ed09795fe99aaccd25"
       }
     }
   ],
@@ -1710,5 +1740,5 @@
     "critical_pass_percent": 100.0,
     "high_pass_percent": 100.0
   },
-  "evidence_hash": "102d221ee62d7c428cbe0e907402ee7c00f464babd4fb6a3b2ed93224edff61c"
+  "evidence_hash": "a4736596d7b08e3fc08d90c2928b5c326b10bc4f1414113751a7ada1a62aaccb"
 }

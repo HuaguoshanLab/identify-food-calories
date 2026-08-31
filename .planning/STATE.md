@@ -141,7 +141,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 02]: 发布门禁仍阻断：真实专家/Judge 配对分数为常数，Spearman 未定义；且认证成功、错误和空态的内置浏览器矩阵未完成。后续 Agent/受控目录改动也会使旧 code-eval 证据过期，需重新授权并按新 SHA 完整评测。
+- [Phase 02]: 发布门禁仍阻断：当前 24-case code-eval 已更新为 `a4736596…`，但旧专家签署、Judge 与发布报告不再绑定该 SHA；仍需真实复审、重新授权 Judge、以及认证成功/错误/空态的内置浏览器矩阵。Spearman 不得通过改分或重试刷绿。
 - [Phase 3]: Qwen-VL 第三方图片处理地区、留存和删除承诺需在接入前核实。
 - [Phase 4]: Mem0 长期记忆必须验证用户隔离、可审计写入和删除链。
 
