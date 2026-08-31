@@ -2,7 +2,7 @@
 
 ## 职责
 
-本目录保存 `h5-visual.spec.ts` 的八张 430×932、light、reduced-motion Git 视觉基线和一个 Phase 2 待审批 candidate。它们只记录用户可见业务页面，不能包含 Mailpit、验证码、Cookie、令牌或其他敏感数据。
+本目录保存 `h5-visual.spec.ts` 的八张 430×932、light、reduced-motion Git 视觉基线，以及 Phase 2 文字分析和 Phase 3 图片估算待审批 candidate。它们只记录用户可见业务页面，不能包含 Mailpit、验证码、Cookie、令牌或其他敏感数据。
 
 ## 允许依赖
 
@@ -23,6 +23,7 @@
 | `sessions-430-chromium-darwin.png` | 登录会话 |
 | `revoke-dialog-430-chromium-darwin.png` | 撤销会话确认弹窗 |
 | `analyze-phase2-candidate-430-chromium-darwin.png` | Phase 2 已完成分析页面的批准来源工件，受控目录食物名以中文显示；它与 current official baseline 字节相同。 |
+| `analyze-phase3-image-candidate-430-chromium-darwin.png` | Phase 3 图片分析估算报告 candidate；仅供人工视觉审查，绝不自动覆盖 official baseline。 |
 | `phase2-visual-approval.json` | 用户对 Phase 2 candidate 的精确 SHA 批准，以及 Plan 02-18 的机械晋升记录、旧/新 official SHA 与时间。 |
 
 ## Phase 2 Candidate Integrity

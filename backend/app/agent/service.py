@@ -329,7 +329,13 @@ class AgentService:
             )
             return run
         run.status = "failed"
-        run.failure_code = "ANALYSIS_NOT_COMPLETED"
+        run.failure_code = (
+            "OUTCOME_UNKNOWN"
+            if finished.vision_invocation_status == "outcome_unknown"
+            else "VISION_ANALYSIS_FAILED"
+            if finished.vision_image is not None
+            else "ANALYSIS_NOT_COMPLETED"
+        )
         run.finished_at = run.updated_at
         self._commit_or_rollback()
         self.append_safe_event(

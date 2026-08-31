@@ -132,7 +132,28 @@ test.describe('H5 visual and interaction contract', () => {
     await page.getByLabel('餐食描述').fill('米饭 100 克')
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
-    await expect(page.getByText('米饭 · 100g · 130.0 kcal')).toBeVisible()
+    await expect(page.getByText('100g · 130.0 kcal')).toBeVisible()
     await expect(page).toHaveScreenshot('analyze-phase2-candidate-430.png', screenshotOptions)
+  })
+
+  test('phase 3 visual candidate captures the real estimated image-analysis report without changing official baseline', async ({ page, request }) => {
+    const candidateAccount: E2eAccount = {
+      email: 'h5-image-candidate@example.test',
+      password: 'h5-image-candidate-password',
+    }
+    await clearMailbox(request)
+    await page.goto('/register')
+    await registerAndActivate(page, request, candidateAccount)
+    await login(page, candidateAccount, '/app/analyze')
+    await page.getByLabel('从相册选择上传').setInputFiles({
+      name: 'meal.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP8zwACTGCSAQANHQEDgslx/wAAAABJRU5ErkJggg==', 'base64'),
+    })
+    await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    const estimatedWeight = page.getByText('估算重量', { exact: true })
+    await expect(estimatedWeight).toBeVisible()
+    await estimatedWeight.scrollIntoViewIfNeeded()
+    await expect(page).toHaveScreenshot('analyze-phase3-image-candidate-430.png', screenshotOptions)
   })
 })

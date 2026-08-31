@@ -18,7 +18,8 @@ test.describe('phase 2 direct grams contract', () => {
     await page.getByRole('button', { name: '开始分析' }).click()
 
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
-    await expect(page.getByText('米饭 · 100g · 130.0 kcal')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '米饭' })).toBeVisible()
+    await expect(page.getByText('100g · 130.0 kcal')).toBeVisible()
     await expect(page.getByText('合计 130.0 kcal')).toBeVisible()
     await expect(page.getByText('蛋白质 2.7g · 脂肪 0.3g · 碳水 28.2g')).toBeVisible()
     await expect(page.getByText('普通饮食参考，不替代医疗建议。')).toBeVisible()
@@ -71,7 +72,7 @@ test.describe('phase 2 direct grams contract', () => {
 
     await page.getByLabel('修正或排除项目').fill('米饭改为 150 克')
     await page.getByRole('button', { name: '应用修正' }).click()
-    await expect(page.getByText('米饭 · 150g · 195.0 kcal')).toBeVisible()
+    await expect(page.getByText('150g · 195.0 kcal')).toBeVisible()
     await expect(page.getByText('合计 195.0 kcal')).toBeVisible()
 
     const foreignContext = await browser.newContext()
@@ -82,7 +83,7 @@ test.describe('phase 2 direct grams contract', () => {
     await login(foreignPage, foreign, '/app/analyze')
     await foreignPage.goto(`/app/analyze?thread=${threadId}`)
     await expect(foreignPage).not.toHaveURL(/thread=/)
-    await expect(foreignPage.getByRole('heading', { name: '描述这餐吃了什么' })).toBeVisible()
+    await expect(foreignPage.getByRole('heading', { name: '分析这餐' })).toBeVisible()
     await expect(foreignPage.getByRole('heading', { name: '营养分析报告' })).toBeHidden()
     await foreignContext.close()
   })
@@ -107,5 +108,30 @@ test.describe('phase 2 direct grams contract', () => {
     await page.goto(`/app/analyze?thread=${threadId}`)
     await expect(page).not.toHaveURL(/thread=/)
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeHidden()
+  })
+})
+
+test.describe('phase 3 multimodal image upload', () => {
+  test('a real authenticated page uploads one image and shows an explicitly estimated report', async ({ page, request }) => {
+    await clearMailbox(request)
+    const imageAccount: E2eAccount = { email: 'agent-image-upload@example.test', password: 'correct-horse-battery-staple' }
+    await page.goto('/register')
+    await registerAndActivate(page, request, imageAccount)
+    await login(page, imageAccount, '/app/analyze')
+
+    let uploadCount = 0
+    page.on('request', (candidate) => {
+      if (candidate.method() === 'POST' && /\/api\/v1\/agent\/threads\/[^/]+\/images$/.test(candidate.url())) uploadCount += 1
+    })
+    await page.getByLabel('从相册选择上传').setInputFiles({
+      name: 'meal.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP8zwACTGCSAQANHQEDgslx/wAAAABJRU5ErkJggg==', 'base64'),
+    })
+
+    await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    await expect(page.getByText('估算重量', { exact: true })).toBeVisible()
+    await expect(page.getByText('估算重量，可能与实际份量存在偏差。')).toBeVisible()
+    expect(uploadCount).toBe(1)
   })
 })

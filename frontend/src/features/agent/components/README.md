@@ -13,5 +13,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `AnalyzePage.tsx` | 受保护分析 Tab 的文字输入、集中追问、partial 披露、权威快照报告、定向修正与 URL thread 恢复；仅将受控目录中已知英文食物名映射为中文展示，未知文本保持原样。 |
-| `AnalyzePage.test.tsx` | 输入校验、集中候选不自动选择、受控英文食物中文展示与权威快照行为测试。 |
+| `AnalyzePage.tsx` | 受保护分析 Tab 的拍照/相册 multipart 上传、隐私说明、文字降级、集中追问、估算与 partial 披露、权威快照报告、定向修正和 URL thread 恢复；不持久化图片或 token。 |
+| `AnalyzePage.test.tsx` | 图片本地校验、multipart 合约、估算披露、输入校验、集中候选不自动选择、受控英文食物中文展示与权威快照行为测试。 |

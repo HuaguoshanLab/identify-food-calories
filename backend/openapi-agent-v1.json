@@ -156,6 +156,19 @@
         "additionalProperties": false,
         "description": "Safe, implementation-independent thread shape reserved for future GREEN.",
         "properties": {
+          "recovery_code": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Code"
+          },
           "report": {
             "anyOf": [
               {
@@ -355,6 +368,63 @@
           }
         ],
         "summary": "Create Agent Thread",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/threads/image": {
+      "post": {
+        "description": "Create an owned empty thread so image upload never needs a fabricated text command.",
+        "operationId": "createAgentImageThread",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentThreadSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer authentication failed."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Thread is unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Command conflicts."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Agent Image Thread",
         "tags": [
           "agent"
         ]

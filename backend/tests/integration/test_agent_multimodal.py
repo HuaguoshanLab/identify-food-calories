@@ -105,8 +105,9 @@ def test_upload_ownership_and_deletion_erases_the_normalized_file(tmp_path: Path
             application.dependency_overrides[get_authentication_service] = lambda: authentication
             with TestClient(application) as client:
                 headers = {"Authorization": f"Bearer {owner_token}"}
-                created = client.post("/api/v1/agent/threads", json={"input_text": "米饭"}, headers=headers)
+                created = client.post("/api/v1/agent/threads/image", headers=headers)
                 assert created.status_code == 201, created.text
+                assert created.json()["status"] == "partial"
                 thread_id = created.json()["thread_id"]
                 denied = client.post(
                     f"/api/v1/agent/threads/{thread_id}/images",

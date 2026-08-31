@@ -34,8 +34,9 @@ VisionOutcome = VisionMealResult | ProviderCallError
 class FakeVisionModelProvider:
     """Queue exact observations or failures without retaining inputs or raw responses."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, fallback_meal: bool = False) -> None:
         self._outcomes: deque[VisionOutcome] = deque()
+        self._fallback_meal = fallback_meal
         self.calls: list[FakeVisionProviderCall] = []
 
     def queue_result(
@@ -58,10 +59,24 @@ class FakeVisionModelProvider:
 
     async def analyze_meal_image(self, request: VisionMealRequest) -> VisionMealResult:
         del request  # The fake trace is intentionally incapable of retaining image references.
-        outcome = self._outcomes.popleft() if self._outcomes else ProviderCallError(
-            kind=ProviderFailureKind.PERMANENT,
-            code="FAKE_UNSCRIPTED_CALL",
-            safe_message="No scripted vision outcome is available.",
+        outcome = self._outcomes.popleft() if self._outcomes else (
+            VisionMealResult(
+                items=[
+                    VisionMealItemDTO(
+                        item_id="rice-1",
+                        food_name="米饭",
+                        estimated_grams=Decimal("100"),
+                        confidence=Decimal("0.9"),
+                    )
+                ],
+                metadata=_metadata(),
+            )
+            if self._fallback_meal
+            else ProviderCallError(
+                kind=ProviderFailureKind.PERMANENT,
+                code="FAKE_UNSCRIPTED_CALL",
+                safe_message="No scripted vision outcome is available.",
+            )
         )
         metadata = outcome.metadata if isinstance(outcome, VisionMealResult) else None
         metadata = metadata or _metadata()

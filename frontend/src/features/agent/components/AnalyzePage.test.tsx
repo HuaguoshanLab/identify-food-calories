@@ -13,19 +13,56 @@ describe('AnalyzePage', () => {
   afterEach(() => window.history.replaceState({}, '', '/'))
   it('uses a labelled text input and does not invent a report before an API response', () => {
     renderPage()
-    expect(screen.getByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
     expect(screen.getByLabelText('餐食描述')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '营养分析报告' })).not.toBeInTheDocument()
   })
 
   it('explains empty and too-long descriptions next to the input', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ applyAccept: false })
     renderPage()
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(screen.getByText('请先描述这餐吃了什么。')).toBeInTheDocument()
     await user.type(screen.getByLabelText('餐食描述'), 'a'.repeat(1001))
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(screen.getByText('描述最多可输入 1000 个字符。')).toBeInTheDocument()
+  })
+
+  it('uploads an image through the generated multipart contract and discloses estimated weight', async () => {
+    const user = userEvent.setup()
+    const threadId = '11111111-1111-4111-8111-111111111111'
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      void init
+      if (path === '/agent/threads/image') return new Response(JSON.stringify({ thread_id: threadId, status: 'partial', revision: 0 }), { status: 201 })
+      if (path.endsWith('/images')) return new Response(JSON.stringify({ thread_id: threadId, image_id: '22222222-2222-4222-8222-222222222222', status: 'completed' }), { status: 202 })
+      if (path === `/agent/threads/${threadId}`) return new Response(JSON.stringify({
+        thread_id: threadId, status: 'completed', revision: 1,
+        report: { items: [{ item_id: 'rice-1', name: '米饭', grams: '100', energy_kcal: '130.0', protein_g: '2.7', fat_g: '0.3', carbohydrate_g: '28.0', is_estimated: true }], totals: { energy_kcal: '130.0', protein_g: '2.7', fat_g: '0.3', carbohydrate_g: '28.0' } },
+      }), { status: 200 })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await user.upload(screen.getByLabelText('从相册选择上传'), new File(['meal'], 'meal.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
+    expect(screen.getByText('估算重量')).toBeInTheDocument()
+    expect(screen.getByText('估算重量，可能与实际份量存在偏差。')).toBeInTheDocument()
+    const upload = request.mock.calls.find(([path]) => String(path).endsWith('/images'))
+    expect(upload?.[0]).toBe(`/agent/threads/${threadId}/images`)
+    expect(upload?.[1]?.body).toBeInstanceOf(FormData)
+    expect(new Headers(upload?.[1]?.headers).get('Idempotency-Key')).toMatch(/^image-/)
+  })
+
+  it('keeps unsupported files local and places the safe error beside upload controls', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const request = vi.fn()
+    renderPage(request)
+
+    await user.upload(screen.getByLabelText('从相册选择上传'), new File(['not-an-image'], 'meal.txt', { type: 'text/plain' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('请选择 JPG、PNG 或 WebP 格式的餐食图片。')
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('renders authoritative nutrition values with Chinese controlled-food display names', async () => {
@@ -41,8 +78,10 @@ describe('AnalyzePage', () => {
     await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
-    expect(screen.getByText('米饭 · 100g · 130.0 kcal')).toBeInTheDocument()
-    expect(screen.getByText('鸡胸肉 · 120g · 198.0 kcal')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '米饭' })).toBeInTheDocument()
+    expect(screen.getByText('100g · 130.0 kcal')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '鸡胸肉' })).toBeInTheDocument()
+    expect(screen.getByText('120g · 198.0 kcal')).toBeInTheDocument()
     expect(screen.queryByText(/Rice, white/)).not.toBeInTheDocument()
     expect(screen.getByText('合计 328.0 kcal')).toBeInTheDocument()
   })

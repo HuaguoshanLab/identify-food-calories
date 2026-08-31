@@ -26,7 +26,9 @@ def create_vision_provider(
     if app_env is None:
         raise ConfigurationError("APP_ENV is required to choose a vision provider")
     if app_env == "test":
-        return FakeVisionModelProvider()
+        # Cross-stack browser tests need an offline, deterministic observation. Direct Fake
+        # instances remain strict unless this test-environment factory opts into the fixture.
+        return FakeVisionModelProvider(fallback_meal=True)
     if provider_mode is None:
         raise ConfigurationError("VISION_PROVIDER_MODE must be explicitly configured")
     if app_env == "production" and provider_mode != "qwen":

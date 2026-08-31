@@ -50,7 +50,7 @@ export default defineConfig({
     {
       name: 'Vite',
       cwd: '.',
-      command: 'npm run build && npm run preview',
+      command: 'npm run build && npm run preview:e2e',
       url: frontendUrl,
       reuseExistingServer: false,
       timeout: 120_000,

@@ -97,7 +97,13 @@ def _snapshot(service: AgentService, *, thread_id: uuid.UUID, user_id: uuid.UUID
         if event.event_type in {"completed", "waiting_input"} and isinstance(candidate, dict):
             report = candidate
             break
-    return AgentThreadSnapshot(thread_id=thread.id, status=_status(run.status if run else None), revision=thread.revision, report=report)
+    return AgentThreadSnapshot(
+        thread_id=thread.id,
+        status=_status(run.status if run else None),
+        revision=thread.revision,
+        report=report,
+        recovery_code=run.failure_code if run is not None else None,
+    )
 
 
 def _command_hash(text: str) -> dict[str, object]:
@@ -151,6 +157,22 @@ async def create_agent_thread(payload: AgentThreadCreateRequest, request: Reques
     thread = service.create_thread(user_id=principal)
     run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
     await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
+    return _snapshot(service, thread_id=thread.id, user_id=principal)
+
+
+@router.post(
+    "/threads/image",
+    operation_id="createAgentImageThread",
+    response_model=AgentThreadSnapshot,
+    status_code=status.HTTP_201_CREATED,
+    responses=_ERROR_RESPONSES,
+)
+async def create_agent_image_thread(
+    principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)
+) -> AgentThreadSnapshot:
+    """Create an owned empty thread so image upload never needs a fabricated text command."""
+
+    thread = service.create_thread(user_id=principal)
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
 

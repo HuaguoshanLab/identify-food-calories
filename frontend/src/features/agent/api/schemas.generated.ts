@@ -52,6 +52,7 @@ export const agentThreadSnapshotSchema = z.object({
   "status": z.lazy(() => agentThreadStatusSchema),
   "revision": z.number().int().min(0),
   "report": z.unknown().optional(),
+  "recovery_code": z.unknown().optional(),
 }).strict()
 export type AgentThreadSnapshot = z.infer<typeof agentThreadSnapshotSchema>
 

@@ -51,6 +51,7 @@ class AgentThreadSnapshot(BaseModel):
     status: AgentThreadStatus
     revision: int = Field(ge=0)
     report: dict[str, object] | None = None
+    recovery_code: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class AgentCommandAcceptedResponse(BaseModel):
