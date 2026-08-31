@@ -17,6 +17,7 @@ from app.nutrition.importer import (
 
 
 SEED_PATH = Path("app/nutrition/data/fdc-seed-v1.json")
+RICE_FIST_SEED_PATH = Path("app/nutrition/data/fdc-seed-v1-rice-fist-v1.json")
 
 
 def test_seed_manifest_is_a_qualified_offline_usda_catalog() -> None:
@@ -30,6 +31,17 @@ def test_seed_manifest_is_a_qualified_offline_usda_catalog() -> None:
     assert rice.prepared_state == "cooked"
     assert rice.nutrients_per_100g.energy_kcal is not None
     assert rice.source_url.endswith("/169756/nutrients")
+
+
+def test_rice_fist_manifest_binds_the_expert_audited_portion_to_cooked_rice() -> None:
+    manifest = load_manifest(RICE_FIST_SEED_PATH)
+
+    rice = next(food for food in manifest.foods if food.stable_id == "fdc:169756")
+    assert manifest.version == "foundation-foods-2026-08-rice-fist-v1"
+    assert rice.prepared_state == "cooked"
+    assert rice.portions[0].description == "一拳"
+    assert rice.portions[0].grams == 120
+    assert rice.portions[0].audited is True
 
 
 def test_manifest_rejects_a_tampered_content_hash(tmp_path: Path) -> None:

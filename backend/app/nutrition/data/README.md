@@ -13,4 +13,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `fdc-seed-v1.json` | 24 条版本化、可追溯的 USDA FDC 营养目录记录。 |
+| `fdc-seed-v1.json` | 初始 24 条版本化、可追溯的 USDA FDC 营养目录记录。 |
+| `fdc-seed-v1-rice-fist-v1.json` | 继承初始目录，并新增专家确认的“熟米饭一拳＝120g”受控份量。 |

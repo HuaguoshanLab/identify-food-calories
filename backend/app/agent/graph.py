@@ -171,6 +171,7 @@ class MealAnalysisGraph:
                 item_id=item.item_id,
                 normalized_name=item.food_name,
                 grams=item.grams,
+                portion_description=item.quantity_text,
                 input_version="v1",
                 is_dirty=True,
                 search_query=item.catalog_query or item.food_name,
@@ -184,6 +185,17 @@ class MealAnalysisGraph:
             item_id, grams = recovered_grams
             items = tuple(
                 item.model_copy(update={"grams": grams}) if item.item_id == item_id else item
+                for item in items
+            )
+        recovered_portion = _recover_single_explicit_portion(
+            message=state.messages[0], items=items
+        )
+        if recovered_portion is not None:
+            item_id, portion_description = recovered_portion
+            items = tuple(
+                item.model_copy(update={"portion_description": portion_description})
+                if item.item_id == item_id
+                else item
                 for item in items
             )
         missing = tuple(
@@ -359,7 +371,7 @@ class MealAnalysisGraph:
             if not item.is_dirty and item.nutrients is not None:
                 updated.append(item)
                 continue
-            if item.grams is None:
+            if item.grams is None and item.portion_description is None:
                 questions.append(_grams_question(item))
                 updated.append(item.model_copy(update={"is_dirty": False}))
                 continue
@@ -383,7 +395,12 @@ class MealAnalysisGraph:
             if tool_calls >= 12:
                 return _limit_state(state)
             calculation = self._tools.calculate_nutrition(
-                NutritionCalculationInput(food_id=selected_food_id, catalog_version=catalog_version, grams=item.grams)
+                NutritionCalculationInput(
+                    food_id=selected_food_id,
+                    catalog_version=catalog_version,
+                    grams=item.grams,
+                    portion_description=item.portion_description,
+                )
             )
             tool_calls += 1
             summaries.append(_summary(item.item_id, "calculate", calculation.action.value, calculation))
@@ -404,6 +421,7 @@ class MealAnalysisGraph:
                         "normalized_name": food.canonical_name,
                         "food_id": food.id,
                         "catalog_version": food.catalog_version,
+                        "grams": calculation.grams,
                         "is_dirty": False,
                         "nutrients": StateNutritionResult(
                             energy_kcal=nutrients.energy_kcal,
@@ -494,6 +512,19 @@ def _recover_single_explicit_grams(
         return None
     grams = _decimal_answer(matches[0])
     return (items[0].item_id, grams) if grams is not None else None
+
+
+def _recover_single_explicit_portion(
+    *, message: str, items: tuple[StateMealItem, ...]
+) -> tuple[str, str] | None:
+    """Preserve one user-stated portion phrase; the catalog still decides whether it is usable."""
+
+    if len(items) != 1 or items[0].grams is not None or items[0].portion_description:
+        return None
+    normalized = "".join(message.casefold().split())
+    if normalized.count("一拳") != 1 or not normalized.endswith("一拳"):
+        return None
+    return items[0].item_id, "一拳"
 
 
 def _next_version(value: str) -> str:

@@ -187,12 +187,13 @@ class _RecordingNutritionTools:
     """Deterministic test double that records item-scoped tool calls, not model values."""
 
     def __init__(self) -> None:
-        from app.nutrition.schemas import NutritionValues, QualifiedFood
+        from app.nutrition.schemas import ControlledPortion, NutritionValues, QualifiedFood
 
         self.rice = QualifiedFood(
             id=uuid.UUID('11111111-1111-4111-8111-111111111111'), canonical_name='熟米饭',
             catalog_version='fdc-v1', prepared_state='cooked', source_name='FDC',
             source_url='https://fdc.example/rice', license_name='CC0', aliases=('米饭',),
+            portions=(ControlledPortion(description='一拳', grams=Decimal('120'), source_reference='expert-review', version='rice-fist-v1'),),
             nutrients_per_100g=NutritionValues(energy_kcal=Decimal('130'), protein_g=Decimal('2.7'), fat_g=Decimal('0.3'), carbohydrate_g=Decimal('28.2')),
         )
         self.egg = QualifiedFood(
@@ -220,10 +221,15 @@ class _RecordingNutritionTools:
 
         food = self.egg if request.food_id == self.egg.id else self.rice
         self.calls.append(('calculate', str(food.id)))
-        factor = request.grams / Decimal('100')
+        grams = request.grams
+        if grams is None and request.portion_description is not None:
+            portions = [portion for portion in food.portions if portion.description == request.portion_description and portion.audited]
+            grams = portions[0].grams if len(portions) == 1 else None
+        assert grams is not None
+        factor = grams / Decimal('100')
         source = food.nutrients_per_100g
         return NutritionCalculationResult(
-            action=NutritionAction.PASS, food=food, grams=request.grams,
+            action=NutritionAction.PASS, food=food, grams=grams,
             nutrients=NutritionValues(energy_kcal=source.energy_kcal * factor, protein_g=source.protein_g * factor, fat_g=source.fat_g * factor, carbohydrate_g=source.carbohydrate_g * factor),
             safe_message='calculated',
         )
@@ -452,6 +458,22 @@ def test_graph_recovers_one_explicit_gram_value_omitted_by_provider() -> None:
         ('calculate', '11111111-1111-4111-8111-111111111111'),
         ('validate', '11111111-1111-4111-8111-111111111111'),
     ]
+
+
+def test_graph_uses_an_audited_catalog_portion_without_inventing_grams() -> None:
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, _provider, _tools = _graph_with_items(
+        ParsedMealItemDTO(item_id='rice-1', food_name='米饭', catalog_query='米饭')
+    )
+
+    completed = asyncio.run(graph.ainvoke(_initial_state('米饭一拳')))
+
+    assert completed.status.value == 'completed'
+    assert completed.items[0].grams == Decimal('120')
+    assert completed.items[0].portion_description == '一拳'
+    assert completed.report is not None
+    assert completed.report['totals']['energy_kcal'] == '156.0'
 
 
 def test_graph_never_auto_selects_ambiguous_candidate_and_keeps_invalid_resume_waiting() -> None:

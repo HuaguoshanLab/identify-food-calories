@@ -47,6 +47,14 @@ class SqlAlchemyNutritionRepository:
 
     @staticmethod
     def _qualified_statement() -> Select[tuple[FoodCatalogItem]]:
+        latest_catalog_version = (
+            select(NutritionCatalogVersion.id)
+            .join(NutritionCatalog)
+            .where(NutritionCatalog.catalog_key == "usda-fdc")
+            .order_by(NutritionCatalogVersion.released_at.desc(), NutritionCatalogVersion.version.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
         return (
             select(FoodCatalogItem)
             .options(
@@ -58,6 +66,7 @@ class SqlAlchemyNutritionRepository:
             .join(NutritionCatalogVersion)
             .join(NutritionSource)
             .where(
+                FoodCatalogItem.catalog_version_id == latest_catalog_version,
                 FoodCatalogItem.is_qualified.is_(True),
                 FoodCatalogItem.energy_kcal_per_100g.is_not(None),
                 FoodCatalogItem.protein_g_per_100g.is_not(None),

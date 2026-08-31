@@ -54,6 +54,7 @@ class StateMealItem(BaseModel):
     item_id: str = Field(min_length=1, max_length=128)
     normalized_name: str = Field(min_length=1, max_length=200)
     grams: Decimal | None = Field(default=None, gt=Decimal("0"), le=Decimal("2000"))
+    portion_description: str | None = Field(default=None, min_length=1, max_length=120)
     food_id: uuid.UUID | None = None
     catalog_version: str | None = Field(default=None, min_length=1, max_length=80)
     input_version: str = Field(min_length=1, max_length=80)
