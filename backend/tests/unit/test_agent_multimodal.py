@@ -11,6 +11,9 @@ from typing import cast
 from app.agent.graph import MealAnalysisGraph
 from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState, StateImageReference
 from app.agent.tools import NutritionToolAdapter
+from app.agent.tools import NutritionServiceToolAdapter
+from app.nutrition.schemas import QualifiedFood, NutritionValues
+from app.nutrition.service import NutritionService
 from app.providers.reasoning.dto import ProviderFailureKind
 from app.providers.reasoning.fake import FakeReasoningModelProvider
 from app.providers.vision.dto import VisionMealItemDTO
@@ -26,6 +29,29 @@ class _UnusedTools:
 
     def validate_nutrition_result(self, request: object) -> object:  # pragma: no cover - guard
         raise AssertionError(f"missing grams must interrupt before validation: {request!r}")
+
+
+class _FoodRepository:
+    def __init__(self, food: QualifiedFood) -> None:
+        self._food = food
+
+    def search_qualified_foods(self, *, normalized_query: str, limit: int) -> list[QualifiedFood]:
+        return [self._food] if normalized_query == "米饭" else []
+
+    def get_qualified_food(self, *, food_id: uuid.UUID, catalog_version: str) -> QualifiedFood | None:
+        return self._food if (food_id, catalog_version) == (self._food.id, self._food.catalog_version) else None
+
+
+def _nutrition_tools() -> NutritionToolAdapter:
+    food = QualifiedFood(
+        id=uuid.uuid4(), canonical_name="熟米饭", catalog_version="fdc-test-v1",
+        prepared_state="cooked", source_name="test-source", source_url="https://example.test/source",
+        license_name="CC0", aliases=("米饭",),
+        nutrients_per_100g=NutritionValues(
+            energy_kcal=Decimal("130"), protein_g=Decimal("2.7"), fat_g=Decimal("0.3"), carbohydrate_g=Decimal("28"),
+        ),
+    )
+    return NutritionServiceToolAdapter(service=NutritionService(repository=_FoodRepository(food)))
 
 
 def _state() -> MealAgentState:
@@ -99,3 +125,22 @@ def test_outcome_unknown_does_not_retry_the_same_image() -> None:
     assert result.status is AgentRuntimeStatus.FAILED
     assert result.vision_invocation_status == "outcome_unknown"
     assert len(vision.calls) == 1
+
+
+def test_estimated_weight_reaches_only_deterministic_nutrition_and_is_reported() -> None:
+    vision = FakeVisionModelProvider()
+    vision.queue_result(
+        [VisionMealItemDTO(item_id="rice-1", food_name="米饭", estimated_grams=Decimal("100"), confidence=Decimal("0.9"))]
+    )
+    graph = MealAnalysisGraph(
+        provider=FakeReasoningModelProvider(), vision_provider=vision, tools=_nutrition_tools()
+    )
+
+    result = asyncio.run(graph.ainvoke(_state()))
+
+    assert result.status is AgentRuntimeStatus.COMPLETED
+    assert result.report is not None
+    item = result.report["items"][0]
+    assert item["energy_kcal"] == "130.0"
+    assert item["is_estimated"] is True
+    assert item["estimate_confidence"] == "0.9"

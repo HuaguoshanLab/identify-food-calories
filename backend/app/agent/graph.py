@@ -459,6 +459,13 @@ class MealAnalysisGraph:
                         unaccounted.append(item.item_id)
                     updated.append(item.model_copy(update={"is_dirty": False, "nutrients": None}))
                     continue
+                if (
+                    item.estimate_confidence is not None
+                    and item.estimate_confidence < Decimal("0.7")
+                ):
+                    questions.append(_food_question(item, (search.selected_food,)))
+                    updated.append(item.model_copy(update={"is_dirty": False, "nutrients": None}))
+                    continue
                 selected_food_id = search.selected_food.id
                 catalog_version = search.selected_food.catalog_version
             if tool_calls >= 12:
@@ -699,6 +706,8 @@ def _build_report(state: MealAgentState, *, waiting: bool) -> dict[str, object]:
                 "item_id": item.item_id,
                 "name": item.normalized_name,
                 "grams": str(item.grams),
+                "is_estimated": item.is_estimated,
+                "estimate_confidence": str(item.estimate_confidence) if item.estimate_confidence is not None else None,
                 "energy_kcal": str(nutrients.energy_kcal.quantize(Decimal("0.1"))),
                 "protein_g": str(nutrients.protein_g.quantize(Decimal("0.1"))),
                 "fat_g": str(nutrients.fat_g.quantize(Decimal("0.1"))),
@@ -710,7 +719,13 @@ def _build_report(state: MealAgentState, *, waiting: bool) -> dict[str, object]:
             for item, nutrients in values
         ],
         "understood_items": [
-            {"item_id": item.item_id, "name": item.normalized_name, "grams": str(item.grams) if item.grams is not None else None}
+            {
+                "item_id": item.item_id,
+                "name": item.normalized_name,
+                "grams": str(item.grams) if item.grams is not None else None,
+                "is_estimated": item.is_estimated,
+                "estimate_confidence": str(item.estimate_confidence) if item.estimate_confidence is not None else None,
+            }
             for item in state.items
         ],
         "questions": [question.model_dump(mode="json") for question in state.clarification_questions],
