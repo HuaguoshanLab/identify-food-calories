@@ -32,6 +32,16 @@ def test_code_eval_rejects_expected_only_static_results(tmp_path: Path) -> None:
         verify_code_eval(dataset=_dataset(), result=result_path)
 
 
+def test_code_eval_hashes_the_real_provider_runtime_path() -> None:
+    """A release cannot certify Fake-only behavior while main selects a different provider."""
+
+    from evals.evaluate_phase2 import _implementation_hashes
+
+    hashes = _implementation_hashes(Path(__file__).resolve().parents[2])
+
+    assert {"provider_factory", "deepseek_adapter", "runtime"} <= set(hashes)
+
+
 def test_release_failure_fixtures_cover_each_required_gate() -> None:
     from evals.evaluate_phase2 import REQUIRED_FAILURE_FIXTURES, load_failure_fixtures
 
@@ -95,6 +105,25 @@ def _synthetic_signoff_payload() -> dict[str, object]:
     }
 
 
+def _rebind_release_inputs(signoff: dict[str, object], promptfoo: dict[str, object]) -> None:
+    """Keep synthetic release assertions independent from the committed human evidence."""
+
+    from evals.evaluate_phase2 import file_hash
+
+    code_eval_hash = file_hash(Path("evals/phase2-code-eval.json"))
+    signoff["code_eval_hash"] = code_eval_hash
+    reviews = signoff.get("reviews")
+    judges = signoff.get("judge_scores")
+    assert isinstance(reviews, list) and isinstance(judges, list)
+    for review in reviews:
+        assert isinstance(review, dict)
+        review["code_eval_hash"] = code_eval_hash
+    for judge in judges:
+        assert isinstance(judge, dict)
+        judge["code_eval_hash"] = code_eval_hash
+    promptfoo["code_eval_hash"] = code_eval_hash
+
+
 def _validate_signoff_without_machine_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, payload: dict[str, object]) -> None:
     from evals import evaluate_phase2
 
@@ -145,6 +174,7 @@ def test_release_recomputes_metrics_from_hash_bound_pairs(tmp_path: Path) -> Non
     code_eval = Path("evals/phase2-code-eval.json")
     signoff = json.loads(Path("evals/expert-signoff-phase2.json").read_text(encoding="utf-8"))
     promptfoo = json.loads(Path("evals/promptfoo-release-phase2-v4.json").read_text(encoding="utf-8"))
+    _rebind_release_inputs(signoff, promptfoo)
     medium_ids = [f"phase02-{number:03d}" for number in range(6, 11)]
     paired_scores = dict(zip(medium_ids, [3, 4, 4, 5, 5], strict=True))
     for review in signoff["reviews"]:
@@ -180,11 +210,18 @@ def test_release_fails_closed_for_constant_real_medium_pairs(tmp_path: Path) -> 
     from evals.release_phase2 import build_release, verify_release
 
     release_path = tmp_path / "release.json"
+    signoff = json.loads(Path("evals/expert-signoff-phase2.json").read_text(encoding="utf-8"))
+    promptfoo = json.loads(Path("evals/promptfoo-release-phase2-v4.json").read_text(encoding="utf-8"))
+    _rebind_release_inputs(signoff, promptfoo)
+    signoff_path = tmp_path / "signoff.json"
+    promptfoo_path = tmp_path / "promptfoo.json"
+    signoff_path.write_text(json.dumps(signoff), encoding="utf-8")
+    promptfoo_path.write_text(json.dumps(promptfoo), encoding="utf-8")
     release = build_release(
         dataset=_dataset(),
         code_eval=Path("evals/phase2-code-eval.json"),
-        signoff=Path("evals/expert-signoff-phase2.json"),
-        promptfoo=Path("evals/promptfoo-release-phase2-v4.json"),
+        signoff=signoff_path,
+        promptfoo=promptfoo_path,
         output=release_path,
     )
 

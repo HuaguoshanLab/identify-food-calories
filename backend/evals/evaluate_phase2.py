@@ -101,6 +101,11 @@ def _implementation_hashes(root: Path) -> dict[str, str]:
         "evaluator": root / "evals/evaluate_phase2.py",
         "graph": root / "app/agent/graph.py",
         "provider": root / "app/providers/reasoning/fake.py",
+        # The frozen execution uses a Fake Provider, but the release evidence must also bind
+        # the production selection path. Otherwise a broken runtime factory can evade review.
+        "provider_factory": root / "app/providers/reasoning/factory.py",
+        "deepseek_adapter": root / "app/providers/reasoning/deepseek.py",
+        "runtime": root / "app/main.py",
         "tools": root / "app/agent/tools.py",
         "nutrition_service": root / "app/nutrition/service.py",
         "catalog": root / "app/nutrition/data/fdc-seed-v1.json",
