@@ -27,6 +27,14 @@ MAX_COMPLETION_TOKENS = 800
 # older 3,136 value applies to earlier VL families and causes the current
 # Model Studio endpoint to reject otherwise valid image requests.
 MIN_PIXELS = 65_536
+VISION_JSON_CONTRACT = (
+    'Return JSON only, with exactly this top-level object: '
+    '{"items":[{"item_id":"item-1","food_name":"string","preparation":"string or null",'
+    '"portion_clue":"string or null","estimated_grams":number or null,"confidence":number}]}. '
+    'Use one item per visible food. item_id must be a short unique identifier. confidence must be '
+    'a number from 0 to 1. estimated_grams must be a positive number in grams when visible, otherwise null. '
+    'Do not include nutrition values, explanations, Markdown, or any other fields.'
+)
 
 
 class QwenVisionModelProvider:
@@ -134,7 +142,7 @@ class QwenVisionModelProvider:
             "model": self._model,
             "messages": [{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": data_url, "min_pixels": MIN_PIXELS, "max_pixels": request.pixel_budget}},
-                {"type": "text", "text": "Return JSON only. Identify meal items, preparation, portion clues, estimated grams and confidence. Do not provide nutrition values or reasoning."},
+                {"type": "text", "text": VISION_JSON_CONTRACT},
             ]}],
             "response_format": {"type": "json_object"},
             "enable_thinking": False,

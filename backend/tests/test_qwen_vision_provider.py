@@ -12,7 +12,7 @@ import pytest
 from app.images.schemas import ValidatedImageReference
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
 from app.providers.vision.dto import VisionMealRequest
-from app.providers.vision.qwen import MIN_PIXELS, QwenPriceTier, QwenVisionModelProvider
+from app.providers.vision.qwen import MIN_PIXELS, VISION_JSON_CONTRACT, QwenPriceTier, QwenVisionModelProvider
 
 
 def _request() -> VisionMealRequest:
@@ -53,6 +53,8 @@ def test_qwen_request_is_non_thinking_json_and_retries_one_safe_transient_respon
     sent = json.loads(requests[-1].content)
     assert sent["enable_thinking"] is False
     assert sent["response_format"] == {"type": "json_object"}
+    assert sent["messages"][0]["content"][1]["text"] == VISION_JSON_CONTRACT
+    assert '"estimated_grams":number or null' in sent["messages"][0]["content"][1]["text"]
     assert sent["messages"][0]["content"][0]["image_url"]["min_pixels"] == MIN_PIXELS
     assert sent["messages"][0]["content"][0]["image_url"]["max_pixels"] == 100_000
     assert sent["messages"][0]["content"][0]["image_url"]["url"].startswith("data:image/jpeg;base64,")

@@ -42,7 +42,7 @@ class VisionCallMetadataDTO(VisionProviderDTO):
     provider_request_id: SafeIdentifier | None = None
     usage: VisionUsageDTO
     latency_ms: int = Field(ge=0)
-    prompt_version: SafeIdentifier = "vision-meal.v1"
+    prompt_version: SafeIdentifier = "vision-meal.v2"
     schema_version: SafeIdentifier = "vision-provider.v1"
 
 
@@ -50,7 +50,7 @@ class VisionMealRequest(VisionProviderDTO):
     """A provider receives only this normalized temporary handle, never an upload body."""
 
     image: ValidatedImageReference
-    prompt_version: SafeIdentifier = "vision-meal.v1"
+    prompt_version: SafeIdentifier = "vision-meal.v2"
     schema_version: SafeIdentifier = "vision-provider.v1"
     model_alias: SafeIdentifier
     pixel_budget: int = Field(gt=0, le=20_000_000)
