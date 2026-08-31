@@ -54,6 +54,7 @@ class VisionMealRequest(VisionProviderDTO):
     schema_version: SafeIdentifier = "vision-provider.v1"
     model_alias: SafeIdentifier
     pixel_budget: int = Field(gt=0, le=20_000_000)
+    request_key: SafeIdentifier = Field(default_factory=lambda: uuid4().hex)
 
 
 class VisionMealItemDTO(VisionProviderDTO):

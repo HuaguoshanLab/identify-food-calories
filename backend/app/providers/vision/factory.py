@@ -41,6 +41,7 @@ def create_vision_provider(
         or not settings.qwen_model
         or not settings.qwen_region
         or not settings.qwen_deployment_scope
+        or not settings.qwen_base_url
     ):
         raise ConfigurationError("Qwen provider requires API key, model, region and deployment scope")
     try:
