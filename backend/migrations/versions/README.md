@@ -20,3 +20,4 @@
 | `0004_agent_core.py` | 无业务 seed 的 Agent ledger、删除意图与版本化 nutrition catalog schema |
 | `0005_nutrition_catalog_content_hash.py` | 为 immutable nutrition catalog version 持久化 content hash，拒绝同版本覆盖 |
 | `0006_multimodal_images.py` | 图片最小生命周期与视觉调用 metadata；只存私有 handle 和安全计量，不存原图或模型原文。 |
+| `0007_meal_records_memory_ledger.py` | 用户确认的餐食营养快照、偏好记忆本地授权账本与外部删除 outbox schema。 |

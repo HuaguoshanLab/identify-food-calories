@@ -1,0 +1,1 @@
+"""Meal-record domain package."""

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
+from app.records.api import router as meal_records_router
 from app.agent.graph import AgentRuntime, AgentRuntimeFactory, MealAnalysisGraph
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.agent.service import RetentionPolicy
@@ -152,6 +153,7 @@ def create_app(
     application.include_router(admin_router)
     application.include_router(account_recovery_router)
     application.include_router(agent_router)
+    application.include_router(meal_records_router)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(

@@ -23,3 +23,4 @@
 | `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |
 | `test_image_safety.py` | 锁定图片真实解码、metadata 剥离、私有临时存储与到期删除边界。 |
 | `test_vision_provider.py` | 锁定 Vision DTO、Fake trace、失败类别与 test/production Provider 选择。 |
+| `test_meal_record_api.py` | 餐食记录认证、OpenAPI 与安全 DTO 的 HTTP 契约。 |

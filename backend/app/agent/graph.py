@@ -727,6 +727,8 @@ def _build_report(state: MealAgentState, *, waiting: bool) -> dict[str, object]:
             {
                 "item_id": item.item_id,
                 "name": item.normalized_name,
+                "food_id": str(item.food_id),
+                "catalog_version": item.catalog_version,
                 "grams": str(item.grams),
                 "is_estimated": item.is_estimated,
                 "estimate_confidence": str(item.estimate_confidence) if item.estimate_confidence is not None else None,

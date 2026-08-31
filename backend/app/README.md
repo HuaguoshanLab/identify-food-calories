@@ -25,3 +25,4 @@
 | `images/` | 上传图片的安全解码、metadata 剥离与私有临时引用边界。 |
 | `nutrition/` | 受控营养目录、确定性计算/校验 Service 与 SQLAlchemy adapter |
 | `agent/` | Agent 权威运行账本、JSON-safe State、工具适配器与图编排合同 |
+| `records/` | 用户确认的餐食快照、记忆本地授权账本与外部删除 outbox |
