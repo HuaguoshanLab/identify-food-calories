@@ -7,12 +7,12 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev": "vite --host 127.0.0.1 --port 5178 --strictPort",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "verify:production-bundle": "npm run build && ! grep -R -F '127.0.0.1:8000' dist",
-    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "preview": "vite preview --host 127.0.0.1 --port 5178 --strictPort",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
