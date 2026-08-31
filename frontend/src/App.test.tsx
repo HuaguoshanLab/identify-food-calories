@@ -71,21 +71,21 @@ describe('App', () => {
     stubAuthenticatedIdentity()
     renderApp(['/app'])
 
-    expect(await screen.findByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
     expect(screen.getByTestId('pathname')).toHaveTextContent('/app/analyze')
 
     await user.click(screen.getByRole('link', { name: '记录' }))
     expect(await screen.findByRole('heading', { name: '记录' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '测试返回' }))
-    expect(await screen.findByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
   })
 
   it('uses the tab shell for a direct tab route and the detail shell without tab navigation', async () => {
     stubAuthenticatedIdentity()
     const { unmount } = renderApp(['/app/analyze'])
 
-    expect(await screen.findByRole('heading', { name: '描述这餐吃了什么' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '主要导航' })).toBeInTheDocument()
     unmount()
 
@@ -100,7 +100,7 @@ describe('App', () => {
     stubAuthenticatedIdentity()
     const analyzeRoute = renderApp(['/app/analyze'])
 
-    await screen.findByRole('heading', { name: '描述这餐吃了什么' })
+    await screen.findByRole('heading', { name: '分析这餐' })
     await user.click(screen.getByRole('link', { name: '我的' }))
     expect(await screen.findByRole('heading', { name: '我的' })).toHaveFocus()
 

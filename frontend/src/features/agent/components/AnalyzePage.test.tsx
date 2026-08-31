@@ -100,6 +100,26 @@ describe('AnalyzePage', () => {
     expect(screen.getByText('合计 328.0 kcal')).toBeInTheDocument()
   })
 
+  it('does not present an all-unmatched meal as a complete zero-calorie report', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
+      report: {
+        items: [], unaccounted_items: ['目录外菜品'], is_partial: true,
+        totals: { energy_kcal: '0.0', protein_g: '0.0', fat_g: '0.0', carbohydrate_g: '0.0' },
+      },
+    }), { status: 201 }))
+    renderPage(request)
+
+    await user.type(screen.getByLabelText('餐食描述'), '目录外菜品 100 克')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+
+    expect(await screen.findByText('无法生成营养报告')).toBeInTheDocument()
+    expect(screen.getByText(/未匹配菜品：目录外菜品。/)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '营养分析报告' })).not.toBeInTheDocument()
+    expect(screen.queryByText('合计 0.0 kcal')).not.toBeInTheDocument()
+  })
+
   it('requires confirmation before closing the stream, cache, and thread after deletion', async () => {
     const user = userEvent.setup()
     const snapshotBody = {
