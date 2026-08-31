@@ -47,6 +47,16 @@ describe('layout foundations', () => {
     expect(screen.getByRole('heading', { name: '账号资料' })).toHaveClass('truncate')
   })
 
+  it('supports a feature-specific return destination', () => {
+    render(
+      <MemoryRouter>
+        <AppHeader backLabel="返回记录" backTo="/app/records" title="餐食记录" />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: '返回记录' })).toHaveAttribute('href', '/app/records')
+  })
+
   it('uses an entry header without a tab bar for public pages', () => {
     render(
       <MemoryRouter initialEntries={['/login']}>
