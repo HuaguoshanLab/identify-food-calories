@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: release_blocked
-stopped_at: Plan 02-18 executed; user retained the Spearman release contract, so Phase 02 remains blocked
+status: completed
+stopped_at: User manually accepted Phase 02 as complete while retaining its failed release evidence
 last_updated: "2026-08-31T00:00:00Z"
 last_activity: 2026-08-31
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 42
   completed_plans: 42
-  percent: 25
+  percent: 38
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-26)
 
 **Core value:** 让用户通过图片或自然语言得到可追问、可校验、可追溯、能记住个人偏好的饮食分析与规划结果。
-**Current focus:** Phase 02 — agent
+**Current focus:** Phase 03 — ready for discussion/planning
 
 ## Current Position
 
-Phase: 02 (agent) — RELEASE BLOCKED
+Phase: 02 (agent) — COMPLETED WITH RELEASE EXCEPTION
 Plan: 18 of 18 executed
-Status: 发布门禁未通过；不得标记 Phase 02 完成或启动依赖它的 Phase 03 实现
+Status: 用户已手动接受阶段工作完成；发布报告仍为 FAIL，不得陈述为 release PASS
 Last activity: 2026-08-31
 
-Progress: [██████████] 100% plans executed; release blocked
+Progress: [██████████] Phase 02 manually accepted; release evidence remains FAIL
 
 ## Performance Metrics
 
@@ -134,7 +134,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Promptfoo 正式 Judge 采用 phase02-judge-json-thinking-disabled.v4，串行 36-call、无缓存、零重试、JSON object 与 thinking.disabled 合同均安全绑定；实际 36/36 完成并以 usage 记账。
 - [Phase 02]: visual candidate 仅以精确 SHA 获批；official baseline 不因 Plan 02-17 而晋升。
 - [Phase 02]: Plan 02-18 的发布报告精确绑定数据集、code-eval、双角色签署和 Promptfoo 证据；当前真实评分序列导致 Spearman 未定义，发布结论为 FAIL，不能以相同分数或重试刷绿。
-- [Phase 02]: 用户于 2026-08-31 选择保留现有 Spearman 发布合同；本轮 `FAIL` 保持有效，Phase 02 继续 `release_blocked`，不为通过而重跑 Judge 或调整评分。
+- [Phase 02]: 用户于 2026-08-31 选择保留现有 Spearman 发布合同；本轮 `FAIL` 保持有效，不为通过而重跑 Judge 或调整评分。
+- [Phase 02]: 用户于 2026-08-31 手动接受 Phase 02 阶段工作完成，允许继续后续阶段；此决定不改变 `FAIL` 发布结论，也不允许对外宣称该阶段已发布通过。
 
 ### Pending Todos
 
@@ -142,7 +143,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 02]: 当前 24-case code-eval（文件 SHA `85971eb9…`）已完成双角色真实复审和独立 36-call Judge（实际计费上限 `0.00451584 CNY`）；新发布报告仍为 `FAIL`，因为五个 Judge 分数均为 4、Spearman 未定义。不得改分或重试刷绿；仍缺认证成功/错误/空态的内置浏览器矩阵。
+- [Phase 02]: 当前 24-case code-eval（文件 SHA `85971eb9…`）已完成双角色真实复审和独立 36-call Judge（实际计费上限 `0.00451584 CNY`）；新发布报告仍为 `FAIL`，因为五个 Judge 分数均为 4、Spearman 未定义。此发布限制不阻止后续阶段规划，但不得改分、重试刷绿或对外宣称发布通过；认证成功/错误/空态的内置浏览器矩阵仍未完成。
 - [Phase 3]: Qwen-VL 第三方图片处理地区、留存和删除承诺需在接入前核实。
 - [Phase 4]: Mem0 长期记忆必须验证用户隔离、可审计写入和删除链。
 
@@ -156,5 +157,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-08-31T00:00:00Z
-Stopped at: 02-18-PLAN.md 已人工收尾；Phase 02 处于 release_blocked。
+Stopped at: Phase 02 已手动接受完成；可进入 Phase 03 的讨论或规划。
 Resume file: .planning/phases/02-agent/02-18-SUMMARY.md

@@ -9,7 +9,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 ## Phases
 
 - [x] **Phase 1: 工程、身份与权限基座** — 建立 React/FastAPI/PostgreSQL、注册登录、会话轮换、RBAC 和教学规范。（阶段验收已完成）
-- [ ] **Phase 2: 可追问的 Agent 核心** — 建立 LangGraph 主图、餐食分析子图、确定性营养工具、Checkpoint 和有界循环。
+- [x] **Phase 2: 可追问的 Agent 核心** — 建立 LangGraph 主图、餐食分析子图、确定性营养工具、Checkpoint 和有界循环。（用户手动接受阶段完成；发布报告仍为 FAIL）
 - [ ] **Phase 3: 多模态餐食分析闭环** — 接入安全图片上传与 Qwen-VL，多菜识别、份量追问、校验和最终报告。
 - [ ] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。
 - [ ] **Phase 5: 饮食规划子图** — 根据身体目标生成并校验餐单，支持用户反馈后的 Human-in-the-loop 调整。
@@ -77,7 +77,7 @@ Plans:
 4. 最大循环、工具调用、超时和错误终止均有确定性状态图测试。
 5. DeepSeek Provider 与 Fake Provider 可互换；测试和本地演示不强制消耗付费 API。
 
-**Plans:** 18/18 plans executed; **Release:** blocked（用户已保留当前 Spearman 合同；真实专家/Judge 配对分数为常数，Spearman 未定义；内置浏览器认证矩阵未完成）
+**Plans:** 18/18 plans executed; **Phase status:** 用户于 2026-08-31 手动接受完成；**Release:** FAIL（保留当前 Spearman 合同；真实专家/Judge 配对分数为常数，Spearman 未定义；内置浏览器认证矩阵未完成）
 
 **Wave 1**
 
@@ -140,7 +140,7 @@ Plans:
 
 **Wave 15** *(blocked on Wave 14 completion)*
 
-- [x] 02-18-PLAN.md — 已生成发布报告、晋升批准视觉并补齐教学文档；发布门禁仍阻断，不能标记 Phase 完成
+- [x] 02-18-PLAN.md — 已生成发布报告、晋升批准视觉并补齐教学文档；发布门禁为 FAIL，但 Phase 由用户手动接受完成
 
 ### Phase 3: 多模态餐食分析闭环
 
