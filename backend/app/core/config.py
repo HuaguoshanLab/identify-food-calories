@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal, TypeAlias
 
 from pydantic import SecretStr, model_validator
@@ -50,6 +51,10 @@ class Settings(BaseSettings):
     retention_audit_days: int = 30
     retention_deletion_sla_hours: int = 24
     retention_poll_interval_seconds: int = 300
+    image_max_bytes: int = 10 * 1024 * 1024
+    image_max_pixels: int = 20_000_000
+    image_temporary_directory: Path = Path("/tmp/food-agent-images")
+    image_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -138,6 +143,21 @@ class Settings(BaseSettings):
                 raise ConfigurationError(f"{variable} must be explicitly configured in production")
         if self.retention_deletion_sla_hours * 3600 <= self.retention_poll_interval_seconds:
             raise ConfigurationError("retention deletion SLA must exceed the poll interval")
+
+        image_values = {
+            "IMAGE_MAX_BYTES": self.image_max_bytes,
+            "IMAGE_MAX_PIXELS": self.image_max_pixels,
+            "IMAGE_TTL_SECONDS": self.image_ttl_seconds,
+        }
+        for variable, value in image_values.items():
+            if value <= 0:
+                raise ConfigurationError(f"{variable} must be positive")
+            if variable.lower() not in self.model_fields_set:
+                raise ConfigurationError(f"{variable} must be explicitly configured in production")
+        if "image_temporary_directory" not in self.model_fields_set:
+            raise ConfigurationError("IMAGE_TEMPORARY_DIRECTORY is required in production")
+        if not self.image_temporary_directory.is_absolute() or self.image_temporary_directory == Path("/"):
+            raise ConfigurationError("IMAGE_TEMPORARY_DIRECTORY must be a private absolute directory")
 
         return self
 

@@ -22,5 +22,6 @@
 | `accounts/` | 密码恢复 Service、Repository port 与 HTTP 契约 |
 | `notifications/` | 可替换邮件 Provider port 与本地 SMTP adapter |
 | `providers/` | 外部模型 Provider 的独立 Port、DTO、Adapter 与测试替身 |
+| `images/` | 上传图片的安全解码、metadata 剥离与私有临时引用边界。 |
 | `nutrition/` | 受控营养目录、确定性计算/校验 Service 与 SQLAlchemy adapter |
 | `agent/` | Agent 权威运行账本、JSON-safe State、工具适配器与图编排合同 |

@@ -21,3 +21,4 @@
 | `test_phase2_eval_contract.py` | 验证机器评测证据拒绝静态期望冒充，以及发布失败夹具覆盖 |
 | `test_nutrition_importer.py` | 验证离线 FDC manifest hash、资格边界与幂等 import 语义 |
 | `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |
+| `test_image_safety.py` | 锁定图片真实解码、metadata 剥离、私有临时存储与到期删除边界。 |
