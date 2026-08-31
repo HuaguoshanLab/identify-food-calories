@@ -6,7 +6,6 @@ only its provider/tool ports; SSE merely replays safe persisted events and never
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import uuid
@@ -102,7 +101,7 @@ def _command_hash(text: str) -> dict[str, object]:
     return {"kind": "description", "input_hash": hashlib.sha256(text.encode("utf-8")).hexdigest()}
 
 
-def _execute(
+async def _execute(
     *,
     service: AgentService,
     runtime: AgentRuntime,
@@ -112,28 +111,26 @@ def _execute(
     resume_payload: dict[str, object] | None = None,
 ) -> None:
     cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
-    asyncio.run(
-        service.execute_run(
-            run_id=run_id,
-            user_id=user_id,
-            graph=runtime.graph,
-            checkpointer=runtime.checkpointer,
-            input_text=text,
-            resume_payload=resume_payload,
-        )
+    await service.execute_run(
+        run_id=run_id,
+        user_id=user_id,
+        graph=runtime.graph,
+        checkpointer=runtime.checkpointer,
+        input_text=text,
+        resume_payload=resume_payload,
     )
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)
-def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentThreadSnapshot:
+async def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentThreadSnapshot:
     thread = service.create_thread(user_id=principal)
     run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
-    _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
+    await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
 
 @router.post("/threads/{thread_id}/input", operation_id="submitAgentInput", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)
-def submit_agent_input(
+async def submit_agent_input(
     thread_id: uuid.UUID,
     payload: AgentInputRequest,
     request: Request,
@@ -145,16 +142,14 @@ def submit_agent_input(
     except AgentThreadUnavailable:
         raise _unavailable() from None
     runtime = _runtime(request)
-    resume_payload = asyncio.run(
-        service.resume_payload_for_text(
-            checkpointer=runtime.checkpointer, thread_id=thread_id, text=payload.text
-        )
+    resume_payload = await service.resume_payload_for_text(
+        checkpointer=runtime.checkpointer, thread_id=thread_id, text=payload.text
     )
     if latest is not None and latest.status == "waiting_input":
         if resume_payload is None:
             return AgentCommandAcceptedResponse(thread_id=thread_id, status=AgentThreadStatus.WAITING)
         run = latest
-        _execute(
+        await _execute(
             service=service,
             runtime=runtime,
             run_id=run.id,
@@ -175,7 +170,7 @@ def submit_agent_input(
             command_key=f"correction-{uuid.uuid4()}",
             canonical_command=_command_hash(payload.text),
         )
-        _execute(
+        await _execute(
             service=service,
             runtime=runtime,
             run_id=run.id,
@@ -189,7 +184,7 @@ def submit_agent_input(
         command_key=f"input-{uuid.uuid4()}",
         canonical_command=_command_hash(payload.text),
     )
-    _execute(service=service, runtime=runtime, run_id=run.id, user_id=principal, text=payload.text)
+    await _execute(service=service, runtime=runtime, run_id=run.id, user_id=principal, text=payload.text)
     return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
 
 

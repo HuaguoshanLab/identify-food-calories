@@ -195,14 +195,12 @@ class AgentService:
             payload={"run_id": str(run.id)},
             safe_summary="分析任务正在运行。",
         )
-        previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
-        if resume_payload is None and input_text is None:
-            run.status = "failed"
-            run.failure_code = "MISSING_AGENT_COMMAND"
-            run.finished_at = self._now()
-            self._commit_or_rollback()
-            return run
         try:
+            previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
+            if resume_payload is None and input_text is None:
+                return await self._fail_run(
+                    run=run, user_id=user_id, code="MISSING_AGENT_COMMAND"
+                )
             if resume_payload is not None and previous is not None:
                 # Command is intentionally constructed at the API/service recovery boundary.  The
                 # graph consumes only its validated JSON body and therefore never needs HTTP or ORM.
@@ -233,7 +231,14 @@ class AgentService:
                 )
         except GraphRecursionError:
             return await self._fail_run(run=run, user_id=user_id, code="GRAPH_RECURSION_LIMIT")
-        await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
+        except Exception:
+            # A failed provider/checkpoint call must never strand a run in "running".
+            return await self._fail_run(run=run, user_id=user_id, code="RUNTIME_FAILURE")
+        try:
+            await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
+        except Exception:
+            # The report is not resumable until its checkpoint is durable, so fail closed.
+            return await self._fail_run(run=run, user_id=user_id, code="CHECKPOINT_PERSIST_FAILED")
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
         # A correction may create a new ledger run from an old thread checkpoint.  The state
