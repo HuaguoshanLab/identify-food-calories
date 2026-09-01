@@ -156,7 +156,7 @@ Plans:
 4. 结果页显示逐项营养与整餐汇总，并允许用户确认或修正。
 5. 冻结样本报告识别、归一化与估重基线，不能只展示成功案例。
 
-**Plans:** 5/5 plans executed; **Phase status:** 发布证据已获用户批准；UAT 4/4 通过。
+**Plans:** 5/5 plans complete
 
 ### Phase 4: 餐食记录与长期记忆
 
@@ -220,7 +220,7 @@ Plans:
 | 1. 工程、身份与权限基座 | 14/14 | Completed | 2026-08-28 |
 | 01.1. H5 UI 基座与现有页面迁移 | 10/10 | Complete   | 2026-08-28 |
 | 2. 可追问的 Agent 核心 | 17/18 | In Progress|  |
-| 3. 多模态餐食分析闭环 | 5/5 | Ready for verification |  |
+| 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | Pending | 0/TBD | - |
 | 6. 用户看板与后台管理 | Pending | 0/TBD | - |
