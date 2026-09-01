@@ -34,6 +34,8 @@ class RetentionRunStats:
     deleted_images: int = 0
     deleted_memories: int = 0
     failed_memory_deletions: int = 0
+    provisioned_memories: int = 0
+    failed_memory_provisions: int = 0
 
 
 class RetentionWorker:
@@ -46,6 +48,7 @@ class RetentionWorker:
         checkpointer: object,
         policy: RetentionPolicy,
         image_safety: ImageSafetyService,
+        memory_provider_work: Callable[[], tuple[int, int]] | None = None,
         memory_cleanup: Callable[[], tuple[int, int]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
@@ -57,6 +60,7 @@ class RetentionWorker:
         self._checkpointer = checkpointer
         self._policy = policy
         self._image_safety = image_safety
+        self._memory_provider_work = memory_provider_work
         self._memory_cleanup = memory_cleanup
         self._now = now or (lambda: datetime.now(UTC))
         self._task: asyncio.Task[None] | None = None
@@ -183,6 +187,8 @@ class RetentionWorker:
         deleted_images = 0
         deleted_memories = 0
         failed_memory_deletions = 0
+        provisioned_memories = 0
+        failed_memory_provisions = 0
         deletion_threads = {thread_id for thread_id, _user_id in sweep.due_deletions}
 
         for thread_id, user_id in sweep.due_deletions:
@@ -225,6 +231,8 @@ class RetentionWorker:
                 session.close()
         for image_id, user_id in sweep.expired_images:
             deleted_images += self._delete_image(image_id=image_id, user_id=user_id)
+        if self._memory_provider_work is not None:
+            provisioned_memories, failed_memory_provisions = self._memory_provider_work()
         if self._memory_cleanup is not None:
             deleted_memories, failed_memory_deletions = self._memory_cleanup()
         return RetentionRunStats(
@@ -235,6 +243,8 @@ class RetentionWorker:
             deleted_images=deleted_images,
             deleted_memories=deleted_memories,
             failed_memory_deletions=failed_memory_deletions,
+            provisioned_memories=provisioned_memories,
+            failed_memory_provisions=failed_memory_provisions,
         )
 
     def _delete_thread_images(

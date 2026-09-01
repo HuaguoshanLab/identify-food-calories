@@ -70,6 +70,7 @@ class PostgresLeaseSupervisor:
         checkpointer: object,
         policy: RetentionPolicy,
         image_safety: ImageSafetyService,
+        memory_provider_work: Callable[[], tuple[int, int]] | None = None,
         memory_cleanup: Callable[[], tuple[int, int]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> RetentionWorker:
@@ -83,6 +84,7 @@ class PostgresLeaseSupervisor:
                 checkpointer=checkpointer,
                 policy=policy,
                 image_safety=image_safety,
+                memory_provider_work=memory_provider_work,
                 memory_cleanup=memory_cleanup,
                 now=now,
             )

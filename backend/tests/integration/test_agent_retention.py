@@ -23,6 +23,9 @@ from app.auth.security import issue_access_token
 from app.auth.service import AuthenticationService
 from app.core.config import Settings, validate_test_database_configuration
 from app.main import PersistedAgentRuntimeFactory, create_app
+from app.memory.providers import FakeMemoryProvider
+from app.memory.repository import SqlAlchemyMemoryLedgerRepository
+from app.memory.service import MemoryService
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -298,3 +301,105 @@ def test_postgres_retention_lease_allows_one_worker_and_recovers_after_connectio
         second.close()
         first_engine.dispose()
         second_engine.dispose()
+
+
+def test_postgres_provisioning_windows_keep_delete_final() -> None:
+    """The worker's claim/recheck/bind transactions make delete win in every external-I/O window."""
+
+    if os.environ.get("APP_ENV") != "test":
+        return
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run(
+        [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
+        cwd=BACKEND_ROOT,
+        env=os.environ.copy(),
+        check=True,
+    )
+    engine = create_engine(test_url)
+    provider = FakeMemoryProvider()
+    now = datetime.now(UTC)
+
+    def service(session: Session) -> MemoryService:
+        return MemoryService(
+            repository=SqlAlchemyMemoryLedgerRepository(session),
+            provider=provider,
+            now=lambda: now,
+            commit=session.commit,
+            rollback=session.rollback,
+            retry_backoff_seconds=1,
+        )
+
+    try:
+        with Session(engine) as creator:
+            user = User(
+                id=uuid.uuid4(),
+                email=f"memory-race-{uuid.uuid4().hex}@example.test",
+                password_hash="argon2id-digest",
+                role=UserRole.USER.value,
+                is_active=True,
+                email_verified_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+            creator.add(user)
+            creator.commit()
+            before_claim = service(creator).create_direct(
+                user_id=user.id, category="avoidance", canonical_text="不吃辣"
+            )
+            service(creator).delete_memory(memory_id=before_claim.id, user_id=user.id)
+            assert service(creator).process_due_provisioning() == (0, 0)
+            assert provider.direct_records == {}
+
+            claimed = service(creator).create_direct(
+                user_id=user.id, category="avoidance", canonical_text="不吃花生"
+            )
+            intent = SqlAlchemyMemoryLedgerRepository(creator).claim_due_provisioning(
+                due_at=now, now=now
+            )
+            assert intent is not None
+            provision, _previous = intent
+            creator.commit()
+            with Session(engine) as deleter:
+                service(deleter).delete_memory(memory_id=claimed.id, user_id=user.id)
+            assert SqlAlchemyMemoryLedgerRepository(creator).recheck_claimed_provision(
+                provision_id=provision.id, user_id=user.id, now=now
+            ) is None
+            creator.commit()
+            assert provider.direct_records == {}
+
+            post_create = service(creator).create_direct(
+                user_id=user.id, category="avoidance", canonical_text="不吃香菜"
+            )
+            intent = SqlAlchemyMemoryLedgerRepository(creator).claim_due_provisioning(
+                due_at=now, now=now
+            )
+            assert intent is not None
+            provision, _previous = intent
+            creator.commit()
+            locked = SqlAlchemyMemoryLedgerRepository(creator).recheck_claimed_provision(
+                provision_id=provision.id, user_id=user.id, now=now
+            )
+            assert locked is not None
+            ledger, provision = locked
+            creator.commit()
+            external_id = provider.create_direct(
+                user_id=user.id,
+                category=ledger.category,
+                canonical_text=ledger.canonical_text,
+                request_key=provision.request_key,
+            )
+            with Session(engine) as deleter:
+                service(deleter).delete_memory(memory_id=post_create.id, user_id=user.id)
+            assert SqlAlchemyMemoryLedgerRepository(creator).bind_provision_or_schedule_deletion(
+                provision_id=provision.id,
+                user_id=user.id,
+                external_id=external_id,
+                now=now,
+            ) is False
+            creator.commit()
+            assert service(creator).process_due_deletions() == (1, 0)
+            assert service(creator).list_memories(user_id=user.id) == []
+            assert provider.direct_records == {}
+    finally:
+        engine.dispose()

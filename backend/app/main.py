@@ -99,6 +99,12 @@ class PersistedAgentRuntimeFactory:
                 poll_interval=timedelta(seconds=self._settings.retention_poll_interval_seconds),
             ),
             image_safety=image_safety,
+            memory_provider_work=lambda: _process_memory_provisioning(
+                session_factory=session_factory,
+                provider=memory_provider,
+                settings=self._settings,
+                now=self._retention_now,
+            ),
             memory_cleanup=lambda: _process_memory_deletions(
                 session_factory=session_factory,
                 provider=memory_provider,
@@ -214,6 +220,20 @@ def _process_memory_deletions(*, session_factory: Callable[[], Any], provider: o
             retry_max_attempts=settings.memory_retry_max_attempts,
             retry_backoff_seconds=settings.memory_retry_backoff_seconds,
         ).process_due_deletions()
+    finally:
+        session.close()
+
+
+def _process_memory_provisioning(*, session_factory: Callable[[], Any], provider: object, settings: Settings, now: Callable[[], datetime]) -> tuple[int, int]:
+    """The lifespan lease is the only caller that may drain direct-write intents."""
+    session = session_factory()
+    try:
+        return MemoryService(
+            repository=SqlAlchemyMemoryLedgerRepository(session), provider=cast(Any, provider), now=now,
+            commit=session.commit, rollback=session.rollback,
+            retry_max_attempts=settings.memory_retry_max_attempts,
+            retry_backoff_seconds=settings.memory_retry_backoff_seconds,
+        ).process_due_provisioning()
     finally:
         session.close()
 

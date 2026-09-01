@@ -54,3 +54,34 @@ class MemoryLedgerRepository(Protocol):
         self, *, ledger_id: uuid.UUID, user_id: uuid.UUID
     ) -> MemoryProvisionOutbox | None: ...
     def list_due_provisioning(self, *, due_at: datetime) -> list[MemoryProvisionOutbox]: ...
+    def claim_due_provisioning(
+        self, *, due_at: datetime, now: datetime
+    ) -> tuple[MemoryProvisionOutbox, str] | None: ...
+    def recheck_claimed_provision(
+        self, *, provision_id: uuid.UUID, user_id: uuid.UUID, now: datetime
+    ) -> tuple[PreferenceMemoryLedger, MemoryProvisionOutbox] | None: ...
+    def bind_provision_or_schedule_deletion(
+        self,
+        *,
+        provision_id: uuid.UUID,
+        user_id: uuid.UUID,
+        external_id: str,
+        now: datetime,
+    ) -> bool: ...
+    def record_provision_unknown(
+        self,
+        *,
+        provision_id: uuid.UUID,
+        user_id: uuid.UUID,
+        now: datetime,
+        retry_max_attempts: int,
+        retry_backoff_seconds: int,
+    ) -> None: ...
+    def ensure_deletion_intent(
+        self,
+        *,
+        ledger_id: uuid.UUID,
+        user_id: uuid.UUID,
+        request_key: str | None,
+        now: datetime,
+    ) -> MemoryDeletionOutbox: ...

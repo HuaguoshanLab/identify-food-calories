@@ -9,11 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from app.memory.ports import MemoryLedgerRepository, MemoryProvider
-from app.records.models import (
-    MemoryDeletionOutbox,
-    MemoryProvisionOutbox,
-    PreferenceMemoryLedger,
-)
+from app.records.models import PreferenceMemoryLedger
 
 
 ALLOWED_CATEGORIES = frozenset({"goal", "avoidance", "stable_preference"})
@@ -97,11 +93,6 @@ class MemoryService:
                 canonical_text=canonical_text,
             )
             captured.append(ledger)
-            intent = self._repository.get_provision_for_ledger(
-                ledger_id=ledger.id, user_id=user_id
-            )
-            if intent is not None and intent.status in {"pending", "outcome_unknown"}:
-                self._provision_direct(ledger=ledger, intent=intent)
         return captured
 
     def confirm_inference(self, *, memory_id: uuid.UUID, user_id: uuid.UUID) -> PreferenceMemoryLedger:
@@ -154,20 +145,11 @@ class MemoryService:
                 ledger_id=ledger.id, user_id=user_id
             )
             if ledger.external_memory_id is not None or provision is not None:
-                self._repository.add_outbox(
-                    MemoryDeletionOutbox(
-                        id=uuid.uuid4(),
-                        user_id=user_id,
-                        ledger_id=ledger.id,
-                        operation="delete_external_memory",
-                        request_key=provision.request_key if provision is not None else None,
-                        attempt=0,
-                        not_before=now,
-                        status="pending",
-                        created_at=now,
-                        updated_at=now,
-                        deleted_at=None,
-                    )
+                self._repository.ensure_deletion_intent(
+                    ledger_id=ledger.id,
+                    user_id=user_id,
+                    request_key=provision.request_key if provision is not None else None,
+                    now=now,
                 )
         self._persist(lambda: None)
 
@@ -201,22 +183,62 @@ class MemoryService:
         return succeeded, failed
 
     def process_due_provisioning(self) -> tuple[int, int]:
-        """Write only an existing local intent, resolving its opaque key before retrying."""
+        """Perform durable provider work outside locks; a deleted ledger can never reactivate."""
         succeeded = failed = 0
-        for intent in self._repository.list_due_provisioning(due_at=self._now()):
-            ledger = self._repository.get_for_user(
-                ledger_id=intent.ledger_id, user_id=intent.user_id
+        while True:
+            claimed = self._persist(
+                lambda: self._repository.claim_due_provisioning(
+                    due_at=self._now(), now=self._now()
+                )
             )
-            if ledger is None or ledger.deleted_at is not None:
-                intent.status = "cancelled"
-                intent.updated_at = self._now()
-                self._persist(lambda: None)
+            if claimed is None:
+                break
+            intent, previous_status = claimed
+            provision_id, user_id = intent.id, intent.user_id
+            prepared = self._persist(
+                lambda: self._repository.recheck_claimed_provision(
+                    provision_id=provision_id, user_id=user_id, now=self._now()
+                )
+            )
+            if prepared is None:
                 continue
+            ledger, intent = prepared
             try:
-                self._provision_direct(ledger=ledger, intent=intent)
-                succeeded += 1
+                external_id = self._provider.resolve_direct_by_request_key(
+                    user_id=user_id, request_key=intent.request_key
+                )
+                # An outcome-unknown retry may only resolve its opaque request key.  Retrying a
+                # blind create here would turn a timeout into an unbounded duplicate-write bug.
+                if external_id is None and previous_status != "outcome_unknown":
+                    external_id = self._provider.create_direct(
+                        user_id=user_id,
+                        category=ledger.category,
+                        canonical_text=ledger.canonical_text,
+                        request_key=intent.request_key,
+                    )
+                if external_id is None:
+                    raise TimeoutError("direct provider outcome remains unknown")
             except Exception:
+                self._persist(
+                    lambda: self._repository.record_provision_unknown(
+                        provision_id=provision_id,
+                        user_id=user_id,
+                        now=self._now(),
+                        retry_max_attempts=self._retry_max_attempts,
+                        retry_backoff_seconds=self._retry_backoff_seconds,
+                    )
+                )
                 failed += 1
+                continue
+            self._persist(
+                lambda: self._repository.bind_provision_or_schedule_deletion(
+                    provision_id=provision_id,
+                    user_id=user_id,
+                    external_id=external_id,
+                    now=self._now(),
+                )
+            )
+            succeeded += 1
         return succeeded, failed
 
     @staticmethod
@@ -241,48 +263,6 @@ class MemoryService:
         if preference is not None and preference.group("value").strip():
             return [("stable_preference", preference.group("value").strip())]
         return []
-
-    def _provision_direct(
-        self, *, ledger: PreferenceMemoryLedger, intent: MemoryProvisionOutbox
-    ) -> None:
-        now = self._now()
-        intent.status = "claimed"
-        intent.claimed_at = now
-        intent.updated_at = now
-        ledger.provisioning_status = "claimed"
-        ledger.updated_at = now
-        self._persist(lambda: None)
-        try:
-            external_id = self._provider.resolve_direct_by_request_key(
-                user_id=intent.user_id, request_key=intent.request_key
-            )
-            if external_id is None:
-                external_id = self._provider.create_direct(
-                    user_id=intent.user_id,
-                    category=ledger.category,
-                    canonical_text=ledger.canonical_text,
-                    request_key=intent.request_key,
-                )
-        except Exception:
-            intent.attempt += 1
-            intent.status = (
-                "failed" if intent.attempt >= self._retry_max_attempts else "outcome_unknown"
-            )
-            intent.not_before = now + timedelta(
-                seconds=self._retry_backoff_seconds * (2 ** (intent.attempt - 1))
-            )
-            intent.updated_at = self._now()
-            ledger.provisioning_status = intent.status
-            ledger.updated_at = intent.updated_at
-            self._persist(lambda: None)
-            raise
-        ledger.external_memory_id = external_id
-        ledger.provisioning_status = "provisioned"
-        ledger.updated_at = self._now()
-        intent.status = "provisioned"
-        intent.completed_at = ledger.updated_at
-        intent.updated_at = ledger.updated_at
-        self._persist(lambda: None)
 
     @staticmethod
     def _direct_request_key(

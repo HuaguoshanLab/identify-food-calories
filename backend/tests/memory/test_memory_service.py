@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -121,8 +121,87 @@ class FakeMemoryLedgerRepository:
         return [
             intent
             for intent in self.provision_outbox
-            if intent.status == "pending" and intent.not_before <= due_at
+            if intent.status in {"pending", "outcome_unknown"} and intent.not_before <= due_at
         ]
+
+    def claim_due_provisioning(
+        self, *, due_at: datetime, now: datetime
+    ) -> tuple[MemoryProvisionOutbox, str] | None:
+        for intent in self.list_due_provisioning(due_at=due_at):
+            ledger = self.ledgers[intent.ledger_id]
+            if not ledger.is_active or ledger.deleted_at is not None:
+                intent.status = "cancelled"
+                ledger.provisioning_status = "cancelled"
+                continue
+            previous_status = intent.status
+            intent.status = "claimed"
+            intent.claimed_at = now
+            ledger.provisioning_status = "claimed"
+            return intent, previous_status
+        return None
+
+    def recheck_claimed_provision(
+        self, *, provision_id: uuid.UUID, user_id: uuid.UUID, now: datetime
+    ) -> tuple[PreferenceMemoryLedger, MemoryProvisionOutbox] | None:
+        intent = next(intent for intent in self.provision_outbox if intent.id == provision_id)
+        ledger = self.ledgers[intent.ledger_id]
+        if intent.user_id != user_id or not ledger.is_active or ledger.deleted_at is not None:
+            intent.status = "cancelled"
+            ledger.provisioning_status = "cancelled"
+            return None
+        return ledger, intent
+
+    def bind_provision_or_schedule_deletion(
+        self, *, provision_id: uuid.UUID, user_id: uuid.UUID, external_id: str, now: datetime
+    ) -> bool:
+        intent = next(intent for intent in self.provision_outbox if intent.id == provision_id)
+        ledger = self.ledgers[intent.ledger_id]
+        intent.status = "provisioned"
+        if intent.user_id != user_id or not ledger.is_active or ledger.deleted_at is not None:
+            self.ensure_deletion_intent(
+                ledger_id=ledger.id, user_id=user_id, request_key=intent.request_key, now=now
+            )
+            return False
+        ledger.external_memory_id = external_id
+        ledger.provisioning_status = "provisioned"
+        return True
+
+    def record_provision_unknown(
+        self,
+        *,
+        provision_id: uuid.UUID,
+        user_id: uuid.UUID,
+        now: datetime,
+        retry_max_attempts: int,
+        retry_backoff_seconds: int,
+    ) -> None:
+        intent = next(intent for intent in self.provision_outbox if intent.id == provision_id)
+        ledger = self.ledgers[intent.ledger_id]
+        if intent.user_id != user_id or not ledger.is_active or ledger.deleted_at is not None:
+            intent.status = "cancelled"
+            ledger.provisioning_status = "cancelled"
+            return
+        intent.attempt += 1
+        intent.status = "failed" if intent.attempt >= retry_max_attempts else "outcome_unknown"
+        intent.not_before = now + timedelta(seconds=retry_backoff_seconds * (2 ** (intent.attempt - 1)))
+        ledger.provisioning_status = intent.status
+
+    def ensure_deletion_intent(
+        self, *, ledger_id: uuid.UUID, user_id: uuid.UUID, request_key: str | None, now: datetime
+    ) -> MemoryDeletionOutbox:
+        existing = next((outbox for outbox in self.outbox if outbox.ledger_id == ledger_id), None)
+        if existing is not None:
+            existing.status = "pending"
+            existing.request_key = request_key or existing.request_key
+            existing.not_before = now
+            return existing
+        outbox = MemoryDeletionOutbox(
+            id=uuid.uuid4(), user_id=user_id, ledger_id=ledger_id,
+            operation="delete_external_memory", request_key=request_key, attempt=0,
+            not_before=now, status="pending", created_at=now, updated_at=now, deleted_at=None,
+        )
+        self.outbox.append(outbox)
+        return outbox
 
     def list_due_outbox(self, *, due_at: datetime) -> list[MemoryDeletionOutbox]:
         return [outbox for outbox in self.outbox if outbox.status == "pending" and outbox.not_before <= due_at]
@@ -250,10 +329,9 @@ def test_explicit_preference_capture_uses_allowlist_and_single_infer_false_recor
     assert [(memory.category, memory.canonical_text) for memory in memories] == [("avoidance", "不吃辣")]
     assert [memory.id for memory in temporary] == [memories[0].id]
     assert rejected == []
-    assert [(call.operation, call.infer) for call in provider.calls] == [
-        ("resolve_direct", None),
-        ("create_direct", False),
-    ]
+    assert provider.calls == []
+    assert service.process_due_provisioning() == (1, 0)
+    assert [(call.operation, call.infer) for call in provider.calls] == [("resolve_direct", None), ("create_direct", False)]
     assert provider.direct_records == {
         provider.calls[-1].request_key: (user_id, "avoidance", "不吃辣", False)
     }

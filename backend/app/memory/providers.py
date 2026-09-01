@@ -85,6 +85,11 @@ class FakeMemoryProvider:
         if owner is not None and owner[0] != user_id:
             raise LookupError("memory is unavailable")
         self._memories.pop(external_id, None)
+        self._direct_records = {
+            request_key: record
+            for request_key, record in self._direct_records.items()
+            if f"fake-direct-{request_key}" != external_id
+        }
 
     def search(self, *, user_id: uuid.UUID, query: str, limit: int) -> list[MemorySearchHit]:
         normalized = query.casefold()
