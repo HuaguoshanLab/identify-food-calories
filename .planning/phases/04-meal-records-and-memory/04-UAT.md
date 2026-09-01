@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 04-meal-records-and-memory
 source: 04-01-PLAN.md, 04-02-PLAN.md, 04-03-PLAN.md, 04-04-PLAN.md (execution summaries are missing)
 started: 2026-08-31T12:03:49Z
-updated: 2026-09-01T03:17:45Z
+updated: 2026-09-01T03:23:16Z
 ---
 
 ## Current Test
@@ -26,43 +26,23 @@ result: pass
 
 ### 4. 长期偏好写入并在“我的”中可见
 expected: 在分析时明确表达稳定偏好或忌口后，该偏好会保存；“我的 → 饮食偏好与记忆”显示来源和更新时间，不暴露内部 ID、原始对话或向量分数。
-result: issue
-reported: "不符合 我写了 我不吃辣，点击分析，然后去饮食偏好与记忆中并没有保存"
-severity: major
-retest: "2026-09-01，在当前 5178 实例提交“米饭 100 克，我不吃辣”后，页面显示“分析未能完成”；访问 /app/me/memories 显示“暂时无法加载记忆”。没有生成临时偏好，因此未执行删除。"
+result: pass
+verified: "2026-09-01，重启服务后，在 5178 的分析页提交“米饭 100 克，我不吃辣”；报告显示“已参考你的忌口：不吃辣”，记忆列表显示“忌口 · 不吃辣 / 用户直接表达”。"
 
 ### 5. 长期偏好编辑和删除
 expected: 打开一条长期偏好可修改文字，保存后来源显示为“用户手动维护”；删除经确认后立刻从列表消失，后续建议不再引用它。
-result: skipped
-reason: "验收 4 未将明确忌口写入长期记忆，因此没有可编辑或删除的记录。"
+result: pass
+verified: "在真实浏览器将“不吃辣”改为“不吃很辣”并保存，列表来源变为“用户手动维护”；确认删除后立即显示空状态。"
 
 ## Summary
 
 total: 5
-passed: 3
-issues: 1
+passed: 5
+issues: 0
 pending: 0
-skipped: 1
+skipped: 0
 blocked: 0
 
 ## Gaps
 
-- truth: "在分析时明确表达稳定偏好或忌口后，该偏好会保存，并在“我的 → 饮食偏好与记忆”中可见。"
-  status: failed
-  reason: "User reported: 不符合 我写了 我不吃辣，点击分析，然后去饮食偏好与记忆中并没有保存"
-  severity: major
-  test: 4
-  root_cause: "分析图只检索已有的个人上下文，从未通过窄工具调用 MemoryService.create_direct()；该写入服务只有手动 POST /api/v1/memories 使用。"
-  artifacts:
-    - path: "backend/app/agent/graph.py"
-      issue: "分析输入只触发个人上下文读取，没有用户直接表达的长期记忆写入节点或工具调用。"
-    - path: "backend/app/memory/api.py"
-      issue: "create_direct() 只由手动记忆 API 调用，Agent 运行链路不可达。"
-  missing:
-    - "在 Agent 窄工具边界增加用户直接表达的偏好写入能力，Graph 不直接访问 Repository。"
-    - "将明确忌口/目标/稳定偏好映射为白名单 category 和 canonical_text，并保证 run 重放不重复写入。"
-    - "补 Agent、真实 PostgreSQL API、浏览器/E2E 的写入、隔离、编辑和删除回归测试。"
-  runtime_retest:
-    status: blocked
-    reason: "当前运行在 5178/8000 的用户服务未提供可工作的分析与记忆读取链路；自动 E2E 也因项目配置禁止复用该既有服务而无法启动。"
-  debug_session: ".planning/debug/phase-04-direct-memory-write.md"
+[none — direct-memory gap resolved and verified in the real browser]
