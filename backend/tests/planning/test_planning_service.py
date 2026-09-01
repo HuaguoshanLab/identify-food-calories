@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -12,23 +14,34 @@ from app.planning.schemas import (
     HEALTH_REFUSAL_MESSAGE,
     TARGET_POLICY_VERSION,
     ActivityLevel,
+    ControlledRecipe,
+    ControlledRecipeIngredient,
     DailyTarget,
+    MealSlot,
     PlanValidationAction,
     PlanningProfileInput,
     PreferenceReview,
 )
 from app.planning.service import PlanningService
+from app.nutrition.schemas import (
+    NutritionAction,
+    NutritionCalculationInput,
+    NutritionValues,
+    QualifiedFood,
+)
+from app.nutrition.service import NutritionService
 
 
 class FakePlanningRepository:
     """Records recipe access so health guards prove they run before retrieval."""
 
-    def __init__(self) -> None:
+    def __init__(self, recipes: list[ControlledRecipe] | None = None) -> None:
         self.recipe_search_calls = 0
+        self.recipes = recipes or []
 
-    def list_controlled_recipes(self, *, catalog_version: str) -> list[object]:
+    def list_controlled_recipes(self, *, catalog_version: str) -> list[ControlledRecipe]:
         self.recipe_search_calls += 1
-        return []
+        return self.recipes
 
 
 class FakeNutritionPort:
@@ -36,6 +49,41 @@ class FakeNutritionPort:
 
     def calculate_recipe_nutrients(self, *, recipe_id: str, catalog_version: str) -> object:
         raise AssertionError("target calculation must not call nutrition/recipe ports")
+
+
+class FakeRecipeNutritionRepository:
+    """Only returns the qualified catalog fixtures explicitly supplied by the contract."""
+
+    def __init__(self, foods: list[QualifiedFood]) -> None:
+        self.foods = foods
+
+    def search_qualified_foods(self, *, normalized_query: str, limit: int) -> list[QualifiedFood]:
+        return self.foods[:limit]
+
+    def get_qualified_food(
+        self, *, food_id: uuid.UUID, catalog_version: str
+    ) -> QualifiedFood | None:
+        return next(
+            (
+                food
+                for food in self.foods
+                if food.id == food_id and food.catalog_version == catalog_version
+            ),
+            None,
+        )
+
+
+class RecipeNutritionPort:
+    """Uses the real deterministic calculator; recipes never own nutrient totals."""
+
+    def __init__(self, foods: list[QualifiedFood]) -> None:
+        self._service = NutritionService(repository=FakeRecipeNutritionRepository(foods))
+
+    def calculate_nutrition(self, request: NutritionCalculationInput):
+        return self._service.calculate_nutrition(request)
+
+    def calculate_recipe_nutrients(self, *, recipe_id: str, catalog_version: str) -> object:
+        raise AssertionError("recipe totals must be recomputed per qualified ingredient")
 
 
 def confirmed_preferences() -> PreferenceReview:
@@ -54,6 +102,53 @@ def complete_profile(**changes: object) -> PlanningProfileInput:
     }
     values.update(changes)
     return PlanningProfileInput.model_validate(values)
+
+
+CATALOG_VERSION = "fdc-foundation-2026-04"
+
+
+def qualified_food(*, name: str, energy: str, grams: str = "100") -> QualifiedFood:
+    return QualifiedFood(
+        id=uuid.uuid4(),
+        canonical_name=name,
+        catalog_version=CATALOG_VERSION,
+        prepared_state="cooked",
+        source_name="Controlled test catalog",
+        source_url="https://example.invalid/catalog",
+        license_name="CC0 1.0",
+        nutrients_per_100g=NutritionValues(
+            energy_kcal=Decimal(energy),
+            protein_g=Decimal("10"),
+            fat_g=Decimal("2"),
+            carbohydrate_g=Decimal("20"),
+        ),
+    )
+
+
+def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> ControlledRecipe:
+    return ControlledRecipe(
+        id=uuid.uuid4(),
+        stable_id=f"recipe.{slot.value}.v1",
+        display_name=name,
+        recipe_version="controlled-recipes.v1",
+        catalog_version=CATALOG_VERSION,
+        meal_slots=(slot,),
+        portion_description="一份",
+        portion_grams=Decimal("100"),
+        method_tags=("快手",),
+        flavour_tags=("清淡",),
+        ingredients=(
+            ControlledRecipeIngredient(
+                food_id=food.id,
+                catalog_version=CATALOG_VERSION,
+                grams=Decimal("100"),
+                portion_description="一份",
+            ),
+        ),
+        source_reference="backend/app/planning/data/controlled-recipes.v1.json",
+        audited_at=datetime(2026, 9, 1, tzinfo=UTC),
+        audit_version="recipe-audit.v1",
+    )
 
 
 def test_target_policy_has_versioned_decimal_mifflin_and_amdr_ranges() -> None:
@@ -172,3 +267,116 @@ def test_public_dtos_are_frozen_and_reject_unknown_fields() -> None:
         PlanningProfileInput.model_validate({"height_cm": "170", "unknown": True})
     with pytest.raises(ValidationError):
         DailyTarget.model_validate({"unexpected": True})
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"source_kind": "third_party"},
+        {"license_name": "CC-BY-4.0"},
+        {"audit_status": "pending"},
+        {"audited_by_role": "admin"},
+        {"audited_at": None},
+        {"source_reference": ""},
+        {"recipe_version": ""},
+        {"catalog_version": ""},
+        {"audit_version": ""},
+        {"meal_slots": ()},
+        {"portion_grams": "0"},
+        {"method_tags": ()},
+        {"flavour_tags": ()},
+    ],
+)
+def test_controlled_recipe_rejects_missing_or_unapproved_r03_metadata(
+    changes: dict[str, object]
+) -> None:
+    food = qualified_food(name="测试食材", energy="100")
+    recipe = controlled_recipe(slot=MealSlot.BREAKFAST, food=food, name="测试早餐")
+
+    with pytest.raises(ValidationError):
+        ControlledRecipe.model_validate({**recipe.model_dump(), **changes})
+
+
+def test_controlled_recipe_rejects_catalog_mismatch_and_invalid_ingredient_portion() -> None:
+    food = qualified_food(name="测试食材", energy="100")
+    recipe = controlled_recipe(slot=MealSlot.BREAKFAST, food=food, name="测试早餐")
+
+    with pytest.raises(ValidationError):
+        ControlledRecipe.model_validate(
+            {
+                **recipe.model_dump(),
+                "ingredients": [
+                    {
+                        **recipe.ingredients[0].model_dump(),
+                        "catalog_version": "different-catalog.v1",
+                    }
+                ],
+            }
+        )
+    with pytest.raises(ValidationError):
+        ControlledRecipeIngredient.model_validate(
+            {
+                **recipe.ingredients[0].model_dump(),
+                "grams": "0",
+            }
+        )
+
+
+def test_daily_meal_candidates_have_public_d08_fields_and_catalog_recomputed_nutrition() -> None:
+    breakfast_food = qualified_food(name="燕麦", energy="100")
+    lunch_food = qualified_food(name="鸡胸肉", energy="150")
+    dinner_food = qualified_food(name="豆腐", energy="80")
+    recipes = [
+        controlled_recipe(slot=MealSlot.BREAKFAST, food=breakfast_food, name="燕麦早餐"),
+        controlled_recipe(slot=MealSlot.LUNCH, food=lunch_food, name="鸡胸肉午餐"),
+        controlled_recipe(slot=MealSlot.DINNER, food=dinner_food, name="豆腐晚餐"),
+    ]
+    service = PlanningService(
+        repository=FakePlanningRepository(recipes),
+        nutrition_port=RecipeNutritionPort([breakfast_food, lunch_food, dinner_food]),
+    )
+
+    result = service.compose_daily_meals(
+        catalog_version=CATALOG_VERSION,
+        preferences=confirmed_preferences(),
+    )
+
+    assert result.action is PlanValidationAction.PASS
+    assert tuple(meal.slot for meal in result.meals) == (
+        MealSlot.BREAKFAST,
+        MealSlot.LUNCH,
+        MealSlot.DINNER,
+    )
+    assert tuple(meal.display_name for meal in result.meals) == ("燕麦早餐", "鸡胸肉午餐", "豆腐晚餐")
+    assert all(meal.portion_description == "一份" for meal in result.meals)
+    assert all(meal.portion_grams == Decimal("100") for meal in result.meals)
+    assert all(meal.method_tags == ("快手",) for meal in result.meals)
+    assert all(meal.flavour_tags == ("清淡",) for meal in result.meals)
+    assert all(meal.matched_preference_summaries == ("偏好：清淡",) for meal in result.meals)
+    assert all(meal.matched_exclusion_summaries == () for meal in result.meals)
+    assert tuple(meal.nutrients.energy_kcal for meal in result.meals) == (
+        Decimal("100"),
+        Decimal("150"),
+        Decimal("80"),
+    )
+
+
+def test_composition_rejects_nonqualified_catalog_food_and_never_uses_stored_recipe_total() -> None:
+    food = qualified_food(name="未合格食材", energy="999")
+    recipe = controlled_recipe(slot=MealSlot.BREAKFAST, food=food, name="不能使用的早餐")
+    repository = FakePlanningRepository([recipe])
+    service = PlanningService(
+        repository=repository,
+        nutrition_port=RecipeNutritionPort([]),
+    )
+
+    result = service.compose_daily_meals(
+        catalog_version=CATALOG_VERSION,
+        preferences=confirmed_preferences(),
+    )
+
+    assert result.action is PlanValidationAction.REPLAN
+    assert result.meals == ()
+    assert result.safe_message == "没有同时满足受控来源、审核、目录资格和三餐槽位的候选。"
+    with pytest.raises(ValidationError):
+        ControlledRecipe.model_validate({**recipe.model_dump(), "stored_total": {"energy_kcal": "1"}})
