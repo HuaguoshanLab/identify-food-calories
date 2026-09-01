@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from hashlib import sha256
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -43,12 +44,33 @@ class MemoryService:
         self._retry_max_attempts = retry_max_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
 
-    def create_direct(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> PreferenceMemoryLedger:
+    def create_direct(
+        self,
+        *,
+        user_id: uuid.UUID,
+        category: str,
+        canonical_text: str,
+        source_run_id: uuid.UUID | None = None,
+    ) -> PreferenceMemoryLedger:
         category, canonical_text = self._validated(category=category, canonical_text=canonical_text)
-        external_id = self._provider.create(user_id=user_id, category=category, canonical_text=canonical_text)
         now = self._now()
-        ledger = PreferenceMemoryLedger(id=uuid.uuid4(), user_id=user_id, category=category, source_kind="user_statement", canonical_text=canonical_text, external_memory_id=external_id, is_active=True, created_at=now, updated_at=now, deleted_at=None)
-        return self._persist(lambda: self._repository.add_ledger(ledger))
+        request_key = self._direct_request_key(
+            user_id=user_id,
+            source_run_id=source_run_id,
+            category=category,
+            canonical_text=canonical_text,
+        )
+        return self._persist(
+            lambda: self._repository.get_or_create_direct_candidate(
+                user_id=user_id,
+                source_run_id=source_run_id,
+                category=category,
+                canonical_text=canonical_text,
+                request_key=request_key,
+                request_key_digest=sha256(request_key.encode()).hexdigest(),
+                now=now,
+            )
+        )
 
     def create_inference_proposal(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> PreferenceMemoryLedger:
         """Model inference is locally visible only after explicit confirmation, and never calls a Provider."""
@@ -98,8 +120,30 @@ class MemoryService:
         ledger.is_active = False
         ledger.deleted_at = now
         ledger.updated_at = now
-        if ledger.external_memory_id is not None:
-            self._repository.add_outbox(MemoryDeletionOutbox(id=uuid.uuid4(), user_id=user_id, ledger_id=ledger.id, operation="delete_external_memory", attempt=0, not_before=now, status="pending", created_at=now, updated_at=now, deleted_at=None))
+        if self._repository.cancel_pending_provision(
+            ledger_id=ledger.id, user_id=user_id, now=now
+        ):
+            ledger.provisioning_status = "cancelled"
+        else:
+            provision = self._repository.get_provision_for_ledger(
+                ledger_id=ledger.id, user_id=user_id
+            )
+            if ledger.external_memory_id is not None or provision is not None:
+                self._repository.add_outbox(
+                    MemoryDeletionOutbox(
+                        id=uuid.uuid4(),
+                        user_id=user_id,
+                        ledger_id=ledger.id,
+                        operation="delete_external_memory",
+                        request_key=provision.request_key if provision is not None else None,
+                        attempt=0,
+                        not_before=now,
+                        status="pending",
+                        created_at=now,
+                        updated_at=now,
+                        deleted_at=None,
+                    )
+                )
         self._persist(lambda: None)
 
     def process_due_deletions(self) -> tuple[int, int]:
@@ -132,6 +176,21 @@ class MemoryService:
         if category not in ALLOWED_CATEGORIES or not normalized:
             raise MemoryValidationError("invalid preference memory")
         return category, normalized
+
+    @staticmethod
+    def _direct_request_key(
+        *,
+        user_id: uuid.UUID,
+        source_run_id: uuid.UUID | None,
+        category: str,
+        canonical_text: str,
+    ) -> str:
+        """Opaque stable key: persistence never stores the user sentence as provenance."""
+        canonical_digest = sha256(canonical_text.encode()).hexdigest()
+        source = str(source_run_id) if source_run_id is not None else "manual"
+        return sha256(
+            f"direct-memory.v1|{user_id}|{source}|{category}|{canonical_digest}".encode()
+        ).hexdigest()
 
     def _persist(self, operation: Callable[[], object]):
         try:

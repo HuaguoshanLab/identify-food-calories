@@ -7,7 +7,11 @@ from datetime import datetime
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.records.models import MemoryDeletionOutbox, PreferenceMemoryLedger
+from app.records.models import (
+    MemoryDeletionOutbox,
+    MemoryProvisionOutbox,
+    PreferenceMemoryLedger,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,3 +34,20 @@ class MemoryLedgerRepository(Protocol):
     def list_active_for_user(self, *, user_id: uuid.UUID) -> list[PreferenceMemoryLedger]: ...
     def add_outbox(self, outbox: MemoryDeletionOutbox) -> MemoryDeletionOutbox: ...
     def list_due_outbox(self, *, due_at: datetime) -> list[MemoryDeletionOutbox]: ...
+    def get_or_create_direct_candidate(
+        self,
+        *,
+        user_id: uuid.UUID,
+        source_run_id: uuid.UUID | None,
+        category: str,
+        canonical_text: str,
+        request_key: str,
+        request_key_digest: str,
+        now: datetime,
+    ) -> PreferenceMemoryLedger: ...
+    def cancel_pending_provision(
+        self, *, ledger_id: uuid.UUID, user_id: uuid.UUID, now: datetime
+    ) -> bool: ...
+    def get_provision_for_ledger(
+        self, *, ledger_id: uuid.UUID, user_id: uuid.UUID
+    ) -> MemoryProvisionOutbox | None: ...

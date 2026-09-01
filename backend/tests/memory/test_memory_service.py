@@ -46,7 +46,7 @@ class FakeMemoryLedgerRepository:
         self,
         *,
         user_id: uuid.UUID,
-        source_run_id: uuid.UUID,
+        source_run_id: uuid.UUID | None,
         category: str,
         canonical_text: str,
         request_key: str,
@@ -105,6 +105,18 @@ class FakeMemoryLedgerRepository:
                 return True
         return False
 
+    def get_provision_for_ledger(
+        self, *, ledger_id: uuid.UUID, user_id: uuid.UUID
+    ) -> MemoryProvisionOutbox | None:
+        return next(
+            (
+                intent
+                for intent in self.provision_outbox
+                if intent.ledger_id == ledger_id and intent.user_id == user_id
+            ),
+            None,
+        )
+
     def list_due_outbox(self, *, due_at: datetime) -> list[MemoryDeletionOutbox]:
         return [outbox for outbox in self.outbox if outbox.status == "pending" and outbox.not_before <= due_at]
 
@@ -116,20 +128,20 @@ def _service(repo: FakeMemoryLedgerRepository, provider: FakeMemoryProvider) -> 
 def test_direct_statement_creates_active_audited_memory_and_inference_waits_for_confirmation() -> None:
     repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
     service = _service(repository, provider)
-    direct = service.create_direct(user_id=user_id, category="avoidance", canonical_text="  今天 不吃 辣  ")
+    direct = service.create_direct(user_id=user_id, source_run_id=uuid.uuid4(), category="avoidance", canonical_text="  今天 不吃 辣  ")
     proposal = service.create_inference_proposal(user_id=user_id, category="goal", canonical_text="控制体重")
     assert direct.is_active and direct.source_kind == "user_statement" and direct.canonical_text == "今天 不吃 辣"
     assert proposal.is_active is False and proposal.external_memory_id is None
-    assert [call.operation for call in provider.calls] == ["create"]
+    assert provider.calls == []
     confirmed = service.confirm_inference(memory_id=proposal.id, user_id=user_id)
-    assert confirmed.is_active and confirmed.external_memory_id is not None and [call.operation for call in provider.calls] == ["create", "create"]
+    assert confirmed.is_active and confirmed.external_memory_id is not None and [call.operation for call in provider.calls] == ["create"]
 
 
 def test_foreign_memory_id_never_reaches_provider_and_edit_is_user_maintained() -> None:
     repository, provider = FakeMemoryLedgerRepository(), FakeMemoryProvider()
     owner, other = uuid.uuid4(), uuid.uuid4()
     service = _service(repository, provider)
-    memory = service.create_direct(user_id=owner, category="stable_preference", canonical_text="早餐喜欢清淡")
+    memory = service.create_direct(user_id=owner, source_run_id=uuid.uuid4(), category="stable_preference", canonical_text="早餐喜欢清淡")
     calls_before = list(provider.calls)
     with pytest.raises(MemoryUnavailable):
         service.update_memory(memory_id=memory.id, user_id=other, canonical_text="高蛋白")
@@ -143,7 +155,8 @@ def test_foreign_memory_id_never_reaches_provider_and_edit_is_user_maintained() 
 def test_delete_is_immediately_invisible_even_when_external_cleanup_retries() -> None:
     repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
     service = _service(repository, provider)
-    memory = service.create_direct(user_id=user_id, category="avoidance", canonical_text="不吃花生")
+    proposal = service.create_inference_proposal(user_id=user_id, category="avoidance", canonical_text="不吃花生")
+    memory = service.confirm_inference(memory_id=proposal.id, user_id=user_id)
     provider.fail_next_delete = True
     service.delete_memory(memory_id=memory.id, user_id=user_id)
     assert service.list_memories(user_id=user_id) == [] and len(repository.outbox) == 1
