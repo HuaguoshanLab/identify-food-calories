@@ -26,6 +26,21 @@ const report = {
   disclaimer: '普通饮食参考，不替代医疗建议。',
 }
 
+const adjustedReport = {
+  ...report,
+  meals: [
+    report.meals[0],
+    { ...report.meals[1], display_name: '清淡豆腐菌菇午餐', portion_description: '一份', portion_grams: '450', flavour_tags: ['清淡'], nutrients: { energy_kcal: '680', carbohydrate_g: '72', protein_g: '38', fat_g: '18' } },
+    report.meals[2],
+  ],
+  adjustment: {
+    changed_slots: ['lunch'],
+    previous_item: '鸡胸肉米饭午餐',
+    matched_constraint: '清淡',
+    range_status: { energy_kcal: '适中', carbohydrate_g: '适中', protein_g: '适中', fat_g: '适中' },
+  },
+}
+
 function renderPage(request: AuthContextValue['request']) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -111,5 +126,102 @@ describe('PlanPage', () => {
     expect(screen.queryByRole('heading', { name: '今日三餐计划' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /继续生成/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
+  })
+
+  it('submits one labelled adjustment on the owned thread, updates only lunch, and focuses a safe replacement summary', async () => {
+    const user = userEvent.setup()
+    let adjusted = false
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
+        adjusted = true
+        return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed' }))
+      }
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: adjusted ? 2 : 1, report: adjusted ? adjustedReport : report }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByLabelText('身高')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await screen.findByRole('heading', { name: '今日三餐计划' })
+    await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换清淡一些，provider 不应显示')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+
+    const adjustment = request.mock.calls.find(([path]) => path.endsWith('/input'))
+    expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({ kind: 'description', text: '午餐换清淡一些，provider 不应显示' })
+    expect(await screen.findByText('清淡豆腐菌菇午餐')).toBeInTheDocument()
+    expect(screen.getAllByText('已调整')).toHaveLength(1)
+    expect(screen.getByText('已替换：鸡胸肉米饭午餐')).toBeInTheDocument()
+    expect(screen.getByText('已满足：清淡')).toBeInTheDocument()
+    expect(screen.getByText('已更新午餐，其余餐次保持不变。')).toHaveFocus()
+    expect(screen.getByRole('heading', { name: '早餐' }).parentElement).toHaveTextContent('燕麦鸡蛋早餐')
+    expect(screen.getByRole('heading', { name: '晚餐' }).parentElement).toHaveTextContent('三文鱼蔬菜晚餐')
+    expect(screen.queryByText('provider 不应显示')).not.toBeInTheDocument()
+  })
+
+  it('contains ambiguous selection, makes permitted relaxation transparent, and never exposes raw feedback or internal IDs', async () => {
+    const user = userEvent.setup()
+    const ambiguous = { stage: 'needs_input', message: '请选择要调整的餐次。', input_choices: ['breakfast', 'lunch', 'dinner'] }
+    const relaxed = {
+      ...adjustedReport,
+      adjustment: {
+        ...adjustedReport.adjustment,
+        relaxation: { metric: 'energy_kcal', original_range: { lower: '1800', upper: '2000' }, plan_value: '1760', deviation: '-40', reason: '在保留已确认约束后无严格合格替代项。' },
+      },
+    }
+    let snapshot: object = ambiguous
+    const request = vi.fn(async (path: string) => {
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'waiting', revision: 1, report: snapshot }))
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') { snapshot = relaxed; return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed' })) }
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: snapshot === ambiguous ? 'waiting' : 'completed', revision: 2, report: snapshot }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByLabelText('身高')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await screen.findByRole('heading', { name: '请确认要调整哪一餐' })
+    expect(screen.getAllByRole('button', { name: /早餐|午餐|晚餐/ })).toHaveLength(3)
+    expect(screen.queryByText(/checkpoint|thread_id|raw feedback|memory_id/i)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '午餐' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('已按现有约束生成餐单，但目标已调整')
+    expect(screen.getByRole('alert')).toHaveTextContent('能量')
+    expect(screen.getByRole('alert')).toHaveTextContent('1,800–2,000 kcal')
+    expect(screen.getByRole('alert')).toHaveTextContent('1,760 kcal')
+    expect(screen.getByRole('alert')).toHaveTextContent('-40 kcal')
+    expect(screen.getByRole('alert')).toHaveTextContent('忌口和你明确排除的食物未被放宽。')
+  })
+
+  it('blocks a fourth adjustment with the exact limit actions and focuses a refusal without cards or bypass', async () => {
+    const user = userEvent.setup()
+    const limit = { stage: 'needs_input', code: 'LIMIT_REACHED', message: '本次计划已达到三次调整上限；请新建计划或修改资料与目标。' }
+    const request = vi.fn(async (path: string) => {
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByLabelText('身高')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('已完成 3 次自动调整，无法在当前约束内继续修改。你可以新建计划，或修改身体资料和目标后再试。')
+    expect(screen.getByRole('button', { name: '新建计划' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '修改个人资料' })).toHaveAttribute('href', '/app/me/profile')
+    expect(screen.queryByLabelText('告诉我们想换什么')).not.toBeInTheDocument()
+    expect(request.mock.calls.filter(([path]) => path.endsWith('/input'))).toHaveLength(0)
   })
 })
