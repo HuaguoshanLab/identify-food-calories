@@ -11,7 +11,7 @@ from app.memory.providers import FakeMemoryProvider
 from app.memory.providers import create_memory_provider
 from app.memory.service import MemoryService, MemoryUnavailable
 from app.core.config import ConfigurationError, Settings
-from app.records.models import MemoryDeletionOutbox, PreferenceMemoryLedger
+from app.records.models import MemoryDeletionOutbox, MemoryProvisionOutbox, PreferenceMemoryLedger
 
 
 NOW = datetime(2026, 8, 31, 8, 0, tzinfo=UTC)
@@ -21,6 +21,7 @@ class FakeMemoryLedgerRepository:
     def __init__(self) -> None:
         self.ledgers: dict[uuid.UUID, PreferenceMemoryLedger] = {}
         self.outbox: list[MemoryDeletionOutbox] = []
+        self.provision_outbox: list[MemoryProvisionOutbox] = []
 
     def add_ledger(self, ledger: PreferenceMemoryLedger) -> PreferenceMemoryLedger:
         self.ledgers[ledger.id] = ledger
@@ -40,6 +41,69 @@ class FakeMemoryLedgerRepository:
     def add_outbox(self, outbox: MemoryDeletionOutbox) -> MemoryDeletionOutbox:
         self.outbox.append(outbox)
         return outbox
+
+    def get_or_create_direct_candidate(
+        self,
+        *,
+        user_id: uuid.UUID,
+        source_run_id: uuid.UUID,
+        category: str,
+        canonical_text: str,
+        request_key: str,
+        request_key_digest: str,
+        now: datetime,
+    ) -> PreferenceMemoryLedger:
+        for ledger in self.ledgers.values():
+            if (
+                ledger.user_id == user_id
+                and ledger.category == category
+                and ledger.canonical_text == canonical_text
+                and ledger.is_active
+                and ledger.deleted_at is None
+            ):
+                return ledger
+        ledger = PreferenceMemoryLedger(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            source_run_id=source_run_id,
+            category=category,
+            source_kind="user_statement",
+            canonical_text=canonical_text,
+            request_key_digest=request_key_digest,
+            provisioning_status="pending",
+            external_memory_id=None,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+            deleted_at=None,
+        )
+        self.ledgers[ledger.id] = ledger
+        self.provision_outbox.append(
+            MemoryProvisionOutbox(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                ledger_id=ledger.id,
+                operation="provision_external_memory",
+                request_key=request_key,
+                attempt=0,
+                not_before=now,
+                status="pending",
+                created_at=now,
+                updated_at=now,
+                deleted_at=None,
+            )
+        )
+        return ledger
+
+    def cancel_pending_provision(
+        self, *, ledger_id: uuid.UUID, user_id: uuid.UUID, now: datetime
+    ) -> bool:
+        for intent in self.provision_outbox:
+            if intent.ledger_id == ledger_id and intent.user_id == user_id and intent.status == "pending":
+                intent.status = "cancelled"
+                intent.updated_at = now
+                return True
+        return False
 
     def list_due_outbox(self, *, due_at: datetime) -> list[MemoryDeletionOutbox]:
         return [outbox for outbox in self.outbox if outbox.status == "pending" and outbox.not_before <= due_at]
@@ -93,3 +157,51 @@ def test_delete_is_immediately_invisible_even_when_external_cleanup_retries() ->
 def test_mem0_mode_fails_closed_without_its_required_secret_and_endpoint() -> None:
     with pytest.raises(ConfigurationError, match="MEM0_API_KEY"):
         create_memory_provider(Settings(app_env="local", memory_provider_mode="mem0", _env_file=None))
+
+
+def test_direct_preference_creates_auditable_pending_provision_without_provider_call() -> None:
+    repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+
+    memory = service.create_direct(
+        user_id=user_id,
+        source_run_id=uuid.uuid4(),
+        category="avoidance",
+        canonical_text="不吃辣",
+    )
+
+    assert memory.source_kind == "user_statement"
+    assert memory.provisioning_status == "pending"
+    assert memory.source_run_id is not None
+    assert memory.request_key_digest is not None
+    assert len(repository.provision_outbox) == 1
+    assert provider.calls == []
+
+
+def test_direct_preference_is_idempotent_across_runs_but_isolated_by_user() -> None:
+    repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+    source_run_id = uuid.uuid4()
+
+    first = service.create_direct(user_id=user_id, source_run_id=source_run_id, category="avoidance", canonical_text="不吃辣")
+    repeated_same_run = service.create_direct(user_id=user_id, source_run_id=source_run_id, category="avoidance", canonical_text="不吃辣")
+    repeated_new_run = service.create_direct(user_id=user_id, source_run_id=uuid.uuid4(), category="avoidance", canonical_text="不吃辣")
+    other_user = service.create_direct(user_id=uuid.uuid4(), source_run_id=uuid.uuid4(), category="avoidance", canonical_text="不吃辣")
+
+    assert first.id == repeated_same_run.id == repeated_new_run.id
+    assert other_user.id != first.id
+    assert len(repository.provision_outbox) == 2
+    assert provider.calls == []
+
+
+def test_delete_cancels_unclaimed_provision_without_provider_call() -> None:
+    repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+    memory = service.create_direct(user_id=user_id, source_run_id=uuid.uuid4(), category="avoidance", canonical_text="不吃辣")
+
+    service.delete_memory(memory_id=memory.id, user_id=user_id)
+
+    assert memory.is_active is False
+    assert memory.provisioning_status == "cancelled"
+    assert [intent.status for intent in repository.provision_outbox] == ["cancelled"]
+    assert provider.calls == []
