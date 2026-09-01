@@ -113,8 +113,8 @@ describe('PlanPage', () => {
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
-        thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 1,
-        report: { stage: 'refusal', message: '我们不能为你当前描述的情况生成个性化餐单。' },
+        thread_id: '33333333-3333-4333-8333-333333333333', status: 'retryable', revision: 1,
+        report: { stage: 'needs_input', message: '我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。你仍可以查看通用、非医疗的均衡饮食原则。' },
       }))
       return new Response('', { status: 500 })
     })
@@ -128,6 +128,29 @@ describe('PlanPage', () => {
     expect(screen.queryByRole('heading', { name: '今日三餐计划' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /继续生成/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
+  })
+
+  it('does not mislabel bounded candidate exhaustion as a health-scope refusal', async () => {
+    const user = userEvent.setup()
+    const request = requestWithSnapshot()
+    request.mockImplementation(async (path: string) => {
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
+        thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3,
+        report: { stage: 'needs_input', message: '当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。' },
+      }))
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByLabelText('身高')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+
+    expect(await screen.findByText('暂时无法生成计划')).toBeInTheDocument()
+    expect(screen.getByText('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')).toBeInTheDocument()
+    expect(screen.queryByText('暂不能生成个性化餐单')).not.toBeInTheDocument()
   })
 
   it('submits one labelled adjustment on the owned thread, updates only lunch, and focuses a safe replacement summary', async () => {

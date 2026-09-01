@@ -110,11 +110,14 @@ export function PlanPage() {
       setInputChoices(needsInput.data.input_choices); setStatusKind('working'); setStatusMessage(safePlanningEventCopy.needs_input)
       return
     }
-    if (snapshot.status === 'terminal' || (snapshot.status === 'retryable' && needsInput.success && needsInput.data.message === healthScopeCopy)) {
+    // `terminal` also represents bounded candidate exhaustion. Only the explicit safe
+    // health-scope result may use the medical-referral presentation; conflating the two
+    // falsely tells eligible adults that they triggered a high-risk health boundary.
+    if (snapshot.status === 'retryable' && needsInput.success && needsInput.data.message === healthScopeCopy) {
       setReport(undefined); setInputChoices(undefined); setLimitReached(false); setStatusKind('refusal'); setStatusMessage(undefined)
       return
     }
-    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(undefined)
+    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(needsInput.success ? needsInput.data.message : undefined)
   }, [report])
 
   useAgentEventStream({ threadId, request, onEvent: (event) => {
