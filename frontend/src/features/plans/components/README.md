@@ -15,3 +15,5 @@
 |---|---|
 | `ProfileGoalForm.tsx` | 完整资料/偏好复核、显式保存意图与严格启动命令。 |
 | `ProfileGoalForm.test.tsx` | 可见表单、公开请求和服务端字段错误合同。 |
+| `PersonalProfilePage.tsx` | DetailLayout 内的资料查看、编辑、删除和唯一 memory 偏好入口。 |
+| `PersonalProfilePage.test.tsx` | 资料 CRUD、不可逆删除和偏好职责分离合同。 |

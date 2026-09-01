@@ -21,6 +21,7 @@ import { MealRecordDetailPage } from './features/records/components/MealRecordDe
 import { MealRecordEditPage } from './features/records/components/MealRecordEditPage'
 import { MemoryManagementPage } from './features/memory/components/MemoryManagementPage'
 import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
+import { PersonalProfilePage } from './features/plans/components/PersonalProfilePage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
@@ -56,6 +57,9 @@ export function App() {
           </Route>
           <Route element={<DetailLayout title="账号资料" />}>
             <Route path="me/account" element={<AccountDetailsPage />} />
+          </Route>
+          <Route element={<DetailLayout title="个人资料" />}>
+            <Route path="me/profile" element={<PersonalProfilePage />} />
           </Route>
           <Route element={<DetailLayout title="登录会话" />}>
             <Route path="me/sessions" element={<SessionsDetailsPage />} />

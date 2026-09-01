@@ -1,4 +1,4 @@
-import { Brain, CircleUserRound, MonitorSmartphone } from 'lucide-react'
+import { Brain, CircleUserRound, MonitorSmartphone, Ruler } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 import { routePaths } from '@/routePaths'
@@ -17,6 +17,12 @@ export function MePage() {
       <h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-bold leading-9 tracking-tight">我的</h1>
       <p className="mt-3 text-[15px] leading-6 text-muted-foreground">查看账号资料和已登录设备。</p>
       <div className="mt-4">
+        <SettingsLinkRow
+          description="查看、编辑或删除身体资料和饮食目标"
+          icon={Ruler}
+          title="个人资料"
+          to={routePaths.profile}
+        />
         <SettingsLinkRow
           description="查看邮箱、账号状态与角色"
           icon={CircleUserRound}

@@ -47,7 +47,7 @@ function requestWithProfile(initialProfile: typeof profile | null = profile) {
     }
     if (init.method === 'DELETE') {
       current = null
-      return new Response('', { status: 204 })
+      return new Response(null, { status: 204 })
     }
     return new Response('', { status: 500 })
   })

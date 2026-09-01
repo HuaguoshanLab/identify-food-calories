@@ -9,6 +9,7 @@ export const routePaths = {
   records: '/app/records',
   plans: '/app/plans',
   me: '/app/me',
+  profile: '/app/me/profile',
   account: '/app/me/account',
   sessions: '/app/me/sessions',
 } as const

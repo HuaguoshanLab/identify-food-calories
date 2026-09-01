@@ -123,7 +123,7 @@ describe('my settings root page', () => {
     expect(screen.getByRole('heading', { level: 1, name: '我的' })).toHaveFocus()
   })
 
-  it('exposes only the two complete settings links and keeps keyboard navigation native', async () => {
+  it('adds exactly one profile settings link and keeps keyboard navigation native', async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
@@ -133,18 +133,19 @@ describe('my settings root page', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: '我的' })).toBeInTheDocument()
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(2)
+    expect(links).toHaveLength(4)
+    expect(screen.getByRole('link', { name: /个人资料/ })).toHaveAttribute('href', routePaths.profile)
     expect(screen.getByRole('link', { name: /账号资料/ })).toHaveAttribute('href', routePaths.account)
     expect(screen.getByRole('link', { name: /登录会话/ })).toHaveAttribute('href', routePaths.sessions)
     expect(screen.queryByText(/@/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /退出|保存|编辑/i })).not.toBeInTheDocument()
-    expect(screen.queryByText(/偏好|设置/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /饮食偏好与记忆/ })).toHaveAttribute('href', '/app/me/memories')
 
     for (const link of links) {
       expect(link.querySelectorAll('svg')).toHaveLength(2)
     }
 
     await user.tab()
-    expect(screen.getByRole('link', { name: /账号资料/ })).toHaveFocus()
+    expect(screen.getByRole('link', { name: /个人资料/ })).toHaveFocus()
   })
 })
