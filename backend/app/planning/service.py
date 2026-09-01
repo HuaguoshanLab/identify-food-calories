@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.planning.ports import PlanningNutritionPort, PlanningRepository
+from app.planning.models import PlanningProfile
+from app.planning.ports import PlanningNutritionPort, PlanningProfileRepository, PlanningRepository
 from app.planning.schemas import (
     ACTIVITY_FACTORS,
     HEALTH_REFUSAL_MESSAGE,
@@ -13,8 +17,12 @@ from app.planning.schemas import (
     PlanValidationAction,
     PlanValidationResult,
     PlanningGoal,
+    PlanningProfilePatch,
     PlanningProfileInput,
+    PlanningProfileWrite,
     PreferenceReview,
+    FORMULA_VERSION,
+    TARGET_POLICY_VERSION,
     TargetCalculationResult,
     TargetRange,
 )
@@ -181,3 +189,76 @@ class PlanningService:
             lower=energy.lower * percentage[0] / kcal_per_gram,
             upper=energy.upper * percentage[1] / kcal_per_gram,
         )
+
+
+class PlanningProfileUnavailable(LookupError):
+    """Uniform missing, foreign, and deleted profile result."""
+
+
+class PlanningProfileService:
+    """Owns explicit profile save/delete transactions, not policy or memory preferences."""
+
+    def __init__(self, *, repository: PlanningProfileRepository, now: Callable[[], datetime] | None = None, commit: Callable[[], None] | None = None, rollback: Callable[[], None] | None = None) -> None:
+        self._repository = repository
+        self._now = now or (lambda: datetime.now(UTC))
+        self._commit = commit or (lambda: None)
+        self._rollback = rollback or (lambda: None)
+
+    def get_profile(self, *, user_id: uuid.UUID) -> PlanningProfile:
+        profile = self._repository.get_profile_for_user(user_id=user_id)
+        if profile is None:
+            raise PlanningProfileUnavailable("planning profile is unavailable")
+        return profile
+
+    def replace_profile(self, *, user_id: uuid.UUID, payload: PlanningProfileWrite) -> PlanningProfile:
+        profile = self._repository.get_profile_for_user(user_id=user_id, for_update=True)
+        now = self._now()
+        try:
+            if profile is None:
+                profile = PlanningProfile(
+                    id=uuid.uuid4(), user_id=user_id, target_policy_version=TARGET_POLICY_VERSION,
+                    formula_version=FORMULA_VERSION, created_at=now, updated_at=now, deleted_at=None,
+                    **payload.model_dump(),
+                )
+                profile = self._repository.add_profile(profile)
+            else:
+                self._apply_payload(profile, payload.model_dump())
+                profile.target_policy_version = TARGET_POLICY_VERSION
+                profile.formula_version = FORMULA_VERSION
+                profile.updated_at = now
+            self._commit()
+            return profile
+        except Exception:
+            self._rollback()
+            raise
+
+    def update_profile(self, *, user_id: uuid.UUID, payload: PlanningProfilePatch) -> PlanningProfile:
+        profile = self._repository.get_profile_for_user(user_id=user_id, for_update=True)
+        if profile is None:
+            raise PlanningProfileUnavailable("planning profile is unavailable")
+        try:
+            self._apply_payload(profile, payload.model_dump(exclude_unset=True))
+            profile.updated_at = self._now()
+            self._commit()
+            return profile
+        except Exception:
+            self._rollback()
+            raise
+
+    def delete_profile(self, *, user_id: uuid.UUID) -> None:
+        profile = self._repository.get_profile_for_user(user_id=user_id, for_update=True)
+        if profile is None:
+            raise PlanningProfileUnavailable("planning profile is unavailable")
+        now = self._now()
+        try:
+            profile.deleted_at = now
+            profile.updated_at = now
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+
+    @staticmethod
+    def _apply_payload(profile: PlanningProfile, values: dict[str, object]) -> None:
+        for field, value in values.items():
+            setattr(profile, field, value.value if hasattr(value, "value") else value)

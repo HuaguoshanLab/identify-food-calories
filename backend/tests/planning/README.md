@@ -2,7 +2,7 @@
 
 ## 职责
 
-本目录使用内存 fake port 验证规划领域的版本化目标政策、资料确认、健康边界和闭合校验动作。
+本目录使用内存 fake port 验证规划领域的版本化目标政策、资料确认、健康边界、闭合校验动作与 profile Service 事务边界。
 
 ## 允许依赖
 
@@ -15,3 +15,4 @@
 | 路径 | 职责 |
 |---|---|
 | `test_planning_service.py` | `target-policy.v1`、确认守卫、健康拒绝和目标/计划校验合同 |
+| `test_planning_profile_service.py` | fake profile repository 下的显式保存、更新、软删除与 rollback 合同 |

@@ -6,8 +6,9 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 TARGET_POLICY_VERSION = "target-policy.v1"
@@ -78,6 +79,55 @@ class PlanningProfileInput(BaseModel):
     uses_medication: bool = False
     has_eating_disorder_or_self_harm_risk: bool = False
     has_extreme_weight_control_goal: bool = False
+
+
+class PlanningProfileWrite(BaseModel):
+    """The sole explicit persistence payload; preferences and health narratives stay elsewhere."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    height_cm: Decimal = Field(ge=Decimal("100"), le=Decimal("250"))
+    weight_kg: Decimal = Field(ge=Decimal("20"), le=Decimal("350"))
+    age_years: int = Field(ge=1, le=130)
+    formula_variant: FormulaVariant
+    activity_level: ActivityLevel
+    goal: PlanningGoal
+    goal_speed: Literal["maintain", "gradual_loss", "gradual_gain"]
+
+
+class PlanningProfilePatch(BaseModel):
+    """An explicit partial profile update; an empty patch must not become a silent no-op."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    height_cm: Decimal | None = Field(default=None, ge=Decimal("100"), le=Decimal("250"))
+    weight_kg: Decimal | None = Field(default=None, ge=Decimal("20"), le=Decimal("350"))
+    age_years: int | None = Field(default=None, ge=1, le=130)
+    formula_variant: FormulaVariant | None = None
+    activity_level: ActivityLevel | None = None
+    goal: PlanningGoal | None = None
+    goal_speed: Literal["maintain", "gradual_loss", "gradual_gain"] | None = None
+
+    @model_validator(mode="after")
+    def requires_at_least_one_change(self) -> PlanningProfilePatch:
+        if not self.model_fields_set:
+            raise ValueError("a profile patch requires at least one field")
+        return self
+
+
+class PlanningProfileResponse(PlanningProfileWrite):
+    """Safe profile projection; deliberately omits identity, preferences, and health narratives."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, from_attributes=True)
+
+    target_policy_version: str = Field(min_length=1, max_length=80)
+    formula_version: str = Field(min_length=1, max_length=80)
+
+    @field_validator("height_cm", "weight_kg")
+    @classmethod
+    def renders_persisted_measurements_consistently(cls, value: Decimal) -> Decimal:
+        # The PostgreSQL columns are fixed-scale, so every API path must expose that same scale.
+        return value.quantize(Decimal("0.01"))
 
 
 class PreferenceReview(BaseModel):

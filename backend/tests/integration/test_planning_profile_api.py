@@ -123,8 +123,8 @@ def test_planning_profile_public_crud_is_owner_scoped_minimal_and_soft_deleted()
         created = client_a.put(PROFILE_PATH, headers=headers_a, json=_profile_payload())
         assert created.status_code == 200, created.text
         assert created.json() == {
-            "height_cm": "170.0",
-            "weight_kg": "65.0",
+            "height_cm": "170.00",
+            "weight_kg": "65.00",
             "age_years": 30,
             "formula_variant": "mifflin_st_jeor_female",
             "activity_level": "moderate",

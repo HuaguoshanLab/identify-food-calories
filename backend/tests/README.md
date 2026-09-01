@@ -24,7 +24,7 @@
 | `records/` | 餐食快照 Service 的 fake repository 协议测试 |
 | `memory/` | 长期偏好 ledger、Provider fake 与删除 outbox Service 测试 |
 | `retrieval/` | 三来源上下文检索、偏好优先与安全 DTO Service 测试 |
-| `planning/` | 规划目标政策、健康边界与餐单校验的 fake-port Service 测试 |
+| `planning/` | 规划目标政策、健康边界、餐单校验与最小 profile 的 fake-port Service 测试 |
 
 `integration/test_memory_direct_write_idempotency.py` 是 direct-memory provision worker 的真实 PostgreSQL 并发与恢复证据；必须通过 `run_pg.py` 运行，禁止用 SQLite 或开发库替代。
 

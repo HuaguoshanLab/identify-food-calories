@@ -22,3 +22,5 @@
 | `0006_multimodal_images.py` | 图片最小生命周期与视觉调用 metadata；只存私有 handle 和安全计量，不存原图或模型原文。 |
 | `0007_meal_records_memory_ledger.py` | 用户确认的餐食营养快照、偏好记忆本地授权账本与外部删除 outbox schema。 |
 | `0008_retrieval_vectors.py` | pgvector 历史餐食与受控营养知识 embedding metadata；个人查询先以关系型 tenant/status 过滤。 |
+| `0009_direct_memory_provisioning.py` | 直接偏好写入的可审计 provisioning 状态与幂等 request key。 |
+| `0010_planning_profiles.py` | 最小化的用户身体资料/目标、active-row partial unique index 与软删除 schema。 |
