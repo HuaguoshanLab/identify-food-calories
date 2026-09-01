@@ -117,6 +117,13 @@ class FakeMemoryLedgerRepository:
             None,
         )
 
+    def list_due_provisioning(self, *, due_at: datetime) -> list[MemoryProvisionOutbox]:
+        return [
+            intent
+            for intent in self.provision_outbox
+            if intent.status == "pending" and intent.not_before <= due_at
+        ]
+
     def list_due_outbox(self, *, due_at: datetime) -> list[MemoryDeletionOutbox]:
         return [outbox for outbox in self.outbox if outbox.status == "pending" and outbox.not_before <= due_at]
 
@@ -218,3 +225,75 @@ def test_delete_cancels_unclaimed_provision_without_provider_call() -> None:
     assert memory.provisioning_status == "cancelled"
     assert [intent.status for intent in repository.provision_outbox] == ["cancelled"]
     assert provider.calls == []
+
+
+def test_explicit_preference_capture_uses_allowlist_and_single_infer_false_record() -> None:
+    repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+
+    memories = service.capture_explicit_preferences(
+        user_id=user_id,
+        source_run_id=uuid.uuid4(),
+        statement="我不吃辣",
+    )
+    temporary = service.capture_explicit_preferences(
+        user_id=user_id,
+        source_run_id=uuid.uuid4(),
+        statement="今天不想吃辣",
+    )
+    rejected = service.capture_explicit_preferences(
+        user_id=user_id,
+        source_run_id=uuid.uuid4(),
+        statement="图片里看起来没有辣椒",
+    )
+
+    assert [(memory.category, memory.canonical_text) for memory in memories] == [("avoidance", "不吃辣")]
+    assert [memory.id for memory in temporary] == [memories[0].id]
+    assert rejected == []
+    assert [(call.operation, call.infer) for call in provider.calls] == [
+        ("resolve_direct", None),
+        ("create_direct", False),
+    ]
+    assert provider.direct_records == {
+        provider.calls[-1].request_key: (user_id, "avoidance", "不吃辣", False)
+    }
+
+
+def test_direct_provision_retry_resolves_exact_request_key_before_creating_again() -> None:
+    repository, provider, user_id = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+    memory = service.create_direct(
+        user_id=user_id,
+        source_run_id=uuid.uuid4(),
+        category="avoidance",
+        canonical_text="不吃辣",
+    )
+    intent = repository.provision_outbox[0]
+    provider.create_direct(
+        user_id=user_id,
+        category="avoidance",
+        canonical_text="不吃辣",
+        request_key=intent.request_key,
+    )
+
+    assert service.process_due_provisioning() == (1, 0)
+    assert memory.provisioning_status == "provisioned"
+    assert [call.operation for call in provider.calls] == ["create_direct", "resolve_direct"]
+
+
+def test_mem0_direct_adapter_fails_closed_when_add_is_not_exactly_one_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.memory.providers import Mem0MemoryProvider
+
+    class StubClient:
+        def add(self, **_kwargs: object) -> dict[str, object]:
+            return {"results": [{"id": "first"}, {"id": "second"}]}
+
+    provider = object.__new__(Mem0MemoryProvider)
+    provider._client = StubClient()  # type: ignore[attr-defined]
+    with pytest.raises(RuntimeError, match="exactly one"):
+        provider.create_direct(
+            user_id=uuid.uuid4(),
+            category="avoidance",
+            canonical_text="不吃辣",
+            request_key="opaque-key",
+        )
