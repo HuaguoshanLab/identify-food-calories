@@ -20,6 +20,7 @@ from app.auth.security import issue_access_token
 from app.auth.service import AuthenticationService
 from app.core.config import Settings, validate_test_database_configuration
 from app.main import create_app
+from app.records.models import PreferenceMemoryLedger
 from app.planning.models import PlanningProfile
 
 
@@ -184,5 +185,69 @@ def test_unconfirmed_or_unsaved_diet_planning_commands_never_write_a_profile() -
                 assert unsaved.status_code == 201, unsaved.text
                 assert unsaved.json()["status"] == "completed"
             assert session.query(PlanningProfile).filter_by(user_id=user.id, deleted_at=None).count() == 0
+    finally:
+        engine.dispose()
+
+
+def test_same_planning_thread_adjusts_only_the_named_slot_and_replays_safe_events() -> None:
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run(
+        [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
+        cwd=BACKEND_ROOT,
+        env=_test_env(settings),
+        check=True,
+    )
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            user, token = _create_user(session, label="adjustment")
+            authentication = AuthenticationService(
+                repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5",
+                commit=session.commit, rollback=session.rollback,
+            )
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Idempotency-Key": "diet-plan-adjustment-0001",
+            }
+            with TestClient(app) as client:
+                created = client.post(PLANNING_PATH, json=_command(), headers=headers)
+                assert created.status_code == 201, created.text
+                before = created.json()
+                before_names = [meal["display_name"] for meal in before["report"]["meals"]]
+
+                adjusted = client.post(
+                    f"/api/v1/agent/threads/{before['thread_id']}/input",
+                    json={"text": "午餐换清淡一些，不吃香菜"},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                assert adjusted.status_code == 202, adjusted.text
+                snapshot = client.get(
+                    f"/api/v1/agent/threads/{before['thread_id']}",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                assert snapshot.status_code == 200, snapshot.text
+                report = snapshot.json()["report"]
+                after_names = [meal["display_name"] for meal in report["meals"]]
+                assert after_names[0] == before_names[0]
+                assert after_names[2] == before_names[2]
+                assert report["adjustment"]["changed_slots"] == ["lunch"]
+                assert report["adjustment"]["range_status"]
+
+                stream = client.get(
+                    f"/api/v1/agent/threads/{before['thread_id']}/events",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                assert stream.status_code == 200
+                for forbidden in ("午餐换清淡", "香菜", "ledger", "provider", "tool_output", "reasoning"):
+                    assert forbidden not in stream.text
+
+            captured = session.query(PreferenceMemoryLedger).filter_by(
+                user_id=user.id, category="avoidance", deleted_at=None
+            ).all()
+            assert len(captured) == 1
     finally:
         engine.dispose()

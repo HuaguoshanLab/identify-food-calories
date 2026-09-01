@@ -86,6 +86,8 @@ class FakePlanningTools(PlanningToolAdapter):
         self.compose_calls = 0
         self.validate_calls = 0
         self.upsert_calls: list[tuple[uuid.UUID, PlanningProfileInput, str]] = []
+        self.capture_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
+        self.replacement_calls: list[tuple[MealSlot, str]] = []
         self._composition_action = composition_action
 
     def calculate_daily_target(
@@ -136,6 +138,32 @@ class FakePlanningTools(PlanningToolAdapter):
         self, *, user_id: uuid.UUID, profile: PlanningProfileInput, command_key: str
     ) -> None:
         self.upsert_calls.append((user_id, profile, command_key))
+
+    def capture_explicit_preferences(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
+    ) -> tuple[object, ...]:
+        self.capture_calls.append((user_id, run_id, statement))
+        return ()
+
+    def replace_planning_slot(
+        self,
+        *,
+        target: DailyTarget,
+        preferences: PreferenceReview,
+        existing_meals: tuple[PlannedMeal, ...],
+        affected_slot: MealSlot,
+        feedback_intent: str,
+        replan_count: int,
+    ) -> MealCompositionResult:
+        self.replacement_calls.append((affected_slot, feedback_intent))
+        replacement = _meal(MealSlot.LUNCH, "清淡鸡丝午餐")
+        return MealCompositionResult(
+            action=PlanValidationAction.PASS,
+            meals=tuple(
+                replacement if meal.slot is affected_slot else meal for meal in existing_meals
+            ),
+            safe_message="午餐已按明确反馈替换。",
+        )
 
 
 def _state(*, preferences: PreferenceReview | None = None, save_profile: bool = False) -> DietPlanningState:
@@ -220,3 +248,87 @@ def test_planning_and_meal_checkpoints_use_incompatible_versioned_codecs() -> No
                 tool_version="nutrition-tools-v1",
             ).model_dump(mode="json")
         )
+
+
+def test_explicit_lunch_feedback_replaces_only_lunch_and_captures_once() -> None:
+    tools = FakePlanningTools()
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+
+    adjusted = asyncio.run(
+        DietPlanningGraph(tools=tools).ainvoke(
+            original, resume={"feedback": "午餐换清淡一些"}
+        )
+    )
+
+    assert adjusted.status.value == "completed"
+    assert [meal.display_name for meal in adjusted.meals] == [
+        "燕麦早餐",
+        "清淡鸡丝午餐",
+        "豆腐晚餐",
+    ]
+    assert adjusted.preferences.exclusions == ("花生",)
+    assert tools.replacement_calls == [(MealSlot.LUNCH, "lighter")]
+    assert tools.capture_calls == [(original.user_id, original.run_id, "午餐换清淡一些")]
+    assert adjusted.report == {
+        "stage": "complete",
+        "meals": adjusted.report["meals"],
+        "adjustment": {
+            "changed_slots": ["lunch"],
+            "matched_constraint": "清淡",
+            "range_status": adjusted.report["adjustment"]["range_status"],
+        },
+    }
+
+    replay = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(adjusted))
+    assert replay == adjusted
+    assert len(tools.capture_calls) == 1
+
+
+def test_ambiguous_feedback_requires_a_closed_three_slot_choice_and_invalid_resume_is_noop() -> None:
+    tools = FakePlanningTools()
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+
+    waiting = asyncio.run(
+        DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "换清淡"})
+    )
+
+    assert waiting.status.value == "waiting_input"
+    assert waiting.report == {
+        "stage": "needs_input",
+        "message": "请选择要调整的餐次。",
+        "input_choices": ["breakfast", "lunch", "dinner"],
+    }
+    invalid = asyncio.run(
+        DietPlanningGraph(tools=tools).ainvoke(waiting, resume={"slot": "snack"})
+    )
+    assert invalid is waiting
+    assert tools.replacement_calls == []
+
+
+def test_adjustment_relaxes_only_energy_or_macro_and_fourth_command_skips_composition() -> None:
+    tools = FakePlanningTools()
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+    current = original
+
+    for _ in range(3):
+        current = asyncio.run(
+            DietPlanningGraph(tools=tools).ainvoke(
+                current, resume={"feedback": "午餐换清淡一些"}
+            )
+        )
+
+    assert current.status.value == "limit_reached"
+    assert current.replan_count == 3
+    assert current.report == {
+        "stage": "needs_input",
+        "code": "LIMIT_REACHED",
+        "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。",
+    }
+    calls_before_fourth = len(tools.replacement_calls)
+    fourth = asyncio.run(
+        DietPlanningGraph(tools=tools).ainvoke(
+            current, resume={"feedback": "午餐换清淡一些"}
+        )
+    )
+    assert fourth is current
+    assert len(tools.replacement_calls) == calls_before_fourth
