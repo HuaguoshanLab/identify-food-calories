@@ -115,7 +115,7 @@ export function PersonalProfilePage() {
 
   if (profileQuery.isLoading) return <p className="text-sm text-muted-foreground">正在读取个人资料…</p>
   if (profileQuery.isError) return <ProfileError message="暂时无法读取个人资料，请稍后重试。" onRetry={() => void profileQuery.refetch()} />
-  if (!profile && !editing) return <ProfileEmpty notice={notice} onEdit={() => { setFieldErrors({}); setEditing(true) }} />
+  if (!profile && !editing) return <ProfileEmpty notice={notice} />
 
   return (
     <section className="space-y-5" aria-labelledby="personal-profile-content-title">
@@ -157,8 +157,8 @@ function ProfileView({ onDelete, onEdit, profile }: { onDelete: () => void; onEd
   return <><dl className="divide-y divide-border rounded-lg border border-border">{entries.map(([label, value]) => <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-3 py-3" key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="text-sm font-medium tabular-nums">{value}</dd></div>)}</dl><a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><div className="space-y-3 border-t border-border pt-4"><Button className="h-11 w-full" onClick={onEdit} type="button">编辑个人资料</Button><Button className="h-11 w-full" onClick={onDelete} type="button" variant="destructive">删除个人资料</Button></div></>
 }
 
-function ProfileEmpty({ notice, onEdit }: { notice: string; onEdit: () => void }) {
-  return <section className="space-y-4"><h2 className="text-xl font-semibold">还没有保存个人资料</h2><p className="text-sm leading-5 text-muted-foreground">请先在计划页填写身体资料和目标，保存后会在这里显示。</p>{notice ? <p aria-live="polite" className="text-sm text-muted-foreground">{notice}</p> : null}<a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><Button className="h-11 w-full" onClick={onEdit} type="button">填写个人资料</Button></section>
+function ProfileEmpty({ notice }: { notice: string }) {
+  return <section className="space-y-4"><h2 className="text-xl font-semibold">还没有保存个人资料</h2><p className="text-sm leading-5 text-muted-foreground">请先在计划页填写身体资料和目标，保存后会在这里显示。</p>{notice ? <p aria-live="polite" className="text-sm text-muted-foreground">{notice}</p> : null}<a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><a className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" href="/app/plans">去计划页填写</a></section>
 }
 
 function ProfileError({ message, onRetry }: { message: string; onRetry: () => void }) {
