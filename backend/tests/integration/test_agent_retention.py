@@ -398,7 +398,9 @@ def test_postgres_provisioning_windows_keep_delete_final() -> None:
                 now=now,
             ) is False
             creator.commit()
-            assert service(creator).process_due_deletions() == (1, 0)
+            # The claim-window delete is an intentional no-op cleanup; the post-create delete
+            # reopens its own intent and removes the actual remote record in the same sweep.
+            assert service(creator).process_due_deletions() == (2, 0)
             assert service(creator).list_memories(user_id=user.id) == []
             assert provider.direct_records == {}
     finally:

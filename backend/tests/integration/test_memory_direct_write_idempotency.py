@@ -93,13 +93,14 @@ def test_pg_concurrent_capture_creates_one_ledger_intent_and_remote_record() -> 
     try:
         with Session(engine) as session:
             user, run_id = _user_and_run(session)
+            user_id = user.id
         barrier = Barrier(2)
 
         def capture() -> uuid.UUID:
             with Session(engine) as session:
                 barrier.wait(timeout=5)
                 memory = _service(session, provider).create_direct(
-                    user_id=user.id,
+                    user_id=user_id,
                     source_run_id=run_id,
                     category="avoidance",
                     canonical_text="不吃辣",
@@ -114,11 +115,11 @@ def test_pg_concurrent_capture_creates_one_ledger_intent_and_remote_record() -> 
             assert service.process_due_provisioning() == (1, 0)
             assert session.execute(
                 text("SELECT count(*) FROM preference_memory_ledger WHERE user_id = :user_id"),
-                {"user_id": user.id},
+                {"user_id": user_id},
             ).scalar_one() == 1
             assert session.execute(
                 text("SELECT count(*) FROM memory_provision_outbox WHERE user_id = :user_id"),
-                {"user_id": user.id},
+                {"user_id": user_id},
             ).scalar_one() == 1
         assert len(provider.direct_records) == 1
     finally:
@@ -143,17 +144,19 @@ def test_outcome_unknown_restart_resolves_exact_key_without_a_second_create() ->
     try:
         with Session(engine) as session:
             user, run_id = _user_and_run(session)
+            user_id = user.id
             memory = _service(session, provider).create_direct(
-                user_id=user.id,
+                user_id=user_id,
                 source_run_id=run_id,
                 category="avoidance",
                 canonical_text="不吃辣",
             )
+            memory_id = memory.id
             assert _service(session, provider).process_due_provisioning() == (0, 1)
         # A rebuilt worker receives only the durable intent and resolves its exact opaque key.
         with Session(engine) as restarted:
             assert _service(restarted, provider, NOW + timedelta(seconds=1)).process_due_provisioning() == (1, 0)
-            recovered = _service(restarted, provider).get_memory(memory_id=memory.id, user_id=user.id)
+            recovered = _service(restarted, provider).get_memory(memory_id=memory_id, user_id=user_id)
             assert recovered.external_memory_id is not None
         assert provider.create_count == 1
         assert len(provider.direct_records) == 1

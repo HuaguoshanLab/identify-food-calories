@@ -345,16 +345,19 @@ class SqlAlchemyMemoryLedgerRepository:
     ) -> tuple[PreferenceMemoryLedger, MemoryProvisionOutbox] | None:
         """Always lock ledger then provision intent so delete/provision cannot deadlock."""
         candidate = self._session.scalar(
-            select(MemoryProvisionOutbox).where(
+            select(MemoryProvisionOutbox)
+            .where(
                 MemoryProvisionOutbox.id == provision_id,
                 MemoryProvisionOutbox.user_id == user_id,
             )
+            .execution_options(populate_existing=True)
         )
         if candidate is None:
             return None
         ledger = self._session.scalar(
             select(PreferenceMemoryLedger)
             .where(PreferenceMemoryLedger.id == candidate.ledger_id, PreferenceMemoryLedger.user_id == user_id)
+            .execution_options(populate_existing=True)
             .with_for_update()
         )
         if ledger is None:
@@ -362,6 +365,7 @@ class SqlAlchemyMemoryLedgerRepository:
         intent = self._session.scalar(
             select(MemoryProvisionOutbox)
             .where(MemoryProvisionOutbox.id == provision_id, MemoryProvisionOutbox.user_id == user_id)
+            .execution_options(populate_existing=True)
             .with_for_update()
         )
         return (ledger, intent) if intent is not None else None
