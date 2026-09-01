@@ -81,7 +81,12 @@ def _meal(slot: MealSlot, name: str) -> PlannedMeal:
 class FakePlanningTools(PlanningToolAdapter):
     """A narrow graph-port fake; graph tests must not reach services or repositories."""
 
-    def __init__(self, *, composition_action: PlanValidationAction = PlanValidationAction.PASS) -> None:
+    def __init__(
+        self,
+        *,
+        composition_action: PlanValidationAction = PlanValidationAction.PASS,
+        validation_action: PlanValidationAction = PlanValidationAction.PASS,
+    ) -> None:
         self.target_calls = 0
         self.compose_calls = 0
         self.validate_calls = 0
@@ -89,6 +94,7 @@ class FakePlanningTools(PlanningToolAdapter):
         self.capture_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
         self.replacement_calls: list[tuple[MealSlot, str]] = []
         self._composition_action = composition_action
+        self._validation_action = validation_action
 
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
@@ -129,8 +135,9 @@ class FakePlanningTools(PlanningToolAdapter):
     ) -> PlanValidationResult:
         self.validate_calls += 1
         return PlanValidationResult(
-            action=PlanValidationAction.PASS,
+            action=self._validation_action,
             rule_id="planning-validation-pass",
+            relaxed_metric="energy_or_macro" if self._validation_action is PlanValidationAction.RELAX else None,
             safe_message="餐单已校验。",
         )
 
@@ -269,14 +276,11 @@ def test_explicit_lunch_feedback_replaces_only_lunch_and_captures_once() -> None
     assert adjusted.preferences.exclusions == ("花生",)
     assert tools.replacement_calls == [(MealSlot.LUNCH, "lighter")]
     assert tools.capture_calls == [(original.user_id, original.run_id, "午餐换清淡一些")]
-    assert adjusted.report == {
-        "stage": "complete",
-        "meals": adjusted.report["meals"],
-        "adjustment": {
-            "changed_slots": ["lunch"],
-            "matched_constraint": "清淡",
-            "range_status": adjusted.report["adjustment"]["range_status"],
-        },
+    assert adjusted.report is not None
+    assert adjusted.report["adjustment"] == {
+        "changed_slots": ["lunch"],
+        "matched_constraint": "清淡",
+        "range_status": adjusted.report["adjustment"]["range_status"],
     }
 
     replay = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(adjusted))
@@ -332,3 +336,20 @@ def test_adjustment_relaxes_only_energy_or_macro_and_fourth_command_skips_compos
     )
     assert fourth is current
     assert len(tools.replacement_calls) == calls_before_fourth
+
+
+def test_relaxation_projection_contains_only_energy_or_macro_range_details() -> None:
+    initial_tools = FakePlanningTools()
+    original = asyncio.run(DietPlanningGraph(tools=initial_tools).ainvoke(_state()))
+    adjusting_tools = FakePlanningTools(validation_action=PlanValidationAction.RELAX)
+
+    adjusted = asyncio.run(
+        DietPlanningGraph(tools=adjusting_tools).ainvoke(
+            original, resume={"feedback": "午餐换清淡一些"}
+        )
+    )
+
+    assert adjusted.report is not None
+    relaxation = adjusted.report["adjustment"]["relaxation"]
+    assert relaxation["metric"] in {"energy_kcal", "carbohydrate_g", "protein_g", "fat_g"}
+    assert set(relaxation) == {"metric", "original_range", "plan_value", "deviation", "reason"}

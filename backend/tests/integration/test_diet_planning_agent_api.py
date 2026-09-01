@@ -221,7 +221,7 @@ def test_same_planning_thread_adjusts_only_the_named_slot_and_replays_safe_event
 
                 adjusted = client.post(
                     f"/api/v1/agent/threads/{before['thread_id']}/input",
-                    json={"text": "午餐换清淡一些，不吃香菜"},
+                    json={"kind": "description", "text": "午餐换清淡一些，不吃香菜"},
                     headers={"Authorization": f"Bearer {token}"},
                 )
                 assert adjusted.status_code == 202, adjusted.text

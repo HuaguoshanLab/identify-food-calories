@@ -43,6 +43,26 @@
       ]
     },
     {
+      "stable_id": "project:chicken-rice-vegetable-bowl.v1",
+      "display_name": "鸡丝蔬菜饭碗",
+      "meal_slots": ["lunch"],
+      "portion": {"description": "一份", "grams": "320"},
+      "method_tags": ["清蒸搭配"],
+      "flavour_tags": ["清淡", "温热"],
+      "source_kind": "project_authored",
+      "source_reference": "backend/app/planning/data/controlled-recipes.v1.json#project:chicken-rice-vegetable-bowl.v1",
+      "license_name": "LicenseRef-Project-Authored-v1",
+      "audit_status": "approved",
+      "audited_at": "2026-09-01T00:00:00+00:00",
+      "audited_by_role": "nutrition_catalog_reviewer",
+      "audit_version": "recipe-audit.v1",
+      "ingredients": [
+        {"catalog_item_stable_id": "fdc:172231", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "100", "portion_description": "一份熟鸡胸肉"},
+        {"catalog_item_stable_id": "fdc:169756", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "130", "portion_description": "一份熟米饭"},
+        {"catalog_item_stable_id": "fdc:170457", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "90", "portion_description": "一份熟西兰花"}
+      ]
+    },
+    {
       "stable_id": "project:tofu-potato-spinach.v1",
       "display_name": "豆腐土豆菠菜碗",
       "meal_slots": ["dinner"],

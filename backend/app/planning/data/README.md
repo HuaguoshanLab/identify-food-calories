@@ -14,4 +14,4 @@
 
 | 文件 | 职责 |
 |---|---|
-| `controlled-recipes.v1.json` | R-03 项目自有的早餐、午餐、晚餐受控菜谱 metadata 与固定食材引用。 |
+| `controlled-recipes.v1.json` | R-03 项目自有的早餐、午餐、晚餐受控菜谱 metadata 与固定食材引用；午餐保留两个审核候选以支持局部替换。 |

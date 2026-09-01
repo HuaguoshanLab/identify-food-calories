@@ -252,6 +252,9 @@ class DietPlanningState(BaseModel):
     target: "DailyTarget | None" = None
     meals: tuple["PlannedMeal", ...] = Field(default=(), max_length=3)
     replan_count: int = Field(default=0, ge=0, le=3)
+    # Opaque hashes make capture replay-safe without retaining the user's freeform feedback.
+    preference_capture_markers: tuple[str, ...] = Field(default=(), max_length=3)
+    pending_adjustment_intent: Literal["lighter", "replace"] | None = None
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=12)
     budget: AgentBudget = Field(default_factory=AgentBudget)
     next_action: DietPlanningAction = DietPlanningAction.READ_CONTEXT

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 from typing import Protocol
 
 from sqlalchemy.orm import Session
@@ -24,9 +24,12 @@ from app.memory.ports import MemoryProvider
 from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
+    PlanValidationAction,
     PlanValidationResult,
     PlanningProfileInput,
     PreferenceReview,
+    MealSlot,
+    PlannedMeal,
     TargetCalculationResult,
 )
 from app.planning.schemas import PlanningProfileWrite
@@ -81,6 +84,21 @@ class PlanningToolAdapter(Protocol):
         self, *, user_id: uuid.UUID, profile: PlanningProfileInput, command_key: str
     ) -> None: ...
 
+    def capture_explicit_preferences(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
+    ) -> tuple[CapturedPreferenceSummary, ...]: ...
+
+    def replace_planning_slot(
+        self,
+        *,
+        target: DailyTarget,
+        preferences: PreferenceReview,
+        existing_meals: tuple[PlannedMeal, ...],
+        affected_slot: MealSlot,
+        feedback_intent: str,
+        replan_count: int,
+    ) -> MealCompositionResult: ...
+
 
 class NutritionServiceToolAdapter:
     """Adapter keeps graph imports stable if the nutrition implementation evolves."""
@@ -112,14 +130,14 @@ class NutritionServiceToolAdapter:
     def retrieve_personal_context(self, *, user_id: uuid.UUID, query: str, catalog_version: str | None = None) -> list[RetrievedContextItem]:
         if self._context_service is None:
             return []
-        return self._context_service.retrieve(user_id=user_id, query=query, catalog_version=catalog_version)  # type: ignore[union-attr,arg-type]
+        return self._context_service.retrieve(user_id=user_id, query=query, catalog_version=catalog_version)  # type: ignore[union-attr,attr-defined,arg-type]
 
     def capture_explicit_preferences(
         self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
     ) -> tuple[CapturedPreferenceSummary, ...]:
         if self._explicit_preference_capture_service is None:
             return ()
-        captured = self._explicit_preference_capture_service.capture_explicit_preferences(  # type: ignore[union-attr]
+        captured = self._explicit_preference_capture_service.capture_explicit_preferences(  # type: ignore[union-attr,attr-defined]
             user_id=user_id, run_id=run_id, statement=statement
         )
         return tuple(
@@ -203,7 +221,7 @@ class SessionNutritionToolAdapter:
                 rollback=session.rollback,
             ).capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement=statement)
             return tuple(
-                CapturedPreferenceSummary(category=ledger.category, canonical_text=ledger.canonical_text)
+                CapturedPreferenceSummary(category=cast(Literal["goal", "avoidance", "stable_preference"], ledger.category), canonical_text=ledger.canonical_text)
                 for ledger in captured
             )
         finally:
@@ -242,6 +260,38 @@ class SessionNutritionToolAdapter:
             return service.compose_daily_meals(
                 catalog_version="foundation-foods-2026-08-rice-fist-v1",
                 preferences=preferences,
+            )
+        finally:
+            session.close()
+
+    def replace_planning_slot(
+        self,
+        *,
+        target: DailyTarget,
+        preferences: PreferenceReview,
+        existing_meals: tuple[PlannedMeal, ...],
+        affected_slot: MealSlot,
+        feedback_intent: str,
+        replan_count: int,
+    ) -> MealCompositionResult:
+        # PlanningService owns candidate eligibility; this adapter only preserves untouched slots.
+        session, service = self._planning_service()
+        try:
+            current = next((meal for meal in existing_meals if meal.slot is affected_slot), None)
+            if current is None:
+                return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="请选择早餐、午餐或晚餐。")
+            replacement_plan = service.compose_daily_meals(
+                catalog_version="foundation-foods-2026-08-rice-fist-v1",
+                preferences=preferences,
+                exclude_recipe_ids=(current.recipe_id,),
+            )
+            if replacement_plan.action is not PlanValidationAction.PASS:
+                return replacement_plan
+            replacement = next(meal for meal in replacement_plan.meals if meal.slot is affected_slot)
+            return MealCompositionResult(
+                action=PlanValidationAction.PASS,
+                meals=tuple(replacement if meal.slot is affected_slot else meal for meal in existing_meals),
+                safe_message="已替换指定餐次并保留其余餐次。",
             )
         finally:
             session.close()

@@ -139,7 +139,7 @@ class PlanningService:
         )
 
     def compose_daily_meals(
-        self, *, catalog_version: str, preferences: PreferenceReview
+        self, *, catalog_version: str, preferences: PreferenceReview, exclude_recipe_ids: tuple[uuid.UUID, ...] = ()
     ) -> MealCompositionResult:
         """Select one fully qualified candidate per stable slot and recompute every ingredient."""
 
@@ -157,6 +157,7 @@ class PlanningService:
                     for recipe in recipes
                     if slot in recipe.meal_slots
                     and recipe.catalog_version == catalog_version
+                    and recipe.id not in exclude_recipe_ids
                     and not self._matches_exclusion(recipe=recipe, exclusions=preferences.exclusions)
                     and (
                         built_meal := self._build_meal(

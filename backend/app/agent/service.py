@@ -401,7 +401,8 @@ class AgentService:
         return run
 
     async def resume_payload_for_text(
-        self, *, checkpointer: object, thread_id: uuid.UUID, text: str
+        self, *, checkpointer: object, thread_id: uuid.UUID, text: str,
+        graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
     ) -> dict[str, object] | None:
         """Turn the existing public text command into a narrow validated resume payload.
 
@@ -411,9 +412,15 @@ class AgentService:
         """
 
         state = await self._load_checkpoint(
-            checkpointer=checkpointer, thread_id=thread_id, graph_kind=AgentGraphKind.MEAL_ANALYSIS
+            checkpointer=checkpointer, thread_id=thread_id, graph_kind=graph_kind
         )
         if state is None:
+            return None
+        if graph_kind is AgentGraphKind.DIET_PLANNING:
+            if isinstance(state, DietPlanningState) and state.status in {
+                AgentRuntimeStatus.COMPLETED, AgentRuntimeStatus.WAITING_INPUT
+            }:
+                return {"feedback": text} if state.status is AgentRuntimeStatus.COMPLETED else {"slot": text.casefold()}
             return None
         try:
             candidate = json.loads(text)

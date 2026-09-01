@@ -31,7 +31,7 @@ from app.agent.state import (
     DietPlanningState,
 )
 from app.agent.tools import NutritionToolAdapter, PlanningToolAdapter
-from app.planning.schemas import PlanValidationAction
+from app.planning.schemas import DailyTarget, MealSlot, PlanValidationAction, PlannedMeal, PreferenceReview
 from app.images.schemas import ValidatedImageReference
 from app.nutrition.schemas import (
     FoodSearchInput,
@@ -867,13 +867,14 @@ class DietPlanningGraph:
     async def ainvoke(
         self, state: DietPlanningState, *, resume: dict[str, object] | None = None
     ) -> DietPlanningState:
-        # There is no free-form planning resume in the first slice.  A resume must be introduced
-        # with its own closed DTO rather than treating arbitrary client JSON as graph state.
-        if resume is not None or state.status in {
-            AgentRuntimeStatus.COMPLETED,
+        if state.status in {
             AgentRuntimeStatus.LIMIT_REACHED,
             AgentRuntimeStatus.FAILED,
         }:
+            return state
+        if resume is not None:
+            return self._apply_adjustment(state, resume)
+        if state.status is AgentRuntimeStatus.COMPLETED:
             return state
         if not state.preferences.confirmed:
             return state.model_copy(
@@ -946,6 +947,107 @@ class DietPlanningGraph:
                 },
             }
         )
+
+    def _apply_adjustment(self, state: DietPlanningState, resume: dict[str, object]) -> DietPlanningState:
+        if state.replan_count >= 3:
+            return self._adjustment_limit(state)
+        feedback = resume.get("feedback")
+        selected_slot = resume.get("slot")
+        intent: str | None = None
+        slot: MealSlot | None = None
+        current = state
+        if isinstance(feedback, str) and 1 <= len(feedback) <= 500:
+            intent = "lighter" if "清淡" in feedback else "replace"
+            slot = _slot_from_feedback(feedback)
+            current = self._capture_adjustment_preferences(current, feedback)
+            if slot is None:
+                return current.model_copy(
+                    update={
+                        "status": AgentRuntimeStatus.WAITING_INPUT,
+                        "next_action": DietPlanningAction.NEEDS_INPUT,
+                        "pending_adjustment_intent": intent,
+                        "report": {
+                            "stage": "needs_input",
+                            "message": "请选择要调整的餐次。",
+                            "input_choices": ["breakfast", "lunch", "dinner"],
+                        },
+                    }
+                )
+        elif (
+            isinstance(selected_slot, str)
+            and current.pending_adjustment_intent is not None
+            and selected_slot in {slot.value for slot in MealSlot}
+        ):
+            intent = current.pending_adjustment_intent
+            slot = MealSlot(selected_slot)
+        else:
+            return state
+        target = current.target
+        if target is None or len(current.meals) != 3 or slot is None or intent is None:
+            return state
+        composition = self._tools.replace_planning_slot(
+            target=target,
+            preferences=current.preferences,
+            existing_meals=current.meals,
+            affected_slot=slot,
+            feedback_intent=intent,
+            replan_count=current.replan_count,
+        )
+        current = self._record_tool(current, "replace_planning_slot", composition.action.value, composition)
+        if composition.action is not PlanValidationAction.PASS:
+            return self._safe_terminal(current, composition.action, composition.safe_message)
+        validation = self._tools.validate_daily_plan(
+            target=target, meals=composition.meals, replan_count=current.replan_count
+        )
+        current = self._record_tool(current, "validate_plan", validation.action.value, validation)
+        if validation.action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
+            return self._safe_terminal(current, validation.action, validation.safe_message)
+        next_count = current.replan_count + 1
+        if next_count >= 3:
+            return self._adjustment_limit(current.model_copy(update={"meals": composition.meals, "replan_count": next_count}))
+        report = _planning_report(target=target, meals=composition.meals)
+        report["adjustment"] = {
+            "changed_slots": [slot.value],
+            "matched_constraint": "清淡" if intent == "lighter" else "已确认调整",
+            "range_status": _range_statuses(target=target, meals=composition.meals),
+            **(_relaxation_projection(target=target, meals=composition.meals, reason=validation.safe_message)
+               if validation.action is PlanValidationAction.RELAX else {}),
+        }
+        return current.model_copy(
+            update={
+                "meals": composition.meals,
+                "replan_count": next_count,
+                "pending_adjustment_intent": None,
+                "next_action": DietPlanningAction.COMPLETE,
+                "status": AgentRuntimeStatus.COMPLETED,
+                "report": report,
+            }
+        )
+
+    def _capture_adjustment_preferences(self, state: DietPlanningState, feedback: str) -> DietPlanningState:
+        marker = hashlib.sha256(feedback.encode("utf-8")).hexdigest()
+        if marker in state.preference_capture_markers:
+            return state
+        captured = self._tools.capture_explicit_preferences(user_id=state.user_id, run_id=state.run_id, statement=feedback)
+        exclusions = list(state.preferences.exclusions)
+        tastes = list(state.preferences.taste_preferences)
+        for summary in captured:
+            if summary.category == "avoidance" and summary.canonical_text.startswith("不吃"):
+                item = summary.canonical_text.removeprefix("不吃")
+                if item and item not in exclusions:
+                    exclusions.append(item)
+            elif summary.category == "stable_preference" and summary.canonical_text not in tastes:
+                tastes.append(summary.canonical_text)
+        return state.model_copy(
+            update={
+                "preferences": PreferenceReview(confirmed=True, exclusions=tuple(exclusions), taste_preferences=tuple(tastes)),
+                "preference_capture_markers": (*state.preference_capture_markers, marker),
+            }
+        )
+
+    @staticmethod
+    def _adjustment_limit(state: DietPlanningState) -> DietPlanningState:
+        return state.model_copy(update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": DietPlanningAction.NEEDS_INPUT, "pending_adjustment_intent": None, "report": {"stage": "needs_input", "code": "LIMIT_REACHED", "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。"}})
 
     def _call_profile_upsert(self, state: DietPlanningState) -> DietPlanningState:
         if state.budget.tool_calls >= 12:
@@ -1058,4 +1160,59 @@ def _planning_report(*, target: object, meals: tuple[object, ...]) -> dict[str, 
             for meal in planning_meals
         ],
         "disclaimer": "普通饮食参考，不替代医疗建议。",
+    }
+
+
+def _slot_from_feedback(feedback: str) -> MealSlot | None:
+    matches = [
+        slot
+        for slot, labels in (
+            (MealSlot.BREAKFAST, ("早餐", "breakfast")),
+            (MealSlot.LUNCH, ("午餐", "lunch")),
+            (MealSlot.DINNER, ("晚餐", "dinner")),
+        )
+        if any(label in feedback.casefold() for label in labels)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _range_statuses(*, target: DailyTarget, meals: tuple[PlannedMeal, ...]) -> dict[str, str]:
+    totals = {
+        field: sum((getattr(meal.nutrients, field) for meal in meals), Decimal("0"))
+        for field in ("energy_kcal", "carbohydrate_g", "protein_g", "fat_g")
+    }
+    return {
+        field: "low" if value < getattr(target, field).lower else "high" if value > getattr(target, field).upper else "in_range"
+        for field, value in totals.items()
+    }
+
+
+def _relaxation_projection(*, target: DailyTarget, meals: tuple[PlannedMeal, ...], reason: str) -> dict[str, object]:
+    totals = {
+        field: sum((getattr(meal.nutrients, field) for meal in meals), Decimal("0"))
+        for field in ("energy_kcal", "carbohydrate_g", "protein_g", "fat_g")
+    }
+    for field, value in totals.items():
+        bounds = getattr(target, field)
+        if value < bounds.lower or value > bounds.upper:
+            deviation = value - (bounds.lower if value < bounds.lower else bounds.upper)
+            return {
+                "relaxation": {
+                    "metric": field,
+                    "original_range": {"lower": str(bounds.lower), "upper": str(bounds.upper)},
+                    "plan_value": str(value),
+                    "deviation": str(deviation),
+                    "reason": reason,
+                }
+            }
+    # A service may permit a range relaxation even when this minimal projection is in range.
+    bounds = target.energy_kcal
+    return {
+        "relaxation": {
+            "metric": "energy_kcal",
+            "original_range": {"lower": str(bounds.lower), "upper": str(bounds.upper)},
+            "plan_value": str(totals["energy_kcal"]),
+            "deviation": "0",
+            "reason": reason,
+        }
     }

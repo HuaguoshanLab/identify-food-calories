@@ -29,7 +29,7 @@ from app.agent.schemas import (
     AgentThreadSnapshot,
     AgentThreadStatus,
 )
-from app.agent.service import AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy
+from app.agent.service import DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy
 from app.agent.state import AgentGraphKind, StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.images.schemas import ImageValidationError, ValidatedImageReference
@@ -304,9 +304,34 @@ async def submit_agent_input(
     except AgentThreadUnavailable:
         raise _unavailable() from None
     runtime = _runtime(request)
+    planning_thread = latest is not None and latest.graph_version == DIET_PLANNING_GRAPH_VERSION
     resume_payload = await service.resume_payload_for_text(
-        checkpointer=runtime.checkpointer, thread_id=thread_id, text=payload.text
+        checkpointer=runtime.checkpointer,
+        thread_id=thread_id,
+        text=payload.text,
+        graph_kind=AgentGraphKind.DIET_PLANNING if planning_thread else AgentGraphKind.MEAL_ANALYSIS,
     )
+    if planning_thread:
+        assert latest is not None
+        if resume_payload is None:
+            return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(latest.status))
+        run = service.create_or_reuse_run(
+            thread_id=thread_id,
+            user_id=principal,
+            command_key=f"planning-adjustment-{hashlib.sha256(payload.text.encode('utf-8')).hexdigest()[:32]}",
+            canonical_command={"kind": "planning_adjustment", "input_hash": hashlib.sha256(payload.text.encode("utf-8")).hexdigest()},
+            graph_kind=AgentGraphKind.DIET_PLANNING,
+        )
+        if run.status != "completed":
+            await _execute(
+                service=service,
+                runtime=runtime,
+                run_id=run.id,
+                user_id=principal,
+                resume_payload=resume_payload,
+                graph_kind=AgentGraphKind.DIET_PLANNING,
+            )
+        return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
     if latest is not None and latest.status == "waiting_input":
         if resume_payload is None:
             return AgentCommandAcceptedResponse(thread_id=thread_id, status=AgentThreadStatus.WAITING)
