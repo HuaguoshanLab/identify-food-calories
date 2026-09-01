@@ -16,4 +16,4 @@
 | `agent/` | 用户餐食分析能力的页面、生成 API 合约与流式传输边界。 |
 | `records/` | 用户确认后餐食记录的 API、展示、编辑、删除与纯格式化逻辑。 |
 | `memory/` | 用户长期饮食偏好的 API、列表和编辑交互。 |
-| `plans/` | 未来饮食计划能力的唯一预留位置；功能开始实现时再创建，不能继续扩张 `app/PlaceholderTabPage.tsx`。 |
+| `plans/` | 饮食规划的资料复核、公开启动命令与后续餐单展示；不得继续扩张 `app/PlaceholderTabPage.tsx`。 |

@@ -8,6 +8,7 @@
 
 - React、React Router、Zod、认证请求能力和现有 UI primitives。
 - 禁止后台源码、Mem0/pgvector 实现、provider score 与内部同步状态。
+- `plans` feature 只能调用公开只读 `listMemories` 生成复核摘要；计划页不得调用 memory 写入接口或渲染第二个偏好编辑器。
 
 ## 文件索引
 
