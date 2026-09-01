@@ -26,3 +26,5 @@
 | `retrieval/` | 三来源上下文检索、偏好优先与安全 DTO Service 测试 |
 
 `integration/test_memory_direct_write_idempotency.py` 是 direct-memory provision worker 的真实 PostgreSQL 并发与恢复证据；必须通过 `run_pg.py` 运行，禁止用 SQLite 或开发库替代。
+
+`integration/test_direct_memory_public_api.py` 必须在 `postgres-test` 与 Mailpit 已启动时通过 `run_pg.py` 运行；它固定使用 `SMTP_HOST=127.0.0.1`、`SMTP_PORT=1025` 与 `CORS_ORIGINS='["http://127.0.0.1:5178"]'`，不得用 token 伪造、依赖覆盖或数据库 seed 跳过公开认证链路。

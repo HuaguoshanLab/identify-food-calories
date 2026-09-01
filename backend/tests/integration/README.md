@@ -26,4 +26,5 @@
 | `test_meal_records.py` | 真实 Agent 完成报告到餐食保存、时间修改、隔离与删除的竖向证据。 |
 | `test_memory_deletion_chain.py` | 真实 PostgreSQL 证明删除后立即不可检索，外部清理失败仅进入安全重试。 |
 | `test_memory_direct_write_idempotency.py` | 真实 PostgreSQL 证明直接偏好 capture 并发单例、outcome-unknown 重启仅按 request key resolve，及删除/用户隔离。 |
+| `test_direct_memory_public_api.py` | 仅经公开注册、Mailpit 验证、同源 Cookie 与登录 Bearer token 验证 Agent 直接忌口、A/B memory API 隔离、编辑/删除及删除后 context 为空。 |
 | `test_retrieval_isolation.py` | 真实 pgvector metadata 检索的 tenant、active/deleted 与受控知识版本过滤证据。 |
