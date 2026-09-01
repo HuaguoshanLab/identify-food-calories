@@ -14,6 +14,8 @@ class FakeMemoryProviderCall:
     operation: str
     user_id: uuid.UUID
     external_id: str | None
+    request_key: str | None = None
+    infer: bool | None = None
 
 
 class FakeMemoryProvider:
@@ -21,6 +23,7 @@ class FakeMemoryProvider:
 
     def __init__(self) -> None:
         self._memories: dict[str, tuple[uuid.UUID, str, str]] = {}
+        self._direct_records: dict[str, tuple[uuid.UUID, str, str, bool]] = {}
         self.calls: list[FakeMemoryProviderCall] = []
         self.fail_next_delete = False
 
@@ -28,6 +31,42 @@ class FakeMemoryProvider:
         external_id = f"fake-memory-{len(self._memories) + 1}"
         self._memories[external_id] = (user_id, category, canonical_text)
         self.calls.append(FakeMemoryProviderCall("create", user_id, external_id))
+        return external_id
+
+    @property
+    def direct_records(self) -> dict[str, tuple[uuid.UUID, str, str, bool]]:
+        return dict(self._direct_records)
+
+    def resolve_direct_by_request_key(
+        self, *, user_id: uuid.UUID, request_key: str
+    ) -> str | None:
+        self.calls.append(FakeMemoryProviderCall("resolve_direct", user_id, None, request_key))
+        record = self._direct_records.get(request_key)
+        if record is None:
+            return None
+        if record[0] != user_id:
+            raise LookupError("memory is unavailable")
+        return f"fake-direct-{request_key}"
+
+    def create_direct(
+        self,
+        *,
+        user_id: uuid.UUID,
+        category: str,
+        canonical_text: str,
+        request_key: str,
+    ) -> str:
+        existing = self._direct_records.get(request_key)
+        if existing is not None:
+            if existing[0] != user_id:
+                raise LookupError("memory is unavailable")
+            return f"fake-direct-{request_key}"
+        self._direct_records[request_key] = (user_id, category, canonical_text, False)
+        external_id = f"fake-direct-{request_key}"
+        self._memories[external_id] = (user_id, category, canonical_text)
+        self.calls.append(
+            FakeMemoryProviderCall("create_direct", user_id, external_id, request_key, False)
+        )
         return external_id
 
     def update(self, *, user_id: uuid.UUID, external_id: str, category: str, canonical_text: str) -> None:
@@ -73,6 +112,50 @@ class Mem0MemoryProvider:
             raise RuntimeError("Mem0 create returned no opaque memory id")
         return external_id
 
+    def resolve_direct_by_request_key(
+        self, *, user_id: uuid.UUID, request_key: str
+    ) -> str | None:
+        result = self._client.get_all(
+            filters={"user_id": str(user_id), "request_key": request_key},
+            page_size=2,
+        )
+        entries = self._result_entries(result)
+        matches = [
+            entry
+            for entry in entries
+            if isinstance(entry.get("metadata"), dict)
+            and entry["metadata"].get("request_key") == request_key
+        ]
+        if not matches:
+            return None
+        if len(matches) != 1 or not isinstance(matches[0].get("id"), str):
+            raise RuntimeError("Mem0 direct request-key resolve must return exactly one id")
+        return matches[0]["id"]
+
+    def create_direct(
+        self,
+        *,
+        user_id: uuid.UUID,
+        category: str,
+        canonical_text: str,
+        request_key: str,
+    ) -> str:
+        result = self._client.add(
+            messages=[{"role": "user", "content": canonical_text}],
+            user_id=str(user_id),
+            metadata={
+                "category": category,
+                "source": "food-agent-direct.v1",
+                "request_key": request_key,
+            },
+            infer=False,
+        )
+        entries = self._result_entries(result)
+        ids = [entry["id"] for entry in entries if isinstance(entry.get("id"), str)]
+        if len(ids) != 1:
+            raise RuntimeError("Mem0 direct create must return exactly one id")
+        return ids[0]
+
     def update(self, *, user_id: uuid.UUID, external_id: str, category: str, canonical_text: str) -> None:
         # user_id is recorded only as metadata; ownership was established by the local ledger.
         self._client.update(external_id, data=canonical_text, metadata={"category": category, "user_id": str(user_id)})
@@ -85,6 +168,17 @@ class Mem0MemoryProvider:
         result = self._client.search(query, user_id=str(user_id), limit=limit)
         entries = result.get("results", result) if isinstance(result, dict) else result
         return [MemorySearchHit(external_id=str(entry["id"]), canonical_text=str(entry.get("memory", ""))) for entry in entries if isinstance(entry, dict) and entry.get("id") and entry.get("memory")]
+
+    @staticmethod
+    def _result_entries(result: object) -> list[dict[str, object]]:
+        if not isinstance(result, dict):
+            return []
+        raw_entries = result.get("results") or result.get("memories")
+        if raw_entries is None and result.get("id"):
+            raw_entries = [result]
+        if not isinstance(raw_entries, list):
+            return []
+        return [entry for entry in raw_entries if isinstance(entry, dict)]
 
 
 def create_memory_provider(settings: Settings) -> MemoryProvider:

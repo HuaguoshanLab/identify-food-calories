@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import uuid
+import re
 from hashlib import sha256
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from app.memory.ports import MemoryLedgerRepository, MemoryProvider
-from app.records.models import MemoryDeletionOutbox, PreferenceMemoryLedger
+from app.records.models import (
+    MemoryDeletionOutbox,
+    MemoryProvisionOutbox,
+    PreferenceMemoryLedger,
+)
 
 
 ALLOWED_CATEGORIES = frozenset({"goal", "avoidance", "stable_preference"})
@@ -78,6 +83,26 @@ class MemoryService:
         now = self._now()
         ledger = PreferenceMemoryLedger(id=uuid.uuid4(), user_id=user_id, category=category, source_kind="model_inference", canonical_text=canonical_text, external_memory_id=None, is_active=False, created_at=now, updated_at=now, deleted_at=None)
         return self._persist(lambda: self._repository.add_ledger(ledger))
+
+    def capture_explicit_preferences(
+        self, *, user_id: uuid.UUID, source_run_id: uuid.UUID, statement: str
+    ) -> list[PreferenceMemoryLedger]:
+        """Persist only deterministic first-person statements; guesses stay proposals."""
+        captured: list[PreferenceMemoryLedger] = []
+        for category, canonical_text in self._extract_explicit_preferences(statement):
+            ledger = self.create_direct(
+                user_id=user_id,
+                source_run_id=source_run_id,
+                category=category,
+                canonical_text=canonical_text,
+            )
+            captured.append(ledger)
+            intent = self._repository.get_provision_for_ledger(
+                ledger_id=ledger.id, user_id=user_id
+            )
+            if intent is not None and intent.status in {"pending", "outcome_unknown"}:
+                self._provision_direct(ledger=ledger, intent=intent)
+        return captured
 
     def confirm_inference(self, *, memory_id: uuid.UUID, user_id: uuid.UUID) -> PreferenceMemoryLedger:
         ledger = self._repository.get_for_user(ledger_id=memory_id, user_id=user_id)
@@ -153,8 +178,13 @@ class MemoryService:
             ledger = self._repository.get_for_user(ledger_id=outbox.ledger_id, user_id=outbox.user_id)
             now = self._now()
             try:
-                if ledger is not None and ledger.external_memory_id is not None:
-                    self._provider.delete(user_id=outbox.user_id, external_id=ledger.external_memory_id)
+                external_id = ledger.external_memory_id if ledger is not None else None
+                if external_id is None and outbox.request_key is not None:
+                    external_id = self._provider.resolve_direct_by_request_key(
+                        user_id=outbox.user_id, request_key=outbox.request_key
+                    )
+                if external_id is not None:
+                    self._provider.delete(user_id=outbox.user_id, external_id=external_id)
                 outbox.status = "completed"
                 outbox.updated_at = now
                 self._persist(lambda: None)
@@ -170,12 +200,89 @@ class MemoryService:
                 failed += 1
         return succeeded, failed
 
+    def process_due_provisioning(self) -> tuple[int, int]:
+        """Write only an existing local intent, resolving its opaque key before retrying."""
+        succeeded = failed = 0
+        for intent in self._repository.list_due_provisioning(due_at=self._now()):
+            ledger = self._repository.get_for_user(
+                ledger_id=intent.ledger_id, user_id=intent.user_id
+            )
+            if ledger is None or ledger.deleted_at is not None:
+                intent.status = "cancelled"
+                intent.updated_at = self._now()
+                self._persist(lambda: None)
+                continue
+            try:
+                self._provision_direct(ledger=ledger, intent=intent)
+                succeeded += 1
+            except Exception:
+                failed += 1
+        return succeeded, failed
+
     @staticmethod
     def _validated(*, category: str, canonical_text: str) -> tuple[str, str]:
         normalized = " ".join(canonical_text.split())
         if category not in ALLOWED_CATEGORIES or not normalized:
             raise MemoryValidationError("invalid preference memory")
         return category, normalized
+
+    @staticmethod
+    def _extract_explicit_preferences(statement: str) -> list[tuple[str, str]]:
+        """D-08 allowlist intentionally rejects model, image and meal-parser observations."""
+        normalized = " ".join(statement.split()).strip("。！!?；;，,")
+        avoidance = re.fullmatch(r"(?:我|今天)?(?:不想|不)吃(?P<item>[^，,。！!?；;]+)", normalized)
+        if avoidance is not None:
+            item = avoidance.group("item").strip()
+            return [("avoidance", f"不吃{item}")] if item else []
+        goal = re.fullmatch(r"(?:我的)?目标(?:是|为)(?P<value>[^，,。！!?；;]+)", normalized)
+        if goal is not None and goal.group("value").strip():
+            return [("goal", goal.group("value").strip())]
+        preference = re.fullmatch(r"我(?:喜欢|偏好)(?P<value>[^，,。！!?；;]+)", normalized)
+        if preference is not None and preference.group("value").strip():
+            return [("stable_preference", preference.group("value").strip())]
+        return []
+
+    def _provision_direct(
+        self, *, ledger: PreferenceMemoryLedger, intent: MemoryProvisionOutbox
+    ) -> None:
+        now = self._now()
+        intent.status = "claimed"
+        intent.claimed_at = now
+        intent.updated_at = now
+        ledger.provisioning_status = "claimed"
+        ledger.updated_at = now
+        self._persist(lambda: None)
+        try:
+            external_id = self._provider.resolve_direct_by_request_key(
+                user_id=intent.user_id, request_key=intent.request_key
+            )
+            if external_id is None:
+                external_id = self._provider.create_direct(
+                    user_id=intent.user_id,
+                    category=ledger.category,
+                    canonical_text=ledger.canonical_text,
+                    request_key=intent.request_key,
+                )
+        except Exception:
+            intent.attempt += 1
+            intent.status = (
+                "failed" if intent.attempt >= self._retry_max_attempts else "outcome_unknown"
+            )
+            intent.not_before = now + timedelta(
+                seconds=self._retry_backoff_seconds * (2 ** (intent.attempt - 1))
+            )
+            intent.updated_at = self._now()
+            ledger.provisioning_status = intent.status
+            ledger.updated_at = intent.updated_at
+            self._persist(lambda: None)
+            raise
+        ledger.external_memory_id = external_id
+        ledger.provisioning_status = "provisioned"
+        ledger.updated_at = self._now()
+        intent.status = "provisioned"
+        intent.completed_at = ledger.updated_at
+        intent.updated_at = ledger.updated_at
+        self._persist(lambda: None)
 
     @staticmethod
     def _direct_request_key(

@@ -46,6 +46,7 @@ def test_real_pg_memory_delete_is_immediately_invisible_and_retries_external_cle
             session.commit()
             service = _service(session, provider)
             memory = service.create_direct(user_id=user.id, category="avoidance", canonical_text="不吃花生")
+            assert service.process_due_provisioning() == (1, 0)
             provider.fail_next_delete = True
             service.delete_memory(memory_id=memory.id, user_id=user.id)
             assert service.list_memories(user_id=user.id) == []

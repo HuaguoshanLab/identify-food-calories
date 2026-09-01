@@ -164,3 +164,17 @@ class SqlAlchemyMemoryLedgerRepository:
                 MemoryProvisionOutbox.deleted_at.is_(None),
             )
         )
+
+    def list_due_provisioning(self, *, due_at: datetime) -> list[MemoryProvisionOutbox]:
+        return list(
+            self._session.scalars(
+                select(MemoryProvisionOutbox)
+                .where(
+                    MemoryProvisionOutbox.status.in_(("pending", "outcome_unknown")),
+                    MemoryProvisionOutbox.not_before <= due_at,
+                    MemoryProvisionOutbox.deleted_at.is_(None),
+                )
+                .order_by(MemoryProvisionOutbox.not_before, MemoryProvisionOutbox.id)
+                .with_for_update(skip_locked=True)
+            )
+        )

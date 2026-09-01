@@ -281,7 +281,7 @@ def test_direct_provision_retry_resolves_exact_request_key_before_creating_again
     assert [call.operation for call in provider.calls] == ["create_direct", "resolve_direct"]
 
 
-def test_mem0_direct_adapter_fails_closed_when_add_is_not_exactly_one_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mem0_direct_adapter_fails_closed_when_add_is_not_exactly_one_id() -> None:
     from app.memory.providers import Mem0MemoryProvider
 
     class StubClient:
@@ -297,3 +297,37 @@ def test_mem0_direct_adapter_fails_closed_when_add_is_not_exactly_one_id(monkeyp
             canonical_text="不吃辣",
             request_key="opaque-key",
         )
+
+
+def test_mem0_direct_adapter_passes_exact_canonical_record_without_inference() -> None:
+    from app.memory.providers import Mem0MemoryProvider
+
+    class StubClient:
+        def __init__(self) -> None:
+            self.kwargs: dict[str, object] | None = None
+
+        def add(self, **kwargs: object) -> dict[str, object]:
+            self.kwargs = kwargs
+            return {"results": [{"id": "canonical-id"}]}
+
+    client = StubClient()
+    provider = object.__new__(Mem0MemoryProvider)
+    provider._client = client  # type: ignore[attr-defined]
+    user_id = uuid.uuid4()
+
+    assert provider.create_direct(
+        user_id=user_id,
+        category="avoidance",
+        canonical_text="不吃辣",
+        request_key="opaque-key",
+    ) == "canonical-id"
+    assert client.kwargs == {
+        "messages": [{"role": "user", "content": "不吃辣"}],
+        "user_id": str(user_id),
+        "metadata": {
+            "category": "avoidance",
+            "source": "food-agent-direct.v1",
+            "request_key": "opaque-key",
+        },
+        "infer": False,
+    }
