@@ -24,7 +24,6 @@ from app.planning.schemas import (
 )
 from app.planning.service import PlanningService
 from app.nutrition.schemas import (
-    NutritionAction,
     NutritionCalculationInput,
     NutritionValues,
     QualifiedFood,

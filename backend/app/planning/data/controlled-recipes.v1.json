@@ -1,0 +1,66 @@
+{
+  "schema_version": "controlled-recipes.v1",
+  "recipe_version": "controlled-recipes.v1",
+  "catalog_version": "foundation-foods-2026-08-rice-fist-v1",
+  "recipes": [
+    {
+      "stable_id": "project:overnight-oats-yogurt.v1",
+      "display_name": "原味酸奶燕麦杯",
+      "meal_slots": ["breakfast"],
+      "portion": {"description": "一份", "grams": "190"},
+      "method_tags": ["冷藏备好"],
+      "flavour_tags": ["清淡", "原味"],
+      "source_kind": "project_authored",
+      "source_reference": "backend/app/planning/data/controlled-recipes.v1.json#project:overnight-oats-yogurt.v1",
+      "license_name": "LicenseRef-Project-Authored-v1",
+      "audit_status": "approved",
+      "audited_at": "2026-09-01T00:00:00+00:00",
+      "audited_by_role": "nutrition_catalog_reviewer",
+      "audit_version": "recipe-audit.v1",
+      "ingredients": [
+        {"catalog_item_stable_id": "fdc:168833", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "40", "portion_description": "一份干燕麦"},
+        {"catalog_item_stable_id": "fdc:171265", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "150", "portion_description": "一杯原味酸奶"}
+      ]
+    },
+    {
+      "stable_id": "project:chicken-rice-broccoli.v1",
+      "display_name": "鸡胸肉西兰花饭",
+      "meal_slots": ["lunch"],
+      "portion": {"description": "一份", "grams": "350"},
+      "method_tags": ["清蒸搭配"],
+      "flavour_tags": ["清淡"],
+      "source_kind": "project_authored",
+      "source_reference": "backend/app/planning/data/controlled-recipes.v1.json#project:chicken-rice-broccoli.v1",
+      "license_name": "LicenseRef-Project-Authored-v1",
+      "audit_status": "approved",
+      "audited_at": "2026-09-01T00:00:00+00:00",
+      "audited_by_role": "nutrition_catalog_reviewer",
+      "audit_version": "recipe-audit.v1",
+      "ingredients": [
+        {"catalog_item_stable_id": "fdc:172231", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "120", "portion_description": "一份熟鸡胸肉"},
+        {"catalog_item_stable_id": "fdc:169756", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "150", "portion_description": "一份熟米饭"},
+        {"catalog_item_stable_id": "fdc:170457", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "80", "portion_description": "一份熟西兰花"}
+      ]
+    },
+    {
+      "stable_id": "project:tofu-potato-spinach.v1",
+      "display_name": "豆腐土豆菠菜碗",
+      "meal_slots": ["dinner"],
+      "portion": {"description": "一份", "grams": "320"},
+      "method_tags": ["炖煮"],
+      "flavour_tags": ["清淡", "温热"],
+      "source_kind": "project_authored",
+      "source_reference": "backend/app/planning/data/controlled-recipes.v1.json#project:tofu-potato-spinach.v1",
+      "license_name": "LicenseRef-Project-Authored-v1",
+      "audit_status": "approved",
+      "audited_at": "2026-09-01T00:00:00+00:00",
+      "audited_by_role": "nutrition_catalog_reviewer",
+      "audit_version": "recipe-audit.v1",
+      "ingredients": [
+        {"catalog_item_stable_id": "fdc:168482", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "150", "portion_description": "一份豆腐"},
+        {"catalog_item_stable_id": "fdc:169761", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "120", "portion_description": "一份熟土豆"},
+        {"catalog_item_stable_id": "fdc:170408", "catalog_version": "foundation-foods-2026-08-rice-fist-v1", "grams": "50", "portion_description": "一份菠菜"}
+      ]
+    }
+  ]
+}

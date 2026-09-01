@@ -62,6 +62,14 @@ class PlanValidationAction(str, Enum):
     NEEDS_INPUT = "NEEDS_INPUT"
 
 
+class MealSlot(str, Enum):
+    """The only stable meal-card positions exposed by the planning MVP."""
+
+    BREAKFAST = "breakfast"
+    LUNCH = "lunch"
+    DINNER = "dinner"
+
+
 class PlanningProfileInput(BaseModel):
     """Transient profile data. Optional fields allow a safe NEEDS_INPUT response."""
 
@@ -168,15 +176,33 @@ class DailyTarget(BaseModel):
     formula_version: str = FORMULA_VERSION
 
 
+class ControlledRecipeIngredient(BaseModel):
+    """A fixed quantity of one qualified catalog item, never a stored nutrient total."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    food_id: uuid.UUID
+    catalog_version: str = Field(min_length=1, max_length=80)
+    grams: Decimal = Field(gt=0, le=Decimal("2000"))
+    portion_description: str = Field(min_length=1, max_length=120)
+
+
 class ControlledRecipe(BaseModel):
-    """Public contract for a project-authored and audited recipe candidate."""
+    """Auditable recipe candidate with display-only details and qualified ingredients."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: uuid.UUID
+    stable_id: str = Field(min_length=1, max_length=120)
     display_name: str = Field(min_length=1, max_length=200)
     recipe_version: str = Field(min_length=1, max_length=80)
     catalog_version: str = Field(min_length=1, max_length=80)
+    meal_slots: tuple[MealSlot, ...] = Field(min_length=1)
+    portion_description: str = Field(min_length=1, max_length=120)
+    portion_grams: Decimal = Field(gt=0, le=Decimal("2000"))
+    method_tags: tuple[str, ...] = Field(min_length=1)
+    flavour_tags: tuple[str, ...] = Field(min_length=1)
+    ingredients: tuple[ControlledRecipeIngredient, ...] = Field(min_length=1)
     source_kind: str = "project_authored"
     source_reference: str = Field(min_length=1, max_length=500)
     license_name: str = CONTROLLED_RECIPE_LICENSE
@@ -184,6 +210,7 @@ class ControlledRecipe(BaseModel):
     audited_at: datetime
     audited_by_role: str = "nutrition_catalog_reviewer"
     audit_version: str = Field(min_length=1, max_length=80)
+    is_active: bool = True
 
     @model_validator(mode="after")
     def is_a_qualified_project_recipe(self) -> ControlledRecipe:
@@ -195,6 +222,56 @@ class ControlledRecipe(BaseModel):
             raise ValueError("controlled recipes must be approved")
         if self.audited_by_role != "nutrition_catalog_reviewer":
             raise ValueError("controlled recipes require the authorized audit role")
+        if not self.is_active:
+            raise ValueError("controlled recipes must be active")
+        if any(ingredient.catalog_version != self.catalog_version for ingredient in self.ingredients):
+            raise ValueError("recipe ingredients must use the recipe catalog version")
+        return self
+
+
+class PlannedMeal(BaseModel):
+    """Safe D-08 card payload; provenance and audit evidence remain server-side."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    slot: MealSlot
+    recipe_id: uuid.UUID
+    display_name: str = Field(min_length=1, max_length=200)
+    portion_description: str = Field(min_length=1, max_length=120)
+    portion_grams: Decimal = Field(gt=0)
+    method_tags: tuple[str, ...]
+    flavour_tags: tuple[str, ...]
+    matched_preference_summaries: tuple[str, ...] = ()
+    matched_exclusion_summaries: tuple[str, ...] = ()
+    nutrients: "PlanningNutritionValues"
+
+
+class PlanningNutritionValues(BaseModel):
+    """Planning-owned public projection of the deterministic nutrition service result."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    energy_kcal: Decimal = Field(ge=0)
+    protein_g: Decimal = Field(ge=0)
+    fat_g: Decimal = Field(ge=0)
+    carbohydrate_g: Decimal = Field(ge=0)
+
+
+class MealCompositionResult(BaseModel):
+    """Closed composition response; incomplete safe candidates request deterministic replanning."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    action: PlanValidationAction
+    meals: tuple[PlannedMeal, ...] = ()
+    safe_message: str
+
+    @model_validator(mode="after")
+    def keeps_complete_meals_bound_to_pass(self) -> "MealCompositionResult":
+        if self.action is PlanValidationAction.PASS and len(self.meals) != len(MealSlot):
+            raise ValueError("a passing composition requires breakfast, lunch, and dinner")
+        if self.action is not PlanValidationAction.PASS and self.meals:
+            raise ValueError("only a passing composition may expose meals")
         return self
 
 

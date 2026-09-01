@@ -13,9 +13,13 @@ from app.planning.schemas import (
     ACTIVITY_FACTORS,
     HEALTH_REFUSAL_MESSAGE,
     DailyTarget,
+    MealCompositionResult,
+    MealSlot,
     FormulaVariant,
     PlanValidationAction,
     PlanValidationResult,
+    PlannedMeal,
+    PlanningNutritionValues,
     PlanningGoal,
     PlanningProfilePatch,
     PlanningProfileInput,
@@ -26,6 +30,7 @@ from app.planning.schemas import (
     TargetCalculationResult,
     TargetRange,
 )
+from app.nutrition.schemas import NutritionAction, NutritionCalculationInput, NutritionValues
 
 
 MIN_ADULT_AGE = 19
@@ -131,6 +136,111 @@ class PlanningService:
             action=PlanValidationAction.PASS,
             rule_id="planning-validation-pass",
             safe_message="餐单通过确定性目标与约束校验。",
+        )
+
+    def compose_daily_meals(
+        self, *, catalog_version: str, preferences: PreferenceReview
+    ) -> MealCompositionResult:
+        """Select one fully qualified candidate per stable slot and recompute every ingredient."""
+
+        if not preferences.confirmed:
+            return MealCompositionResult(
+                action=PlanValidationAction.NEEDS_INPUT,
+                safe_message="请先确认本次要使用的忌口和口味偏好。",
+            )
+        recipes = self._repository.list_controlled_recipes(catalog_version=catalog_version)
+        meals: list[PlannedMeal] = []
+        for slot in MealSlot:
+            meal = next(
+                (
+                    built_meal
+                    for recipe in recipes
+                    if slot in recipe.meal_slots
+                    and recipe.catalog_version == catalog_version
+                    and not self._matches_exclusion(recipe=recipe, exclusions=preferences.exclusions)
+                    and (
+                        built_meal := self._build_meal(
+                            recipe=recipe,
+                            slot=slot,
+                            preferences=preferences,
+                        )
+                    )
+                    is not None
+                ),
+                None,
+            )
+            if meal is None:
+                return MealCompositionResult(
+                    action=PlanValidationAction.REPLAN,
+                    safe_message="没有同时满足受控来源、审核、目录资格和三餐槽位的候选。",
+                )
+            meals.append(meal)
+        return MealCompositionResult(
+            action=PlanValidationAction.PASS,
+            meals=tuple(meals),
+            safe_message="三餐营养值已由合格目录条目和受控克数重新计算。",
+        )
+
+    def _build_meal(self, *, recipe, slot: MealSlot, preferences: PreferenceReview) -> PlannedMeal | None:
+        calculated: list[NutritionValues] = []
+        for ingredient in recipe.ingredients:
+            calculation = self._nutrition_port.calculate_nutrition(
+                NutritionCalculationInput(
+                    food_id=ingredient.food_id,
+                    catalog_version=ingredient.catalog_version,
+                    grams=ingredient.grams,
+                )
+            )
+            if calculation.action is not NutritionAction.PASS:
+                return None
+            assert calculation.food is not None
+            assert calculation.nutrients is not None
+            if any(
+                exclusion.casefold() in calculation.food.canonical_name.casefold()
+                for exclusion in preferences.exclusions
+            ):
+                return None
+            calculated.append(calculation.nutrients)
+        if not calculated:
+            return None
+        preference_summaries = tuple(
+            f"偏好：{preference}"
+            for preference in self._matching_preferences(recipe=recipe, preferences=preferences)
+        )
+        return PlannedMeal(
+            slot=slot,
+            recipe_id=recipe.id,
+            display_name=recipe.display_name,
+            portion_description=recipe.portion_description,
+            portion_grams=recipe.portion_grams,
+            method_tags=recipe.method_tags,
+            flavour_tags=recipe.flavour_tags,
+            matched_preference_summaries=preference_summaries,
+            matched_exclusion_summaries=(),
+            nutrients=PlanningNutritionValues(
+                energy_kcal=sum((value.energy_kcal for value in calculated), Decimal("0")),
+                protein_g=sum((value.protein_g for value in calculated), Decimal("0")),
+                fat_g=sum((value.fat_g for value in calculated), Decimal("0")),
+                carbohydrate_g=sum(
+                    (value.carbohydrate_g for value in calculated), Decimal("0")
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _matches_exclusion(*, recipe, exclusions: tuple[str, ...]) -> bool:
+        searchable = " ".join(
+            (recipe.display_name, *recipe.method_tags, *recipe.flavour_tags)
+        ).casefold()
+        return any(exclusion.casefold() in searchable for exclusion in exclusions)
+
+    @staticmethod
+    def _matching_preferences(*, recipe, preferences: PreferenceReview) -> tuple[str, ...]:
+        # The public card only claims a preference when it is literally present in controlled tags.
+        return tuple(
+            preference
+            for preference in preferences.taste_preferences
+            if preference.casefold() in {tag.casefold() for tag in recipe.flavour_tags}
         )
 
     @staticmethod

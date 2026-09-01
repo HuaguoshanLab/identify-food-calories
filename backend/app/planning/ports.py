@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Protocol
 
+from app.nutrition.schemas import NutritionCalculationInput, NutritionCalculationResult
 from app.planning.models import PlanningProfile
 from app.planning.schemas import ControlledRecipe, PlanningProfileInput
 
@@ -26,6 +27,8 @@ class PlanningProfileRepository(Protocol):
 
 
 class PlanningNutritionPort(Protocol):
-    """Future nutrition adapter used to recompute recipe totals from controlled foods."""
+    """Narrow deterministic calculator used for each qualified recipe ingredient."""
 
-    def calculate_recipe_nutrients(self, *, recipe_id: str, catalog_version: str) -> object: ...
+    def calculate_nutrition(
+        self, request: NutritionCalculationInput
+    ) -> NutritionCalculationResult: ...
