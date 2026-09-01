@@ -22,7 +22,7 @@ from app.memory.api import router as memories_router
 from app.memory.providers import create_memory_provider
 from app.memory.repository import SqlAlchemyMemoryLedgerRepository
 from app.memory.service import MemoryService
-from app.agent.graph import AgentRuntime, AgentRuntimeFactory, MealAnalysisGraph
+from app.agent.graph import AgentRuntime, AgentRuntimeFactory, DietPlanningGraph, MealAnalysisGraph, RoutedAgentGraph
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.agent.service import RetentionPolicy
 from app.agent.tools import SessionNutritionToolAdapter
@@ -65,12 +65,16 @@ class PersistedAgentRuntimeFactory:
             max_pixels=self._settings.image_max_pixels,
             ttl_seconds=self._settings.image_ttl_seconds,
         )
-        graph = MealAnalysisGraph(
+        meal_graph = MealAnalysisGraph(
             provider=provider,
             vision_provider=vision_provider,
             vision_model_alias=self._settings.qwen_model or "fake-vision-v1",
             vision_pixel_budget=self._settings.vision_max_pixels,
             tools=tools,
+        )
+        graph = RoutedAgentGraph(
+            meal_graph=meal_graph,
+            diet_planning_graph=DietPlanningGraph(tools=tools),
         )
         supervisor = PostgresLeaseSupervisor(
             session_factory=session_factory, holder_id="fastapi-agent-runtime"

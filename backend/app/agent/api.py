@@ -24,12 +24,13 @@ from app.agent.schemas import (
     AgentErrorResponse,
     AgentImageAcceptedResponse,
     AgentInputRequest,
+    DietPlanningStartCommand,
     AgentThreadCreateRequest,
     AgentThreadSnapshot,
     AgentThreadStatus,
 )
 from app.agent.service import AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy
-from app.agent.state import StateImageReference
+from app.agent.state import AgentGraphKind, StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.images.schemas import ImageValidationError, ValidatedImageReference
 from app.images.service import ImageSafetyService
@@ -78,7 +79,7 @@ def _snapshot(service: AgentService, *, thread_id: uuid.UUID, user_id: uuid.UUID
     report: dict[str, object] | None = None
     for event in reversed(events):
         candidate = event.payload.get("report")
-        if event.event_type in {"completed", "waiting_input"} and isinstance(candidate, dict):
+        if event.event_type in {"completed", "waiting_input", "complete", "needs_input"} and isinstance(candidate, dict):
             report = candidate
             break
     return AgentThreadSnapshot(
@@ -123,6 +124,8 @@ async def _execute(
     text: str | None = None,
     image_reference: StateImageReference | None = None,
     resume_payload: dict[str, object] | None = None,
+    planning_command: DietPlanningStartCommand | None = None,
+    graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
 ) -> None:
     cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
     await service.execute_run(
@@ -133,6 +136,8 @@ async def _execute(
         input_text=text,
         image_reference=image_reference,
         resume_payload=resume_payload,
+        planning_command=planning_command,
+        graph_kind=graph_kind,
     )
 
 
@@ -141,6 +146,46 @@ async def create_agent_thread(payload: AgentThreadCreateRequest, request: Reques
     thread = service.create_thread(user_id=principal)
     run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
     await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
+    return _snapshot(service, thread_id=thread.id, user_id=principal)
+
+
+@router.post(
+    "/threads/diet-planning",
+    operation_id="createDietPlanningThread",
+    response_model=AgentThreadSnapshot,
+    status_code=status.HTTP_201_CREATED,
+    responses=_ERROR_RESPONSES,
+)
+async def create_diet_planning_thread(
+    payload: DietPlanningStartCommand,
+    request: Request,
+    principal: AgentPrincipal,
+    command_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=128)],
+    service: AgentService = Depends(get_agent_service),
+) -> AgentThreadSnapshot | JSONResponse:
+    """Start one owned planning thread; the key deterministically reuses its ledger command."""
+
+    thread_id = uuid.uuid5(uuid.NAMESPACE_URL, f"food-agent:diet-planning:{principal}:{command_key}")
+    try:
+        thread = service.create_thread(user_id=principal, thread_id=thread_id)
+        run = service.create_or_reuse_run(
+            thread_id=thread.id,
+            user_id=principal,
+            command_key=command_key,
+            canonical_command={"kind": "diet_planning", "command": payload.model_dump(mode="json")},
+            graph_kind=AgentGraphKind.DIET_PLANNING,
+        )
+        if run.status != "completed":
+            await _execute(
+                service=service,
+                runtime=_runtime(request),
+                run_id=run.id,
+                user_id=principal,
+                planning_command=payload,
+                graph_kind=AgentGraphKind.DIET_PLANNING,
+            )
+    except AgentCommandConflict:
+        return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同计划命令。")
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
 

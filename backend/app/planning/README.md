@@ -22,4 +22,5 @@
 | `repository.py` | SQLAlchemy tenant-filtered profile adapter，以及只返回合格目录映射的 recipe active query |
 | `service.py` | `target-policy.v1`、健康 guard、目录重算的三餐组合、确定性校验和 profile 事务边界 |
 | `api.py` | 认证的 `/api/v1/planning/profile` HTTP CRUD 与统一不可用响应 |
+| `importer.py` | 离线校验并幂等导入项目自有、已审核的受控菜谱 seed |
 | `data/` | 项目自有、无第三方正文的 R-03 受控菜谱短 seed |

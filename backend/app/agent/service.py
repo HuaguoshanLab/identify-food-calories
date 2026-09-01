@@ -23,8 +23,19 @@ from app.agent.models import (
 )
 from app.images.schemas import ValidatedImageReference
 from app.agent.ports import AgentRepository
-from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState, StateImageReference
+from app.agent.state import (
+    AgentGraphKind,
+    AgentNextAction,
+    AgentRuntimeStatus,
+    DietPlanningAction,
+    DietPlanningState,
+    MealAgentState,
+    StateImageReference,
+    checkpoint_namespace_for_kind,
+    state_codec_for_kind,
+)
 from app.agent.graph import AgentGraph
+from app.agent.schemas import DietPlanningStartCommand
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
 
@@ -45,6 +56,9 @@ GRAPH_VERSION = "meal-agent-graph.v1"
 PROMPT_VERSION = "reasoning-parse.v1"
 TOOL_VERSION = "nutrition-tools-v1"
 VISION_OPERATION_VERSION = "vision-meal.v1"
+DIET_PLANNING_GRAPH_VERSION = "diet-planning-graph.v1"
+DIET_PLANNING_PROMPT_VERSION = "diet-planning-command.v1"
+DIET_PLANNING_TOOL_VERSION = "planning-tools.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,11 +105,15 @@ class AgentService:
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
 
-    def create_thread(self, *, user_id: uuid.UUID) -> AgentThread:
+    def create_thread(self, *, user_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> AgentThread:
+        if thread_id is not None:
+            existing = self._repository.get_thread_for_user(thread_id=thread_id, user_id=user_id)
+            if existing is not None and existing.deleted_at is None:
+                return existing
         now = self._now()
         thread = self._repository.add_thread(
             AgentThread(
-                id=uuid.uuid4(),
+                id=thread_id or uuid.uuid4(),
                 user_id=user_id,
                 status="open",
                 revision=0,
@@ -120,6 +138,7 @@ class AgentService:
         user_id: uuid.UUID,
         command_key: str,
         canonical_command: dict[str, object],
+        graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
     ) -> AgentRun:
         thread = self._repository.get_thread_for_user(
             thread_id=thread_id, user_id=user_id, for_update=True
@@ -146,9 +165,9 @@ class AgentService:
                 command_key=command_key,
                 command_hash=command_hash,
                 status="accepted",
-                graph_version=GRAPH_VERSION,
-                prompt_version=PROMPT_VERSION,
-                tool_version=TOOL_VERSION,
+                graph_version=(DIET_PLANNING_GRAPH_VERSION if graph_kind is AgentGraphKind.DIET_PLANNING else GRAPH_VERSION),
+                prompt_version=(DIET_PLANNING_PROMPT_VERSION if graph_kind is AgentGraphKind.DIET_PLANNING else PROMPT_VERSION),
+                tool_version=(DIET_PLANNING_TOOL_VERSION if graph_kind is AgentGraphKind.DIET_PLANNING else TOOL_VERSION),
                 model_provider=None,
                 model_version=None,
                 graph_steps=0,
@@ -177,6 +196,8 @@ class AgentService:
         input_text: str | None = None,
         image_reference: StateImageReference | None = None,
         resume_payload: dict[str, object] | None = None,
+        planning_command: DietPlanningStartCommand | None = None,
+        graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
     ) -> AgentRun:
         """Execute one accepted run after tenant ownership has been checked by the caller.
 
@@ -197,13 +218,15 @@ class AgentService:
             thread_id=run.thread_id,
             user_id=user_id,
             run_id=run.id,
-            event_type="running",
-            payload={"run_id": str(run.id)},
-            safe_summary="分析任务正在运行。",
+            event_type=(DietPlanningAction.READ_CONTEXT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "running"),
+            payload={},
+            safe_summary=("正在读取本次资料与饮食偏好。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析任务正在运行。"),
         )
         try:
-            previous = await self._load_checkpoint(checkpointer=checkpointer, thread_id=run.thread_id)
-            if resume_payload is None and input_text is None and image_reference is None:
+            previous = await self._load_checkpoint(
+                checkpointer=checkpointer, thread_id=run.thread_id, graph_kind=graph_kind
+            )
+            if resume_payload is None and input_text is None and image_reference is None and planning_command is None:
                 return await self._fail_run(
                     run=run, user_id=user_id, code="MISSING_AGENT_COMMAND"
                 )
@@ -218,6 +241,16 @@ class AgentService:
                     }
                 )
                 finished = await graph.ainvoke(state, resume=command.resume)
+            elif planning_command is not None:
+                state = DietPlanningState(
+                    user_id=user_id, thread_id=run.thread_id, run_id=run.id,
+                    command_key=run.command_key, profile=planning_command.profile,
+                    preferences=planning_command.preferences, save_profile=planning_command.save_profile,
+                    graph_version=run.graph_version, prompt_version=run.prompt_version,
+                    tool_version=run.tool_version, next_action=DietPlanningAction.READ_CONTEXT,
+                    status=AgentRuntimeStatus.ACCEPTED,
+                )
+                finished = await graph.ainvoke(state)
             elif input_text is not None:
                 state = MealAgentState(
                     user_id=user_id,
@@ -262,7 +295,8 @@ class AgentService:
             return await self._fail_run(run=run, user_id=user_id, code="CHECKPOINT_PERSIST_FAILED")
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
-        self._sync_vision_invocation(state=finished, user_id=user_id)
+        if isinstance(finished, MealAgentState):
+            self._sync_vision_invocation(state=finished, user_id=user_id)
         # A correction may create a new ledger run from an old thread checkpoint.  The state
         # counters deliberately remain cumulative for the safety limit, while each AgentRun must
         # record only work charged to that run; otherwise resumed model calls look duplicated.
@@ -296,9 +330,9 @@ class AgentService:
                 thread_id=run.thread_id,
                 user_id=user_id,
                 run_id=run.id,
-                event_type="waiting_input",
-                payload={"run_id": str(run.id), "report": finished.report or {}},
-                safe_summary="需要补充信息后才能继续分析。",
+                event_type=(DietPlanningAction.NEEDS_INPUT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "waiting_input"),
+                payload={"report": finished.report or {}},
+                safe_summary=("请确认或补充资料后继续规划。" if graph_kind is AgentGraphKind.DIET_PLANNING else "需要补充信息后才能继续分析。"),
             )
             return run
         if finished.status is AgentRuntimeStatus.LIMIT_REACHED:
@@ -310,9 +344,9 @@ class AgentService:
                 thread_id=run.thread_id,
                 user_id=user_id,
                 run_id=run.id,
-                event_type="failed",
-                payload={"run_id": str(run.id), "failure_code": "LIMIT_REACHED"},
-                safe_summary="分析已达到本次运行上限。",
+                event_type=(DietPlanningAction.NEEDS_INPUT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "failed"),
+                payload={"report": finished.report or {}},
+                safe_summary=("规划已达到有界调整上限。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析已达到本次运行上限。"),
             )
             return run
         if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
@@ -323,17 +357,17 @@ class AgentService:
                 thread_id=run.thread_id,
                 user_id=user_id,
                 run_id=run.id,
-                event_type="completed",
-                payload={"run_id": str(run.id), "report": finished.report},
-                safe_summary="分析报告已生成。",
+                event_type=(DietPlanningAction.COMPLETE.value if graph_kind is AgentGraphKind.DIET_PLANNING else "completed"),
+                payload={"report": finished.report},
+                safe_summary=("一日三餐计划已生成。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析报告已生成。"),
             )
             return run
         run.status = "failed"
         run.failure_code = (
             "OUTCOME_UNKNOWN"
-            if finished.vision_invocation_status == "outcome_unknown"
+            if isinstance(finished, MealAgentState) and finished.vision_invocation_status == "outcome_unknown"
             else "VISION_ANALYSIS_FAILED"
-            if finished.vision_image is not None
+            if isinstance(finished, MealAgentState) and finished.vision_image is not None
             else "ANALYSIS_NOT_COMPLETED"
         )
         run.finished_at = run.updated_at
@@ -342,9 +376,9 @@ class AgentService:
             thread_id=run.thread_id,
             user_id=user_id,
             run_id=run.id,
-            event_type="failed",
-            payload={"run_id": str(run.id)},
-            safe_summary="分析未能完成。",
+            event_type=(DietPlanningAction.NEEDS_INPUT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "failed"),
+            payload={"report": finished.report or {}},
+            safe_summary=("规划无法完成；请修改资料或咨询专业人士。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析未能完成。"),
         )
         return run
 
@@ -376,7 +410,9 @@ class AgentService:
         Invalid text returns ``None`` and leaves the checkpoint waiting.
         """
 
-        state = await self._load_checkpoint(checkpointer=checkpointer, thread_id=thread_id)
+        state = await self._load_checkpoint(
+            checkpointer=checkpointer, thread_id=thread_id, graph_kind=AgentGraphKind.MEAL_ANALYSIS
+        )
         if state is None:
             return None
         try:
@@ -400,20 +436,20 @@ class AgentService:
 
     @staticmethod
     async def _load_checkpoint(
-        *, checkpointer: object, thread_id: uuid.UUID
-    ) -> MealAgentState | None:
+        *, checkpointer: object, thread_id: uuid.UUID, graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS
+    ) -> MealAgentState | DietPlanningState | None:
         saver = checkpointer
         checkpoint_tuple = await saver.aget_tuple(  # type: ignore[attr-defined]
-            {"configurable": {"thread_id": str(thread_id), "checkpoint_ns": "meal-analysis"}}
+            {"configurable": {"thread_id": str(thread_id), "checkpoint_ns": checkpoint_namespace_for_kind(graph_kind)}}
         )
         if checkpoint_tuple is None:
             return None
         values = checkpoint_tuple.checkpoint.get("channel_values", {})
         raw_state = values.get("agent_state")
-        return MealAgentState.model_validate(raw_state) if isinstance(raw_state, dict) else None
+        return state_codec_for_kind(graph_kind).model_validate(raw_state) if isinstance(raw_state, dict) else None
 
     @staticmethod
-    async def _persist_checkpoint(*, checkpointer: object, state: MealAgentState) -> None:
+    async def _persist_checkpoint(*, checkpointer: object, state: MealAgentState | DietPlanningState) -> None:
         """Persist short-lived graph state after terminal routing without exposing it as a snapshot."""
 
         from langgraph.checkpoint.base import empty_checkpoint
@@ -435,7 +471,9 @@ class AgentService:
             {
                 "configurable": {
                     "thread_id": str(state.thread_id),
-                    "checkpoint_ns": "meal-analysis",
+                    "checkpoint_ns": checkpoint_namespace_for_kind(
+                        AgentGraphKind.MEAL_ANALYSIS if isinstance(state, MealAgentState) else AgentGraphKind.DIET_PLANNING
+                    ),
                 }
             },
             checkpoint,

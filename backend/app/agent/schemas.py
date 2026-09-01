@@ -12,6 +12,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.planning.schemas import PlanningProfileInput, PreferenceReview
 
 
 class AgentThreadStatus(StrEnum):
@@ -33,6 +34,16 @@ class AgentThreadCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     input_text: str = Field(min_length=1, max_length=4_000)
+
+
+class DietPlanningStartCommand(BaseModel):
+    """The complete transient input for a new plan; profiles are never inferred by a model."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    profile: PlanningProfileInput
+    preferences: PreferenceReview
+    save_profile: bool = False
 
 
 class AgentInputRequest(BaseModel):

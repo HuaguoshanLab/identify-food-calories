@@ -38,6 +38,14 @@ def _settings() -> Settings:
     )
 
 
+def _test_env(settings: Settings) -> dict[str, str]:
+    return os.environ | {
+        "APP_ENV": "test",
+        "DATABASE_URL": settings.database_url,
+        "TEST_DATABASE_URL": settings.test_database_url or "",
+    }
+
+
 def _create_user(session: Session, *, label: str) -> tuple[User, str]:
     now = datetime.now(UTC)
     user = User(
@@ -89,7 +97,7 @@ def test_diet_planning_command_is_owner_scoped_idempotent_and_streams_only_safe_
     subprocess.run(
         [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
         cwd=BACKEND_ROOT,
-        env=os.environ.copy(),
+        env=_test_env(settings),
         check=True,
     )
     engine = create_engine(test_url)
@@ -146,7 +154,7 @@ def test_unconfirmed_or_unsaved_diet_planning_commands_never_write_a_profile() -
     subprocess.run(
         [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
         cwd=BACKEND_ROOT,
-        env=os.environ.copy(),
+        env=_test_env(settings),
         check=True,
     )
     engine = create_engine(test_url)

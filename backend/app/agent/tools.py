@@ -21,6 +21,15 @@ from app.nutrition.schemas import (
 from app.nutrition.service import NutritionService
 from app.retrieval.ports import RetrievedContextItem
 from app.memory.ports import MemoryProvider
+from app.planning.schemas import (
+    DailyTarget,
+    MealCompositionResult,
+    PlanValidationResult,
+    PlanningProfileInput,
+    PreferenceReview,
+    TargetCalculationResult,
+)
+from app.planning.schemas import PlanningProfileWrite
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +60,26 @@ class NutritionToolAdapter(Protocol):
     def capture_explicit_preferences(
         self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
     ) -> tuple[CapturedPreferenceSummary, ...]: ...
+
+
+class PlanningToolAdapter(Protocol):
+    """The planning graph's complete authority; it never receives a Session or repository."""
+
+    def calculate_daily_target(
+        self, *, profile: PlanningProfileInput, preferences: PreferenceReview
+    ) -> TargetCalculationResult: ...
+
+    def compose_daily_plan(
+        self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
+    ) -> MealCompositionResult: ...
+
+    def validate_daily_plan(
+        self, *, target: DailyTarget, meals: tuple[object, ...], replan_count: int
+    ) -> PlanValidationResult: ...
+
+    def upsert_planning_profile(
+        self, *, user_id: uuid.UUID, profile: PlanningProfileInput, command_key: str
+    ) -> None: ...
 
 
 class NutritionServiceToolAdapter:
@@ -177,5 +206,83 @@ class SessionNutritionToolAdapter:
                 CapturedPreferenceSummary(category=ledger.category, canonical_text=ledger.canonical_text)
                 for ledger in captured
             )
+        finally:
+            session.close()
+
+    def _planning_service(self):
+        """Create deterministic planning services behind the same narrow runtime adapter."""
+
+        from app.nutrition.repository import SqlAlchemyNutritionRepository
+        from app.nutrition.service import NutritionService
+        from app.planning.repository import SqlAlchemyPlanningProfileRepository
+        from app.planning.service import PlanningService
+
+        session = self._session_factory()
+        repository = SqlAlchemyPlanningProfileRepository(session)
+        return session, PlanningService(
+            repository=repository,
+            nutrition_port=NutritionService(repository=SqlAlchemyNutritionRepository(session)),
+        )
+
+    def calculate_daily_target(
+        self, *, profile: PlanningProfileInput, preferences: PreferenceReview
+    ) -> TargetCalculationResult:
+        session, service = self._planning_service()
+        try:
+            return service.calculate_daily_target(profile, preferences)
+        finally:
+            session.close()
+
+    def compose_daily_plan(
+        self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
+    ) -> MealCompositionResult:
+        # The controlled-recipe seed is versioned and the graph never chooses a catalog itself.
+        session, service = self._planning_service()
+        try:
+            return service.compose_daily_meals(
+                catalog_version="foundation-foods-2026-08-rice-fist-v1",
+                preferences=preferences,
+            )
+        finally:
+            session.close()
+
+    def validate_daily_plan(
+        self, *, target: DailyTarget, meals: tuple[object, ...], replan_count: int
+    ) -> PlanValidationResult:
+        session, service = self._planning_service()
+        try:
+            return service.validate_plan(
+                target=target,
+                allow_target_relaxation=replan_count >= 2,
+            )
+        finally:
+            session.close()
+
+    def upsert_planning_profile(
+        self, *, user_id: uuid.UUID, profile: PlanningProfileInput, command_key: str
+    ) -> None:
+        """Persist only the explicitly approved minimal profile through its domain service."""
+
+        from app.planning.repository import SqlAlchemyPlanningProfileRepository
+        from app.planning.service import PlanningProfileService
+
+        session = self._session_factory()
+        try:
+            payload = PlanningProfileWrite.model_validate(
+                profile.model_dump(
+                    exclude={
+                        "is_pregnant_or_breastfeeding",
+                        "has_disease_or_treatment",
+                        "uses_medication",
+                        "has_eating_disorder_or_self_harm_risk",
+                        "has_extreme_weight_control_goal",
+                    }
+                )
+            )
+            PlanningProfileService(
+                repository=SqlAlchemyPlanningProfileRepository(session),
+                commit=session.commit,
+                rollback=session.rollback,
+            ).replace_profile(user_id=user_id, payload=payload)
         finally:
             session.close()

@@ -9,9 +9,11 @@ from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.planning.schemas import DailyTarget, PlannedMeal, PlanningProfileInput, PreferenceReview
 
 
 STATE_VERSION = "meal-agent-state.v3"
+DIET_PLANNING_STATE_VERSION = "diet-planning-state.v1"
 MAX_STATE_MESSAGES = 4
 MAX_STATE_ITEMS = 20
 MAX_STATE_CANDIDATES = 3
@@ -35,6 +37,22 @@ class AgentNextAction(StrEnum):
     VALIDATE = "validate"
     REPORT = "report"
     STOP = "stop"
+
+
+class AgentGraphKind(StrEnum):
+    """A checkpoint namespace is selected from a closed graph kind, never client input."""
+
+    MEAL_ANALYSIS = "meal_analysis"
+    DIET_PLANNING = "diet_planning"
+
+
+class DietPlanningAction(StrEnum):
+    READ_CONTEXT = "reading_context"
+    CALCULATE_TARGETS = "calculating_targets"
+    COMPOSE_PLAN = "composing_plan"
+    VALIDATE_PLAN = "validating_plan"
+    COMPLETE = "complete"
+    NEEDS_INPUT = "needs_input"
 
 
 class AgentBudget(BaseModel):
@@ -210,3 +228,62 @@ class MealAgentState(BaseModel):
         if self.status is AgentRuntimeStatus.COMPLETED and self.report is None:
             raise ValueError("completed state requires a report")
         return self
+
+
+class DietPlanningState(BaseModel):
+    """Planning-only checkpoint state with no meal-analysis/provider fields.
+
+    Keeping this state separate is a security boundary: a meal checkpoint can never be decoded
+    as a planning command, and planning's profile snapshot cannot leak into meal execution.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    state_version: Literal["diet-planning-state.v1"] = "diet-planning-state.v1"
+    graph_kind: Literal["diet_planning"] = "diet_planning"
+    user_id: uuid.UUID
+    thread_id: uuid.UUID
+    run_id: uuid.UUID
+    command_key: str = Field(min_length=1, max_length=128)
+    profile: "PlanningProfileInput"
+    preferences: "PreferenceReview"
+    save_profile: bool = False
+    profile_save_completed: bool = False
+    target: "DailyTarget | None" = None
+    meals: tuple["PlannedMeal", ...] = Field(default=(), max_length=3)
+    replan_count: int = Field(default=0, ge=0, le=3)
+    tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=12)
+    budget: AgentBudget = Field(default_factory=AgentBudget)
+    next_action: DietPlanningAction = DietPlanningAction.READ_CONTEXT
+    status: AgentRuntimeStatus = AgentRuntimeStatus.ACCEPTED
+    report: dict[str, object] | None = None
+    graph_version: str = Field(min_length=1, max_length=80)
+    prompt_version: str = Field(min_length=1, max_length=80)
+    tool_version: str = Field(min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def keeps_three_slots_and_terminal_reports_unambiguous(self) -> "DietPlanningState":
+        if self.meals and len({meal.slot for meal in self.meals}) != len(self.meals):
+            raise ValueError("planning meal slots must be unique")
+        if self.status is AgentRuntimeStatus.COMPLETED:
+            if self.report is None or len(self.meals) != 3:
+                raise ValueError("completed planning state requires a three-meal report")
+        return self
+
+
+def checkpoint_namespace_for_kind(kind: AgentGraphKind) -> str:
+    """Map only trusted internal graph kinds to saver namespaces."""
+
+    return {
+        AgentGraphKind.MEAL_ANALYSIS: "meal-analysis",
+        AgentGraphKind.DIET_PLANNING: "diet-planning",
+    }[kind]
+
+
+def state_codec_for_kind(kind: AgentGraphKind):
+    """Return a strict state decoder; cross-kind blobs must fail closed."""
+
+    return {
+        AgentGraphKind.MEAL_ANALYSIS: MealAgentState,
+        AgentGraphKind.DIET_PLANNING: DietPlanningState,
+    }[kind]

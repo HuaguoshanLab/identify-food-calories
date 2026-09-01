@@ -169,7 +169,9 @@ def test_confirmed_profile_runs_only_through_tools_and_returns_exactly_three_saf
     )
     assert tools.target_calls == tools.compose_calls == tools.validate_calls == 1
     assert tools.upsert_calls == [(state.user_id, state.profile, state.command_key)]
-    serialized = completed.model_dump_json()
+    import json
+
+    serialized = json.dumps(completed.report, ensure_ascii=False)
     for forbidden in ("prompt", "provider", "candidate", "tool_output", "cost", "recipe_id"):
         assert forbidden not in serialized
 

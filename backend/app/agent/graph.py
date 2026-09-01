@@ -27,8 +27,11 @@ from app.agent.state import (
     StateContextHint,
     StateCandidate,
     StateVisionMetadata,
+    DietPlanningAction,
+    DietPlanningState,
 )
-from app.agent.tools import NutritionToolAdapter
+from app.agent.tools import NutritionToolAdapter, PlanningToolAdapter
+from app.planning.schemas import PlanValidationAction
 from app.images.schemas import ValidatedImageReference
 from app.nutrition.schemas import (
     FoodSearchInput,
@@ -68,8 +71,8 @@ class AgentGraph(Protocol):
     """Compiled graph facade used by HTTP/supervisor lifecycles in later plans."""
 
     async def ainvoke(
-        self, state: MealAgentState, *, resume: dict[str, object] | None = None
-    ) -> MealAgentState: ...
+        self, state: MealAgentState | DietPlanningState, *, resume: dict[str, object] | None = None
+    ) -> MealAgentState | DietPlanningState: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -853,3 +856,206 @@ def diet_planning_not_available(state: MealAgentState) -> MealAgentState:
             },
         }
     )
+
+
+class DietPlanningGraph:
+    """Bounded planning subgraph that can only invoke the typed planning tool port."""
+
+    def __init__(self, *, tools: PlanningToolAdapter) -> None:
+        self._tools = tools
+
+    async def ainvoke(
+        self, state: DietPlanningState, *, resume: dict[str, object] | None = None
+    ) -> DietPlanningState:
+        # There is no free-form planning resume in the first slice.  A resume must be introduced
+        # with its own closed DTO rather than treating arbitrary client JSON as graph state.
+        if resume is not None or state.status in {
+            AgentRuntimeStatus.COMPLETED,
+            AgentRuntimeStatus.LIMIT_REACHED,
+            AgentRuntimeStatus.FAILED,
+        }:
+            return state
+        if not state.preferences.confirmed:
+            return state.model_copy(
+                update={
+                    "status": AgentRuntimeStatus.WAITING_INPUT,
+                    "next_action": DietPlanningAction.NEEDS_INPUT,
+                    "report": {
+                        "stage": "needs_input",
+                        "message": "请确认本次资料与饮食偏好后继续。",
+                    },
+                }
+            )
+
+        current = state
+        if current.save_profile and not current.profile_save_completed:
+            current = self._call_profile_upsert(current)
+
+        target_result = self._tools.calculate_daily_target(
+            profile=current.profile, preferences=current.preferences
+        )
+        current = self._record_tool(current, "calculate_targets", target_result.action.value, target_result)
+        if target_result.action is not PlanValidationAction.PASS or target_result.target is None:
+            return self._safe_terminal(current, target_result.action, target_result.safe_message)
+        current = current.model_copy(
+            update={"target": target_result.target, "next_action": DietPlanningAction.COMPOSE_PLAN}
+        )
+
+        while current.replan_count < 3:
+            composition = self._tools.compose_daily_plan(
+                target=target_result.target,
+                preferences=current.preferences,
+                replan_count=current.replan_count,
+            )
+            current = self._record_tool(
+                current, "compose_plan", composition.action.value, composition
+            )
+            if composition.action is not PlanValidationAction.PASS:
+                current = current.model_copy(update={"replan_count": current.replan_count + 1})
+                continue
+
+            validation = self._tools.validate_daily_plan(
+                target=target_result.target,
+                meals=composition.meals,
+                replan_count=current.replan_count,
+            )
+            current = self._record_tool(
+                current, "validate_plan", validation.action.value, validation
+            )
+            if validation.action is PlanValidationAction.PASS:
+                report = _planning_report(target=target_result.target, meals=composition.meals)
+                return current.model_copy(
+                    update={
+                        "meals": composition.meals,
+                        "next_action": DietPlanningAction.COMPLETE,
+                        "status": AgentRuntimeStatus.COMPLETED,
+                        "report": report,
+                    }
+                )
+            if validation.action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
+                return self._safe_terminal(current, validation.action, validation.safe_message)
+            current = current.model_copy(update={"replan_count": current.replan_count + 1})
+
+        return current.model_copy(
+            update={
+                "status": AgentRuntimeStatus.LIMIT_REACHED,
+                "next_action": DietPlanningAction.NEEDS_INPUT,
+                "report": {
+                    "stage": "needs_input",
+                    "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
+                },
+            }
+        )
+
+    def _call_profile_upsert(self, state: DietPlanningState) -> DietPlanningState:
+        if state.budget.tool_calls >= 12:
+            return self._budget_limit(state)
+        self._tools.upsert_planning_profile(
+            user_id=state.user_id, profile=state.profile, command_key=state.command_key
+        )
+        updated = self._record_tool(state, "save_profile", "saved", (state.user_id, state.command_key))
+        return updated.model_copy(update={"profile_save_completed": True})
+
+    def _record_tool(
+        self, state: DietPlanningState, name: str, action: str, result: object
+    ) -> DietPlanningState:
+        if state.budget.tool_calls >= 12:
+            return self._budget_limit(state)
+        return state.model_copy(
+            update={
+                "tool_summaries": (
+                    *state.tool_summaries,
+                    StateToolSummary(
+                        tool_name=name,
+                        tool_version="planning-tools.v1",
+                        action=action,
+                        result_digest=_digest(result),
+                    ),
+                ),
+                "budget": state.budget.model_copy(
+                    update={
+                        "graph_steps": min(state.budget.graph_steps + 1, 12),
+                        "tool_calls": state.budget.tool_calls + 1,
+                    }
+                ),
+            }
+        )
+
+    @staticmethod
+    def _budget_limit(state: DietPlanningState) -> DietPlanningState:
+        return state.model_copy(
+            update={
+                "status": AgentRuntimeStatus.LIMIT_REACHED,
+                "next_action": DietPlanningAction.NEEDS_INPUT,
+                "report": {"stage": "needs_input", "message": "规划已达到本次运行上限。"},
+            }
+        )
+
+    @staticmethod
+    def _safe_terminal(
+        state: DietPlanningState, action: PlanValidationAction, message: str
+    ) -> DietPlanningState:
+        if action is PlanValidationAction.NEEDS_INPUT:
+            status = AgentRuntimeStatus.WAITING_INPUT
+        elif action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
+            status = AgentRuntimeStatus.FAILED
+        else:
+            status = AgentRuntimeStatus.LIMIT_REACHED
+        return state.model_copy(
+            update={
+                "status": status,
+                "next_action": DietPlanningAction.NEEDS_INPUT,
+                "report": {"stage": "needs_input", "message": message},
+            }
+        )
+
+
+class RoutedAgentGraph:
+    """Closed main-graph dispatcher; every supported state has exactly one subgraph."""
+
+    def __init__(self, *, meal_graph: MealAnalysisGraph, diet_planning_graph: DietPlanningGraph) -> None:
+        self._meal_graph = meal_graph
+        self._diet_planning_graph = diet_planning_graph
+
+    async def ainvoke(
+        self, state: MealAgentState | DietPlanningState, *, resume: dict[str, object] | None = None
+    ) -> MealAgentState | DietPlanningState:
+        if isinstance(state, MealAgentState):
+            return await self._meal_graph.ainvoke(state, resume=resume)
+        if isinstance(state, DietPlanningState):
+            return await self._diet_planning_graph.ainvoke(state, resume=resume)
+        raise TypeError("unsupported agent graph state")
+
+
+def _planning_report(*, target: object, meals: tuple[object, ...]) -> dict[str, object]:
+    """Project the deterministic plan into the only report shape public clients can receive."""
+
+    from app.planning.schemas import DailyTarget, PlannedMeal
+
+    assert isinstance(target, DailyTarget)
+    planning_meals = tuple(meal for meal in meals if isinstance(meal, PlannedMeal))
+    return {
+        "stage": "complete",
+        "target": {
+            field: {"lower": str(getattr(target, field).lower), "upper": str(getattr(target, field).upper)}
+            for field in ("energy_kcal", "carbohydrate_g", "protein_g", "fat_g")
+        },
+        "meals": [
+            {
+                "slot": meal.slot.value,
+                "display_name": meal.display_name,
+                "portion_description": meal.portion_description,
+                "portion_grams": str(meal.portion_grams),
+                "method_tags": list(meal.method_tags),
+                "flavour_tags": list(meal.flavour_tags),
+                "matched_preference_summaries": list(meal.matched_preference_summaries),
+                "matched_exclusion_summaries": list(meal.matched_exclusion_summaries),
+                "nutrients": {
+                    field: str(getattr(meal.nutrients, field))
+                    for field in ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")
+                },
+            }
+            for meal in planning_meals
+        ],
+        "disclaimer": "普通饮食参考，不替代医疗建议。",
+    }
