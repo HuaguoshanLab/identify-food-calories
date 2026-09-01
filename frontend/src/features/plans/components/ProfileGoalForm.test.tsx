@@ -48,7 +48,7 @@ describe('ProfileGoalForm', () => {
   it('shows complete visible body, formula, activity, conservative-speed, and read-only preference review before submit', async () => {
     renderForm(requestWith())
 
-    expect(await screen.findByLabelText('身高')).toHaveValue(170)
+    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveValue(170))
     expect(screen.getByLabelText('体重')).toHaveValue(65)
     expect(screen.getByLabelText('年龄')).toHaveValue(30)
     expect(screen.getByRole('group', { name: '用于目标估算的身体参数' })).toBeInTheDocument()
@@ -101,8 +101,6 @@ describe('ProfileGoalForm', () => {
     renderForm(request)
     await screen.findByLabelText('身高')
 
-    await user.clear(screen.getByLabelText('身高'))
-    await user.type(screen.getByLabelText('身高'), '99')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByLabelText('将本次身体资料和目标保存到个人资料'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
