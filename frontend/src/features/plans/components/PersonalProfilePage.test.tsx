@@ -97,6 +97,7 @@ describe('PersonalProfilePage', () => {
 
     expect(await screen.findByRole('heading', { name: '还没有保存个人资料' })).toBeInTheDocument()
     expect(screen.getByText('请先在计划页填写身体资料和目标，保存后会在这里显示。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '去计划页填写' })).toHaveAttribute('href', '/app/plans')
     expect(screen.getByText('个人资料已删除。后续计划不会再读取这些资料。')).toBeInTheDocument()
     expect(request.mock.calls.some(([path, init]) => path === '/planning/profile' && init?.method === 'DELETE')).toBe(true)
   })

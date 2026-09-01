@@ -37,6 +37,7 @@ test.describe('phase 5 personal profile', () => {
     await expect(page.getByRole('alertdialog')).toContainText('删除个人资料后，后续计划将不再读取这些身体资料和目标。此操作无法撤销。')
     await page.getByRole('button', { name: '确认删除' }).click()
     await expect(page.getByRole('heading', { name: '还没有保存个人资料' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '去计划页填写' })).toHaveAttribute('href', '/app/plans')
     await page.setViewportSize({ width: 320, height: 932 })
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
   })

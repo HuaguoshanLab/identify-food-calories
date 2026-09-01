@@ -29,8 +29,10 @@ test.describe('phase 5 daily planning H5', () => {
     await expect(firstMeal).toContainText(/ · /)
     await expect(firstMeal).toContainText('已遵守：')
     await expect(page.getByText('普通饮食参考，不替代医疗建议。')).toBeVisible()
-    await page.setViewportSize({ width: 320, height: 932 })
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+    for (const width of [320, 375, 430, 768]) {
+      await page.setViewportSize({ width, height: 932 })
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+    }
   })
 
   test('a real user can adjust one owned plan without changing the other meal cards', async ({ page, request }) => {
