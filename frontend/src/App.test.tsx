@@ -95,6 +95,15 @@ describe('App', () => {
     expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
   })
 
+  it('uses the protected DetailLayout route for personal profile without the tab bar', async () => {
+    stubAuthenticatedIdentity()
+    renderApp(['/app/me/profile'])
+
+    expect(await screen.findByRole('heading', { level: 1, name: '个人资料' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: '返回上一页' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
+  })
+
   it('moves focus to my and detail page headings after route changes', async () => {
     const user = userEvent.setup()
     stubAuthenticatedIdentity()
