@@ -51,6 +51,17 @@ export const dietPlanningSafeEventSchema = z.object({
   summary: z.string().min(1).max(500),
 }).strict()
 
+/** The existing public input endpoint owns planning-thread authorization and replay handling. */
+export const dietPlanningAdjustmentSchema = z.object({
+  kind: z.literal('description'),
+  text: z.string().trim().min(1, '请说明想调整什么。').max(500, '调整内容最多 500 个字符。'),
+}).strict()
+
+export const dietPlanningAdjustmentResponseSchema = z.object({
+  thread_id: z.string().uuid(),
+  status: z.enum(['waiting', 'partial', 'completed', 'retryable', 'terminal']),
+}).strict()
+
 export const dietPlanningStartResponseSchema = z.object({
   thread_id: z.string().uuid(),
   status: z.enum(['waiting', 'partial', 'accepted', 'running', 'completed', 'retryable', 'failed', 'terminal', 'deletion_pending']),
@@ -75,5 +86,6 @@ export const profileGoalFormSchema = z.object({
 
 export type DietPlanningStartCommand = z.infer<typeof dietPlanningStartCommandSchema>
 export type DietPlanningStartResponse = z.infer<typeof dietPlanningStartResponseSchema>
+export type DietPlanningAdjustment = z.infer<typeof dietPlanningAdjustmentSchema>
 export type PlanningProfile = z.infer<typeof planningProfileSchema>
 export type ProfileGoalFormValues = z.infer<typeof profileGoalFormSchema>

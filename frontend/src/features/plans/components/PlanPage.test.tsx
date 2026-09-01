@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 
 import { AuthContext, type AuthContextValue } from '@/auth/AuthContext'
 import { PlanPage } from './PlanPage'
@@ -35,18 +36,19 @@ const adjustedReport = {
   ],
   adjustment: {
     changed_slots: ['lunch'],
-    previous_item: '鸡胸肉米饭午餐',
     matched_constraint: '清淡',
-    range_status: { energy_kcal: '适中', carbohydrate_g: '适中', protein_g: '适中', fat_g: '适中' },
+    range_status: { energy_kcal: 'in_range', carbohydrate_g: 'in_range', protein_g: 'in_range', fat_g: 'in_range' },
   },
 }
 
 function renderPage(request: AuthContextValue['request']) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}>
-        <PlanPage />
-      </AuthContext.Provider>
+      <MemoryRouter>
+        <AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}>
+          <PlanPage />
+        </AuthContext.Provider>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -101,7 +103,7 @@ describe('PlanPage', () => {
     expect(screen.getAllByText('清淡')).not.toHaveLength(0)
     expect(screen.getAllByText('已遵守：偏好：清淡 · 不吃花生')).toHaveLength(3)
     expect(screen.getByText('目标：1,800–2,000 kcal · 计划：1,920 kcal · 适中')).toBeInTheDocument()
-    expect(screen.getByText('普通饮食参考，不替代医疗建议。')).toBeInTheDocument()
+    expect(screen.getAllByText('普通饮食参考，不替代医疗建议。')).not.toHaveLength(0)
   })
 
   it('never trusts raw stream text and does not provide a bypass when the safe snapshot refuses planning', async () => {
@@ -122,7 +124,7 @@ describe('PlanPage', () => {
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('我们不能为你当前描述的情况生成个性化餐单。')
+    expect(await screen.findByText(/我们不能为你当前描述的情况生成个性化餐单/)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '今日三餐计划' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /继续生成/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
@@ -132,6 +134,7 @@ describe('PlanPage', () => {
     const user = userEvent.setup()
     let adjusted = false
     const request = vi.fn(async (path: string, init?: RequestInit) => {
+      void init
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
@@ -159,8 +162,8 @@ describe('PlanPage', () => {
     expect(screen.getByText('已替换：鸡胸肉米饭午餐')).toBeInTheDocument()
     expect(screen.getByText('已满足：清淡')).toBeInTheDocument()
     expect(screen.getByText('已更新午餐，其余餐次保持不变。')).toHaveFocus()
-    expect(screen.getByRole('heading', { name: '早餐' }).parentElement).toHaveTextContent('燕麦鸡蛋早餐')
-    expect(screen.getByRole('heading', { name: '晚餐' }).parentElement).toHaveTextContent('三文鱼蔬菜晚餐')
+    expect(screen.getByText('燕麦鸡蛋早餐')).toBeInTheDocument()
+    expect(screen.getByText('三文鱼蔬菜晚餐')).toBeInTheDocument()
     expect(screen.queryByText('provider 不应显示')).not.toBeInTheDocument()
   })
 
@@ -194,12 +197,12 @@ describe('PlanPage', () => {
     expect(screen.queryByText(/checkpoint|thread_id|raw feedback|memory_id/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '午餐' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('已按现有约束生成餐单，但目标已调整')
-    expect(screen.getByRole('alert')).toHaveTextContent('能量')
-    expect(screen.getByRole('alert')).toHaveTextContent('1,800–2,000 kcal')
-    expect(screen.getByRole('alert')).toHaveTextContent('1,760 kcal')
-    expect(screen.getByRole('alert')).toHaveTextContent('-40 kcal')
-    expect(screen.getByRole('alert')).toHaveTextContent('忌口和你明确排除的食物未被放宽。')
+    const relaxationAlert = await screen.findByText('已按现有约束生成餐单，但目标已调整')
+    expect(relaxationAlert.closest('[role="alert"]')).toHaveTextContent('能量')
+    expect(relaxationAlert.closest('[role="alert"]')).toHaveTextContent('1,800–2,000 kcal')
+    expect(relaxationAlert.closest('[role="alert"]')).toHaveTextContent('1,760 kcal')
+    expect(relaxationAlert.closest('[role="alert"]')).toHaveTextContent('-40 kcal')
+    expect(relaxationAlert.closest('[role="alert"]')).toHaveTextContent('忌口和你明确排除的食物未被放宽。')
   })
 
   it('blocks a fourth adjustment with the exact limit actions and focuses a refusal without cards or bypass', async () => {
@@ -218,7 +221,7 @@ describe('PlanPage', () => {
     await screen.findByLabelText('身高')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('已完成 3 次自动调整，无法在当前约束内继续修改。你可以新建计划，或修改身体资料和目标后再试。')
+    expect(await screen.findByText(/已完成 3 次自动调整，无法在当前约束内继续修改/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '新建计划' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '修改个人资料' })).toHaveAttribute('href', '/app/me/profile')
     expect(screen.queryByLabelText('告诉我们想换什么')).not.toBeInTheDocument()

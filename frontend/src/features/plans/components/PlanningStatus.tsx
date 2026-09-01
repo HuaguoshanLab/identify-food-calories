@@ -1,4 +1,5 @@
 import { CircleAlert, CircleCheck, LoaderCircle } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -22,6 +23,12 @@ export function PlanningStatus({ kind, message }: { kind: PlanningStatusKind; me
     return <Alert variant="destructive"><CircleAlert aria-hidden="true" /><AlertTitle>暂时无法生成计划</AlertTitle><AlertDescription>{message ?? '请检查资料和网络后重试；若问题持续，请稍后再试。'}</AlertDescription></Alert>
   }
   return <p aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />{message ?? safePlanningEventCopy.reading_context}</p>
+}
+
+export function FocusedPlanningAlert({ children, title }: { children: React.ReactNode; title: string }) {
+  const alertRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { alertRef.current?.focus() }, [])
+  return <Alert ref={alertRef} role="alert" tabIndex={-1} variant="destructive"><CircleAlert aria-hidden="true" /><AlertTitle>{title}</AlertTitle><AlertDescription>{children}</AlertDescription></Alert>
 }
 
 export function CompletedPlanningStatus() {
