@@ -127,7 +127,7 @@ def test_incomplete_profile_or_unconfirmed_preferences_needs_input_before_calcul
         complete_profile(uses_medication=True),
         complete_profile(has_eating_disorder_or_self_harm_risk=True),
         complete_profile(goal_speed="faster_loss"),
-        complete_profile(height_cm=Decimal("140"), weight_kg=Decimal("35"), age_years=78),
+        complete_profile(height_cm=Decimal("130"), weight_kg=Decimal("25"), age_years=78),
     ],
 )
 def test_health_scope_guards_block_before_recipe_port_access(profile: PlanningProfileInput) -> None:
