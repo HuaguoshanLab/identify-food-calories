@@ -7,6 +7,7 @@
 ## 允许依赖
 
 - 可以依赖 React、`components/ui/`、认证上下文公开的运行时请求能力，以及后续由 OpenAPI 生成的 API 文件。
+- 为完成“分析完成后确认保存”这一用户动作，`components/AnalyzePage.tsx` 可以调用 `features/records/api/client.ts` 的公开 `confirmMealRecord`；不得导入 records 的组件、schema 私有实现或状态。
 - 禁止依赖后端源码、数据库、模型 Provider、LangGraph 或浏览器持久化 token。
 
 ## 文件索引

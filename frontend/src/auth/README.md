@@ -26,7 +26,7 @@
 | `api.ts` | 受控注册、验证、登录、refresh 与 `/users/me` API 适配器；默认走同源 `/api/v1`，生产绝不把回环 API 地址编进 bundle，也不暴露 Cookie 或 token |
 | `AuthProvider.tsx` | access token 仅存运行时内存；页面内 single-flight 与跨标签 Web Locks 协调 refresh 后以 `/users/me` 建立数据库权威身份 |
 | `refreshCoordinator.ts` | 页面内 refresh single-flight 与同源标签页 Web Locks 协调；不放宽服务端真实 replay 的 family revoke |
-| `AuthContext.ts` / `useAuth.ts` | 认证状态契约与消费 Hook，保持 Provider 文件符合 Fast Refresh 边界 |
+| `AuthContext.ts` / `useAuth.ts` | 认证状态契约、`AuthenticatedRequest` 浏览器请求能力与消费 Hook；请求能力作为 feature API 的依赖传入，避免 feature 间借用传输类型 |
 | `RouteGuards.tsx` | 统一 `/app/*` pathless `Outlet` 守卫；拥有 bootstrap、身份错误重试与精确登录回跳，不承载账号或会话业务页面 |
 | `returnTo.ts` | 同源、相对、已登记受保护路由的登录返回地址解析 |
 | `SessionList.tsx` | `/app` 身份后的 TanStack Query 会话列表、重试、退出当前设备与远端撤销入口 |

@@ -49,6 +49,7 @@ Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit�
 | 路径 | 职责 |
 |---|---|
 | `AGENTS.md` | 前端架构、安全、测试和文档细则 |
+| `ARCHITECTURE.md` | 前端目录、依赖方向、新代码落点与跨 feature 例外的稳定性合同 |
 | `package.json` | 固定命令与受审核依赖清单 |
 | `package-lock.json` | npm 完整依赖锁与完整性摘要 |
 | `eslint.config.js` | TypeScript、React Hooks 与 Vite 刷新边界静态检查 |

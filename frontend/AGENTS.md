@@ -8,6 +8,9 @@
 - 只依赖 FastAPI 的公开 `/api/v1` 合约；不得读取数据库、服务端密钥或内部模型。
 - 服务端状态由 TanStack Query 管理，表单由 React Hook Form + Zod 校验。
 - access token 后续只能保存在运行时内存；refresh token 只能由 HttpOnly Cookie 管理。
+- `ARCHITECTURE.md` 是前端目录、依赖方向和新代码落点的强制合同。新增页面、API、传输层或共享组件前必须先按该文件选择目录；不允许创建无所有者的全局 `utils/`、`services/`、`hooks/` 或 `types/` 目录。
+- `App.tsx` 只登记和组合路由；`layouts/` 只管理页面壳；业务代码归入 `features/<feature>/`，认证代码归入 `auth/`，非领域“我的”内容归入 `app/`。
+- feature 之间默认隔离。禁止导入其他 feature 的组件、内部状态或私有类型；唯一允许的跨 feature 依赖是具名公开 `api/` 边界，并且必须在相关 README 中登记原因。
 
 ## Testing
 

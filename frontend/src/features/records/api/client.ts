@@ -1,8 +1,9 @@
 import { mealRecordSchema, type MealRecord } from './schemas'
+import type { AuthenticatedRequest } from '@/auth/AuthContext'
 
 export type { MealRecord } from './schemas'
 
-export type ApiRequest = (path: string, init?: RequestInit) => Promise<Response>
+export type ApiRequest = AuthenticatedRequest
 
 async function parsed(response: Response): Promise<MealRecord> { return mealRecordSchema.parse(await response.json()) }
 export async function listMealRecords(request: ApiRequest): Promise<MealRecord[]> { const response = await request('/meal-records'); if (!response.ok) throw new Error('records unavailable'); return mealRecordSchema.array().parse(await response.json()) }

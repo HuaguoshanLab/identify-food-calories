@@ -7,6 +7,7 @@
 ## 允许依赖
 
 - React、React Router、Zod、认证请求能力和现有 UI primitives。
+- `api/client.ts` 的公开 `confirmMealRecord` 可被 `agent` feature 调用，作为用户明确确认分析结果后的保存动作；禁止向其他 feature 暴露 records 组件或内部状态。
 - 禁止后端源码、Agent run ID、Provider payload 或客户端营养计算。
 
 ## 文件索引

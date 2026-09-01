@@ -6,7 +6,7 @@
 
 ## 允许依赖
 
-- Zod 和认证请求；禁止 external ID、vector 与 score。
+- Zod 和 `auth/AuthenticatedRequest`；禁止 external ID、vector、score 或依赖其他 feature 的 API 类型。
 
 ## 文件索引
 
