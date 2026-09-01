@@ -3,7 +3,7 @@ status: diagnosed
 phase: 04-meal-records-and-memory
 source: 04-01-PLAN.md, 04-02-PLAN.md, 04-03-PLAN.md, 04-04-PLAN.md (execution summaries are missing)
 started: 2026-08-31T12:03:49Z
-updated: 2026-09-01T01:42:00Z
+updated: 2026-09-01T03:17:45Z
 ---
 
 ## Current Test
@@ -29,6 +29,7 @@ expected: 在分析时明确表达稳定偏好或忌口后，该偏好会保存�
 result: issue
 reported: "不符合 我写了 我不吃辣，点击分析，然后去饮食偏好与记忆中并没有保存"
 severity: major
+retest: "2026-09-01，在当前 5178 实例提交“米饭 100 克，我不吃辣”后，页面显示“分析未能完成”；访问 /app/me/memories 显示“暂时无法加载记忆”。没有生成临时偏好，因此未执行删除。"
 
 ### 5. 长期偏好编辑和删除
 expected: 打开一条长期偏好可修改文字，保存后来源显示为“用户手动维护”；删除经确认后立刻从列表消失，后续建议不再引用它。
@@ -61,4 +62,7 @@ blocked: 0
     - "在 Agent 窄工具边界增加用户直接表达的偏好写入能力，Graph 不直接访问 Repository。"
     - "将明确忌口/目标/稳定偏好映射为白名单 category 和 canonical_text，并保证 run 重放不重复写入。"
     - "补 Agent、真实 PostgreSQL API、浏览器/E2E 的写入、隔离、编辑和删除回归测试。"
+  runtime_retest:
+    status: blocked
+    reason: "当前运行在 5178/8000 的用户服务未提供可工作的分析与记忆读取链路；自动 E2E 也因项目配置禁止复用该既有服务而无法启动。"
   debug_session: ".planning/debug/phase-04-direct-memory-write.md"
