@@ -11,7 +11,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 - [x] **Phase 1: 工程、身份与权限基座** — 建立 React/FastAPI/PostgreSQL、注册登录、会话轮换、RBAC 和教学规范。（阶段验收已完成）
 - [x] **Phase 2: 可追问的 Agent 核心** — 建立 LangGraph 主图、餐食分析子图、确定性营养工具、Checkpoint 和有界循环。（用户手动接受阶段完成；发布报告仍为 FAIL）
 - [x] **Phase 3: 多模态餐食分析闭环** — 接入安全图片上传与 Qwen-VL，多菜识别、份量追问、校验和最终报告。（发布证据已批准，UAT 4/4 通过）
-- [ ] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。
+- [x] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。 (completed 2026-09-01)
 - [ ] **Phase 5: 饮食规划子图** — 根据身体目标生成并校验餐单，支持用户反馈后的 Human-in-the-loop 调整。
 - [ ] **Phase 6: 用户看板与后台管理** — 完成趋势分析、周复盘、营养目录管理、模型配置、运行审计与 RBAC 管理界面。
 - [ ] **Phase 7: 评测、安全与上线** — 冻结评测、攻击测试、成本和延迟门禁、CI 与 Docker 演示闭环。
@@ -221,7 +221,7 @@ Plans:
 | 01.1. H5 UI 基座与现有页面迁移 | 10/10 | Complete   | 2026-08-28 |
 | 2. 可追问的 Agent 核心 | 17/18 | In Progress|  |
 | 3. 多模态餐食分析闭环 | 5/5 | Ready for verification |  |
-| 4. 餐食记录与长期记忆 | Pending | 0/TBD | - |
+| 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | Pending | 0/TBD | - |
 | 6. 用户看板与后台管理 | Pending | 0/TBD | - |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |
