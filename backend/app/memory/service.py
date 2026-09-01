@@ -251,17 +251,18 @@ class MemoryService:
     @staticmethod
     def _extract_explicit_preferences(statement: str) -> list[tuple[str, str]]:
         """D-08 allowlist intentionally rejects model, image and meal-parser observations."""
-        normalized = " ".join(statement.split()).strip("。！!?；;，,")
-        avoidance = re.fullmatch(r"(?:我|今天)?(?:不想|不)吃(?P<item>[^，,。！!?；;]+)", normalized)
-        if avoidance is not None:
-            item = avoidance.group("item").strip()
-            return [("avoidance", f"不吃{item}")] if item else []
-        goal = re.fullmatch(r"(?:我的)?目标(?:是|为)(?P<value>[^，,。！!?；;]+)", normalized)
-        if goal is not None and goal.group("value").strip():
-            return [("goal", goal.group("value").strip())]
-        preference = re.fullmatch(r"我(?:喜欢|偏好)(?P<value>[^，,。！!?；;]+)", normalized)
-        if preference is not None and preference.group("value").strip():
-            return [("stable_preference", preference.group("value").strip())]
+        clauses = (" ".join(part.split()).strip() for part in re.split(r"[，,。！!?；;]", statement))
+        for normalized in clauses:
+            avoidance = re.fullmatch(r"(?:我|今天)?(?:不想|不)吃(?P<item>.+)", normalized)
+            if avoidance is not None:
+                item = avoidance.group("item").strip()
+                return [("avoidance", f"不吃{item}")] if item else []
+            goal = re.fullmatch(r"(?:我的)?目标(?:是|为)(?P<value>.+)", normalized)
+            if goal is not None and goal.group("value").strip():
+                return [("goal", goal.group("value").strip())]
+            preference = re.fullmatch(r"我(?:喜欢|偏好)(?P<value>.+)", normalized)
+            if preference is not None and preference.group("value").strip():
+                return [("stable_preference", preference.group("value").strip())]
         return []
 
     @staticmethod

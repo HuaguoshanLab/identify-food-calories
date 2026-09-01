@@ -145,6 +145,9 @@ class MealAnalysisGraph:
         """
 
         started_ms = self._monotonic_ms()
+        state = self._capture_fresh_text_preferences(state)
+        if state.status is AgentRuntimeStatus.LIMIT_REACHED:
+            return state
         if state.messages and not state.context_hints:
             retrieve_context = getattr(self._tools, "retrieve_personal_context", None)
             if callable(retrieve_context):
@@ -246,6 +249,40 @@ class MealAnalysisGraph:
         return self._finish_transition(self._resolve(
             parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
         ), started_ms)
+
+    def _capture_fresh_text_preferences(self, state: MealAgentState) -> MealAgentState:
+        """Persist deterministic first-person preferences once through the graph's narrow port."""
+
+        if (
+            state.explicit_preference_capture_completed
+            or state.next_action is not AgentNextAction.PARSE
+            or state.status is not AgentRuntimeStatus.ACCEPTED
+            or len(state.messages) != 1
+        ):
+            return state
+        capture = getattr(self._tools, "capture_explicit_preferences", None)
+        if not callable(capture):
+            return state
+        if state.budget.tool_calls >= 12:
+            return _limit_state(state)
+        captured = capture(
+            user_id=state.user_id,
+            run_id=state.run_id,
+            statement=state.messages[0],
+        )
+        safe_result = tuple((item.category, item.canonical_text) for item in captured)
+        return state.model_copy(
+            update={
+                "explicit_preference_capture_completed": True,
+                "tool_summaries": (*state.tool_summaries, StateToolSummary(
+                    tool_name="capture_explicit_preferences",
+                    tool_version="memory-direct-capture.v1",
+                    action="captured" if safe_result else "no_match",
+                    result_digest=_digest(safe_result),
+                )),
+                "budget": state.budget.model_copy(update={"tool_calls": state.budget.tool_calls + 1}),
+            }
+        )
 
     async def _observe_image(self, state: MealAgentState) -> MealAgentState:
         """Use the Vision port with one classified transient retry and safe state only."""

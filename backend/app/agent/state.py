@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-STATE_VERSION = "meal-agent-state.v2"
+STATE_VERSION = "meal-agent-state.v3"
 MAX_STATE_MESSAGES = 4
 MAX_STATE_ITEMS = 20
 MAX_STATE_CANDIDATES = 3
@@ -176,6 +176,9 @@ class MealAgentState(BaseModel):
     is_partial: bool = False
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=36)
     context_hints: tuple[StateContextHint, ...] = Field(default=(), max_length=9)
+    # This is deliberately only a completion marker.  A checkpoint must not retain the source
+    # sentence, provider request key, ledger identifier, or any provider response for a write.
+    explicit_preference_capture_completed: bool = False
     validation_issues: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     dirty_item_ids: tuple[str, ...] = Field(default=(), max_length=MAX_STATE_ITEMS)
     budget: AgentBudget = Field(default_factory=AgentBudget)
