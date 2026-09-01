@@ -38,6 +38,7 @@ function renderPage(request: AuthContextValue['request']) {
 
 function requestWithSnapshot() {
   return vi.fn(async (path: string, init?: RequestInit) => {
+    void init
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
     if (path === '/memories') return new Response(JSON.stringify([
       { id: '11111111-1111-4111-8111-111111111111', category: 'avoidance', source_kind: 'user_maintained', canonical_text: '花生', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
@@ -81,13 +82,15 @@ describe('PlanPage', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['早餐', '午餐', '晚餐'])
     expect(screen.getByText('燕麦鸡蛋早餐')).toBeInTheDocument()
     expect(screen.getByText('320g · 一份')).toBeInTheDocument()
-    expect(screen.getByText('蒸煮 · 清淡')).toBeInTheDocument()
-    expect(screen.getByText('已遵守：偏好：清淡 · 不吃花生')).toBeInTheDocument()
+    expect(screen.getByText('蒸煮')).toBeInTheDocument()
+    expect(screen.getAllByText('清淡')).not.toHaveLength(0)
+    expect(screen.getAllByText('已遵守：偏好：清淡 · 不吃花生')).toHaveLength(3)
     expect(screen.getByText('目标：1,800–2,000 kcal · 计划：1,920 kcal · 适中')).toBeInTheDocument()
     expect(screen.getByText('普通饮食参考，不替代医疗建议。')).toBeInTheDocument()
   })
 
   it('never trusts raw stream text and does not provide a bypass when the safe snapshot refuses planning', async () => {
+    const user = userEvent.setup()
     const request = requestWithSnapshot()
     request.mockImplementation(async (path: string) => {
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
@@ -100,6 +103,13 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
+    await screen.findByLabelText('身高')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('我们不能为你当前描述的情况生成个性化餐单。')
+    expect(screen.queryByRole('heading', { name: '今日三餐计划' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /继续生成/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
   })
 })

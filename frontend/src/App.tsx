@@ -13,7 +13,6 @@ import { RegisterVerifyPage } from './auth/RegisterVerifyPage'
 import { ResetPasswordPage } from './auth/ResetPasswordPage'
 import { AccountDetailsPage } from './app/AccountDetailsPage'
 import { MePage } from './app/MePage'
-import { PlaceholderTabPage } from './app/PlaceholderTabPage'
 import { SessionsDetailsPage } from './app/SessionsDetailsPage'
 import { AnalyzePage } from './features/agent/components/AnalyzePage'
 import { RecordsPage } from './features/records/components/RecordsPage'
@@ -22,6 +21,7 @@ import { MealRecordEditPage } from './features/records/components/MealRecordEdit
 import { MemoryManagementPage } from './features/memory/components/MemoryManagementPage'
 import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
 import { PersonalProfilePage } from './features/plans/components/PersonalProfilePage'
+import { PlanPage } from './features/plans/components/PlanPage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
@@ -52,7 +52,7 @@ export function App() {
           <Route element={<AppShell />}>
             <Route path="analyze" element={<AnalyzePage />} />
             <Route path="records" element={<RecordsPage />} />
-            <Route path="plans" element={<PlaceholderTabPage title="计划" />} />
+            <Route path="plans" element={<PlanPage />} />
             <Route path="me" element={<MePage />} />
           </Route>
           <Route element={<DetailLayout title="账号资料" />}>

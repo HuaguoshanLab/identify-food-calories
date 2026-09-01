@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { listMemories } from '@/features/memory/api/client'
 import { getPlanningProfile, PlanningApiError, startDietPlanning } from '../api/client'
-import { profileGoalFormSchema, type DietPlanningStartResponse, type ProfileGoalFormValues } from '../api/schemas'
+import { profileGoalFormSchema, type DietPlanningStartResponse, type PlanningProfile, type ProfileGoalFormValues } from '../api/schemas'
 
 const activityOptions = [
   ['sedentary', '久坐', '大部分时间坐着，几乎不运动'],
@@ -28,30 +28,37 @@ const emptyValues: ProfileGoalFormValues = {
   activity_level: undefined as unknown as ProfileGoalFormValues['activity_level'], goal: undefined as unknown as ProfileGoalFormValues['goal'], goal_speed: undefined as unknown as ProfileGoalFormValues['goal_speed'], preference_reviewed: false, save_profile: false,
 }
 
-export function ProfileGoalForm({ onStarted }: { onStarted?: (snapshot: DietPlanningStartResponse) => void }) {
+export type PreferenceSummaries = { exclusions: string[]; tastePreferences: string[] }
+
+type ProfileGoalFormProps = {
+  initialValues?: PlanningProfile | null
+  preferenceSummaries?: PreferenceSummaries
+  isLoading?: boolean
+  preferenceLoadError?: boolean
+  onStarted?: (snapshot: DietPlanningStartResponse) => void
+}
+
+export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, onStarted }: ProfileGoalFormProps) {
   const { request } = useAuth()
   const [pageError, setPageError] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
-  const profileQuery = useQuery({ queryKey: ['planning-profile'], queryFn: () => getPlanningProfile(request) })
-  const memoriesQuery = useQuery({ queryKey: ['planning-preference-summary'], queryFn: () => listMemories(request) })
+  const profileQuery = useQuery({ queryKey: ['planning-profile'], queryFn: () => getPlanningProfile(request), enabled: initialValues === undefined })
+  const memoriesQuery = useQuery({ queryKey: ['planning-preference-summary'], queryFn: () => listMemories(request), enabled: preferenceSummaries === undefined })
   const form = useForm<ProfileGoalFormValues>({ defaultValues: emptyValues, resolver: zodResolver(profileGoalFormSchema) })
+  const profile = initialValues === undefined ? profileQuery.data : initialValues
+  const preferences = preferenceSummaries ?? {
+    exclusions: (memoriesQuery.data ?? []).filter((memory) => memory.category === 'avoidance').map((memory) => memory.canonical_text),
+    tastePreferences: (memoriesQuery.data ?? []).filter((memory) => memory.category === 'stable_preference').map((memory) => memory.canonical_text),
+  }
 
   useEffect(() => {
-    if (!profileQuery.data) return
+    if (!profile) return
     form.reset({
-      height_cm: String(Number(profileQuery.data.height_cm)), weight_kg: String(Number(profileQuery.data.weight_kg)), age_years: profileQuery.data.age_years,
-      formula_variant: profileQuery.data.formula_variant, activity_level: profileQuery.data.activity_level, goal: profileQuery.data.goal, goal_speed: profileQuery.data.goal_speed,
+      height_cm: String(Number(profile.height_cm)), weight_kg: String(Number(profile.weight_kg)), age_years: profile.age_years,
+      formula_variant: profile.formula_variant, activity_level: profile.activity_level, goal: profile.goal, goal_speed: profile.goal_speed,
       preference_reviewed: false, save_profile: false,
     })
-  }, [form, profileQuery.data])
-
-  const preferences = useMemo(() => {
-    const memories = memoriesQuery.data ?? []
-    return {
-      exclusions: memories.filter((memory) => memory.category === 'avoidance').map((memory) => memory.canonical_text),
-      tastePreferences: memories.filter((memory) => memory.category === 'stable_preference').map((memory) => memory.canonical_text),
-    }
-  }, [memoriesQuery.data])
+  }, [form, profile])
 
   const submit = form.handleSubmit(async (values) => {
     setPageError('')
@@ -86,8 +93,8 @@ export function ProfileGoalForm({ onStarted }: { onStarted?: (snapshot: DietPlan
     }
   })
 
-  const loading = profileQuery.isLoading || memoriesQuery.isLoading
-  const showPreferenceLoadError = memoriesQuery.isError
+  const loading = isLoading || profileQuery.isLoading || memoriesQuery.isLoading
+  const showPreferenceLoadError = preferenceLoadError || memoriesQuery.isError
 
   return <form className="space-y-4" noValidate onSubmit={submit}>
     <section aria-labelledby="body-data-title" className="space-y-3">

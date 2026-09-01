@@ -53,7 +53,7 @@ export const dietPlanningSafeEventSchema = z.object({
 
 export const dietPlanningStartResponseSchema = z.object({
   thread_id: z.string().uuid(),
-  status: z.enum(['waiting', 'accepted', 'running', 'completed', 'retryable', 'failed']),
+  status: z.enum(['waiting', 'partial', 'accepted', 'running', 'completed', 'retryable', 'failed', 'terminal', 'deletion_pending']),
   revision: z.number().int().nonnegative(),
 }).strip()
 
