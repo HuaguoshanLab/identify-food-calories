@@ -135,3 +135,47 @@ test.describe('phase 3 multimodal image upload', () => {
     expect(uploadCount).toBe(1)
   })
 })
+
+test.describe('phase 4 direct preference memory', () => {
+  test('a real user can capture, maintain, delete, and refresh an explicit avoidance', async ({ page, request }) => {
+    await clearMailbox(request)
+    const memoryAccount: E2eAccount = {
+      email: 'agent-direct-memory@example.test',
+      password: 'correct-horse-battery-staple',
+    }
+    await page.goto('/register')
+    await registerAndActivate(page, request, memoryAccount)
+    await login(page, memoryAccount, '/app/analyze')
+
+    await page.getByLabel('餐食描述').fill('米饭 100 克，我不吃辣')
+    await page.getByRole('button', { name: '开始分析' }).click()
+    await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
+    await expect(page.getByText('合计 130.0 kcal')).toBeVisible()
+
+    await page.getByRole('link', { name: '我的' }).click()
+    await page.getByRole('link', { name: '饮食偏好与记忆' }).click()
+    await expect(page.getByRole('heading', { name: '饮食偏好与记忆' })).toBeVisible()
+    const memoryLink = page.getByRole('link', { name: /忌口 · 不吃辣/ })
+    await expect(memoryLink).toBeVisible()
+    await expect(page.getByText(/用户直接表达 · 更新于/)).toBeVisible()
+    await expect(page.getByText(/fake-direct|request_key|external_memory_id/)).toHaveCount(0)
+
+    await memoryLink.click()
+    const memoryId = page.url().match(/\/app\/me\/memories\/([^/]+)\/edit/)?.[1]
+    expect(memoryId).toBeTruthy()
+    await page.getByLabel('偏好内容').fill('不吃微辣')
+    await page.getByRole('button', { name: '保存修改' }).click()
+    await expect(page.getByText('忌口 · 不吃微辣')).toBeVisible()
+    await expect(page.getByText(/用户手动维护 · 更新于/)).toBeVisible()
+
+    await page.getByRole('link', { name: /忌口 · 不吃微辣/ }).click()
+    await page.getByRole('button', { name: '删除这条记忆' }).click()
+    await expect(page.getByRole('alertdialog')).toBeVisible()
+    await page.getByRole('button', { name: '确认删除' }).click()
+    await expect(page.getByText('还没有长期偏好。你在分析时明确说明的饮食目标和忌口会保存在这里。')).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('还没有长期偏好。你在分析时明确说明的饮食目标和忌口会保存在这里。')).toBeVisible()
+    await page.setViewportSize({ width: 320, height: 932 })
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+  })
+})

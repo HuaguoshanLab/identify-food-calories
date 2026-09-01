@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const frontendUrl = 'http://127.0.0.1:4173'
+const frontendUrl = 'http://127.0.0.1:5178'
 const backendUrl = 'http://127.0.0.1:8000/api/v1/health'
 
 const backendEnvironment = {

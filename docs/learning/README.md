@@ -18,4 +18,4 @@
 | `02-phase-1-code-walkthrough.md` | 从 React 页面追踪到 FastAPI、Service、Repository 与 PostgreSQL 的 Phase 1 代码导读 |
 | `phase-02-agent-core.md` | Phase 2 文字餐食 Agent 的认证→API→ledger→LangGraph→确定性营养工具→PostgreSQL/SSE 链路、测试证据、失败发布门与常见错误。 |
 | `phase-03-multimodal-meal-analysis.md` | Phase 3 图片安全、Qwen/Fake Vision Provider、图与确定性营养边界、删除链、冻结评测、浏览器证据和常见错误。 |
-| `04-meal-records-and-long-term-memory.md` | Phase 4 显式餐食保存、记忆账本/outbox、来源分离检索和测试边界教学。 |
+| `04-meal-records-and-long-term-memory.md` | Phase 4 显式餐食保存、Graph typed tool 直接偏好写入、ledger/outbox 删除竞争、来源分离检索、公开 Mailpit/CORS A/B 与浏览器验收教学。 |
