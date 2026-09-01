@@ -1,13 +1,29 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const frontendUrl = 'http://127.0.0.1:5178'
-const backendUrl = 'http://127.0.0.1:8000/api/v1/health'
+function localPort(variableName: string, fallback: string) {
+  const value = process.env[variableName] ?? fallback
+  if (!/^\d{2,5}$/.test(value)) {
+    throw new Error(`${variableName} must be a local TCP port number.`)
+  }
+  return value
+}
+
+const frontendPort = localPort('E2E_FRONTEND_PORT', '5178')
+const backendPort = localPort('E2E_BACKEND_PORT', '8000')
+const frontendUrl = `http://127.0.0.1:${frontendPort}`
+const backendOrigin = `http://127.0.0.1:${backendPort}`
+const backendUrl = `${backendOrigin}/api/v1/health`
 
 const backendEnvironment = {
   ...process.env,
   CORS_ORIGINS: JSON.stringify([frontendUrl]),
   SMTP_HOST: '127.0.0.1',
   SMTP_PORT: '1025',
+}
+
+const frontendEnvironment = {
+  ...process.env,
+  VITE_DEV_API_PROXY_TARGET: backendOrigin,
 }
 
 export default defineConfig({
@@ -38,7 +54,7 @@ export default defineConfig({
       command:
         'cd .. && docker compose up -d --wait postgres-test mailpit && cd backend && ' +
         'exec .venv/bin/python tests/run_pg.py --env-file .env.test.example -- ' +
-        '.venv/bin/python scripts/run_initialized_app.py --host 127.0.0.1 --port 8000',
+        `.venv/bin/python scripts/run_initialized_app.py --host 127.0.0.1 --port ${backendPort}`,
       env: backendEnvironment,
       url: backendUrl,
       reuseExistingServer: false,
@@ -50,7 +66,8 @@ export default defineConfig({
     {
       name: 'Vite',
       cwd: '.',
-      command: 'npm run build && npm run preview:e2e',
+      command: `npm run build && npm run preview:e2e -- --port ${frontendPort}`,
+      env: frontendEnvironment,
       url: frontendUrl,
       reuseExistingServer: false,
       timeout: 120_000,

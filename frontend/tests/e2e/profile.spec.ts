@@ -11,7 +11,7 @@ test.describe('phase 5 personal profile', () => {
     await login(page, account, '/app/plans')
 
     await page.getByLabel('身高').fill('170')
-    await page.getByLabel('体重').fill('65')
+    await page.getByRole('spinbutton', { name: '体重' }).fill('65')
     await page.getByLabel('年龄').fill('30')
     await page.getByLabel('使用女性参数').check()
     await page.getByLabel('中度每周规律中等强度活动').check()
@@ -23,7 +23,7 @@ test.describe('phase 5 personal profile', () => {
 
     await page.getByRole('link', { name: '我的' }).click()
     await page.getByRole('link', { name: '个人资料' }).click()
-    await expect(page.getByRole('heading', { name: '个人资料' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible()
     await expect(page.getByText('170 cm')).toBeVisible()
     await expect(page.getByRole('link', { name: '管理饮食偏好' })).toHaveAttribute('href', '/app/me/memories')
     await expect(page.getByLabel(/忌口|口味/)).toHaveCount(0)
