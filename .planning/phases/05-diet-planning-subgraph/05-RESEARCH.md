@@ -376,20 +376,28 @@ The proposed shape follows the existing nutrition module’s closed action and r
 | A4 | Recipe ingredient totals should be recomputed from qualified food records rather than trusted recipe totals. | Patterns / Model | Incorrect snapshots could cause false nutrition reports. |
 | A5 | Slot-local replacement and the proposed repeat-score dimensions are the safest MVP implementation of D-10/D-14. | Pattern 2 / Composition | User feedback could be applied too narrowly or too broadly without adequate tests. |
 
-## Open Questions
+## Resolved Implementation Contracts
 
-1. **精确目标政策（活动因子、速度到 kcal 调整、能量下限与增重预设）**
-   - What we know: D-02/D-03 将五档活动与保守预设交给实现裁量；Mifflin–St Jeor 只提供健康成人 REE 预测，CDC 支持渐进减重。 [CITED: .planning/phases/05-diet-planning-subgraph/05-CONTEXT.md; https://pubmed.ncbi.nlm.nih.gov/2305711/; https://www.cdc.gov/healthy-weight-growth/losing-weight/index.html]
-   - What's unclear: 项目没有冻结适用于中国用户、普通成年人计划的因子/下限和增重规则。 [CITED: .planning/phases/05-diet-planning-subgraph/05-CONTEXT.md]
-   - Recommendation: 在第一个计划中把全部常量集中为 `target-policy.v1`，以单元测试锁定，明确标作估算，并把高风险场景拒绝而不是“调参”处理。 [ASSUMED]
-2. **用户选择的 sex 字段及公式适用性**
-   - What we know: 原公式为男女两个版本，研究样本为 19–78 岁成年人。 [CITED: https://pubmed.ncbi.nlm.nih.gov/2305711/]
-   - What's unclear: 当前产品尚未定义如何为不希望/无法用该二元公式的用户提供公平、安全的非医疗替代。 [CITED: .planning/phases/05-diet-planning-subgraph/05-CONTEXT.md]
-   - Recommendation: 不要暗中猜测；把它列为产品/安全决定。若未作决定，本阶段只允许用户明确选择可用公式或拒绝个性化计算并提供通用原则。 [ASSUMED]
-3. **受控菜谱种子与许可**
-   - What we know: 当前营养目录存储 source URL、license、catalog version 和 qualified food，但没有 recipe schema。 [CITED: backend/app/nutrition/models.py; backend/app/nutrition/schemas.py]
-   - What's unclear: 可用于提交的最小菜谱/短做法标签的来源、许可与审核清单尚未冻结。 [CITED: .planning/phases/05-diet-planning-subgraph/05-CONTEXT.md]
-   - Recommendation: 计划先交付小而可审计的项目自有 seed，保留来源/许可证/version 字段；不要在运行时抓取第三方食谱。 [ASSUMED]
+以下结论为本阶段冻结的实现合同。它们是面向普通成年人的产品安全策略与版本化算法参数，不是医疗处方，也不声称对个人具备医学有效性。
+
+### R-01: `target-policy.v1`（已冻结）
+
+- 仅接受年龄 `19..78`、明确选择 Mifflin–St Jeor 公式变体、且不触发 D-15 高风险标记的资料。低于 19 岁、超过公式研究样本范围、孕哺、疾病/治疗/用药、进食障碍/自伤或极端体重操控意图一律返回 `BLOCK_HEALTH_SCOPE`，在计算和检索前终止。
+- 五档活动因子固定为：`sedentary=1.20`、`light=1.375`、`moderate=1.55`、`high=1.725`、`very_high=1.90`。它们是 `target-policy.v1` 的可解释产品常量；D-02 的五档用户示例必须逐字对应这些枚举。
+- 目标/速度固定为三个不接受自由数值输入的预设：`maintain=0 kcal/day`、`gradual_loss=-250 kcal/day`、`gradual_gain=+200 kcal/day`。任何未知枚举、自定义速度或“更快”意图都返回 `BLOCK_HEALTH_SCOPE` 与 D-16 转介文案。`gradual_loss` 低于研究中所述约 `0.5 kg/week` 的保守项目上限；`gradual_gain` 是产品策略，不是医疗建议。
+- 基础目标为 `Mifflin–St Jeor REE × activity_factor + preset_delta`。若结果小于 `1200 kcal/day`，返回 `BLOCK_HEALTH_SCOPE`，不截断、不暗中抬高。公共能量目标区间是该结果的 `±100 kcal/day`，下限同样低于 1200 时拒绝。碳水、蛋白质、脂肪区间分别以 AMDR `45–65%`、`10–35%`、`20–35%` 和 `4/4/9 kcal/g` 从能量区间确定性换算；内部用 `Decimal`，仅公共报告取整。所有 DTO 都带 `target-policy.v1` 与 `mifflin-st-jeor.v1`。
+
+### R-02: 公式参数安全合同（已冻结）
+
+- 字段命名为 `formula_variant`，只允许用户明确选择 `mifflin_st_jeor_male` 或 `mifflin_st_jeor_female`；它不是身份推断字段，前端不可根据姓名、资料、历史记录或模型输出默认选择。
+- 用户未选择、撤回选择或不能使用这两个公开公式变体时，`DietPlanningStartCommand` 返回 `NEEDS_INPUT`，不得生成个性化目标或餐单；页面仅保留 D-16 所允许的通用、非医疗均衡饮食原则入口。
+- 该字段及其限制必须在服务测试、严格启动命令 DTO、个人资料表单和公开错误映射中一致出现；UI 标示“用于目标估算的身体参数”，不把结果表述为诊断。
+
+### R-03: 受控菜谱来源、许可与审核合同（已冻结）
+
+- v1 seed 仅可使用项目自有、结构化的短菜名/份量/标签数据；禁止运行时抓取、复制或改写第三方食谱正文、图片、步骤或购物清单。每条 seed 的 `source_kind` 必须为 `project_authored`，`source_reference` 为仓库内可追溯引用，`license` 为 `LicenseRef-Project-Authored-v1`，并且 `recipe_version` 与 `catalog_version` 非空。
+- 只有含 `audit_status=approved`、`audited_at`、`audited_by_role=nutrition_catalog_reviewer`、`audit_version` 的记录才可激活。`nutrition_catalog_reviewer` 是项目中获授权核验“来源权利、标签与合格食材目录映射”的审核角色；它不宣称医学营养师资质。
+- `ControlledRecipe` DTO、JSON seed、ORM/Alembic 约束和 repository 激活查询必须同时强制这些字段。缺失、未知许可、非 `approved` 状态、无审核角色/时间、catalog 版本不匹配或非合格食材引用的 recipe 必须被拒绝；测试覆盖全部拒绝分支。最终营养仍只从合格食材目录和克数重算。
 
 ## Environment Availability
 

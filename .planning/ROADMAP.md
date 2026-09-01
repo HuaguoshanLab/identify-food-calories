@@ -177,6 +177,19 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 4
 **Requirements:** PLN-01, PLN-02, PLN-03, PLN-04, PLN-05, PLN-06
+**Plans:** 10 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — 冻结并测试 `target-policy.v1` 与首轮确认合同
+- [ ] 05-07-PLAN.md — 最小化、显式保存的个人资料持久化
+- [ ] 05-08-PLAN.md — 审核、许可明确且可重算的受控菜谱
+- [ ] 05-02-PLAN.md — 受限饮食规划子图与严格启动命令
+- [ ] 05-03-PLAN.md — H5 transient 首轮资料/偏好复核表单
+- [ ] 05-04-PLAN.md — 同线程的安全局部调整与记忆捕获
+- [ ] 05-05-PLAN.md — 个人资料详情路由、编辑与删除
+- [ ] 05-09-PLAN.md — H5 首次计划结果与安全状态呈现
+- [ ] 05-10-PLAN.md — H5 调整、放宽、上限和拒绝状态
+- [ ] 05-06-PLAN.md — 跨层回归、浏览器验收与中文教学文档
 **Success Criteria:**
 
 1. 身体数据与目标经确定性公式生成每日能量和宏量营养约束。
