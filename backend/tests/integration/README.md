@@ -25,4 +25,5 @@
 | `test_agent_retention.py` | FastAPI 生命周期中的 PostgreSQL retention lease、24h 用户删除、7d checkpoint/SSE 与 30d 最小审计的精确边界和跨租户证明。 |
 | `test_meal_records.py` | 真实 Agent 完成报告到餐食保存、时间修改、隔离与删除的竖向证据。 |
 | `test_memory_deletion_chain.py` | 真实 PostgreSQL 证明删除后立即不可检索，外部清理失败仅进入安全重试。 |
+| `test_memory_direct_write_idempotency.py` | 真实 PostgreSQL 证明直接偏好 capture 并发单例、outcome-unknown 重启仅按 request key resolve，及删除/用户隔离。 |
 | `test_retrieval_isolation.py` | 真实 pgvector metadata 检索的 tenant、active/deleted 与受控知识版本过滤证据。 |
