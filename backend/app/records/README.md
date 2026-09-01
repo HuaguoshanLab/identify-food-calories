@@ -7,7 +7,7 @@
 ## 允许依赖
 
 - 可依赖 Pydantic、SQLAlchemy、`auth` 的 Base，以及 Agent/Nutrition 的窄 Port 或安全 DTO。
-- API 只调用 Service；Service 只通过 Repository Port 访问持久化数据。
+- API 只调用 Service，并从 `auth.api.AuthenticatedPrincipal` 获取用户身份；Service 只通过 Repository Port 访问持久化数据。
 - 禁止 LangGraph、Provider、原图/base64、完整对话和 embedding 直接进入本模块。
 
 ## 文件索引

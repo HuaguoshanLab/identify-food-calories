@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.agent.api import AgentPrincipal
+from app.auth.api import AuthenticatedPrincipal
 from app.core.database import get_session
 from app.records.repository import SqlAlchemyMealRecordRepository
 from app.records.schemas import MealRecordConfirmRequest, MealRecordResponse, MealRecordUpdateRequest
@@ -37,7 +37,7 @@ ServiceDependency = Annotated[MealRecordService, Depends(get_meal_record_service
 
 @router.post("", operation_id="confirmMealRecord", response_model=MealRecordResponse, status_code=status.HTTP_201_CREATED)
 def confirm_meal_record(
-    payload: MealRecordConfirmRequest, principal: AgentPrincipal, service: ServiceDependency
+    payload: MealRecordConfirmRequest, principal: AuthenticatedPrincipal, service: ServiceDependency
 ) -> MealRecordResponse:
     try:
         return MealRecordResponse.model_validate(
@@ -54,12 +54,12 @@ def confirm_meal_record(
 
 
 @router.get("", operation_id="listMealRecords", response_model=list[MealRecordResponse])
-def list_meal_records(principal: AgentPrincipal, service: ServiceDependency) -> list[MealRecordResponse]:
+def list_meal_records(principal: AuthenticatedPrincipal, service: ServiceDependency) -> list[MealRecordResponse]:
     return [MealRecordResponse.model_validate(record) for record in service.list_records(user_id=principal)]
 
 
 @router.get("/{record_id}", operation_id="getMealRecord", response_model=MealRecordResponse)
-def get_meal_record(record_id: uuid.UUID, principal: AgentPrincipal, service: ServiceDependency) -> MealRecordResponse:
+def get_meal_record(record_id: uuid.UUID, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MealRecordResponse:
     try:
         return MealRecordResponse.model_validate(service.get_record(record_id=record_id, user_id=principal))
     except MealRecordUnavailable:
@@ -68,7 +68,7 @@ def get_meal_record(record_id: uuid.UUID, principal: AgentPrincipal, service: Se
 
 @router.patch("/{record_id}", operation_id="updateMealRecord", response_model=MealRecordResponse)
 def update_meal_record(
-    record_id: uuid.UUID, payload: MealRecordUpdateRequest, principal: AgentPrincipal, service: ServiceDependency
+    record_id: uuid.UUID, payload: MealRecordUpdateRequest, principal: AuthenticatedPrincipal, service: ServiceDependency
 ) -> MealRecordResponse:
     try:
         return MealRecordResponse.model_validate(
@@ -81,7 +81,7 @@ def update_meal_record(
 
 
 @router.delete("/{record_id}", operation_id="deleteMealRecord", status_code=status.HTTP_204_NO_CONTENT)
-def delete_meal_record(record_id: uuid.UUID, principal: AgentPrincipal, service: ServiceDependency) -> None:
+def delete_meal_record(record_id: uuid.UUID, principal: AuthenticatedPrincipal, service: ServiceDependency) -> None:
     try:
         service.delete_record(record_id=record_id, user_id=principal)
     except MealRecordUnavailable:

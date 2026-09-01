@@ -9,7 +9,7 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.agent.api import AgentPrincipal
+from app.auth.api import AuthenticatedPrincipal
 from app.core.config import Settings
 from app.core.database import get_session
 from app.memory.providers import create_memory_provider
@@ -36,7 +36,7 @@ ServiceDependency = Annotated[MemoryService, Depends(get_memory_service)]
 
 
 @router.post("", operation_id="createDirectMemory", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
-def create_direct_memory(payload: MemoryCreateRequest, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
+def create_direct_memory(payload: MemoryCreateRequest, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
         return MemoryResponse.model_validate(service.create_direct(user_id=principal, category=payload.category, canonical_text=payload.canonical_text))
     except MemoryValidationError:
@@ -44,7 +44,7 @@ def create_direct_memory(payload: MemoryCreateRequest, principal: AgentPrincipal
 
 
 @router.post("/{memory_id}/confirm", operation_id="confirmInferredMemory", response_model=MemoryResponse)
-def confirm_inferred_memory(memory_id: uuid.UUID, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
+def confirm_inferred_memory(memory_id: uuid.UUID, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
         return MemoryResponse.model_validate(service.confirm_inference(memory_id=memory_id, user_id=principal))
     except MemoryUnavailable:
@@ -52,12 +52,12 @@ def confirm_inferred_memory(memory_id: uuid.UUID, principal: AgentPrincipal, ser
 
 
 @router.get("", operation_id="listMemories", response_model=list[MemoryResponse])
-def list_memories(principal: AgentPrincipal, service: ServiceDependency) -> list[MemoryResponse]:
+def list_memories(principal: AuthenticatedPrincipal, service: ServiceDependency) -> list[MemoryResponse]:
     return [MemoryResponse.model_validate(memory) for memory in service.list_memories(user_id=principal)]
 
 
 @router.get("/{memory_id}", operation_id="getMemory", response_model=MemoryResponse)
-def get_memory(memory_id: uuid.UUID, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
+def get_memory(memory_id: uuid.UUID, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
         return MemoryResponse.model_validate(service.get_memory(memory_id=memory_id, user_id=principal))
     except MemoryUnavailable:
@@ -65,7 +65,7 @@ def get_memory(memory_id: uuid.UUID, principal: AgentPrincipal, service: Service
 
 
 @router.patch("/{memory_id}", operation_id="updateMemory", response_model=MemoryResponse)
-def update_memory(memory_id: uuid.UUID, payload: MemoryUpdateRequest, principal: AgentPrincipal, service: ServiceDependency) -> MemoryResponse:
+def update_memory(memory_id: uuid.UUID, payload: MemoryUpdateRequest, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
         return MemoryResponse.model_validate(service.update_memory(memory_id=memory_id, user_id=principal, canonical_text=payload.canonical_text))
     except MemoryUnavailable:
@@ -75,7 +75,7 @@ def update_memory(memory_id: uuid.UUID, payload: MemoryUpdateRequest, principal:
 
 
 @router.delete("/{memory_id}", operation_id="deleteMemory", status_code=status.HTTP_204_NO_CONTENT)
-def delete_memory(memory_id: uuid.UUID, request: Request, principal: AgentPrincipal, service: ServiceDependency) -> None:
+def delete_memory(memory_id: uuid.UUID, request: Request, principal: AuthenticatedPrincipal, service: ServiceDependency) -> None:
     try:
         service.delete_memory(memory_id=memory_id, user_id=principal)
     except MemoryUnavailable:

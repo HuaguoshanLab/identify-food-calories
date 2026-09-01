@@ -8,6 +8,8 @@
 - 保持 API → Application/Service → Repository → Model 依赖方向；路由只处理 HTTP 语义和响应映射。
 - Repository 不决定密码规则、权限或 HTTP 状态码；Service 负责业务规则与多步骤事务边界。
 - Schema、ORM Model、LangGraph State、Provider DTO 必须分离。
+- `ARCHITECTURE.md` 是后端目录、新代码落点和跨模块依赖的强制合同。不得创建无所有者的全局 `services/`、`repositories/`、`models/`、`schemas/` 或 `utils/` 目录。
+- 业务 API 默认隔离；受保护资源路由只从 `auth.api` 获取 `AuthenticatedPrincipal`，不得导入其他业务模块的 `api.py`。Agent 图只能通过 `agent/tools.py` 调用领域能力。
 
 ## 安全
 

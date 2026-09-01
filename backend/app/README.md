@@ -2,12 +2,12 @@
 
 ## 职责
 
-`app/` 是 FastAPI 应用包。当前提供应用入口和核心运行配置；后续模块按 API、应用服务、领域、基础设施、Schema 与 Provider 边界扩展。
+`app/` 是 FastAPI 应用包。模块边界、新代码落点与允许的跨模块依赖由 `../ARCHITECTURE.md` 统一规定；后续模块按 API、应用服务、领域、基础设施、Schema 与 Provider 边界扩展。
 
 ## 允许依赖
 
 - 可以依赖 FastAPI、Pydantic 以及本包内更低层抽象。
-- API 层只能调用 Application/Service，不能直接查询 SQLAlchemy Model。
+- API 层只能调用 Application/Service，不能直接查询 SQLAlchemy Model；受保护资源路由从 `auth.api.AuthenticatedPrincipal` 获取用户身份，不得导入其他业务模块的 API。
 - Agent 编排层只能通过受控工具调用领域服务。
 
 ## 文件索引

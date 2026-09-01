@@ -85,6 +85,7 @@ uv run python -m app.admin.cli promote \
 | 路径 | 职责 |
 |---|---|
 | `AGENTS.md` | 后端局部实现与测试约束 |
+| `ARCHITECTURE.md` | 后端模块地图、依赖方向、新代码落点和变更门禁 |
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
 | `.env.example` | 可提交、可直接复制的本地最小环境模板；仅需填入 DeepSeek API Key，不包含真实密钥 |
 | `.env.test.example` | 真实 PostgreSQL 测试 child 的固定、互异开发哨兵与测试库环境合同 |

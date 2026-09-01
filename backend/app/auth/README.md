@@ -27,4 +27,4 @@
 | `repository.py` | 同步 SQLAlchemy Repository adapter、PostgreSQL 原子登录失败累计与 refresh family revoke |
 | `security.py` | Argon2id 密码校验、session-bound access JWT、验证码/refresh CSPRNG 与 HMAC 摘要原语 |
 | `service.py` | 注册验证码协议、HMAC 限流、登录、refresh rotation/replay revoke、会话管理和数据库权威身份读取 |
-| `api.py` | 注册、登录、refresh/logout/session、Bearer `/users/me`、Cookie、CSRF Origin/Referer 和安全错误映射 |
+| `api.py` | 注册、登录、refresh/logout/session、Bearer `/users/me`、Cookie、CSRF Origin/Referer 和安全错误映射；同时提供所有受保护资源路由共用的 `AuthenticatedPrincipal` dependency |

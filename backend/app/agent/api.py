@@ -13,9 +13,8 @@ from collections.abc import Generator, Iterator
 from datetime import timedelta
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Security, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials
 
 from app.agent.graph import AgentRuntime
 from app.agent.repository import SqlAlchemyAgentRepository
@@ -34,9 +33,7 @@ from app.agent.state import StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.images.schemas import ImageValidationError, ValidatedImageReference
 from app.images.service import ImageSafetyService
-from app.auth.api import bearer_scheme, get_authentication_service
-from app.auth.security import InvalidAccessToken
-from app.auth.service import AuthenticatedUserUnavailable, AuthenticationService
+from app.auth.api import AuthenticatedPrincipal
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -46,20 +43,7 @@ _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
-def get_agent_principal(
-    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
-    service: AuthenticationService = Depends(get_authentication_service),
-) -> uuid.UUID:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise _authentication_required()
-    try:
-        user_id, _session_id = service.authenticated_session(credentials.credentials)
-    except (InvalidAccessToken, AuthenticatedUserUnavailable):
-        raise _authentication_required() from None
-    return user_id
-
-
-AgentPrincipal = Annotated[uuid.UUID, Depends(get_agent_principal)]
+AgentPrincipal = AuthenticatedPrincipal
 
 
 def _runtime(request: Request) -> AgentRuntime:
@@ -386,10 +370,6 @@ def delete_agent_thread(
         raise HTTPException(status_code=503, detail="Agent retention runtime is unavailable.")
     worker.wake()
     return AgentDeletionAcceptedResponse(thread_id=thread_id, due_at=intent.purge_after)
-
-
-def _authentication_required() -> HTTPException:
-    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer authentication is required.", headers={"WWW-Authenticate": "Bearer"})
 
 
 def _unavailable() -> HTTPException:

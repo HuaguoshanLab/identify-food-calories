@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import uuid
 from urllib.parse import urlsplit
+from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, Request, Response, Security, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, Security, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -69,6 +70,24 @@ def get_authentication_service(
         commit=session.commit,
         rollback=session.rollback,
     )
+
+
+def get_authenticated_principal(
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    service: AuthenticationService = Depends(get_authentication_service),
+) -> uuid.UUID:
+    """Expose the authenticated user dependency once for every protected API module."""
+
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _principal_authentication_required()
+    try:
+        user_id, _session_id = service.authenticated_session(credentials.credentials)
+    except (InvalidAccessToken, AuthenticatedUserUnavailable):
+        raise _principal_authentication_required() from None
+    return user_id
+
+
+AuthenticatedPrincipal = Annotated[uuid.UUID, Depends(get_authenticated_principal)]
 
 
 def get_registration_service(
@@ -366,6 +385,16 @@ def _authentication_required() -> JSONResponse:
         status_code=status.HTTP_401_UNAUTHORIZED,
         code="AUTHENTICATION_REQUIRED",
         message="登录状态无效或已过期，请重新登录。",
+    )
+
+
+def _principal_authentication_required() -> HTTPException:
+    """Dependency failures use FastAPI's standard bearer challenge, not a feature envelope."""
+
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Bearer authentication is required.",
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 

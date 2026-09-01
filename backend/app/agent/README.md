@@ -25,4 +25,4 @@
 | `graph.py` | 主图路由、未交付规划能力和 FastAPI lifespan runtime 合同 |
 | `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention Worker |
 | `schemas.py` | 与 ORM、Graph State、Provider DTO 分离的公开 Agent HTTP 请求/响应 schema |
-| `api.py` | Bearer-protected Agent operation 的稳定 OpenAPI 合同；先创建空图片线程、再进行 owner-checked multipart 上传、受限解码与幂等 Vision 路径；快照只含安全 recovery code，删除操作持久化 D-18 intent 后唤醒 lifecycle Worker |
+| `api.py` | Bearer-protected Agent operation 的稳定 OpenAPI 合同；认证 Principal 由 `auth.api` 统一提供。先创建空图片线程、再进行 owner-checked multipart 上传、受限解码与幂等 Vision 路径；快照只含安全 recovery code，删除操作持久化 D-18 intent 后唤醒 lifecycle Worker |

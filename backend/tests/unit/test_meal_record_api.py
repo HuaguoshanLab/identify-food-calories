@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
-from app.agent.api import get_agent_principal
+from app.auth.api import get_authenticated_principal
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.main import create_app
 from app.records.api import get_meal_record_service
@@ -55,7 +55,7 @@ class StubMealRecordService:
 
 def _client(*, principal: uuid.UUID, service: StubMealRecordService) -> TestClient:
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
-    app.dependency_overrides[get_agent_principal] = lambda: principal
+    app.dependency_overrides[get_authenticated_principal] = lambda: principal
     app.dependency_overrides[get_meal_record_service] = lambda: service
     return TestClient(app)
 
