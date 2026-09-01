@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 04-meal-records-and-memory
 source: 04-01-PLAN.md, 04-02-PLAN.md, 04-03-PLAN.md, 04-04-PLAN.md (execution summaries are missing)
 started: 2026-08-31T12:03:49Z
-updated: 2026-09-01T01:40:00Z
+updated: 2026-09-01T01:42:00Z
 ---
 
 ## Current Test
@@ -40,7 +40,6 @@ reason: "验收 4 未将明确忌口写入长期记忆，因此没有可编辑�
 total: 5
 passed: 3
 issues: 1
-pending: 1
 pending: 0
 skipped: 1
 blocked: 0
@@ -52,7 +51,14 @@ blocked: 0
   reason: "User reported: 不符合 我写了 我不吃辣，点击分析，然后去饮食偏好与记忆中并没有保存"
   severity: major
   test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "分析图只检索已有的个人上下文，从未通过窄工具调用 MemoryService.create_direct()；该写入服务只有手动 POST /api/v1/memories 使用。"
+  artifacts:
+    - path: "backend/app/agent/graph.py"
+      issue: "分析输入只触发个人上下文读取，没有用户直接表达的长期记忆写入节点或工具调用。"
+    - path: "backend/app/memory/api.py"
+      issue: "create_direct() 只由手动记忆 API 调用，Agent 运行链路不可达。"
+  missing:
+    - "在 Agent 窄工具边界增加用户直接表达的偏好写入能力，Graph 不直接访问 Repository。"
+    - "将明确忌口/目标/稳定偏好映射为白名单 category 和 canonical_text，并保证 run 重放不重复写入。"
+    - "补 Agent、真实 PostgreSQL API、浏览器/E2E 的写入、隔离、编辑和删除回归测试。"
+  debug_session: ".planning/debug/phase-04-direct-memory-write.md"
