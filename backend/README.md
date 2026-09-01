@@ -22,6 +22,8 @@ uv run python scripts/setup_local_checkpointer.py
 uv run uvicorn app.main:app --reload
 ```
 
+`.env.example` 现在是可直接运行的本地最小配置：复制后只需在 `DEEPSEEK_API_KEY=` 后粘贴自己的 Key。它已固定项目支持的 `deepseek-v4-flash` 和成本快照；本地邮件继续由 Mailpit 接收，图片识别与长期记忆默认使用离线 Fake Provider。真实 Qwen 图片识别、Mem0 与生产环境不是“一把 Key”就能安全开启的功能，必须按各自 Provider 的部署契约显式配置。
+
 `setup_local_checkpointer.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
 
 健康检查位于 `GET /api/v1/health`。从仓库根目录启动数据库和 Mailpit：
@@ -84,7 +86,7 @@ uv run python -m app.admin.cli promote \
 |---|---|
 | `AGENTS.md` | 后端局部实现与测试约束 |
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
-| `.env.example` | 可提交的环境变量契约，不包含真实密钥 |
+| `.env.example` | 可提交、可直接复制的本地最小环境模板；仅需填入 DeepSeek API Key，不包含真实密钥 |
 | `.env.test.example` | 真实 PostgreSQL 测试 child 的固定、互异开发哨兵与测试库环境合同 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
 | `uv.lock` | 由 uv 维护的 Python 3.12+ 完整依赖锁；安装必须使用 `uv sync --locked` |
