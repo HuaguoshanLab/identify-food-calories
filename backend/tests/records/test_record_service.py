@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from app.agent.models import AgentEvent, AgentRun
 from app.records.models import MealRecord
-from app.records.service import ConsumedAtInvalid, MealRecordConfirmationUnavailable, MealRecordService, MealRecordUnavailable
+from app.records.service import (
+    ConsumedAtInvalid,
+    InvalidTimeZone,
+    MealRecordConfirmationUnavailable,
+    MealRecordService,
+    MealRecordUnavailable,
+)
 
 
 NOW = datetime(2026, 8, 31, 8, 0, tzinfo=UTC)
@@ -43,6 +49,8 @@ class FakeMealRecordRepository:
         self.report = report
         self.records: list[MealRecord] = []
         self.thread_deleted = False
+        self.dashboard_time_zones: dict[uuid.UUID, str] = {}
+        self.backfill_audits: list[object] = []
 
     def get_completed_run_for_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False) -> AgentRun | None:
         if self.run is None or self.run.status != "completed" or self.run.thread_id != thread_id or self.run.user_id != user_id:
@@ -69,6 +77,19 @@ class FakeMealRecordRepository:
 
     def list_records_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
         return sorted((record for record in self.records if record.user_id == user_id and record.deleted_at is None), key=lambda record: (record.consumed_at, record.id), reverse=True)
+
+    def get_dashboard_time_zone_for_user(self, *, user_id: uuid.UUID, for_update: bool = False) -> str | None:
+        return self.dashboard_time_zones.get(user_id)
+
+    def set_dashboard_time_zone_for_user(self, *, user_id: uuid.UUID, time_zone: str, confirmed_at: datetime) -> None:
+        self.dashboard_time_zones[user_id] = time_zone
+
+    def list_records_without_local_date_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
+        return [record for record in self.records if record.user_id == user_id and record.consumed_local_date is None]
+
+    def add_timezone_backfill_audit(self, audit: object) -> object:
+        self.backfill_audits.append(audit)
+        return audit
 
 
 def _service(repository: FakeMealRecordRepository, commits: list[bool] | None = None) -> MealRecordService:
@@ -120,3 +141,75 @@ def test_delete_hides_record_and_items_without_deleting_agent_thread() -> None:
     assert repository.thread_deleted is False
     with pytest.raises(MealRecordUnavailable):
         service.get_record(record_id=record.id, user_id=user_id)
+
+
+def test_submitted_iana_zone_freezes_local_date_for_create_and_edit() -> None:
+    user_id, thread_id = uuid.uuid4(), uuid.uuid4()
+    repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
+    service = _service(repository)
+    shanghai_midnight = datetime(2026, 8, 30, 16, 30, tzinfo=UTC)
+    record = service.confirm_from_completed_run(
+        user_id=user_id,
+        thread_id=thread_id,
+        command_key="save-key-00000001",
+        consumed_at=shanghai_midnight,
+        time_zone="Asia/Shanghai",
+    )
+    assert record.consumed_time_zone == "Asia/Shanghai"
+    assert record.consumed_local_date == date(2026, 8, 31)
+    assert record.local_date_source == "submitted_time_zone"
+
+    los_angeles_midnight = datetime(2026, 8, 31, 7, 30, tzinfo=UTC)
+    updated = service.update_record(
+        record_id=record.id,
+        user_id=user_id,
+        consumed_at=los_angeles_midnight,
+        time_zone="America/Los_Angeles",
+    )
+    assert updated.consumed_local_date == date(2026, 8, 31)
+    assert updated.consumed_time_zone == "America/Los_Angeles"
+    assert updated.local_date_source == "submitted_time_zone"
+
+
+def test_invalid_iana_zone_is_rejected_before_any_record_is_written() -> None:
+    user_id, thread_id = uuid.uuid4(), uuid.uuid4()
+    repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
+    with pytest.raises(InvalidTimeZone):
+        _service(repository).confirm_from_completed_run(
+            user_id=user_id,
+            thread_id=thread_id,
+            command_key="save-key-00000001",
+            consumed_at=NOW - timedelta(hours=1),
+            time_zone="Mars/Olympus_Mons",
+        )
+    assert repository.records == []
+
+
+def test_confirmed_dashboard_timezone_backfills_only_owned_legacy_rows_once() -> None:
+    owner, other = uuid.uuid4(), uuid.uuid4()
+    owner_repository = FakeMealRecordRepository(run=None, report=None)
+    legacy_owner = MealRecord(
+        id=uuid.uuid4(), user_id=owner, source_run_id=uuid.uuid4(), agent_thread_id=uuid.uuid4(), agent_run_id=uuid.uuid4(),
+        command_key="legacy-owner-key-0001", consumed_at=datetime(2026, 8, 30, 16, 30, tzinfo=UTC),
+        nutrition_catalog_version="fdc-seed-v1", calculation_version="per-100g-v1", energy_kcal=Decimal("1"), protein_g=Decimal("1"), fat_g=Decimal("1"), carbohydrate_g=Decimal("1"),
+        created_at=NOW, updated_at=NOW, deleted_at=None,
+    )
+    legacy_other = MealRecord(
+        id=uuid.uuid4(), user_id=other, source_run_id=uuid.uuid4(), agent_thread_id=uuid.uuid4(), agent_run_id=uuid.uuid4(),
+        command_key="legacy-other-key-0001", consumed_at=datetime(2026, 8, 30, 16, 30, tzinfo=UTC),
+        nutrition_catalog_version="fdc-seed-v1", calculation_version="per-100g-v1", energy_kcal=Decimal("1"), protein_g=Decimal("1"), fat_g=Decimal("1"), carbohydrate_g=Decimal("1"),
+        created_at=NOW, updated_at=NOW, deleted_at=None,
+    )
+    owner_repository.records.extend([legacy_owner, legacy_other])
+    service = _service(owner_repository)
+
+    confirmation = service.confirm_dashboard_time_zone(user_id=owner, time_zone="Asia/Shanghai")
+    assert confirmation.dashboard_time_zone == "Asia/Shanghai"
+    assert legacy_owner.consumed_local_date == date(2026, 8, 31)
+    assert legacy_owner.local_date_source == "confirmed_timezone_backfill"
+    assert legacy_other.consumed_local_date is None
+    assert len(owner_repository.backfill_audits) == 1
+    assert "historical location" not in confirmation.model_dump_json().lower()
+
+    with pytest.raises(ValueError):
+        service.confirm_dashboard_time_zone(user_id=owner, time_zone="Asia/Shanghai")

@@ -13,7 +13,7 @@ from app.agent.graph import NoopAgentRuntimeFactory
 from app.main import create_app
 from app.records.api import get_meal_record_service
 from app.records.models import MealRecord, MealRecordItem
-from app.records.service import MealRecordUnavailable
+from app.records.service import InvalidTimeZone, MealRecordUnavailable
 
 
 NOW = datetime(2026, 8, 31, 8, 0, tzinfo=UTC)
@@ -34,7 +34,7 @@ class StubMealRecordService:
         self.record = record
         self.confirm_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
 
-    def confirm_from_completed_run(self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None) -> MealRecord:
+    def confirm_from_completed_run(self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None, time_zone: str) -> MealRecord:
         self.confirm_calls.append((user_id, thread_id, command_key))
         return self.record
 
@@ -46,8 +46,13 @@ class StubMealRecordService:
             raise MealRecordUnavailable()
         return self.record
 
-    def update_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime) -> MealRecord:
+    def update_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str) -> MealRecord:
         return self.get_record(record_id=record_id, user_id=user_id)
+
+    def confirm_dashboard_time_zone(self, *, user_id: uuid.UUID, time_zone: str):
+        if time_zone == "Mars/Olympus_Mons":
+            raise InvalidTimeZone()
+        return type("Confirmation", (), {"dashboard_time_zone": time_zone, "confirmed_at": NOW})()
 
     def delete_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID) -> None:
         self.get_record(record_id=record_id, user_id=user_id)
@@ -78,10 +83,24 @@ def test_authenticated_owner_can_list_and_confirm_without_exposing_agent_run_ids
     service = StubMealRecordService(record)
     with _client(principal=user_id, service=service) as client:
         listed = client.get("/api/v1/meal-records")
-        confirmed = client.post("/api/v1/meal-records", json={"thread_id": str(uuid.uuid4()), "command_key": "save-key-00000001"})
+        confirmed = client.post("/api/v1/meal-records", json={"thread_id": str(uuid.uuid4()), "command_key": "save-key-00000001", "time_zone": "Asia/Shanghai"})
     assert listed.status_code == 200 and listed.json()[0]["id"] == str(record.id)
     assert confirmed.status_code == 201 and "agent_run_id" not in confirmed.json() and "source_run_id" not in confirmed.json()
     assert service.confirm_calls[0][0] == user_id
+
+
+def test_time_zone_contract_requires_iana_input_and_exposes_only_current_statistical_basis() -> None:
+    user_id = uuid.uuid4()
+    service = StubMealRecordService(_record(user_id=user_id))
+    with _client(principal=user_id, service=service) as client:
+        invalid = client.post("/api/v1/meal-records/dashboard-time-zone-confirmations", json={"time_zone": "Mars/Olympus_Mons"})
+        confirmed = client.post("/api/v1/meal-records/dashboard-time-zone-confirmations", json={"time_zone": "America/Los_Angeles"})
+        saved_without_zone = client.post("/api/v1/meal-records", json={"thread_id": str(uuid.uuid4()), "command_key": "save-key-00000002"})
+    assert invalid.status_code == 400
+    assert confirmed.status_code == 200
+    assert confirmed.json()["dashboard_time_zone"] == "America/Los_Angeles"
+    assert "historical_location" not in confirmed.json()
+    assert saved_without_zone.status_code == 422
 
 
 def test_foreign_record_uuid_has_the_same_not_found_result_for_get_patch_and_delete() -> None:

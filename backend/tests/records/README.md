@@ -13,4 +13,4 @@
 
 | 路径 | 职责 |
 |---|---|
-| `test_record_service.py` | 餐食快照 Service 协议测试 |
+| `test_record_service.py` | 餐食快照、IANA 本地日冻结与确认回填 Service 协议测试 |
