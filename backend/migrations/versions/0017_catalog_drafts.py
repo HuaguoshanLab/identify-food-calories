@@ -1,5 +1,9 @@
 """Add mutable, revisioned nutrition catalog drafts with server audit evidence.
 
+The historical plan reserved ``0015``, but later Phase 06 work legitimately
+occupied revisions through ``0016``. This migration must therefore follow 0016
+to preserve Alembic's single linear head.
+
 Revision ID: 0017
 Revises: 0016
 Create Date: 2026-09-02
