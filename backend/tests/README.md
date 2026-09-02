@@ -27,7 +27,7 @@
 | `retrieval/` | 三来源上下文检索、偏好优先与安全 DTO Service 测试 |
 | `planning/` | 规划目标政策、健康边界、餐单校验与最小 profile 的 fake-port Service 测试 |
 | `dashboard/` | 看板 completion-target Port、overview 七日聚合和 opaque cursor 的 fake-service 契约测试。 |
-| `admin/` | 管理员 DB-RBAC、通用 append-only 审计与只读 keyset 查询的 fake-service 契约测试。 |
+| `admin/` | 管理员 DB-RBAC、通用 append-only 审计、严格 catalog draft/revision/幂等的 fake-service 契约测试。 |
 | `evals/` | 冻结、去标识化的 Agent 离线评测输入；只允许 fixture loader 与后续 Fake Provider 评测消费。 |
 | `providers/` | Provider DTO、adapter 与 Fake 的运行时边界测试。 |
 

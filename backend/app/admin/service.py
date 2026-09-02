@@ -6,12 +6,14 @@ import uuid
 import base64
 import hashlib
 import hmac
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Literal, cast
 
-from app.admin.models import AdminAuditEvent, AdminRoleAudit
+from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
 from app.admin.ports import AdminRepository
-from app.admin.schemas import AdminAuditEventResponse, AdminAuditPageResponse
+from app.admin.schemas import AdminAuditEventResponse, AdminAuditPageResponse, CatalogDraftCreateCommand, CatalogDraftPatchCommand, CatalogDraftResponse
 from app.auth.models import User, UserRole
 
 
@@ -25,6 +27,10 @@ class AdminRoleChangeDenied(ValueError):
 
 class AdminAuditCursorInvalid(ValueError):
     """A client-supplied cursor failed its integrity or shape validation."""
+
+
+class CatalogDraftConflict(ValueError):
+    """A stale revision or incompatible idempotency replay cannot overwrite a draft."""
 
 
 class AdminService:
@@ -169,6 +175,161 @@ class AdminService:
         next_cursor = self._encode_cursor(visible[-1]) if has_more and visible else None
         return AdminAuditPageResponse(
             items=[self._audit_response(event) for event in visible], next_cursor=next_cursor
+        )
+
+    def create_catalog_draft(
+        self, *, actor_user_id: uuid.UUID, command: CatalogDraftCreateCommand, command_key: str
+    ) -> CatalogDraftResponse:
+        """Create a mutable draft and its evidence in one service-owned transaction."""
+
+        payload = self._catalog_payload(command)
+        replay = self._catalog_replay(command_key, self._request_hash("create", payload))
+        if replay is not None:
+            return self._catalog_response(replay)
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        now = self._now()
+        draft = CatalogDraft(id=uuid.uuid4(), **payload, revision=1, created_at=now, updated_at=now)
+        self._repository.add_catalog_draft(draft)
+        self._record_catalog_mutation(
+            actor_identifier=str(actor.id), draft=draft, command_key=command_key, operation="create",
+            reason=command.reason, revision_before=0, before={field: None for field in payload} | {"revision": 0},
+            after=self._audit_catalog_payload(draft), request_hash=self._request_hash("create", payload),
+        )
+        self._commit_catalog_mutation()
+        return self._catalog_response(draft)
+
+    def patch_catalog_draft(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        draft_id: uuid.UUID,
+        expected_revision: int,
+        command: CatalogDraftPatchCommand,
+        command_key: str,
+    ) -> CatalogDraftResponse:
+        """Apply an optimistic, server-diffed patch; no client diff is accepted."""
+
+        patch = self._catalog_payload(command, partial=True)
+        replay = self._catalog_replay(command_key, self._request_hash("patch", {"draft_id": str(draft_id), "expected_revision": expected_revision, **patch}))
+        if replay is not None:
+            return self._catalog_response(replay)
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        draft = self._repository.get_catalog_draft(draft_id)
+        if draft is None:
+            raise KeyError("catalog draft not found")
+        if expected_revision != draft.revision:
+            raise CatalogDraftConflict("catalog draft revision does not match If-Match")
+        before_all = self._audit_catalog_payload(draft)
+        before = {name: before_all[name] for name in patch if before_all[name] != self._audit_scalar(patch[name])}
+        if not before:
+            raise CatalogDraftConflict("catalog draft patch makes no change")
+        for name, value in patch.items():
+            setattr(draft, name, value)
+        revision_before = draft.revision
+        draft.revision += 1
+        draft.updated_at = self._now()
+        after_all = self._audit_catalog_payload(draft)
+        after = {name: after_all[name] for name in before}
+        self._record_catalog_mutation(
+            actor_identifier=str(actor.id), draft=draft, command_key=command_key, operation="patch",
+            reason=command.reason, revision_before=revision_before, before=before, after=after,
+            request_hash=self._request_hash("patch", {"draft_id": str(draft_id), "expected_revision": expected_revision, **patch}),
+        )
+        self._commit_catalog_mutation()
+        return self._catalog_response(draft)
+
+    def _record_catalog_mutation(
+        self,
+        *,
+        actor_identifier: str,
+        draft: CatalogDraft,
+        command_key: str,
+        operation: str,
+        reason: str,
+        revision_before: int,
+        before: dict[str, object],
+        after: dict[str, object],
+        request_hash: str,
+    ) -> None:
+        """Persist only server-derived scalars and a historical revision snapshot."""
+
+        now = self._now()
+        normalized_command_key = self._normalized_command_fields(
+            action=f"catalog_draft.{operation}", object_type="catalog_draft", object_id=str(draft.id),
+            reason=reason, command_key=command_key,
+        )["command_key"]
+        change_set = self._repository.add_catalog_draft_change_set(CatalogDraftChangeSet(
+            id=uuid.uuid4(), draft_id=draft.id, actor_identifier=actor_identifier, occurred_at=now,
+            reason=reason.strip(), command_key=normalized_command_key, request_hash=request_hash,
+            revision_before=revision_before, revision_after=draft.revision, before_diff=self._safe_diff(before), after_diff=self._safe_diff(after),
+        ))
+        self._repository.add_catalog_draft_revision(CatalogDraftRevision(
+            id=uuid.uuid4(), draft_id=draft.id, change_set_id=change_set.id, revision=draft.revision,
+            snapshot=self._audit_catalog_payload(draft), created_at=now,
+        ))
+        self._repository.add_audit_event(AdminAuditEvent(
+            id=uuid.uuid4(), actor_identifier=actor_identifier, occurred_at=now, action=f"catalog_draft.{operation}",
+            object_type="catalog_draft", object_id=str(draft.id), reason=reason.strip(), before_diff=self._safe_diff(before),
+            after_diff=self._safe_diff(after), related_version=None, command_key=f"audit-{normalized_command_key}",
+        ))
+
+    def _catalog_replay(self, command_key: str, request_hash: str) -> CatalogDraft | None:
+        existing = self._repository.get_catalog_draft_command(command_key.strip())
+        if existing is None:
+            return None
+        if existing.request_hash != request_hash:
+            raise CatalogDraftConflict("Idempotency-Key was reused for a different command")
+        draft = self._repository.get_catalog_draft(existing.draft_id)
+        if draft is None:
+            raise CatalogDraftConflict("idempotent command has no draft")
+        return draft
+
+    def _commit_catalog_mutation(self) -> None:
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+
+    @staticmethod
+    def _catalog_payload(command: CatalogDraftCreateCommand | CatalogDraftPatchCommand, *, partial: bool = False) -> dict[str, object]:
+        excluded = {"reason"}
+        raw = command.model_dump(exclude=excluded, exclude_none=partial)
+        if "source_url" in raw:
+            raw["source_url"] = str(raw["source_url"])
+        return raw
+
+    @staticmethod
+    def _audit_scalar(value: object) -> object:
+        if isinstance(value, list):
+            return ", ".join(value)
+        return str(value) if hasattr(value, "as_tuple") else value
+
+    @classmethod
+    def _audit_catalog_payload(cls, draft: CatalogDraft) -> dict[str, object]:
+        return {
+            "canonical_name": draft.canonical_name, "aliases": cls._audit_scalar(draft.aliases),
+            "energy_kcal_per_100g": cls._audit_scalar(draft.energy_kcal_per_100g),
+            "protein_g_per_100g": cls._audit_scalar(draft.protein_g_per_100g),
+            "fat_g_per_100g": cls._audit_scalar(draft.fat_g_per_100g),
+            "carbohydrate_g_per_100g": cls._audit_scalar(draft.carbohydrate_g_per_100g),
+            "source_name": draft.source_name, "source_url": draft.source_url,
+            "authorization_status": draft.authorization_status, "revision": draft.revision,
+        }
+
+    @staticmethod
+    def _request_hash(operation: str, payload: dict[str, object]) -> str:
+        normalized = json.dumps({"operation": operation, "payload": payload}, sort_keys=True, default=str, separators=(",", ":"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _catalog_response(draft: CatalogDraft) -> CatalogDraftResponse:
+        return CatalogDraftResponse(
+            id=draft.id, canonical_name=draft.canonical_name, aliases=list(draft.aliases),
+            energy_kcal_per_100g=draft.energy_kcal_per_100g, protein_g_per_100g=draft.protein_g_per_100g,
+            fat_g_per_100g=draft.fat_g_per_100g, carbohydrate_g_per_100g=draft.carbohydrate_g_per_100g,
+            source_name=draft.source_name, source_url=draft.source_url,
+            authorization_status=cast(Literal["authorized", "pending", "revoked"], draft.authorization_status), revision=draft.revision,
         )
 
     def _promotion_target(self, target_user_id: uuid.UUID) -> User:

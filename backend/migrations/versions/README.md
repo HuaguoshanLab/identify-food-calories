@@ -30,3 +30,4 @@
 | `0014_planning_completion_projection.py` | 可撤销的 validated planning completion 投影、跨用户复合外键与 profile revision schema；唯一前驱是 `0013`。 |
 | `0015_weekly_review_results.py` | facts 摘要和全部安全版本组成唯一 key 的最小周复盘结果缓存；唯一前驱是 `0014`。 |
 | `0016_admin_audit_foundation.py` | 通用 append-only 管理命令审计、最小字段差异与稳定 keyset 查询索引；唯一前驱是 `0015`。 |
+| `0017_catalog_drafts.py` | mutable catalog draft、server-computed change-set 与 immutable revision evidence；唯一前驱是 `0016`。 |

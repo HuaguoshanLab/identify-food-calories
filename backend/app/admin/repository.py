@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import and_, exists, or_, select, text
 from sqlalchemy.orm import Session
 
-from app.admin.models import AdminAuditEvent, AdminRoleAudit
+from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
 from app.auth.models import User, UserRole
 
 
@@ -55,6 +55,27 @@ class SqlAlchemyAdminRepository:
         self._session.add(event)
         self._session.flush()
         return event
+
+    def get_catalog_draft(self, draft_id: uuid.UUID) -> CatalogDraft | None:
+        return self._session.get(CatalogDraft, draft_id)
+
+    def get_catalog_draft_command(self, command_key: str) -> CatalogDraftChangeSet | None:
+        return self._session.scalar(select(CatalogDraftChangeSet).where(CatalogDraftChangeSet.command_key == command_key))
+
+    def add_catalog_draft(self, draft: CatalogDraft) -> CatalogDraft:
+        self._session.add(draft)
+        self._session.flush()
+        return draft
+
+    def add_catalog_draft_change_set(self, change_set: CatalogDraftChangeSet) -> CatalogDraftChangeSet:
+        self._session.add(change_set)
+        self._session.flush()
+        return change_set
+
+    def add_catalog_draft_revision(self, revision: CatalogDraftRevision) -> CatalogDraftRevision:
+        self._session.add(revision)
+        self._session.flush()
+        return revision
 
     def list_audit_events(
         self,

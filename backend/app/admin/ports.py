@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Protocol
 
-from app.admin.models import AdminAuditEvent, AdminRoleAudit
+from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
 from app.auth.models import User
 
 
@@ -24,6 +24,16 @@ class AdminRepository(Protocol):
     def add_audit(self, audit: AdminRoleAudit) -> AdminRoleAudit: ...
 
     def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent: ...
+
+    def get_catalog_draft(self, draft_id: uuid.UUID) -> CatalogDraft | None: ...
+
+    def get_catalog_draft_command(self, command_key: str) -> CatalogDraftChangeSet | None: ...
+
+    def add_catalog_draft(self, draft: CatalogDraft) -> CatalogDraft: ...
+
+    def add_catalog_draft_change_set(self, change_set: CatalogDraftChangeSet) -> CatalogDraftChangeSet: ...
+
+    def add_catalog_draft_revision(self, revision: CatalogDraftRevision) -> CatalogDraftRevision: ...
 
     def list_audit_events(
         self,

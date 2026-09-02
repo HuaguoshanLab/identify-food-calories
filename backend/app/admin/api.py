@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.schemas import AdminAuditPageResponse, AdminAuditQuery, AdminProbeResponse
-from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService
+from app.admin.schemas import AdminAuditPageResponse, AdminAuditQuery, AdminProbeResponse, CatalogDraftCreateCommand, CatalogDraftPatchCommand, CatalogDraftResponse
+from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
 from app.core.database import get_session
@@ -62,6 +62,43 @@ def list_audit(
         return _forbidden()
     except AdminAuditCursorInvalid as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid audit cursor") from error
+
+
+@router.post("/catalog-drafts", response_model=CatalogDraftResponse, status_code=status.HTTP_201_CREATED)
+def create_catalog_draft(
+    command: CatalogDraftCreateCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogDraftResponse | JSONResponse:
+    try:
+        return admin_service.create_catalog_draft(actor_user_id=principal, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
+
+
+@router.patch("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)
+def patch_catalog_draft(
+    draft_id: uuid.UUID,
+    command: CatalogDraftPatchCommand,
+    principal: AuthenticatedPrincipal,
+    if_match: int = Header(alias="If-Match", ge=1),
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogDraftResponse | JSONResponse:
+    try:
+        return admin_service.patch_catalog_draft(
+            actor_user_id=principal, draft_id=draft_id, expected_revision=if_match,
+            command=command, command_key=idempotency_key,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
 
 
 def _authentication_required() -> JSONResponse:

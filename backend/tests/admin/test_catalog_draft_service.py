@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from app.admin.models import AdminAuditEvent, CatalogDraft
+from app.admin.models import AdminAuditEvent, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogDraftPatchCommand
 from app.admin.service import AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.models import User, UserRole
@@ -30,7 +30,8 @@ class FakeCatalogDraftRepository:
         self.user = user
         self.drafts: dict[uuid.UUID, CatalogDraft] = {}
         self.events: list[AdminAuditEvent] = []
-        self.commands: dict[str, CatalogDraft] = {}
+        self.commands: dict[str, CatalogDraftChangeSet] = {}
+        self.revisions: list[CatalogDraftRevision] = []
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return self.user if self.user.id == user_id else None
@@ -38,15 +39,20 @@ class FakeCatalogDraftRepository:
     def get_catalog_draft(self, draft_id: uuid.UUID) -> CatalogDraft | None:
         return self.drafts.get(draft_id)
 
-    def get_catalog_draft_command(self, command_key: str) -> CatalogDraft | None:
+    def get_catalog_draft_command(self, command_key: str) -> CatalogDraftChangeSet | None:
         return self.commands.get(command_key)
 
     def add_catalog_draft(self, draft: CatalogDraft) -> CatalogDraft:
         self.drafts[draft.id] = draft
         return draft
 
-    def add_catalog_draft_command(self, command_key: str, draft: CatalogDraft) -> None:
-        self.commands[command_key] = draft
+    def add_catalog_draft_change_set(self, change_set: CatalogDraftChangeSet) -> CatalogDraftChangeSet:
+        self.commands[change_set.command_key] = change_set
+        return change_set
+
+    def add_catalog_draft_revision(self, revision: CatalogDraftRevision) -> CatalogDraftRevision:
+        self.revisions.append(revision)
+        return revision
 
     def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent:
         self.events.append(event)
@@ -63,16 +69,17 @@ def _create() -> CatalogDraftCreateCommand:
 
 
 def test_catalog_draft_dto_is_strict_and_rejects_unsafe_input() -> None:
+    payload = _create().model_dump(exclude={"reason"})
     with pytest.raises(ValidationError):
-        CatalogDraftCreateCommand(**_create().model_dump(), reason=" ")
+        CatalogDraftCreateCommand(**payload, reason=" ")
     with pytest.raises(ValidationError):
-        CatalogDraftCreateCommand(**_create().model_dump(), source_url="http://unsafe.example")
+        CatalogDraftCreateCommand(**(payload | {"source_url": "http://unsafe.example", "reason": "valid"}))
     with pytest.raises(ValidationError):
-        CatalogDraftCreateCommand(**_create().model_dump(), aliases=[" "])
+        CatalogDraftCreateCommand(**(payload | {"aliases": [" "], "reason": "valid"}))
     with pytest.raises(ValidationError):
-        CatalogDraftCreateCommand(**_create().model_dump(), energy_kcal_per_100g=Decimal("-1"))
+        CatalogDraftCreateCommand(**(payload | {"energy_kcal_per_100g": Decimal("-1"), "reason": "valid"}))
     with pytest.raises(ValidationError):
-        CatalogDraftCreateCommand(**_create().model_dump(), unexpected="nope")
+        CatalogDraftCreateCommand(**payload, reason="valid", unexpected="nope")
 
 
 def test_create_and_patch_compute_audit_diff_and_replay_same_command() -> None:
@@ -107,3 +114,19 @@ def test_patch_rejects_stale_revision_and_non_admin() -> None:
     repository.user = _admin(UserRole.USER.value)
     with pytest.raises(AdminPermissionDenied):
         service.create_catalog_draft(actor_user_id=repository.user.id, command=_create(), command_key="create-00000003")
+
+
+def test_catalog_mutation_rolls_back_when_audit_transaction_fails() -> None:
+    actor = _admin()
+    repository = FakeCatalogDraftRepository(actor)
+    rollbacks: list[bool] = []
+    service = AdminService(
+        repository=repository, now=lambda: NOW,
+        commit=lambda: (_ for _ in ()).throw(RuntimeError("database failure")),
+        rollback=lambda: rollbacks.append(True),
+    )
+
+    with pytest.raises(RuntimeError):
+        service.create_catalog_draft(actor_user_id=actor.id, command=_create(), command_key="create-00000004")
+
+    assert rollbacks == [True]
