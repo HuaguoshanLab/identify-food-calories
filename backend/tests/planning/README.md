@@ -16,3 +16,4 @@
 |---|---|
 | `test_planning_service.py` | `target-policy.v1`、确认守卫、健康拒绝和目标/计划校验合同 |
 | `test_planning_profile_service.py` | fake profile repository 下的显式保存、更新、软删除与 rollback 合同 |
+| `test_safe_stream_stage_mapping.py` | 饮食规划生命周期到安全 SSE 阶段的闭合映射。 |
