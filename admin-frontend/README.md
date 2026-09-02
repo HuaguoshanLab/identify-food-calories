@@ -39,6 +39,7 @@ npm run test:e2e
 | `README.md` | 目录职责、允许依赖与文件索引 |
 | `AGENTS.md` | 管理后台局部实现、安全、测试和文档约束 |
 | `ARCHITECTURE.md` | 独立后台的模块地图、依赖方向、新代码落点与变更门禁 |
+| `src/` | 独立 SPA 入口、认证运行时、全局样式和共享测试 setup；目录索引见 `src/README.md`。 |
 | `package.json` / `package-lock.json` | 已审计直接依赖、脚本与可复现 npm 安装锁 |
 | `vite.config.ts` | 独立端口、开发代理与生产 admin API fail-closed 校验 |
 | `tsconfig*.json` / `vite-env.d.ts` | 应用与 Vite 配置的严格 TypeScript project references、初始环境类型锚点 |
