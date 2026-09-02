@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-11-PLAN.md
-last_updated: "2026-09-02T11:31:30.393Z"
+stopped_at: Completed 06-23-PLAN.md
+last_updated: "2026-09-02T11:47:20.077Z"
 last_activity: 2026-09-02
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 77
-  percent: 86
+  completed_plans: 78
+  percent: 75
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 13 of 25
+Plan: 14 of 25
 Status: Ready to execute
 Last activity: 2026-09-02
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 87%
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [█████████░] 86%
 | Phase 06 P07 | 32 min | 3 tasks | 12 files |
 | Phase 06 P08 | 8 min | 1 tasks | 6 files |
 | Phase 06 P11 | 6min | 3 tasks | 16 files |
+| Phase 06 P23 | 7 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Admin authorization reloads the active role from PostgreSQL; JWT role claims never authorize admin operations. — 06-11 DB-RBAC contract
 - [Phase 06]: Generic admin audit stores only server-computed scalar diffs and blocks sensitive field names. — 06-11 data minimization contract
 - [Phase 06]: Phase 06 admin audit continues the authorized Alembic chain at 0016 with 0015 as sole predecessor. — 06-11 migration-chain preservation
+- [Phase 06]: WeeklyReviewOutputDTO only validates strict structure; the graph independently enforces facts/category and health-language semantics for every provider adapter. — A shared graph semantic gate prevents any adapter from bypassing deterministic facts and health-safety constraints.
+- [Phase 06]: Unknown weekly-review provider outcomes are never replayed; only one explicit schema-or-safety correction retry is allowed. — A request may have reached the provider, so replay could bill twice or duplicate a side effect.
+- [Phase 06]: Fake weekly-review Provider discards facts request bodies and retains only accounting metadata. — Facts are health data and traces must not become a secondary sensitive-data store.
 
 ### Pending Todos
 
@@ -197,6 +201,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T11:31:30.386Z
-Stopped at: Completed 06-11-PLAN.md
+Last session: 2026-09-02T11:47:19.944Z
+Stopped at: Completed 06-23-PLAN.md
 Resume file: None
