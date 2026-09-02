@@ -82,3 +82,11 @@ E2E_BACKEND_PORT=8001 E2E_FRONTEND_PORT=5179 \
 - 把 profile 删除当作 memory 删除，或反过来：两个权威存储的删除链不同，不能互相代替。
 - 为了跑 E2E 复用、停止未知本地服务，或伪造 token/direct SQL：这会破坏隔离与真实用户路径证据。
 - 将拒绝态当普通字段错误继续渲染餐卡：这等于给高风险请求留绕过路径。
+
+## 八、校验链修复：为什么 recipe 版本也必须是安全边界
+
+最初的受控菜谱虽逐食材重算营养，但校验入口没有收到三餐结果。这是空心检查：图调用了 `validate`，却无法证明一天的总量、宏量比例或 recipe 去重。修复后的链路是 `DietPlanningGraph → PlanningToolAdapter → PlanningService.validate_plan()`；Service 仅用 Decimal 汇总实际 `PlannedMeal` 后才决定 `PASS`、`REPLAN` 或可解释的 `RELAX`。
+
+`RELAX` 不是绕过。总能量低于 1200 kcal、已确认忌口、重复 recipe、缺少任一餐次或宏量比例越界绝不放宽。只有达到安全地板却未达到当前能量/宏量目标时，图才在预算内结束，并公开 `original_range`、`plan_value` 和 `deviation`。
+
+菜谱数据同样不能原地覆盖：`controlled-recipes.v1` 保留为不可变审计历史，`controlled-recipes.v2` 是当前唯一运行时选中版本。0012 停用 v1；离线 importer 只激活 v2，并在同一事务中停用旧版本。repository 按 `recipe_version` 查询，因此遗留 v1 也不会再次进入用户餐单。bootstrap 先幂等导入 v1，再导入 v2；不会访问或改写 `planning_profiles`。
