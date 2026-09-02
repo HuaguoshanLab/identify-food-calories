@@ -1,7 +1,7 @@
 # Phase 6: 用户看板与后台管理 - Research
 
-**Researched:** 2026-09-02  
-**Domain:** 用户摄入聚合、受限周复盘、营养目录治理、运行审计与独立管理员 SPA  
+**Researched:** 2026-09-02
+**Domain:** 用户摄入聚合、受限周复盘、营养目录治理、运行审计与独立管理员 SPA
 **Confidence:** HIGH
 
 <user_constraints>
@@ -292,7 +292,7 @@ Add a migration-owned admin index beginning with `created_at` plus `id`; add onl
 ### Anti-Patterns to Avoid
 
 - **在 H5 以 `new Date()` 聚合所有历史：** 会产生时区、精度、软删除和无界传输错误；服务端聚合才是唯一投影。 [VERIFIED: codebase grep]
-- **以 `created_at` 归档补记：** 直接违反实际用餐时间回填。 
+- **以 `created_at` 归档补记：** 直接违反实际用餐时间回填。
 - **更新已发布 catalog item 的营养/授权列：** 会改写过去版本；改为新发布版本或 eligibility overlay。 [VERIFIED: codebase grep]
 - **只在 `admin-frontend` 隐藏菜单：** 当前 JWT role claim 本身不是最终授权；每个端点必须重读数据库角色。 [VERIFIED: codebase grep]
 - **审计存完整 JSON payload/Provider body：** 会把敏感健康数据和密钥带入后台；只白名单安全字段并存 hash/digest。 [VERIFIED: codebase grep]
@@ -313,33 +313,33 @@ Add a migration-owned admin index beginning with `created_at` plus `id`; add onl
 ## Common Pitfalls
 
 ### Pitfall 1: 历史时区漂移
-**问题：** 用户旅行或浏览器时区变化后，同一 `timestamptz` 被归入不同“今天/本周”。  
-**根因：** 当前 `MealRecord` 只有 `consumed_at`，没有原始 IANA zone/local date。 [VERIFIED: codebase grep]  
-**规避：** 写入/编辑时冻结 `consumed_local_date` 与 zone；dashboard 按冻结日期查询；migration 明确记录既有行 backfill 规则。 [ASSUMED]  
+**问题：** 用户旅行或浏览器时区变化后，同一 `timestamptz` 被归入不同“今天/本周”。
+**根因：** 当前 `MealRecord` 只有 `consumed_at`，没有原始 IANA zone/local date。 [VERIFIED: codebase grep]
+**规避：** 写入/编辑时冻结 `consumed_local_date` 与 zone；dashboard 按冻结日期查询；migration 明确记录既有行 backfill 规则。 [ASSUMED]
 **预警信号：** 测试把一条靠近 UTC 午夜的记录从 `Asia/Shanghai`/`America/Los_Angeles` 切换后落到不同日期。 [ASSUMED]
 
 ### Pitfall 2: 目录“发布”只是改了 live row
-**问题：** 新营养值反向改变历史复盘或餐单来源。  
-**根因：** 当前 `is_qualified` 和“latest version”查询不足以表达发布/撤销。 [VERIFIED: codebase grep]  
-**规避：** immutable published rows + active publication pointer + future-use eligibility overlay；recipe 查询同时检查 ingredient eligibility。 [ASSUMED]  
+**问题：** 新营养值反向改变历史复盘或餐单来源。
+**根因：** 当前 `is_qualified` 和“latest version”查询不足以表达发布/撤销。 [VERIFIED: codebase grep]
+**规避：** immutable published rows + active publication pointer + future-use eligibility overlay；recipe 查询同时检查 ingredient eligibility。 [ASSUMED]
 **预警信号：** 发布/失格后既有 `MealRecord.energy_kcal` 或 catalog version 发生变化。 [VERIFIED: codebase grep]
 
 ### Pitfall 3: Provider 配置看起来已切换，实际仍读环境
-**问题：** 管理 UI 显示新模型/上限，运行仍用 startup Settings。  
-**根因：** 当前 provider factory 把 model/prices 固定从 `Settings` 注入。 [VERIFIED: codebase grep]  
-**规避：** admission 时读 DB active config、校验 allowlist、把版本和上限 snapshot 到 run/invocation；密钥留在环境。 [ASSUMED]  
+**问题：** 管理 UI 显示新模型/上限，运行仍用 startup Settings。
+**根因：** 当前 provider factory 把 model/prices 固定从 `Settings` 注入。 [VERIFIED: codebase grep]
+**规避：** admission 时读 DB active config、校验 allowlist、把版本和上限 snapshot 到 run/invocation；密钥留在环境。 [ASSUMED]
 **预警信号：** 管理配置版本与 `AgentRun.model_version`/费用快照不一致。 [ASSUMED]
 
 ### Pitfall 4: P95 与失败率口径不一致
-**问题：** 指标卡、列表和告警得到不同数字。  
-**根因：** 一个查询包含 `accepted/running`，另一个只含终态，或 UTC/本地边界不一致。 [ASSUMED]  
-**规避：** 固定“start inclusive/end exclusive、terminal status、UTC created_at”指标合同；在一个 repository 方法中复用 SQL fragments。 [ASSUMED]  
+**问题：** 指标卡、列表和告警得到不同数字。
+**根因：** 一个查询包含 `accepted/running`，另一个只含终态，或 UTC/本地边界不一致。 [ASSUMED]
+**规避：** 固定“start inclusive/end exclusive、terminal status、UTC created_at”指标合同；在一个 repository 方法中复用 SQL fragments。 [ASSUMED]
 **预警信号：** 24 小时指标与无筛选列表条目数无法对上。 [ASSUMED]
 
 ### Pitfall 5: 把 schema 校验误认为 AI 安全
-**问题：** JSON 是合法的，文本仍可编造数字或给医疗/限制性建议。  
-**根因：** Pydantic 只保证结构/约束，不能自动证明事实忠实或健康安全。 [CITED: https://pydantic.dev/docs/validation/latest/concepts/models/]  
-**规避：** coverage gate 在调用前；输出类别必须是 facts approved pattern；文本走禁止数字/医疗/限制性词与重复检查；一次校正后弃权。 [VERIFIED: codebase grep]  
+**问题：** JSON 是合法的，文本仍可编造数字或给医疗/限制性建议。
+**根因：** Pydantic 只保证结构/约束，不能自动证明事实忠实或健康安全。 [CITED: https://pydantic.dev/docs/validation/latest/concepts/models/]
+**规避：** coverage gate 在调用前；输出类别必须是 facts approved pattern；文本走禁止数字/医疗/限制性词与重复检查；一次校正后弃权。 [VERIFIED: codebase grep]
 **预警信号：** low coverage 有 Provider 调用，或 ledger/response 出现 `reasoning`/自由文本字段。 [VERIFIED: codebase grep]
 
 ## 代码示例
@@ -489,5 +489,5 @@ Variables that change a fetch belong in the query key; invalidation marks matchi
 - Architecture: HIGH — codebase gaps and PostgreSQL/HTTP contracts directly support the recommended boundaries. [VERIFIED: codebase grep]
 - Pitfalls: HIGH — timezone, mutable catalog, configuration and ledger gaps are directly observable; exact thresholds/DB shape remain documented assumptions. [VERIFIED: codebase grep]
 
-**Research date:** 2026-09-02  
+**Research date:** 2026-09-02
 **Valid until:** 2026-10-02 for stable PostgreSQL/FastAPI patterns; recheck packages before any new dependency install.
