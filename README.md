@@ -91,6 +91,7 @@ cd backend
 | `AGENTS.md` | 全仓库架构、安全、测试与文档硬约束 |
 | `.gitignore` | Node、Python、测试和本地环境生成物排除规则 |
 | `frontend/` | React + TypeScript + Vite 用户端应用 |
+| `admin-frontend/` | 独立 React + TypeScript + Vite 管理后台；仅调用公开 `/api/v1/admin/*` |
 | `backend/` | 后端运行时、迁移和测试 |
 | `docker-compose.yml` | 本地 pgvector 双库与 Mailpit 编排 |
 | `docs/` | 中文教学与工程使用文档 |
