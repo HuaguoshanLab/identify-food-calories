@@ -4,55 +4,62 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.schemas import AdminProbeResponse
-from app.admin.service import AdminPermissionDenied, AdminService
-from app.auth.api import bearer_scheme, get_authentication_service
+from app.admin.schemas import AdminAuditPageResponse, AdminAuditQuery, AdminProbeResponse
+from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService
+from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
-from app.auth.security import InvalidAccessToken
-from app.auth.service import AuthenticatedUserUnavailable, AuthenticationService
 from app.core.database import get_session
+from fastapi import Request
 
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
-def get_admin_service(session: Session = Depends(get_session)) -> AdminService:
+def get_admin_service(request: Request, session: Session = Depends(get_session)) -> AdminService:
     """Bind the request transaction without allowing routes to touch ORM models."""
 
     return AdminService(
         repository=SqlAlchemyAdminRepository(session),
         commit=session.commit,
         rollback=session.rollback,
+        cursor_secret=request.app.state.settings.secret_key.get_secret_value(),
     )
 
 
 @router.get("/probe", response_model=AdminProbeResponse)
 def probe(
-    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
-    authentication_service: AuthenticationService = Depends(get_authentication_service),
+    principal: AuthenticatedPrincipal,
     admin_service: AdminService = Depends(get_admin_service),
 ) -> AdminProbeResponse | JSONResponse:
     """Prove the endpoint is protected by session validation plus current DB RBAC."""
 
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        return _authentication_required()
     try:
-        user_id, _session_id = authentication_service.authenticated_session(
-            credentials.credentials
-        )
-    except (InvalidAccessToken, AuthenticatedUserUnavailable):
-        return _authentication_required()
-    try:
-        admin_service.require_role(user_id=user_id, required_role=UserRole.ADMIN)
+        admin_service.require_role(user_id=principal, required_role=UserRole.ADMIN)
     except AdminPermissionDenied:
         return _forbidden()
     return AdminProbeResponse()
+
+
+@router.get("/audit", response_model=AdminAuditPageResponse)
+def list_audit(
+    principal: AuthenticatedPrincipal,
+    query: AdminAuditQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> AdminAuditPageResponse | JSONResponse:
+    """Read minimal audit evidence only after a fresh database role check."""
+
+    try:
+        admin_service.require_role(user_id=principal, required_role=UserRole.ADMIN)
+        return admin_service.list_audit_events(**query.model_dump())
+    except AdminPermissionDenied:
+        return _forbidden()
+    except AdminAuditCursorInvalid as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid audit cursor") from error
 
 
 def _authentication_required() -> JSONResponse:

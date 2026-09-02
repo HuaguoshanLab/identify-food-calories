@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import exists, select, text
+from sqlalchemy import and_, exists, or_, select, text
 from sqlalchemy.orm import Session
 
-from app.admin.models import AdminRoleAudit
+from app.admin.models import AdminAuditEvent, AdminRoleAudit
 from app.auth.models import User, UserRole
 
 
@@ -49,3 +50,52 @@ class SqlAlchemyAdminRepository:
         self._session.add(audit)
         self._session.flush()
         return audit
+
+    def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent:
+        self._session.add(event)
+        self._session.flush()
+        return event
+
+    def list_audit_events(
+        self,
+        *,
+        limit: int,
+        cursor_position: tuple[datetime, uuid.UUID] | None,
+        action: str | None = None,
+        object_type: str | None = None,
+        object_id: str | None = None,
+        actor_identifier: str | None = None,
+        reason: str | None = None,
+        occurred_after: datetime | None = None,
+        occurred_before: datetime | None = None,
+    ) -> list[AdminAuditEvent]:
+        """Read a deterministic keyset page without materializing any raw payload."""
+
+        statement = select(AdminAuditEvent)
+        if action is not None:
+            statement = statement.where(AdminAuditEvent.action == action)
+        if object_type is not None:
+            statement = statement.where(AdminAuditEvent.object_type == object_type)
+        if object_id is not None:
+            statement = statement.where(AdminAuditEvent.object_id == object_id)
+        if actor_identifier is not None:
+            statement = statement.where(AdminAuditEvent.actor_identifier == actor_identifier)
+        if reason is not None:
+            statement = statement.where(AdminAuditEvent.reason.ilike(f"%{reason}%"))
+        if occurred_after is not None:
+            statement = statement.where(AdminAuditEvent.occurred_at >= occurred_after)
+        if occurred_before is not None:
+            statement = statement.where(AdminAuditEvent.occurred_at <= occurred_before)
+        if cursor_position is not None:
+            occurred_at, event_id = cursor_position
+            statement = statement.where(
+                or_(
+                    AdminAuditEvent.occurred_at < occurred_at,
+                    and_(AdminAuditEvent.occurred_at == occurred_at, AdminAuditEvent.id < event_id),
+                )
+            )
+        return list(
+            self._session.scalars(
+                statement.order_by(AdminAuditEvent.occurred_at.desc(), AdminAuditEvent.id.desc()).limit(limit)
+            )
+        )

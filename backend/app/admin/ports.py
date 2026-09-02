@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Protocol
 
-from app.admin.models import AdminRoleAudit
+from app.admin.models import AdminAuditEvent, AdminRoleAudit
 from app.auth.models import User
 
 
@@ -21,3 +22,19 @@ class AdminRepository(Protocol):
     def has_active_admin(self) -> bool: ...
 
     def add_audit(self, audit: AdminRoleAudit) -> AdminRoleAudit: ...
+
+    def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent: ...
+
+    def list_audit_events(
+        self,
+        *,
+        limit: int,
+        cursor_position: tuple[datetime, uuid.UUID] | None,
+        action: str | None = None,
+        object_type: str | None = None,
+        object_id: str | None = None,
+        actor_identifier: str | None = None,
+        reason: str | None = None,
+        occurred_after: datetime | None = None,
+        occurred_before: datetime | None = None,
+    ) -> list[AdminAuditEvent]: ...

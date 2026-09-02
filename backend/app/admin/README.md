@@ -15,10 +15,10 @@
 | 路径 | 职责 |
 |---|---|
 | `__init__.py` | Python 包标识 |
-| `models.py` | `admin_role_audit` ORM 映射与数据库约束镜像 |
-| `schemas.py` | 最小 admin probe 运行时响应契约 |
+| `models.py` | 角色提升与通用 append-only 审计 ORM 映射、数据库约束镜像 |
+| `schemas.py` | probe 与最小审计 timeline 运行时契约 |
 | `ports.py` | Service 所需持久化能力协议 |
-| `repository.py` | SQLAlchemy 查询、锁与 flush-only 审计 adapter |
-| `service.py` | 数据库权威 RBAC 与原子角色提升策略 |
-| `api.py` | `/api/v1/admin/probe` HTTP 翻译 |
+| `repository.py` | SQLAlchemy 查询、锁、flush-only 审计与 keyset adapter |
+| `service.py` | 数据库权威 RBAC、原子角色提升、命令审计与 cursor 投影策略 |
+| `api.py` | `/api/v1/admin/probe` 与只读 `/audit` HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |

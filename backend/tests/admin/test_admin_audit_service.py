@@ -20,7 +20,13 @@ class FakeAuditRepository:
                 action="catalog.publish", object_type="catalog_version", object_id="catalog-v1",
                 reason="approved", before_diff={"status": "review"}, after_diff={"status": "published"},
                 related_version="catalog-v1", command_key="publish-00000001",
-            )
+            ),
+            AdminAuditEvent(
+                id=uuid.uuid4(), actor_identifier="admin-id", occurred_at=NOW,
+                action="catalog.publish", object_type="catalog_version", object_id="catalog-v2",
+                reason="approved", before_diff={"status": "review"}, after_diff={"status": "published"},
+                related_version="catalog-v2", command_key="publish-00000002",
+            ),
         ]
 
     def list_audit_events(self, **_kwargs: object) -> list[AdminAuditEvent]:

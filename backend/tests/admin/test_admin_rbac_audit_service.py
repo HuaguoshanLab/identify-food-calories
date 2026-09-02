@@ -74,3 +74,18 @@ def test_record_command_audit_requires_reason_and_rolls_back_together() -> None:
 
     assert len(repository.events) == 1
     assert rollbacks == [True]
+
+
+def test_command_audit_rejects_sensitive_or_nested_diffs_before_persistence() -> None:
+    admin = _user(role=UserRole.ADMIN.value)
+    repository = FakeAdminRepository(admin)
+    service = AdminService(repository=repository, now=lambda: NOW)
+
+    with pytest.raises(ValueError):
+        service.record_command_audit(
+            actor_user_id=admin.id, action="catalog.publish", object_type="catalog_version",
+            object_id="catalog-v1", reason="approved", before={"email": "not-allowed"},
+            after={"status": "published"}, related_version="catalog-v1", command_key="publish-00000002",
+        )
+
+    assert repository.events == []
