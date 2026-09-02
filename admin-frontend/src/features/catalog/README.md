@@ -16,4 +16,5 @@
 | --- | --- |
 | `README.md` | 目录草稿能力的边界、允许依赖和文件索引。 |
 | `CatalogDraftPage.test.tsx` | 目录草稿表单、确认、冲突和授权安全 UX 的组件契约。 |
-
+| `CatalogDraftPage.tsx` | 目录草稿表单、确认状态和服务器确认字段的受限呈现。 |
+| `api/` | 草稿严格 DTO 与公开 admin HTTP 命令；目录索引见 `api/README.md`。 |

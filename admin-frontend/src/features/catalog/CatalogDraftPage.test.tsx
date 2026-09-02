@@ -1,12 +1,12 @@
 import { http, HttpResponse } from 'msw'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { CatalogDraftPage } from './CatalogDraftPage'
 import { mswServer } from '@/test/setup'
 
-const apiBase = 'http://localhost/api/v1/admin'
+const apiBase = '/api/v1/admin'
 
 const createdDraft = {
   id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2',
@@ -45,25 +45,35 @@ describe('CatalogDraftPage', () => {
   it('通过键盘填写严格字段，预览受控命令，并发送 Idempotency-Key', async () => {
     const user = userEvent.setup()
     let idempotencyKey = ''
+    let releaseResponse: (() => void) | undefined
+    let markRequestStarted: (() => void) | undefined
+    const requestStarted = new Promise<void>((resolve) => { markRequestStarted = resolve })
     mswServer.use(http.post(`${apiBase}/catalog-drafts`, async ({ request }) => {
       idempotencyKey = request.headers.get('Idempotency-Key') ?? ''
       expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
+      markRequestStarted?.()
+      await new Promise<void>((resolve) => { releaseResponse = resolve })
       return HttpResponse.json(createdDraft, { status: 201 })
     }))
     renderPage()
 
     await fillDraft(user)
-    await user.keyboard('{Tab}{Enter}')
+    await user.tab()
+    expect(screen.getByRole('button', { name: '预览并确认' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: '预览并确认' }))
 
-    expect(await screen.findByRole('dialog', { name: '确认创建营养目录草稿？' })).toBeVisible()
+    const dialog = await screen.findByRole('alertdialog', { name: '确认创建营养目录草稿？' })
+    expect(dialog).toBeVisible()
     expect(screen.getByRole('button', { name: '取消' })).toHaveFocus()
-    expect(screen.getByText('菜品名称')).toBeVisible()
-    expect(screen.getByText('燕麦')).toBeVisible()
+    expect(within(dialog).getByText('菜品名称')).toBeVisible()
+    expect(within(dialog).getByText('燕麦')).toBeVisible()
     expect(screen.queryByText(/raw_json|api_key|runtime-only-token/i)).not.toBeInTheDocument()
 
     const confirm = screen.getByRole('button', { name: '确认创建草稿' })
     await user.click(confirm)
+    await requestStarted
     expect(confirm).toBeDisabled()
+    releaseResponse?.()
 
     await waitFor(() => expect(idempotencyKey).toHaveLength(36))
     expect(await screen.findByText('草稿已保存，当前 revision 为 1。')).toBeVisible()
