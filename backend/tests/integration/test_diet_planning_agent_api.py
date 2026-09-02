@@ -29,6 +29,14 @@ from app.planning.schemas import HEALTH_REFUSAL_MESSAGE
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 SECRET = "diet-planning-agent-api-secret-with-at-least-forty-eight-bytes"
 PLANNING_PATH = "/api/v1/agent/threads/diet-planning"
+SYNTHETIC_ORDINARY_ADULT_PROFILE = {
+    "height_cm": "149",
+    "weight_kg": "71",
+    "age_years": 61,
+    "activity_level": "sedentary",
+    "goal": "maintain",
+    "goal_speed": "maintain",
+}
 
 
 def _settings() -> Settings:
@@ -134,7 +142,7 @@ def test_health_scope_remains_fail_closed_through_public_planning_api() -> None:
         engine.dispose()
 
 
-def test_public_api_composes_v2_seed_above_floor_for_a_sedentary_adult() -> None:
+def test_public_api_composes_v2_seed_above_floor_for_a_synthetic_ordinary_adult() -> None:
     settings = _settings()
     test_url = validate_test_database_configuration(settings)
     subprocess.run(
@@ -157,10 +165,7 @@ def test_public_api_composes_v2_seed_above_floor_for_a_sedentary_adult() -> None
             with TestClient(app) as client:
                 response = client.post(
                     PLANNING_PATH,
-                    json=_command(profile_overrides={
-                        "height_cm": "161", "weight_kg": "50", "age_years": 28,
-                        "activity_level": "sedentary", "goal": "maintain", "goal_speed": "maintain",
-                    }),
+                    json=_command(profile_overrides=SYNTHETIC_ORDINARY_ADULT_PROFILE),
                     headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "diet-plan-v2-seed-adult-0001"},
                 )
 

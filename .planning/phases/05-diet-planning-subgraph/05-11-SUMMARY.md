@@ -38,7 +38,7 @@ completed: 2026-09-02
 ## Verification
 
 - PASS — service/importer/graph 定向测试：54 passed。
-- PASS — 真实 PostgreSQL 公开 diet-planning API：5 passed；包含健康拒绝和 161cm/50kg/28岁久坐维持的 v2 成功路径。
+- PASS — 真实 PostgreSQL 公开 diet-planning API：5 passed；包含健康拒绝和明确命名的合成普通成人 v2 成功路径。
 - PASS — 0012 在隔离测试库上 `downgrade 0011` 后 `upgrade head`。
 - PASS — Ruff。
 - KNOWN EXTERNAL — Mypy 被既有 `app/memory/providers.py` 的 Mem0 类型问题阻断；本次修改文件无类型错误。
