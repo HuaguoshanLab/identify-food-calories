@@ -205,7 +205,7 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
-**Plans:** 4/25 plans executed
+**Plans:** 5/25 plans executed
 
 Plans:
 
@@ -214,7 +214,7 @@ Plans:
 - [x] 06-03-PLAN.md — 可撤销的完成计划权威投影
 - [ ] 06-04-PLAN.md — Records 页看板接入与四 Tab 约束
 - [x] 06-05-PLAN.md — Agent 流的安全业务阶段映射
-- [ ] 06-06-PLAN.md — H5 流式安全进度呈现
+- [x] 06-06-PLAN.md — H5 流式安全进度呈现
 - [ ] 06-07-PLAN.md — Facts-first 周复盘存储、缓存与复用
 - [ ] 06-08-PLAN.md — 版本化、去标识化周复盘评测输入
 - [ ] 06-09-PLAN.md — 周复盘 API 与 H5 呈现
@@ -266,5 +266,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | 4/25 | In Progress|  |
+| 6. 用户看板与后台管理 | 5/25 | In Progress|  |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |

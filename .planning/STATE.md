@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-09-02T10:01:16.138Z"
+stopped_at: Completed 06-06-PLAN.md
+last_updated: "2026-09-02T10:17:48.447Z"
 last_activity: 2026-09-02
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 69
+  completed_plans: 70
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 5 of 25
+Plan: 6 of 25
 Status: Ready to execute
 Last activity: 2026-09-02
 
-Progress: [████████░░] 77%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
@@ -82,6 +82,7 @@ Progress: [████████░░] 77%
 | Phase 06 P05 | 10 min | 2 tasks | 15 files |
 | Phase 06 P10 | 18 min | 1 tasks | 13 files |
 | Phase 06 P03 | 16min | 3 tasks | 25 files |
+| Phase 06 P06 | 22min | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 管理后台独立使用 5179 Vite 端口、锁定 npm 供应链和 Base UI registry，不导入 frontend/src。 — 保持部署、路由、供应链和用户 H5 代码边界。
 - [Phase 06]: Dashboard target eligibility only comes from an unrevoked validated-planning completion projection. — Prevents profile-based target inference and makes revocation auditable.
 - [Phase 06]: Phase 06-03 uses migration 0014 after 0013; legacy 0011/0012 remain Phase 5 history. — Preserves one Alembic head and avoids duplicate revisions.
+- [Phase 06]: SSE 文本不直接进入 UI；前端只按本地 allowlist 阶段文案展示。
+- [Phase 06]: 未知或附加 SSE 字段转为一次通用可重试状态并消费序号，避免泄露与无限重连。
 
 ### Pending Todos
 
@@ -177,6 +180,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T10:01:16.130Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-09-02T10:17:48.437Z
+Stopped at: Completed 06-06-PLAN.md
 Resume file: None
