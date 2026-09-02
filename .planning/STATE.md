@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-10-PLAN.md
-last_updated: "2026-09-02T09:40:51.311Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-09-02T10:01:16.138Z"
 last_activity: 2026-09-02
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 68
+  completed_plans: 69
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 4 of 25
+Plan: 5 of 25
 Status: Ready to execute
 Last activity: 2026-09-02
 
-Progress: [████████░░] 76%
+Progress: [████████░░] 77%
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Progress: [████████░░] 76%
 | Phase 06 P01 | 14 min | 3 tasks | 18 files |
 | Phase 06 P05 | 10 min | 2 tasks | 15 files |
 | Phase 06 P10 | 18 min | 1 tasks | 13 files |
+| Phase 06 P03 | 16min | 3 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 分析与规划共用 Agent 的单一 SSE 公共边界 — 现有公开流由 agent/api.py 统一提供，规划模块只保留纯映射。
 - [Phase 06]: 生产构建必须显式提供仅落在 /api/v1/admin 边界内的 VITE_ADMIN_API_BASE_URL。 — 阻断用户端 API 回退、HTTP 与越权 API base。
 - [Phase 06]: 管理后台独立使用 5179 Vite 端口、锁定 npm 供应链和 Base UI registry，不导入 frontend/src。 — 保持部署、路由、供应链和用户 H5 代码边界。
+- [Phase 06]: Dashboard target eligibility only comes from an unrevoked validated-planning completion projection. — Prevents profile-based target inference and makes revocation auditable.
+- [Phase 06]: Phase 06-03 uses migration 0014 after 0013; legacy 0011/0012 remain Phase 5 history. — Preserves one Alembic head and avoids duplicate revisions.
 
 ### Pending Todos
 
@@ -174,6 +177,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T09:40:51.303Z
-Stopped at: Completed 06-10-PLAN.md
+Last session: 2026-09-02T10:01:16.130Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None
