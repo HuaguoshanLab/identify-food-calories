@@ -20,12 +20,14 @@
 | `unit/` | 不依赖外部服务的快速单元测试 |
 | `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试 |
 | `auth/` | 注册、验证码、登录与会话的 Service/API 安全协议测试 |
+| `agent/` | Agent 安全流式阶段映射的契约测试。 |
 | `accounts/` | 密码恢复 Service/API、Mailpit 与 PostgreSQL 事务证据 |
 | `records/` | 餐食快照 Service 的 fake repository 协议测试 |
 | `memory/` | 长期偏好 ledger、Provider fake 与删除 outbox Service 测试 |
 | `retrieval/` | 三来源上下文检索、偏好优先与安全 DTO Service 测试 |
 | `planning/` | 规划目标政策、健康边界、餐单校验与最小 profile 的 fake-port Service 测试 |
 | `dashboard/` | 看板 completion-target Port、overview 七日聚合和 opaque cursor 的 fake-service 契约测试。 |
+| `evals/` | 冻结、去标识化的 Agent 离线评测输入；只允许 fixture loader 与后续 Fake Provider 评测消费。 |
 
 `integration/test_memory_direct_write_idempotency.py` 是 direct-memory provision worker 的真实 PostgreSQL 并发与恢复证据；必须通过 `run_pg.py` 运行，禁止用 SQLite 或开发库替代。
 

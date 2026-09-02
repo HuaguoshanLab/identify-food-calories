@@ -1,0 +1,132 @@
+{
+  "fixture_format": "weekly-review-fixtures.v1",
+  "catalog_version": "v1",
+  "cases": [
+    {
+      "id": "case-01-sufficient-variety",
+      "title": "Sufficient coverage with an approved food-variety pattern",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 11, "totals": {"energy_kcal": 7200, "protein_g": 310, "fat_g": 240, "carbohydrate_g": 910}, "allowed_patterns": ["food_variety"], "coverage_sufficient": true, "facts_digest": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "result", "suggestions": [{"category": "food_variety", "text": "Based on recorded meals, consider keeping a range of food groups across the week."}]}]},
+      "expected": {"stable_code": "COMPLETED", "allowed_categories": ["food_variety"], "max_model_calls": 1, "provider_calls": 1},
+      "ledger": {"run_status": "completed", "failure_code": null, "model_calls": 1, "invocation_count": 1}
+    },
+    {
+      "id": "case-02-sufficient-regularity",
+      "title": "Sufficient coverage with an approved meal-regularity pattern",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 6, "meal_count": 13, "totals": {"energy_kcal": 8000, "protein_g": 340, "fat_g": 260, "carbohydrate_g": 1020}, "allowed_patterns": ["meal_regularity"], "coverage_sufficient": true, "facts_digest": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "result", "suggestions": [{"category": "meal_regularity", "text": "Based on recorded meals, consider keeping meal timing reasonably consistent."}]}]},
+      "expected": {"stable_code": "COMPLETED", "allowed_categories": ["meal_regularity"], "max_model_calls": 1, "provider_calls": 1},
+      "ledger": {"run_status": "completed", "failure_code": null, "model_calls": 1, "invocation_count": 1}
+    },
+    {
+      "id": "case-03-sufficient-balanced",
+      "title": "Sufficient coverage with an approved meal-balance pattern",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 4, "meal_count": 9, "totals": {"energy_kcal": 6200, "protein_g": 280, "fat_g": 210, "carbohydrate_g": 760}, "allowed_patterns": ["meal_balance"], "coverage_sufficient": true, "facts_digest": "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "result", "suggestions": [{"category": "meal_balance", "text": "Based on recorded meals, consider combining staple foods with varied protein and vegetables."}]}]},
+      "expected": {"stable_code": "COMPLETED", "allowed_categories": ["meal_balance"], "max_model_calls": 1, "provider_calls": 1},
+      "ledger": {"run_status": "completed", "failure_code": null, "model_calls": 1, "invocation_count": 1}
+    },
+    {
+      "id": "case-04-current-week-coverage",
+      "title": "Current week is explicitly labelled as recorded through today",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-31", "week_end_exclusive": "2026-09-07", "week_kind": "current_to_date", "coverage_days": 4, "meal_count": 8, "totals": {"energy_kcal": 5100, "protein_g": 220, "fat_g": 170, "carbohydrate_g": 650}, "allowed_patterns": ["portion_awareness"], "coverage_sufficient": true, "facts_digest": "4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "result", "suggestions": [{"category": "portion_awareness", "text": "For the meals recorded through today, consider noticing comfort and fullness while eating."}]}]},
+      "expected": {"stable_code": "COMPLETED", "allowed_categories": ["portion_awareness"], "max_model_calls": 1, "provider_calls": 1},
+      "ledger": {"run_status": "completed", "failure_code": null, "model_calls": 1, "invocation_count": 1}
+    },
+    {
+      "id": "case-05-low-coverage-meals",
+      "title": "Too few recorded meals abstains before provider work",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 7, "totals": {"energy_kcal": 4200, "protein_g": 180, "fat_g": 145, "carbohydrate_g": 540}, "allowed_patterns": [], "coverage_sufficient": false, "facts_digest": "5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": []},
+      "expected": {"stable_code": "INSUFFICIENT_COVERAGE", "allowed_categories": [], "max_model_calls": 0, "provider_calls": 0},
+      "ledger": {"run_status": "abstained", "failure_code": "INSUFFICIENT_COVERAGE", "model_calls": 0, "invocation_count": 0}
+    },
+    {
+      "id": "case-06-low-coverage-days",
+      "title": "Too few recorded days abstains before provider work",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 3, "meal_count": 9, "totals": {"energy_kcal": 5000, "protein_g": 215, "fat_g": 165, "carbohydrate_g": 620}, "allowed_patterns": [], "coverage_sufficient": false, "facts_digest": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": []},
+      "expected": {"stable_code": "INSUFFICIENT_COVERAGE", "allowed_categories": [], "max_model_calls": 0, "provider_calls": 0},
+      "ledger": {"run_status": "abstained", "failure_code": "INSUFFICIENT_COVERAGE", "model_calls": 0, "invocation_count": 0}
+    },
+    {
+      "id": "case-07-backfilled-meal",
+      "title": "Backfilled meal changes only its consumed-week facts",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-17", "week_end_exclusive": "2026-08-24", "week_kind": "completed", "coverage_days": 4, "meal_count": 8, "totals": {"energy_kcal": 5600, "protein_g": 240, "fat_g": 190, "carbohydrate_g": 700}, "allowed_patterns": ["meal_regularity"], "coverage_sufficient": true, "facts_digest": "7070707070707070707070707070707070707070707070707070707070707070"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "result", "suggestions": [{"category": "meal_regularity", "text": "Based on recorded meals in this week, consider maintaining a workable meal rhythm."}]}]},
+      "expected": {"stable_code": "COMPLETED", "allowed_categories": ["meal_regularity"], "max_model_calls": 1, "provider_calls": 1},
+      "ledger": {"run_status": "completed", "failure_code": null, "model_calls": 1, "invocation_count": 1}
+    },
+    {
+      "id": "case-08-facts-unsupported-output",
+      "title": "Output outside approved facts is safely rejected",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["food_variety"], "coverage_sufficient": true, "facts_digest": "8181818181818181818181818181818181818181818181818181818181818181"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "unsafe_result", "violation": "UNSUPPORTED_CATEGORY"}, {"kind": "unsafe_result", "violation": "UNSUPPORTED_FACT"}]},
+      "expected": {"stable_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "allowed_categories": [], "max_model_calls": 2, "provider_calls": 2},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "model_calls": 2, "invocation_count": 2}
+    },
+    {
+      "id": "case-09-medical-risk",
+      "title": "Medical-risk language is safely rejected",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["meal_balance"], "coverage_sufficient": true, "facts_digest": "9292929292929292929292929292929292929292929292929292929292929292"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "unsafe_result", "violation": "MEDICAL_CLAIM"}, {"kind": "unsafe_result", "violation": "MEDICATION_ADVICE"}]},
+      "expected": {"stable_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "allowed_categories": [], "max_model_calls": 2, "provider_calls": 2},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "model_calls": 2, "invocation_count": 2}
+    },
+    {
+      "id": "case-10-pregnancy-minor-risk",
+      "title": "Pregnancy or minor-risk output is safely rejected",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["meal_balance"], "coverage_sufficient": true, "facts_digest": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "unsafe_result", "violation": "PREGNANCY_OR_MINOR_RISK"}, {"kind": "unsafe_result", "violation": "PREGNANCY_OR_MINOR_RISK"}]},
+      "expected": {"stable_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "allowed_categories": [], "max_model_calls": 2, "provider_calls": 2},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "model_calls": 2, "invocation_count": 2}
+    },
+    {
+      "id": "case-11-eating-disorder-self-harm",
+      "title": "Eating-disorder, self-harm, or extreme-restriction output is safely rejected",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["portion_awareness"], "coverage_sufficient": true, "facts_digest": "b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "unsafe_result", "violation": "EXTREME_RESTRICTION"}, {"kind": "unsafe_result", "violation": "SELF_HARM_OR_EATING_DISORDER"}]},
+      "expected": {"stable_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "allowed_categories": [], "max_model_calls": 2, "provider_calls": 2},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_SAFETY_REJECTED", "model_calls": 2, "invocation_count": 2}
+    },
+    {
+      "id": "case-12-schema-invalid",
+      "title": "Invalid structured output is rejected after one correction retry",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["food_variety"], "coverage_sufficient": true, "facts_digest": "c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": [{"kind": "invalid_result", "violation": "SCHEMA_INVALID"}, {"kind": "invalid_result", "violation": "SCHEMA_INVALID"}]},
+      "expected": {"stable_code": "WEEKLY_REVIEW_SCHEMA_INVALID", "allowed_categories": [], "max_model_calls": 2, "provider_calls": 2},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_SCHEMA_INVALID", "model_calls": 2, "invocation_count": 2}
+    },
+    {
+      "id": "case-13-privacy-contamination",
+      "title": "A prohibited sensitive field is rejected before graph or provider work",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["food_variety"], "coverage_sufficient": true, "facts_digest": "d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": true, "call_cap": 2, "timeout_ms": 8000, "admission": "allowed"},
+      "provider_script": {"events": []},
+      "expected": {"stable_code": "WEEKLY_REVIEW_FACTS_INVALID", "allowed_categories": [], "max_model_calls": 0, "provider_calls": 0, "input_violation": "SENSITIVE_FIELD"},
+      "ledger": {"run_status": "abstained", "failure_code": "WEEKLY_REVIEW_FACTS_INVALID", "model_calls": 0, "invocation_count": 0}
+    },
+    {
+      "id": "case-14-timeout-unknown-disabled-budget",
+      "title": "Timeout, unknown outcome, disabled provider, and budget denial remain safe",
+      "facts": {"facts_version": "weekly-facts.v1", "week_start": "2026-08-24", "week_end_exclusive": "2026-08-31", "week_kind": "completed", "coverage_days": 5, "meal_count": 10, "totals": {"energy_kcal": 6900, "protein_g": 295, "fat_g": 230, "carbohydrate_g": 870}, "allowed_patterns": ["meal_regularity"], "coverage_sufficient": true, "facts_digest": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7"},
+      "config": {"runtime_config_version": "weekly-review-runtime.v1", "provider_enabled": false, "call_cap": 2, "timeout_ms": 8000, "admission": "provider_disabled"},
+      "provider_script": {"events": [{"kind": "timeout"}, {"kind": "outcome_unknown"}], "admission_rejections": ["PROVIDER_DISABLED", "BUDGET_DENIED"]},
+      "expected": {"stable_code": "PROVIDER_DISABLED", "allowed_categories": [], "max_model_calls": 1, "provider_calls": 0},
+      "ledger": {"run_status": "abstained", "failure_code": "PROVIDER_DISABLED", "model_calls": 0, "invocation_count": 0}
+    }
+  ]
+}
