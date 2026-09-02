@@ -61,6 +61,20 @@ DIET_PLANNING_PROMPT_VERSION = "diet-planning-command.v1"
 DIET_PLANNING_TOOL_VERSION = "planning-tools.v1"
 
 
+def safe_meal_stream_stage(event_type: str) -> str | None:
+    """Translate the closed meal ledger vocabulary without exposing graph node names."""
+
+    return {
+        "running": "perception",
+        "waiting_input": "awaiting_input",
+        "tool_calculation": "tool_calculation",
+        "validation": "validation",
+        "completed_validated": "completed",
+        "retryable": "retryable",
+        "terminal": "terminal",
+    }.get(event_type)
+
+
 @dataclass(frozen=True, slots=True)
 class RetentionPolicy:
     """Explicit retention periods supplied by the validated runtime configuration."""
@@ -322,6 +336,9 @@ class AgentService:
             finished.budget.estimated_cost_usd - (prior_budget.estimated_cost_usd if prior_budget else Decimal("0")),
         )
         run.updated_at = self._now()
+        self._append_actual_stage_events(
+            run=run, user_id=user_id, state=finished, graph_kind=graph_kind
+        )
         if finished.status is AgentRuntimeStatus.WAITING_INPUT:
             run.status = "waiting_input"
             run.finished_at = None
@@ -344,7 +361,7 @@ class AgentService:
                 thread_id=run.thread_id,
                 user_id=user_id,
                 run_id=run.id,
-                event_type=(DietPlanningAction.NEEDS_INPUT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "failed"),
+                event_type="terminal",
                 payload={"report": finished.report or {}},
                 safe_summary=("规划已达到有界调整上限。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析已达到本次运行上限。"),
             )
@@ -357,7 +374,7 @@ class AgentService:
                 thread_id=run.thread_id,
                 user_id=user_id,
                 run_id=run.id,
-                event_type=(DietPlanningAction.COMPLETE.value if graph_kind is AgentGraphKind.DIET_PLANNING else "completed"),
+                event_type="completed_validated",
                 payload={"report": finished.report},
                 safe_summary=("一日三餐计划已生成。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析报告已生成。"),
             )
@@ -376,7 +393,7 @@ class AgentService:
             thread_id=run.thread_id,
             user_id=user_id,
             run_id=run.id,
-            event_type=(DietPlanningAction.NEEDS_INPUT.value if graph_kind is AgentGraphKind.DIET_PLANNING else "failed"),
+            event_type=("terminal" if graph_kind is AgentGraphKind.DIET_PLANNING else "retryable"),
             payload={"report": finished.report or {}},
             safe_summary=("规划无法完成；请修改资料或咨询专业人士。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析未能完成。"),
         )
@@ -394,11 +411,54 @@ class AgentService:
             thread_id=run.thread_id,
             user_id=user_id,
             run_id=run.id,
-            event_type="failed",
+            event_type=("terminal" if code in {"MISSING_AGENT_COMMAND", "CHECKPOINT_UNAVAILABLE", "GRAPH_RECURSION_LIMIT"} else "retryable"),
             payload={"run_id": str(run.id), "failure_code": code},
             safe_summary="分析暂时无法完成，请稍后重试。",
         )
         return run
+
+    def _append_actual_stage_events(
+        self,
+        *,
+        run: AgentRun,
+        user_id: uuid.UUID,
+        state: MealAgentState | DietPlanningState,
+        graph_kind: AgentGraphKind,
+    ) -> None:
+        """Persist coarse progress only after the bounded graph work actually occurred.
+
+        Tool summaries are already allowlisted digests. Their names select a user stage only;
+        action, digest, report, provider output, and State never cross into the event payload.
+        """
+
+        names = tuple(summary.tool_name for summary in state.tool_summaries)
+        if graph_kind is AgentGraphKind.DIET_PLANNING:
+            calculated = any(
+                name in {"calculate_targets", "compose_plan", "replace_planning_slot"}
+                for name in names
+            )
+            validated = "validate_plan" in names
+        else:
+            calculated = any(name.startswith("calculate:") for name in names)
+            validated = any(name.startswith("validate:") for name in names)
+        if calculated:
+            self.append_safe_event(
+                thread_id=run.thread_id,
+                user_id=user_id,
+                run_id=run.id,
+                event_type="tool_calculation",
+                payload={},
+                safe_summary="正在通过受控工具计算营养信息。",
+            )
+        if validated:
+            self.append_safe_event(
+                thread_id=run.thread_id,
+                user_id=user_id,
+                run_id=run.id,
+                event_type="validation",
+                payload={},
+                safe_summary="正在校验计算结果与安全约束。",
+            )
 
     async def resume_payload_for_text(
         self, *, checkpointer: object, thread_id: uuid.UUID, text: str,

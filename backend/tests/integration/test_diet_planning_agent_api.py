@@ -233,7 +233,8 @@ def test_diet_planning_command_is_owner_scoped_idempotent_and_streams_only_safe_
                 assert stream.status_code == 200
                 for forbidden in ("provider", "prompt", "candidate", "tool_output", "cost", "recipe_id"):
                     assert forbidden not in stream.text
-                assert '"summary"' in stream.text
+                assert '"schema_version":"safe-stream-stage.v1"' in stream.text
+                assert '"stage":"completed"' in stream.text
 
             assert session.query(PlanningProfile).filter_by(user_id=owner.id, deleted_at=None).count() == 1
     finally:

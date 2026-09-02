@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from app.planning.schemas import PlanningProfileInput, PreferenceReview
@@ -28,6 +29,31 @@ class AgentThreadStatus(StrEnum):
 
 class AgentInputKind(StrEnum):
     DESCRIPTION = "description"
+
+
+SAFE_STREAM_STAGE_SCHEMA_VERSION: Final[Literal["safe-stream-stage.v1"]] = "safe-stream-stage.v1"
+
+
+class SafeStreamStage(StrEnum):
+    """The only lifecycle values a browser can receive from Agent SSE replay."""
+
+    PERCEPTION = "perception"
+    AWAITING_INPUT = "awaiting_input"
+    TOOL_CALCULATION = "tool_calculation"
+    VALIDATION = "validation"
+    COMPLETED = "completed"
+    RETRYABLE = "retryable"
+    TERMINAL = "terminal"
+
+
+class SafeStreamStageEvent(BaseModel):
+    """Strict, versioned DTO excluding ledger payloads and all runtime state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["safe-stream-stage.v1"] = SAFE_STREAM_STAGE_SCHEMA_VERSION
+    stage: SafeStreamStage
+    message: str = Field(min_length=1, max_length=300)
 
 
 class AgentThreadCreateRequest(BaseModel):

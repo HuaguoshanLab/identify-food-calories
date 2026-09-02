@@ -48,6 +48,24 @@ SPEED_DELTAS: dict[str, Decimal] = {
 }
 
 
+def safe_planning_stream_stage(event_type: str) -> str | None:
+    """Map only persisted planning lifecycle signals to browser-safe stage values.
+
+    This accepts no graph state, provider DTO, report, or exception. The SSE boundary calls it
+    only with the ledger event label, so adding a graph node cannot serialize planning internals.
+    """
+
+    return {
+        "reading_context": "perception",
+        "needs_input": "awaiting_input",
+        "tool_calculation": "tool_calculation",
+        "validation": "validation",
+        "completed_validated": "completed",
+        "retryable": "retryable",
+        "terminal": "terminal",
+    }.get(event_type)
+
+
 class PlanningService:
     """Owns safety decisions so browsers, graphs, and models cannot calculate targets."""
 

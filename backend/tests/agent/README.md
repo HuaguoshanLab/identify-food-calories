@@ -13,4 +13,5 @@
 
 | 路径 | 职责 |
 |---|---|
+| `__init__.py` | 为同名阶段映射测试提供独立 Python package namespace。 |
 | `test_safe_stream_stage_mapping.py` | 餐食分析阶段、interrupt/resume 与稳定失败结果映射。 |

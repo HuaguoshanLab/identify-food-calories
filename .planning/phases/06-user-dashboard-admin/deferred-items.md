@@ -7,3 +7,11 @@
 - **Issue:** `uv run mypy app/records` reports four errors in the pre-existing `_validated_snapshot` dynamic dictionary flow.
 - **Scope:** Unrelated to local-time attribution; the changed timezone code is not implicated in the reported lines.
 - **Suggested follow-up:** Type the validated report-item structure in a dedicated maintenance task, then re-run `uv run mypy app/records`.
+
+## Pre-existing Memory Provider Mypy Errors
+
+- **Observed during:** 06-05 Task 2 validation
+- **Location:** `backend/app/memory/providers.py:104,132,138,162`
+- **Issue:** `uv run mypy` reports the untyped `mem0` import and dynamic response access errors while checking Agent's transitive imports.
+- **Scope:** The safe SSE stage change does not modify or import `app.memory.providers`; this is an existing type-checking gap.
+- **Suggested follow-up:** Add typed adapter narrowing for the Mem0 response in a focused memory maintenance task, then re-run `uv run mypy app`.

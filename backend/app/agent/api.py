@@ -7,7 +7,6 @@ only its provider/tool ports; SSE merely replays safe persisted events and never
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from collections.abc import Generator, Iterator
 from datetime import timedelta
@@ -28,13 +27,16 @@ from app.agent.schemas import (
     AgentThreadCreateRequest,
     AgentThreadSnapshot,
     AgentThreadStatus,
+    SafeStreamStage,
+    SafeStreamStageEvent,
 )
-from app.agent.service import DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy
+from app.agent.service import DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
 from app.agent.state import AgentGraphKind, StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.images.schemas import ImageValidationError, ValidatedImageReference
 from app.images.service import ImageSafetyService
 from app.auth.api import AuthenticatedPrincipal
+from app.planning.service import safe_planning_stream_stage
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -45,6 +47,19 @@ _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 
 AgentPrincipal = AuthenticatedPrincipal
+
+
+def _safe_stream_event(event: object) -> str | None:
+    """Project an event through the closed DTO, never its payload, run, or graph state."""
+
+    event_type = getattr(event, "event_type", None)
+    summary = getattr(event, "safe_summary", None)
+    if not isinstance(event_type, str) or not isinstance(summary, str):
+        return None
+    stage = safe_meal_stream_stage(event_type) or safe_planning_stream_stage(event_type)
+    if stage is None:
+        return None
+    return SafeStreamStageEvent(stage=SafeStreamStage(stage), message=summary).model_dump_json()
 
 
 def _runtime(request: Request) -> AgentRuntime:
@@ -79,7 +94,15 @@ def _snapshot(service: AgentService, *, thread_id: uuid.UUID, user_id: uuid.UUID
     report: dict[str, object] | None = None
     for event in reversed(events):
         candidate = event.payload.get("report")
-        if event.event_type in {"completed", "waiting_input", "complete", "needs_input"} and isinstance(candidate, dict):
+        if event.event_type in {
+            "completed",
+            "completed_validated",
+            "waiting_input",
+            "complete",
+            "needs_input",
+            "retryable",
+            "terminal",
+        } and isinstance(candidate, dict):
             report = candidate
             break
     return AgentThreadSnapshot(
@@ -393,8 +416,9 @@ def stream_agent_events(thread_id: uuid.UUID, request: Request, principal: Agent
 
     def replay() -> Iterator[str]:
         for event in events:
-            body = json.dumps({"type": event.event_type, "summary": event.safe_summary}, ensure_ascii=False)
-            yield f"id: {event.seq}\nevent: agent\ndata: {body}\n\n"
+            body = _safe_stream_event(event)
+            if body is not None:
+                yield f"id: {event.seq}\nevent: agent\ndata: {body}\n\n"
 
     return StreamingResponse(replay(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 

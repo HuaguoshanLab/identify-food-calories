@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -19,6 +19,18 @@ HEALTH_REFUSAL_MESSAGE = (
     "我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、"
     "进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。"
 )
+
+
+class PlanningStreamEventType(StrEnum):
+    """Allowlisted planning lifecycle signals; graph action names stay private."""
+
+    READ_CONTEXT = "reading_context"
+    NEEDS_INPUT = "needs_input"
+    TOOL_CALCULATION = "tool_calculation"
+    VALIDATION = "validation"
+    COMPLETED_VALIDATED = "completed_validated"
+    RETRYABLE = "retryable"
+    TERMINAL = "terminal"
 
 
 class ActivityLevel(str, Enum):
