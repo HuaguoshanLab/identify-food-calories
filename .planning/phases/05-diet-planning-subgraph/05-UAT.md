@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 05-diet-planning-subgraph
 source: 05-01-SUMMARY.md, 05-02-SUMMARY.md, 05-03-SUMMARY.md, 05-04-SUMMARY.md, 05-05-SUMMARY.md, 05-06-SUMMARY.md, 05-07-SUMMARY.md, 05-08-SUMMARY.md, 05-09-SUMMARY.md, 05-10-SUMMARY.md, 05-11-SUMMARY.md
 started: 2026-09-02T02:39:17Z
-updated: 2026-09-02T03:14:00Z
+updated: 2026-09-02T03:20:00Z
 ---
 
 ## Current Test
