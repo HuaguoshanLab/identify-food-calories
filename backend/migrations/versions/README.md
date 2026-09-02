@@ -28,3 +28,4 @@
 | `0012_activate_controlled_recipes_v2.py` | 停用未达标的 v1 受控菜谱候选，保留不可变审计历史。 |
 | `0013_dashboard_time_attribution.py` | 用户确认统计时区、餐食本地日冻结与历史回填审计 schema。 |
 | `0014_planning_completion_projection.py` | 可撤销的 validated planning completion 投影、跨用户复合外键与 profile revision schema；唯一前驱是 `0013`。 |
+| `0015_weekly_review_results.py` | facts 摘要和全部安全版本组成唯一 key 的最小周复盘结果缓存；唯一前驱是 `0014`。 |

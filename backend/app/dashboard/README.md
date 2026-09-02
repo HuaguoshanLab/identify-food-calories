@@ -18,4 +18,6 @@
 | `schemas.py` | `extra=forbid` 的 overview/history 公共 DTO 与私有 cursor 位置。 |
 | `repository.py` | tenant-filtered 的 SQL 聚合与 keyset 分页 adapter。 |
 | `service.py` | overview/history 用例、目标 Port 注入和签名 opaque cursor。 |
+| `weekly_review_dto.py` | 周复盘最小 facts、cache key 与安全响应 DTO。 |
+| `models.py` | 仅保存语义安全建议、摘要和版本的周复盘缓存 ORM。 |
 | `api.py` | `/api/v1/dashboard` HTTP 路由与输入边界。 |

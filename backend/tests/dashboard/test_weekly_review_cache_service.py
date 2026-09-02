@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import uuid
 
@@ -11,10 +11,13 @@ from app.dashboard.service import WeeklyReviewService
 
 class DailyRepository:
     def get_daily_aggregates(self, *, user_id, start_date, end_date):
-        return [DashboardDailyAggregate(
-            consumed_local_date=start_date, meal_count=8,
-            totals=DashboardNutritionTotals(energy_kcal=Decimal("1600"), protein_g=Decimal("80"), fat_g=Decimal("50"), carbohydrate_g=Decimal("180")),
-        )]
+        return [
+            DashboardDailyAggregate(
+                consumed_local_date=start_date + timedelta(days=index), meal_count=2,
+                totals=DashboardNutritionTotals(energy_kcal=Decimal("400"), protein_g=Decimal("20"), fat_g=Decimal("12.5"), carbohydrate_g=Decimal("45")),
+            )
+            for index in range(4)
+        ]
 
 
 class MemoryCache:

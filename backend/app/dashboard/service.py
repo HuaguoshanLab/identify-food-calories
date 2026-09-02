@@ -24,6 +24,7 @@ from app.dashboard.schemas import (
     DashboardNutritionTotals,
     DashboardOverview,
 )
+from app.dashboard.weekly_review_dto import WeeklyReviewCacheKey, WeeklyReviewFacts, WeeklyReviewResponse
 
 
 class DashboardAggregate(Protocol):
@@ -138,6 +139,51 @@ class DashboardService:
         )
 
 
+class WeeklyReviewService:
+    """Facts-first cache orchestration; model work begins only after deterministic coverage gates."""
+
+    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
+        self._repository, self._cache_repository, self._provider = repository, cache_repository, provider
+        self._now = now or (lambda: datetime.now(UTC))
+        self._versions = (graph_version, prompt_version, schema_version, runtime_config_version)
+
+    def get_weekly_review(self, *, user_id: uuid.UUID, week_start: date | None = None) -> WeeklyReviewResponse:
+        today = self._now().date()
+        start = week_start or (today - timedelta(days=today.weekday()))
+        facts = self._facts(user_id=user_id, week_start=start)
+        if facts.coverage_days < 4 or facts.meal_count < 8:
+            return WeeklyReviewResponse(facts=facts, abstention_code="INSUFFICIENT_COVERAGE")
+        key = WeeklyReviewCacheKey(user_id=user_id, week_start=start, facts_digest=_facts_digest(facts), graph_version=self._versions[0], prompt_version=self._versions[1], schema_version=self._versions[2], runtime_config_version=self._versions[3])
+        cached = self._get_cached(key)
+        if cached is not None:
+            return WeeklyReviewResponse(facts=facts, cache_key=key, advice=cached)
+        try:
+            advice = _safe_advice(self._provider(facts))
+        except Exception:
+            return WeeklyReviewResponse(facts=facts, cache_key=key, abstention_code="OUTCOME_UNKNOWN")
+        return WeeklyReviewResponse(facts=facts, cache_key=key, advice=self._save_cached(key=key, advice=advice))
+
+    def _facts(self, *, user_id: uuid.UUID, week_start: date) -> WeeklyReviewFacts:
+        rows = self._repository.get_daily_aggregates(user_id=user_id, start_date=week_start, end_date=week_start + timedelta(days=6))
+        totals = DashboardNutritionTotals(energy_kcal=sum((row.totals.energy_kcal for row in rows), start=Decimal("0")), protein_g=sum((row.totals.protein_g for row in rows), start=Decimal("0")), fat_g=sum((row.totals.fat_g for row in rows), start=Decimal("0")), carbohydrate_g=sum((row.totals.carbohydrate_g for row in rows), start=Decimal("0")))
+        return WeeklyReviewFacts(week_start=week_start, coverage_days=len(rows), meal_count=sum(row.meal_count for row in rows), totals=totals, approved_patterns=tuple(f"MEALS_LOGGED_{row.consumed_local_date.isoformat()}" for row in rows if row.meal_count > 0))
+
+    def _get_cached(self, key: WeeklyReviewCacheKey) -> str | None:
+        getter = getattr(self._cache_repository, "get_completed", None) or getattr(self._cache_repository, "get_completed_weekly_review", None)
+        if getter is None:
+            return None
+        value = getter(key=key)
+        return value if isinstance(value, str) else (value.advice if value is not None else None)
+
+    def _save_cached(self, *, key: WeeklyReviewCacheKey, advice: str) -> str:
+        saver = getattr(self._cache_repository, "save_completed", None)
+        if saver is not None:
+            value = saver(key=key, advice=advice, agent_run_id=None)
+            return value if isinstance(value, str) else value.advice
+        value = self._cache_repository.save_completed_weekly_review(key=key, advice=advice, result_digest=_digest(advice), now=self._now(), agent_run_id=None)
+        return value.advice
+
+
 def _days(start: date, end: date) -> tuple[date, ...]:
     return tuple(start + timedelta(days=index) for index in range((end - start).days + 1))
 
@@ -148,3 +194,17 @@ def _b64encode(value: bytes) -> str:
 
 def _b64decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _facts_digest(facts: WeeklyReviewFacts) -> str:
+    return _digest(json.dumps(facts.model_dump(mode="json"), sort_keys=True, separators=(",", ":")))
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _safe_advice(value: object) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 500:
+        raise ValueError("weekly review provider response is not a safe advice string")
+    return value.strip()
