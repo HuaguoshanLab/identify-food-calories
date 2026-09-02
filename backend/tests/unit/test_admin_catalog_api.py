@@ -1,0 +1,59 @@
+"""HTTP contracts for strict catalog draft commands."""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi.testclient import TestClient
+
+from app.admin.api import get_admin_service
+from app.admin.schemas import CatalogDraftResponse
+from app.agent.graph import NoopAgentRuntimeFactory
+from app.auth.api import get_authenticated_principal
+from app.main import create_app
+
+
+class StubCatalogService:
+    def require_role(self, **_kwargs: object) -> None:
+        return None
+
+    def create_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+        return CatalogDraftResponse(
+            id=uuid.uuid4(), canonical_name="Oats", aliases=["rolled oats"], energy_kcal_per_100g="389",
+            protein_g_per_100g="16.9", fat_g_per_100g="6.9", carbohydrate_g_per_100g="66.3",
+            source_name="USDA", source_url="https://fdc.nal.usda.gov/", authorization_status="authorized", revision=1,
+        )
+
+
+def _payload() -> dict[str, object]:
+    return {
+        "canonical_name": "Oats", "aliases": ["rolled oats"], "energy_kcal_per_100g": "389",
+        "protein_g_per_100g": "16.9", "fat_g_per_100g": "6.9", "carbohydrate_g_per_100g": "66.3",
+        "source_name": "USDA", "source_url": "https://fdc.nal.usda.gov/", "authorization_status": "authorized",
+        "reason": "verified source import",
+    }
+
+
+def test_catalog_create_requires_admin_headers_and_returns_safe_projection() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    with TestClient(app) as client:
+        missing_key = client.post("/api/v1/admin/catalog-drafts", json=_payload())
+        response = client.post("/api/v1/admin/catalog-drafts", json=_payload(), headers={"Idempotency-Key": "catalog-create-00000001"})
+    assert missing_key.status_code == 422
+    assert response.status_code == 201
+    assert "before_diff" not in response.json()
+    assert "after_diff" not in response.json()
+
+
+def test_catalog_patch_requires_if_match() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    with TestClient(app) as client:
+        response = client.patch(
+            f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}", json={"canonical_name": "Oats", "reason": "label correction"},
+            headers={"Idempotency-Key": "catalog-patch-00000001"},
+        )
+    assert response.status_code == 422

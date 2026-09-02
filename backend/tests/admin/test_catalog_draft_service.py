@@ -1,0 +1,109 @@
+"""RED contracts for server-authoritative nutrition catalog drafts."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+from decimal import Decimal
+
+import pytest
+from pydantic import ValidationError
+
+from app.admin.models import AdminAuditEvent, CatalogDraft
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogDraftPatchCommand
+from app.admin.service import AdminPermissionDenied, AdminService, CatalogDraftConflict
+from app.auth.models import User, UserRole
+
+
+NOW = datetime(2026, 9, 2, tzinfo=UTC)
+
+
+def _admin(role: str = UserRole.ADMIN.value) -> User:
+    return User(
+        id=uuid.uuid4(), email="catalog-admin@example.com", password_hash="hash", role=role,
+        is_active=True, email_verified_at=NOW, created_at=NOW, updated_at=NOW,
+    )
+
+
+class FakeCatalogDraftRepository:
+    def __init__(self, user: User) -> None:
+        self.user = user
+        self.drafts: dict[uuid.UUID, CatalogDraft] = {}
+        self.events: list[AdminAuditEvent] = []
+        self.commands: dict[str, CatalogDraft] = {}
+
+    def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
+        return self.user if self.user.id == user_id else None
+
+    def get_catalog_draft(self, draft_id: uuid.UUID) -> CatalogDraft | None:
+        return self.drafts.get(draft_id)
+
+    def get_catalog_draft_command(self, command_key: str) -> CatalogDraft | None:
+        return self.commands.get(command_key)
+
+    def add_catalog_draft(self, draft: CatalogDraft) -> CatalogDraft:
+        self.drafts[draft.id] = draft
+        return draft
+
+    def add_catalog_draft_command(self, command_key: str, draft: CatalogDraft) -> None:
+        self.commands[command_key] = draft
+
+    def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent:
+        self.events.append(event)
+        return event
+
+
+def _create() -> CatalogDraftCreateCommand:
+    return CatalogDraftCreateCommand(
+        canonical_name="Oats", aliases=["rolled oats"], energy_kcal_per_100g=Decimal("389"),
+        protein_g_per_100g=Decimal("16.9"), fat_g_per_100g=Decimal("6.9"),
+        carbohydrate_g_per_100g=Decimal("66.3"), source_name="USDA", source_url="https://fdc.nal.usda.gov/",
+        authorization_status="authorized", reason="verified source import",
+    )
+
+
+def test_catalog_draft_dto_is_strict_and_rejects_unsafe_input() -> None:
+    with pytest.raises(ValidationError):
+        CatalogDraftCreateCommand(**_create().model_dump(), reason=" ")
+    with pytest.raises(ValidationError):
+        CatalogDraftCreateCommand(**_create().model_dump(), source_url="http://unsafe.example")
+    with pytest.raises(ValidationError):
+        CatalogDraftCreateCommand(**_create().model_dump(), aliases=[" "])
+    with pytest.raises(ValidationError):
+        CatalogDraftCreateCommand(**_create().model_dump(), energy_kcal_per_100g=Decimal("-1"))
+    with pytest.raises(ValidationError):
+        CatalogDraftCreateCommand(**_create().model_dump(), unexpected="nope")
+
+
+def test_create_and_patch_compute_audit_diff_and_replay_same_command() -> None:
+    actor = _admin()
+    repository = FakeCatalogDraftRepository(actor)
+    service = AdminService(repository=repository, now=lambda: NOW)
+    created = service.create_catalog_draft(actor_user_id=actor.id, command=_create(), command_key="create-00000001")
+    replay = service.create_catalog_draft(actor_user_id=actor.id, command=_create(), command_key="create-00000001")
+
+    assert replay.id == created.id
+    assert len(repository.events) == 1
+    patched = service.patch_catalog_draft(
+        actor_user_id=actor.id, draft_id=created.id, expected_revision=1, command_key="patch-00000001",
+        command=CatalogDraftPatchCommand(canonical_name="Organic oats", reason="clarified label"),
+    )
+    assert patched.revision == 2
+    event = repository.events[-1]
+    assert event.before_diff == {"canonical_name": "Oats"}
+    assert event.after_diff == {"canonical_name": "Organic oats"}
+
+
+def test_patch_rejects_stale_revision_and_non_admin() -> None:
+    actor = _admin()
+    repository = FakeCatalogDraftRepository(actor)
+    service = AdminService(repository=repository, now=lambda: NOW)
+    created = service.create_catalog_draft(actor_user_id=actor.id, command=_create(), command_key="create-00000002")
+    with pytest.raises(CatalogDraftConflict):
+        service.patch_catalog_draft(
+            actor_user_id=actor.id, draft_id=created.id, expected_revision=99, command_key="patch-00000002",
+            command=CatalogDraftPatchCommand(canonical_name="Other oats", reason="wrong concurrent edit"),
+        )
+    repository.user = _admin(UserRole.USER.value)
+    with pytest.raises(AdminPermissionDenied):
+        service.create_catalog_draft(actor_user_id=repository.user.id, command=_create(), command_key="create-00000003")
