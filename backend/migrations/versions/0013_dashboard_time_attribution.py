@@ -3,6 +3,9 @@
 Revision ID: 0013
 Revises: 0012
 Create Date: 2026-09-02
+
+Phase 5 already owns revisions 0011 and 0012, so this is the first available
+linear successor for Phase 6 rather than creating a parallel migration head.
 """
 
 from __future__ import annotations
