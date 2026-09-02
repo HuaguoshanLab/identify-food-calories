@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-24-PLAN.md
-last_updated: "2026-09-02T10:26:38.458Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-09-02T10:43:20.299Z"
 last_activity: 2026-09-02
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 71
+  completed_plans: 72
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 7 of 25
+Plan: 8 of 25
 Status: Ready to execute
 Last activity: 2026-09-02
 
-Progress: [████████░░] 79%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ Progress: [████████░░] 79%
 | Phase 06 P03 | 16min | 3 tasks | 25 files |
 | Phase 06 P06 | 22min | 2 tasks | 19 files |
 | Phase 06 P24 | 9 min | 1 tasks | 13 files |
+| Phase 06 P02 | 13 min | 2 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -162,6 +163,8 @@ Recent decisions affecting current work:
 - [Phase 06]: SSE 文本不直接进入 UI；前端只按本地 allowlist 阶段文案展示。
 - [Phase 06]: 未知或附加 SSE 字段转为一次通用可重试状态并消费序号，避免泄露与无限重连。
 - [Phase 06]: AdminAuthProvider 将 access token 限制在内存，身份变化或退出时清空 Query cache。 — 防止前一管理员身份的缓存数据被下一身份复用。
+- [Phase 06]: Dashboard targets only come from an unrevoked validated planning completion projection. — Dashboard service and repository never infer targets from PlanningProfile.
+- [Phase 06]: Dashboard history uses an application-secret-signed local-date, timestamp, and UUID keyset cursor. — Tampered positions fail before reaching SQL and pagination remains stable under inserts.
 
 ### Pending Todos
 
@@ -182,6 +185,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T10:26:38.450Z
-Stopped at: Completed 06-24-PLAN.md
+Last session: 2026-09-02T10:43:20.292Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
