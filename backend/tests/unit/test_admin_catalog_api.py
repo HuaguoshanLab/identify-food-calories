@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.admin.api import get_admin_service
 from app.admin.schemas import CatalogDraftResponse
+from app.admin.service import AdminPermissionDenied
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.auth.api import get_authenticated_principal
 from app.main import create_app
@@ -57,3 +58,20 @@ def test_catalog_patch_requires_if_match() -> None:
             headers={"Idempotency-Key": "catalog-patch-00000001"},
         )
     assert response.status_code == 422
+
+
+def test_catalog_write_maps_database_rbac_denial_to_forbidden() -> None:
+    class DeniedCatalogService(StubCatalogService):
+        def create_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = DeniedCatalogService
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/admin/catalog-drafts", json=_payload(),
+            headers={"Idempotency-Key": "catalog-create-00000002"},
+        )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
