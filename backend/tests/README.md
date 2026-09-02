@@ -29,6 +29,7 @@
 | `dashboard/` | 看板 completion-target Port、overview 七日聚合和 opaque cursor 的 fake-service 契约测试。 |
 | `admin/` | 管理员 DB-RBAC、通用 append-only 审计与只读 keyset 查询的 fake-service 契约测试。 |
 | `evals/` | 冻结、去标识化的 Agent 离线评测输入；只允许 fixture loader 与后续 Fake Provider 评测消费。 |
+| `providers/` | Provider DTO、adapter 与 Fake 的运行时边界测试。 |
 
 `integration/test_memory_direct_write_idempotency.py` 是 direct-memory provision worker 的真实 PostgreSQL 并发与恢复证据；必须通过 `run_pg.py` 运行，禁止用 SQLite 或开发库替代。
 
