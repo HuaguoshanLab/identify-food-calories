@@ -22,7 +22,7 @@ from app.auth.service import AuthenticationService
 from app.core.config import Settings, validate_test_database_configuration
 from app.main import create_app
 from app.records.models import PreferenceMemoryLedger
-from app.planning.models import PlanningProfile
+from app.planning.models import PlanningCompletionProjection, PlanningProfile
 from app.planning.schemas import HEALTH_REFUSAL_MESSAGE
 
 
@@ -237,6 +237,9 @@ def test_diet_planning_command_is_owner_scoped_idempotent_and_streams_only_safe_
                 assert '"stage":"completed"' in stream.text
 
             assert session.query(PlanningProfile).filter_by(user_id=owner.id, deleted_at=None).count() == 1
+            projection = session.query(PlanningCompletionProjection).filter_by(user_id=owner.id, revoked_at=None).one()
+            assert projection.completed_thread_id == uuid.UUID(thread_id)
+            assert projection.target_version == "target-policy.v1"
     finally:
         engine.dispose()
 

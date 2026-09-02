@@ -27,6 +27,7 @@ class AgentThread(Base):
             "status IN ('open', 'waiting_input', 'completed', 'failed', 'deleted')",
             name="ck_agent_threads_status",
         ),
+        UniqueConstraint("user_id", "id", name="uq_agent_threads_user_id"),
         Index("ix_agent_threads_user_last_activity", "user_id", "last_activity_at"),
     )
 
@@ -58,6 +59,7 @@ class AgentRun(Base):
         UniqueConstraint(
             "thread_id", "command_key", name="uq_agent_runs_thread_command_key"
         ),
+        UniqueConstraint("user_id", "thread_id", "id", name="uq_agent_runs_user_thread_id"),
         Index("ix_agent_runs_user_created", "user_id", "created_at"),
         Index("ix_agent_runs_thread_created", "thread_id", "created_at"),
     )

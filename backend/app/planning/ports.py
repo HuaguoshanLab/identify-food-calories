@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Protocol
 
 from app.nutrition.schemas import NutritionCalculationInput, NutritionCalculationResult
-from app.planning.models import PlanningProfile
-from app.planning.schemas import ControlledRecipe, PlanningProfileInput
+from app.planning.models import PlanningCompletionProjection, PlanningProfile
+from app.planning.schemas import ControlledRecipe, DailyTarget, PlanningProfileInput
 
 
 class PlanningRepository(Protocol):
@@ -26,6 +27,34 @@ class PlanningProfileRepository(Protocol):
     def get_profile_for_user(self, *, user_id: uuid.UUID, for_update: bool = False) -> PlanningProfile | None: ...
 
     def add_profile(self, profile: PlanningProfile) -> PlanningProfile: ...
+
+
+class PlanningCompletionProjectionRepository(PlanningProfileRepository, Protocol):
+    """Planning-owned projection persistence; all lookups keep tenant proof in the port."""
+
+    def add_completion_projection(
+        self, projection: PlanningCompletionProjection
+    ) -> PlanningCompletionProjection: ...
+
+    def get_completion_projection_for_run_for_user(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, for_update: bool = False
+    ) -> PlanningCompletionProjection | None: ...
+
+    def get_completion_projection_for_user(
+        self, *, user_id: uuid.UUID, for_update: bool = False
+    ) -> PlanningCompletionProjection | None: ...
+
+    def revoke_completion_projection_for_user(
+        self, *, user_id: uuid.UUID, reason: str, revoked_at: datetime
+    ) -> bool: ...
+
+
+class PlanningCompletionProjectionWriter(Protocol):
+    """Agent completion boundary writes a target fact without receiving planning ORM access."""
+
+    def record_validated_completion(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget
+    ) -> PlanningCompletionProjection: ...
 
 
 class PlanningNutritionPort(Protocol):

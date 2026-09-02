@@ -7,8 +7,13 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.planning.models import PlanningProfile
-from app.planning.ports import PlanningNutritionPort, PlanningProfileRepository, PlanningRepository
+from app.planning.models import PlanningCompletionProjection, PlanningProfile
+from app.planning.ports import (
+    PlanningCompletionProjectionRepository,
+    PlanningNutritionPort,
+    PlanningProfileRepository,
+    PlanningRepository,
+)
 from app.planning.schemas import (
     ACTIVITY_FACTORS,
     HEALTH_REFUSAL_MESSAGE,
@@ -412,11 +417,58 @@ class PlanningProfileUnavailable(LookupError):
     """Uniform missing, foreign, and deleted profile result."""
 
 
+class PlanningCompletionProjectionService:
+    """Creates a dashboard fact only after the Agent boundary proves validated completion."""
+
+    def __init__(
+        self,
+        *,
+        repository: PlanningCompletionProjectionRepository,
+        now: Callable[[], datetime] | None = None,
+        commit: Callable[[], None] | None = None,
+        rollback: Callable[[], None] | None = None,
+    ) -> None:
+        self._repository = repository
+        self._now = now or (lambda: datetime.now(UTC))
+        self._commit = commit or (lambda: None)
+        self._rollback = rollback or (lambda: None)
+
+    def record_validated_completion(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget
+    ) -> PlanningCompletionProjection:
+        existing = self._repository.get_completion_projection_for_run_for_user(
+            user_id=user_id, run_id=run_id, for_update=True
+        )
+        if existing is not None:
+            return existing
+        profile = self._repository.get_profile_for_user(user_id=user_id, for_update=True)
+        if profile is None:
+            raise PlanningProfileUnavailable("planning profile is unavailable for completed plan")
+        projection = PlanningCompletionProjection(
+            id=uuid.uuid4(), user_id=user_id, profile_id=profile.id, completed_run_id=run_id,
+            completed_thread_id=thread_id, profile_revision=profile.revision,
+            target_version=profile.target_policy_version,
+            energy_kcal_lower=target.energy_kcal.lower, energy_kcal_upper=target.energy_kcal.upper,
+            carbohydrate_g_lower=target.carbohydrate_g.lower, carbohydrate_g_upper=target.carbohydrate_g.upper,
+            protein_g_lower=target.protein_g.lower, protein_g_upper=target.protein_g.upper,
+            fat_g_lower=target.fat_g.lower, fat_g_upper=target.fat_g.upper,
+            completed_at=self._now(), revoked_at=None, revocation_reason=None,
+        )
+        try:
+            projection = self._repository.add_completion_projection(projection)
+            self._commit()
+            return projection
+        except Exception:
+            self._rollback()
+            raise
+
+
 class PlanningProfileService:
     """Owns explicit profile save/delete transactions, not policy or memory preferences."""
 
-    def __init__(self, *, repository: PlanningProfileRepository, now: Callable[[], datetime] | None = None, commit: Callable[[], None] | None = None, rollback: Callable[[], None] | None = None) -> None:
+    def __init__(self, *, repository: PlanningProfileRepository, completion_repository: PlanningCompletionProjectionRepository | None = None, now: Callable[[], datetime] | None = None, commit: Callable[[], None] | None = None, rollback: Callable[[], None] | None = None) -> None:
         self._repository = repository
+        self._completion_repository = completion_repository or repository
         self._now = now or (lambda: datetime.now(UTC))
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
@@ -434,7 +486,7 @@ class PlanningProfileService:
             if profile is None:
                 profile = PlanningProfile(
                     id=uuid.uuid4(), user_id=user_id, target_policy_version=TARGET_POLICY_VERSION,
-                    formula_version=FORMULA_VERSION, created_at=now, updated_at=now, deleted_at=None,
+                    formula_version=FORMULA_VERSION, revision=1, created_at=now, updated_at=now, deleted_at=None,
                     **payload.model_dump(),
                 )
                 profile = self._repository.add_profile(profile)
@@ -442,7 +494,9 @@ class PlanningProfileService:
                 self._apply_payload(profile, payload.model_dump())
                 profile.target_policy_version = TARGET_POLICY_VERSION
                 profile.formula_version = FORMULA_VERSION
+                profile.revision += 1
                 profile.updated_at = now
+                self._revoke_completion(user_id=user_id, reason="profile_revision_changed", revoked_at=now)
             self._commit()
             return profile
         except Exception:
@@ -455,7 +509,9 @@ class PlanningProfileService:
             raise PlanningProfileUnavailable("planning profile is unavailable")
         try:
             self._apply_payload(profile, payload.model_dump(exclude_unset=True))
+            profile.revision += 1
             profile.updated_at = self._now()
+            self._revoke_completion(user_id=user_id, reason="profile_revision_changed", revoked_at=profile.updated_at)
             self._commit()
             return profile
         except Exception:
@@ -470,6 +526,7 @@ class PlanningProfileService:
         try:
             profile.deleted_at = now
             profile.updated_at = now
+            self._revoke_completion(user_id=user_id, reason="profile_deleted", revoked_at=now)
             self._commit()
         except Exception:
             self._rollback()
@@ -479,3 +536,8 @@ class PlanningProfileService:
     def _apply_payload(profile: PlanningProfile, values: dict[str, object]) -> None:
         for field, value in values.items():
             setattr(profile, field, value.value if hasattr(value, "value") else value)
+
+    def _revoke_completion(self, *, user_id: uuid.UUID, reason: str, revoked_at: datetime) -> None:
+        revoke = getattr(self._completion_repository, "revoke_completion_projection_for_user", None)
+        if callable(revoke):
+            revoke(user_id=user_id, reason=reason, revoked_at=revoked_at)

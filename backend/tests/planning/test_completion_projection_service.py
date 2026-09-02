@@ -10,7 +10,6 @@ import pytest
 
 from app.dashboard.ports import PlanningTargetEligibility
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
-from app.planning.ports import PlanningCompletionProjectionRepository
 from app.planning.schemas import (
     ActivityLevel,
     DailyTarget,
@@ -42,6 +41,14 @@ class FakeProjectionRepository:
     ) -> PlanningCompletionProjection | None:
         return next(
             (item for item in self.projections if item.user_id == user_id and item.revoked_at is None),
+            None,
+        )
+
+    def get_completion_projection_for_run_for_user(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, for_update: bool = False
+    ) -> PlanningCompletionProjection | None:
+        return next(
+            (item for item in self.projections if item.user_id == user_id and item.completed_run_id == run_id),
             None,
         )
 
@@ -131,4 +138,3 @@ def test_profile_change_and_delete_revoke_only_the_owners_projection() -> None:
     assert eligibility.eligible is False and eligibility.target is None
     assert repository.projections[0].revocation_reason == "profile_revision_changed"
     assert repository.get_dashboard_target_eligibility(user_id=other).eligible is False
-

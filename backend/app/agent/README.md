@@ -8,7 +8,7 @@
 
 - 可依赖 Pydantic、LangGraph 类型、已批准的 Provider Port，以及下游领域 Service 的窄 Port。
 - `graph.py` 只能依赖 `tools.py` 的 adapter 和 State；禁止导入 SQLAlchemy、`models.py` 或 `repository.py`。
-- `service.py` 只依赖 `ports.py`；Repository 只依赖 SQLAlchemy Model 并且只能 flush，不能 commit 或决定 HTTP/Graph 语义。
+- `service.py` 只依赖自己的 ledger Port 和 planning 的 completion-writer Port；Repository 只依赖 SQLAlchemy Model 并且只能 flush，不能 commit 或决定 HTTP/Graph 语义。
 
 ## 文件索引
 
@@ -18,7 +18,7 @@
 | `models.py` | thread/run/event/invocation/lease/deletion-intent，以及图片/视觉调用最小 metadata 的权威 ledger ORM |
 | `ports.py` | Agent Service 的持久化 Protocol |
 | `repository.py` | flush-only SQLAlchemy Agent ledger adapter |
-| `service.py` | 所有权、命令幂等、事件、调用、图片/视觉 invocation 与 D-18 期限选择事务边界 |
+| `service.py` | 所有权、命令幂等、事件、调用、图片/视觉 invocation、validated planning completion projection 与 D-18 期限选择事务边界 |
 | `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早图片过期、7d/30d/删除期限唤醒，并处理记忆删除 outbox 的安全计数 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState 与独立 DietPlanningState；规划恢复只保存 opaque replay marker。 |
 | `tools.py` | Graph 到确定性 Nutrition/Planning Service、显式偏好捕获及安全个人上下文检索的唯一工具适配器。 |

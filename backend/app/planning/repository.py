@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Select, exists, or_, select
+from sqlalchemy import Select, and_, exists, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.agent.models import AgentRun, AgentThread
+from app.dashboard.ports import PlanningTargetEligibility
 from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
 from app.planning.models import (
     ControlledRecipe as ControlledRecipeModel,
     ControlledRecipeIngredient as ControlledRecipeIngredientModel,
+    PlanningCompletionProjection,
     PlanningProfile,
 )
 from app.planning.schemas import (
@@ -51,6 +55,82 @@ class SqlAlchemyPlanningProfileRepository:
         self._session.add(profile)
         self._session.flush()
         return profile
+
+    def add_completion_projection(
+        self, projection: PlanningCompletionProjection
+    ) -> PlanningCompletionProjection:
+        self._session.add(projection)
+        self._session.flush()
+        return projection
+
+    def get_completion_projection_for_run_for_user(
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, for_update: bool = False
+    ) -> PlanningCompletionProjection | None:
+        statement = select(PlanningCompletionProjection).where(
+            PlanningCompletionProjection.user_id == user_id,
+            PlanningCompletionProjection.completed_run_id == run_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def get_completion_projection_for_user(
+        self, *, user_id: uuid.UUID, for_update: bool = False
+    ) -> PlanningCompletionProjection | None:
+        statement = select(PlanningCompletionProjection).where(
+            PlanningCompletionProjection.user_id == user_id,
+            PlanningCompletionProjection.revoked_at.is_(None),
+        ).order_by(PlanningCompletionProjection.completed_at.desc(), PlanningCompletionProjection.id.desc())
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def revoke_completion_projection_for_user(
+        self, *, user_id: uuid.UUID, reason: str, revoked_at: datetime
+    ) -> bool:
+        projection = self.get_completion_projection_for_user(user_id=user_id, for_update=True)
+        if projection is None:
+            return False
+        projection.revoked_at = revoked_at
+        projection.revocation_reason = reason
+        self._session.flush()
+        return True
+
+    def get_dashboard_target_eligibility(self, *, user_id: uuid.UUID) -> PlanningTargetEligibility:
+        projection = self._session.scalar(
+            select(PlanningCompletionProjection)
+            .join(
+                PlanningProfile,
+                and_(
+                    PlanningProfile.id == PlanningCompletionProjection.profile_id,
+                    PlanningProfile.user_id == PlanningCompletionProjection.user_id,
+                ),
+            )
+            .join(
+                AgentThread,
+                and_(
+                    AgentThread.id == PlanningCompletionProjection.completed_thread_id,
+                    AgentThread.user_id == PlanningCompletionProjection.user_id,
+                ),
+            )
+            .join(
+                AgentRun,
+                and_(
+                    AgentRun.id == PlanningCompletionProjection.completed_run_id,
+                    AgentRun.thread_id == PlanningCompletionProjection.completed_thread_id,
+                    AgentRun.user_id == PlanningCompletionProjection.user_id,
+                ),
+            )
+            .where(
+                PlanningCompletionProjection.user_id == user_id,
+                PlanningCompletionProjection.revoked_at.is_(None),
+                PlanningProfile.deleted_at.is_(None),
+                PlanningProfile.revision == PlanningCompletionProjection.profile_revision,
+                AgentRun.status == "completed",
+            )
+            .order_by(PlanningCompletionProjection.completed_at.desc(), PlanningCompletionProjection.id.desc())
+        )
+        return PlanningTargetEligibility.unavailable() if projection is None else PlanningTargetEligibility.from_projection(projection)
 
     def list_controlled_recipes(
         self, *, catalog_version: str, recipe_version: str

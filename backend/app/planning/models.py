@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.auth.models import Base
@@ -24,6 +24,7 @@ class PlanningProfile(Base):
         CheckConstraint("activity_level IN ('sedentary', 'light', 'moderate', 'high', 'very_high')", name="ck_planning_profiles_activity_level"),
         CheckConstraint("goal IN ('maintain', 'loss', 'gain')", name="ck_planning_profiles_goal"),
         CheckConstraint("goal_speed IN ('maintain', 'gradual_loss', 'gradual_gain')", name="ck_planning_profiles_goal_speed"),
+        UniqueConstraint("user_id", "id", name="uq_planning_profiles_user_id"),
         Index("uq_planning_profiles_active_user", "user_id", unique=True, postgresql_where=text("deleted_at IS NULL")),
     )
 
@@ -38,9 +39,73 @@ class PlanningProfile(Base):
     goal_speed: Mapped[str] = mapped_column(String(24), nullable=False)
     target_policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
     formula_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    # A completed-plan projection pins this value; every profile mutation revokes that fact.
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PlanningCompletionProjection(Base):
+    """Auditable fact that one validated planning run may authorize dashboard targets."""
+
+    __tablename__ = "planning_completion_projections"
+    __table_args__ = (
+        CheckConstraint("profile_revision >= 1", name="ck_planning_completion_projections_profile_revision"),
+        CheckConstraint("target_version = btrim(target_version) AND target_version <> ''", name="ck_planning_completion_projections_target_version"),
+        CheckConstraint(
+            "energy_kcal_lower >= 0 AND energy_kcal_upper >= energy_kcal_lower "
+            "AND carbohydrate_g_lower >= 0 AND carbohydrate_g_upper >= carbohydrate_g_lower "
+            "AND protein_g_lower >= 0 AND protein_g_upper >= protein_g_lower "
+            "AND fat_g_lower >= 0 AND fat_g_upper >= fat_g_lower",
+            name="ck_planning_completion_projections_target_ranges",
+        ),
+        CheckConstraint(
+            "(revoked_at IS NULL AND revocation_reason IS NULL) OR "
+            "(revoked_at IS NOT NULL AND revocation_reason IN ('profile_revision_changed', 'profile_deleted'))",
+            name="ck_planning_completion_projections_revocation",
+        ),
+        UniqueConstraint("user_id", "completed_run_id", name="uq_planning_completion_projections_user_run"),
+        ForeignKeyConstraint(
+            ["user_id", "profile_id"], ["planning_profiles.user_id", "planning_profiles.id"],
+            name="fk_planning_completion_projections_profile", ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["user_id", "completed_thread_id"], ["agent_threads.user_id", "agent_threads.id"],
+            name="fk_planning_completion_projections_thread", ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["user_id", "completed_thread_id", "completed_run_id"],
+            ["agent_runs.user_id", "agent_runs.thread_id", "agent_runs.id"],
+            name="fk_planning_completion_projections_run", ondelete="RESTRICT",
+        ),
+        Index(
+            "ix_planning_completion_projections_user_active",
+            "user_id",
+            "completed_at",
+            "id",
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    profile_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    completed_thread_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    completed_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    profile_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    energy_kcal_lower: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    energy_kcal_upper: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    carbohydrate_g_lower: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    carbohydrate_g_upper: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    protein_g_lower: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    protein_g_upper: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    fat_g_lower: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    fat_g_upper: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revocation_reason: Mapped[str | None] = mapped_column(String(48))
 
 
 class ControlledRecipe(Base):

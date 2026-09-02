@@ -36,6 +36,7 @@ from app.agent.state import (
 )
 from app.agent.graph import AgentGraph
 from app.agent.schemas import DietPlanningStartCommand
+from app.planning.ports import PlanningCompletionProjectionWriter
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
 
@@ -113,11 +114,13 @@ class AgentService:
         now: Callable[[], datetime] | None = None,
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
+        planning_completion_writer: PlanningCompletionProjectionWriter | None = None,
     ) -> None:
         self._repository = repository
         self._now = now or (lambda: datetime.now(UTC))
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
+        self._planning_completion_writer = planning_completion_writer
 
     def create_thread(self, *, user_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> AgentThread:
         if thread_id is not None:
@@ -367,6 +370,33 @@ class AgentService:
             )
             return run
         if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
+            if graph_kind is AgentGraphKind.DIET_PLANNING and isinstance(finished, DietPlanningState) and finished.profile_save_completed:
+                if not isinstance(finished, DietPlanningState) or finished.target is None:
+                    return await self._fail_run(
+                        run=run, user_id=user_id, code="PLANNING_COMPLETION_INVALID"
+                    )
+                if self._planning_completion_writer is None:
+                    # A completed planning run without a durable projection would let a later
+                    # consumer guess from profile data, so this execution must fail closed.
+                    return await self._fail_run(
+                        run=run, user_id=user_id, code="PLANNING_PROJECTION_UNAVAILABLE"
+                    )
+                try:
+                    self._planning_completion_writer.record_validated_completion(
+                        user_id=user_id,
+                        run_id=run.id,
+                        thread_id=run.thread_id,
+                        target=finished.target,
+                    )
+                except Exception:
+                    self._rollback()
+                    reloaded = self._repository.get_run_for_user(
+                        run_id=run.id, user_id=user_id, for_update=True
+                    )
+                    assert reloaded is not None
+                    return await self._fail_run(
+                        run=reloaded, user_id=user_id, code="PLANNING_PROJECTION_FAILED"
+                    )
             run.status = "completed"
             run.finished_at = run.updated_at
             self._commit_or_rollback()

@@ -37,6 +37,8 @@ from app.images.schemas import ImageValidationError, ValidatedImageReference
 from app.images.service import ImageSafetyService
 from app.auth.api import AuthenticatedPrincipal
 from app.planning.service import safe_planning_stream_stage
+from app.planning.repository import SqlAlchemyPlanningProfileRepository
+from app.planning.service import PlanningCompletionProjectionService
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -75,7 +77,12 @@ def get_agent_service(request: Request) -> Generator[AgentService, None, None]:
     session = cast(Any, _runtime(request).session_factory())
     try:
         yield AgentService(
-            repository=SqlAlchemyAgentRepository(session), commit=session.commit, rollback=session.rollback
+            repository=SqlAlchemyAgentRepository(session),
+            commit=session.commit,
+            rollback=session.rollback,
+            planning_completion_writer=PlanningCompletionProjectionService(
+                repository=SqlAlchemyPlanningProfileRepository(session)
+            ),
         )
     finally:
         session.close()

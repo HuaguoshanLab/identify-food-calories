@@ -24,4 +24,4 @@ def test_dashboard_target_port_exposes_only_eligibility_ranges_and_version() -> 
     assert unavailable.eligible is False
     assert unavailable.target is None
     assert unavailable.target_version is None
-    assert set(unavailable.model_fields) == {"eligible", "target", "target_version"}
+    assert set(PlanningTargetEligibility.model_fields) == {"eligible", "target", "target_version"}
