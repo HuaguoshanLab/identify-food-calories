@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -65,6 +65,20 @@ class DashboardHistoryPage(BaseModel):
 
     groups: tuple[DashboardHistoryGroup, ...]
     next_cursor: str | None = None
+
+
+class WeeklyReviewPublicResponse(BaseModel):
+    """Safe HTTP projection: provider codes and transcripts never leave dashboard service."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["insufficient_coverage", "safety_abstain", "success", "retryable_error"]
+    week_start: date
+    week_end: date
+    coverage_days: int = Field(ge=0, le=7)
+    meal_count: int = Field(ge=0)
+    totals: DashboardNutritionTotals
+    suggestions: tuple[str, ...] = Field(default=(), max_length=3)
 
 
 class DashboardHistoryRecord(Protocol):

@@ -7,15 +7,16 @@ test('真实登录后的记录页显示低覆盖周复盘且公开 API 不泄露
   await clearMailbox(request)
   await page.goto('/register')
   await registerAndActivate(page, request, account)
+  const weeklyReviewResponse = page.waitForResponse((response) => response.url().includes('/api/v1/dashboard/weekly-review?week_start=') && response.request().method() === 'GET')
   await login(page, account, '/app/records')
 
-  const response = await page.request.get('/api/v1/dashboard/weekly-review')
+  const response = await weeklyReviewResponse
   expect(response.ok()).toBeTruthy()
-  const review = await response.json() as { status: string; suggestions: unknown[]; provider_error?: unknown; abstention_code?: unknown }
-  expect(review.status).toBe('insufficient_coverage')
-  expect(review.suggestions).toEqual([])
-  expect(review.provider_error).toBeUndefined()
-  expect(review.abstention_code).toBeUndefined()
+  const body = await response.json() as { status: string; suggestions: unknown[]; provider_error?: unknown; abstention_code?: unknown }
+  expect(body.status).toBe('insufficient_coverage')
+  expect(body.suggestions).toEqual([])
+  expect(body.provider_error).toBeUndefined()
+  expect(body.abstention_code).toBeUndefined()
 
   await expect(page.getByRole('heading', { name: '周复盘' })).toBeVisible()
   await expect(page.getByText(/记录仍不足以生成建议/)).toBeVisible()

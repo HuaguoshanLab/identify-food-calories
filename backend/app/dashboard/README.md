@@ -15,9 +15,9 @@
 |---|---|
 | `__init__.py` | Python 包标识。 |
 | `ports.py` | 看板对完成计划资格的窄读取 Protocol。 |
-| `schemas.py` | `extra=forbid` 的 overview/history 公共 DTO 与私有 cursor 位置。 |
+| `schemas.py` | `extra=forbid` 的 overview/history、闭合安全周复盘 HTTP DTO 与私有 cursor 位置。 |
 | `repository.py` | tenant-filtered 的 SQL 聚合与 keyset 分页 adapter。 |
-| `service.py` | overview/history 用例、目标 Port 注入和签名 opaque cursor。 |
+| `service.py` | overview/history、事实优先的周复盘 cache 用例、目标 Port 注入和签名 opaque cursor。 |
 | `weekly_review_dto.py` | 周复盘最小 facts、cache key 与安全响应 DTO。 |
 | `weekly_review_graph.py` | 最多两次、八秒、360 token 的 facts-only 周复盘安全 graph 与语义阀。 |
 | `weekly_review.py` | 周复盘 graph 的应用层调用包装；持久化只能消费返回的最小安全元数据。 |

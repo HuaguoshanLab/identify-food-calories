@@ -23,6 +23,7 @@ from app.dashboard.schemas import (
     DashboardHistoryRecord,
     DashboardNutritionTotals,
     DashboardOverview,
+    WeeklyReviewPublicResponse,
 )
 from app.dashboard.weekly_review_dto import WeeklyReviewCacheKey, WeeklyReviewFacts, WeeklyReviewResponse
 
@@ -142,8 +143,9 @@ class DashboardService:
 class WeeklyReviewService:
     """Facts-first cache orchestration; model work begins only after deterministic coverage gates."""
 
-    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
+    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, public_runner: Callable[[WeeklyReviewFacts], object] | None = None, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
         self._repository, self._cache_repository, self._provider = repository, cache_repository, provider
+        self._public_runner = public_runner
         self._now = now or (lambda: datetime.now(UTC))
         self._versions = (graph_version, prompt_version, schema_version, runtime_config_version)
 
@@ -176,6 +178,58 @@ class WeeklyReviewService:
         except Exception:
             return WeeklyReviewResponse(facts=facts, cache_key=key, abstention_code="OUTCOME_UNKNOWN")
         return WeeklyReviewResponse(facts=facts, cache_key=key, advice=self._save_cached(key=key, advice=advice))
+
+    def get_public_weekly_review(
+        self, *, user_id: uuid.UUID, week_start: date | None = None, refresh: bool = False
+    ) -> WeeklyReviewPublicResponse:
+        """Map facts and graph output to a closed user-facing enum without error leakage.
+
+        Refresh deliberately keeps the same cache key. It can only re-attempt a transient
+        service failure; it never turns insufficient coverage into a Provider request.
+        """
+        del refresh
+        today = self._now().date()
+        start = week_start or today - timedelta(days=today.weekday())
+        facts = self._facts(user_id=user_id, week_start=start)
+        base = dict(
+            week_start=start,
+            week_end=start + timedelta(days=6),
+            coverage_days=facts.coverage_days,
+            meal_count=facts.meal_count,
+            totals=facts.totals,
+        )
+        if facts.coverage_days < 4 or facts.meal_count < 8:
+            return WeeklyReviewPublicResponse(status="insufficient_coverage", suggestions=(), **base)
+
+        key = WeeklyReviewCacheKey(
+            user_id=user_id, week_start=start, facts_digest=_facts_digest(facts),
+            graph_version=self._versions[0], prompt_version=self._versions[1],
+            schema_version=self._versions[2], runtime_config_version=self._versions[3],
+        )
+        cached = self._get_cached(key)
+        if cached is not None:
+            suggestions = _decode_suggestions(cached)
+            if suggestions is not None:
+                return WeeklyReviewPublicResponse(status="success", suggestions=suggestions, **base)
+
+        if self._public_runner is None:
+            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
+        try:
+            result = self._public_runner(facts)
+        except Exception:
+            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
+
+        code = getattr(result, "code", "")
+        suggestions = tuple(item for item in getattr(result, "suggestions", ()) if isinstance(item, str))
+        if code == "COMPLETED" and 1 <= len(suggestions) <= 3:
+            serialized = json.dumps(suggestions, ensure_ascii=False, separators=(",", ":"))
+            saved = self._save_cached(key=key, advice=serialized)
+            decoded = _decode_suggestions(saved)
+            if decoded is not None:
+                return WeeklyReviewPublicResponse(status="success", suggestions=decoded, **base)
+        if code in {"PROVIDER_FAILURE", "WEEKLY_REVIEW_TIMEOUT"}:
+            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
+        return WeeklyReviewPublicResponse(status="safety_abstain", suggestions=(), **base)
 
     def _facts(self, *, user_id: uuid.UUID, week_start: date) -> WeeklyReviewFacts:
         rows = self._repository.get_daily_aggregates(user_id=user_id, start_date=week_start, end_date=week_start + timedelta(days=6))
@@ -222,3 +276,13 @@ def _safe_advice(value: object) -> str:
     if not isinstance(value, str) or not value.strip() or len(value.strip()) > 500:
         raise ValueError("weekly review provider response is not a safe advice string")
     return value.strip()
+
+
+def _decode_suggestions(value: str) -> tuple[str, ...] | None:
+    try:
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(decoded, list) or not 1 <= len(decoded) <= 3 or not all(isinstance(item, str) and item.strip() for item in decoded):
+        return None
+    return tuple(item.strip() for item in decoded)
