@@ -52,7 +52,7 @@ completed: 2026-09-02
 ## Task Commits
 
 1. **Task 1: 写 DB-authoritative RBAC/audit query RED 测试** — `fb2c902` (test)
-2. **Task 2: 实现 admin 角色守卫、通用审计和 audit API** — `15d5dcd` (feat)
+2. **Task 2: 实现 admin 角色守卫、通用审计和 audit API** — `15d5dcd` (feat), `6d84dd1` (fix)
 3. **Task 3: 固定线性迁移前驱** — `4106757` (chore)
 
 ## Files Created/Modified
@@ -106,10 +106,16 @@ completed: 2026-09-02
 - **Verification:** `alembic heads` 只报告 `0016 (head)`，隔离测试库升级成功。
 - **Committed in:** `4106757`
 
----
+**4. [Rule 1 - Contract Bug] 对外筛选名修正为 `actor`**
+- **Found during:** 最终合同复核
+- **Issue:** 计划要求 `actor` query filter，而实现错误暴露内部字段名 `actor_identifier`。
+- **Fix:** HTTP schema 对外接受 `actor`，API 在进入 Service 前映射为内部 identifier。
+- **Files modified:** `backend/app/admin/schemas.py`, `backend/app/admin/api.py`, `backend/tests/unit/test_admin_audit_api.py`
+- **Verification:** Ruff、mypy 与 6 个 focused Service/API tests 通过。
+- **Committed in:** `6d84dd1`
 
-**Total deviations:** 3 auto-fixed（Rule 2: 2，Rule 3: 1）。
-**Impact on plan:** 都是审计不可篡改、敏感数据最小化和 Alembic 单 head 的正确性要求，没有扩大产品范围。
+**Total deviations:** 4 auto-fixed（Rule 1: 1，Rule 2: 2，Rule 3: 1）。
+**Impact on plan:** 都是审计不可篡改、敏感数据最小化、公开合同和 Alembic 单 head 的正确性要求，没有扩大产品范围。
 
 ## Issues Encountered
 
@@ -127,7 +133,7 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - 已确认 `backend/migrations/versions/0016_admin_audit_foundation.py` 与 `backend/app/admin/service.py` 存在。
-- 已确认 `fb2c902`、`15d5dcd` 与 `4106757` 均在 Git 历史中存在。
+- 已确认 `fb2c902`、`15d5dcd`、`4106757` 与 `6d84dd1` 均在 Git 历史中存在。
 
 ---
 *Phase: 06-user-dashboard-admin*
