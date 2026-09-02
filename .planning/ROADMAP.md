@@ -205,6 +205,35 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
+**Plans:** 25 plans
+
+Plans:
+
+- [ ] 06-01-PLAN.md — 冻结餐食统计时区事实
+- [ ] 06-02-PLAN.md — Dashboard 读 API 与完成计划投影
+- [ ] 06-03-PLAN.md — 可撤销的完成计划权威投影
+- [ ] 06-04-PLAN.md — Records 页看板接入与四 Tab 约束
+- [ ] 06-05-PLAN.md — Agent 流的安全业务阶段映射
+- [ ] 06-06-PLAN.md — H5 流式安全进度呈现
+- [ ] 06-07-PLAN.md — Facts-first 周复盘存储、缓存与复用
+- [ ] 06-08-PLAN.md — 版本化、去标识化周复盘评测输入
+- [ ] 06-09-PLAN.md — 周复盘 API 与 H5 呈现
+- [ ] 06-10-PLAN.md — 独立管理员 SPA 供应链与构建边界
+- [ ] 06-11-PLAN.md — Admin DB-RBAC 与审计查询
+- [ ] 06-12-PLAN.md — 营养目录草稿后端工作流
+- [ ] 06-13-PLAN.md — 营养目录草稿后台 UI
+- [ ] 06-14-PLAN.md — 目录审核、发布与失格事务协议
+- [ ] 06-15-PLAN.md — 目录审核、发布与失格后台 UI
+- [ ] 06-16-PLAN.md — 非密钥运行配置与准入后端
+- [ ] 06-17-PLAN.md — 后台认证壳与模型配置 UI
+- [ ] 06-18-PLAN.md — 运行指标与最小化查询 API
+- [ ] 06-19-PLAN.md — 后台 runs/audit UI
+- [ ] 06-20-PLAN.md — 跨栈真实路径回归与内置浏览器验收
+- [ ] 06-21-PLAN.md — Phase 6 文档与中文教学
+- [ ] 06-22-PLAN.md — 后台登录、会话壳与 overview
+- [ ] 06-23-PLAN.md — 受限周复盘 Graph、Provider adapter 与冻结评测
+- [ ] 06-24-PLAN.md — 管理员后台运行时入口、Provider tree 与样式
+- [ ] 06-25-PLAN.md — 剩余后台目录 README 与父索引
 **Success Criteria:**
 
 1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
@@ -237,5 +266,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | Pending | 0/TBD | - |
+| 6. 用户看板与后台管理 | Planned | 25 | 2026-09-02 |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |

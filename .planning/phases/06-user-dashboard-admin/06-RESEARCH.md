@@ -404,14 +404,14 @@ Variables that change a fetch belong in the query key; invalidation marks matchi
 1. **既有记录如何确定其首次本地时区？**
    - 已知：现有 `MealRecord` 保存 aware `consumed_at`，未保存 IANA timezone/local date。 [VERIFIED: codebase grep]
    - 未知：历史行没有可恢复的“当时所在地”。
-   - 建议：首次看板选择/确认 IANA zone 后一次性 backfill，并把该迁移规则、数量和时间写管理员审计；不要伪造更高精度。 [ASSUMED]
+   - **RESOLVED：** 添加用户级 IANA dashboard timezone 偏好。首次已有记录的用户必须确认浏览器提议的 IANA zone 后才回填；以确认 zone 对 consumed_at 计算 consumed_local_date，记录 local_date_source='confirmed_timezone_backfill'、规则与审计。不得声称恢复历史所在地。
 2. **“已生成饮食计划”应由何处作为 D-03 的权威事实？**
    - 已知：`PlanningProfile` 有资料/目标，但当前没有持久的完成计划实体。 [VERIFIED: codebase grep]
    - 未知：仅 profile 是否足够表示用户实际完成过计划。
-   - 建议：计划成功时事务性写入窄 `planning_completion`/eligibility projection；dashboard 只调用其 Port。 [ASSUMED]
+   - **RESOLVED：** 饮食规划图成功产生并校验完成报告时，在同一业务事务写入用户绑定、可撤销的 PlanningCompletionProjection，含完成 run/thread、目标/profile revision、completed_at。profile/目标删除或版本失效撤销资格；dashboard 只经窄 port 读取，绝不从 profile 猜测。
 3. **周复盘配置是否共享既有 AgentRun，还是增加类型/关联？**
    - 已知：ledger 可存 graph/prompt/tool/model/version/成本，但缺少 `config_version` 和 review facts digest 专用列。 [VERIFIED: codebase grep]
-   - 建议：给 AgentRun 增 `run_kind`、`runtime_config_version`、`input_facts_digest` 或独立最小关联表；不得把 facts JSON/输出正文塞入 event payload。 [ASSUMED]
+   - **RESOLVED：** 新增最小 WeeklyReviewResult/等价领域表，唯一键为 (user_id, week_start, facts_digest, graph_version, prompt_version, schema_version, runtime_config_version)。只存语义校验后的安全用户可见建议/弃权码、版本、result digest 和关联 AgentRun；不存 prompt、原文 facts、provider body 或 reasoning。相同键并发复用/等待同一结果，cache hit 零 Provider 调用；任一版本/facts 变化自然失效；OUTCOME_UNKNOWN 绝不重放。
 
 ## 环境可用性
 
