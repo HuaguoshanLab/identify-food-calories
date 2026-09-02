@@ -205,7 +205,7 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
-**Plans:** 7/25 plans executed
+**Plans:** 8/25 plans executed
 
 Plans:
 
@@ -233,7 +233,7 @@ Plans:
 - [ ] 06-22-PLAN.md — 后台登录、会话壳与 overview
 - [ ] 06-23-PLAN.md — 受限周复盘 Graph、Provider adapter 与冻结评测
 - [x] 06-24-PLAN.md — 管理员后台运行时入口、Provider tree 与样式
-- [ ] 06-25-PLAN.md — 剩余后台目录 README 与父索引
+- [x] 06-25-PLAN.md — 剩余后台目录 README 与父索引
 **Success Criteria:**
 
 1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
@@ -266,5 +266,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | 7/25 | In Progress|  |
+| 6. 用户看板与后台管理 | 8/25 | In Progress|  |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |
