@@ -31,3 +31,5 @@
 | `test_retrieval_isolation.py` | 真实 pgvector metadata 检索的 tenant、active/deleted 与受控知识版本过滤证据。 |
 | `test_planning_profile_api.py` | 仅经公开认证链验证最小化规划资料的 owner CRUD、422 闭合输入、软删除与删除后不可读取。 |
 | `test_planning_completion_projection.py` | 真实 PostgreSQL 证明完成计划投影的 owner/run/thread 外键与撤销约束。 |
+| `test_dashboard_repository.py` | 真实 PostgreSQL 证明本地日聚合、软删/租户过滤及三元 keyset cursor 不漏不重。 |
+| `test_dashboard_overview_projection.py` | 真实 PostgreSQL 快照与窄完成计划资格 Port 组合的 overview 降级证据。 |

@@ -17,6 +17,7 @@ from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
 from app.records.api import router as meal_records_router
+from app.dashboard.api import router as dashboard_router
 from app.planning.api import router as planning_profile_router
 from app.memory.api import router as memories_router
 from app.memory.providers import create_memory_provider
@@ -176,6 +177,7 @@ def create_app(
     application.include_router(account_recovery_router)
     application.include_router(agent_router)
     application.include_router(meal_records_router)
+    application.include_router(dashboard_router)
     application.include_router(planning_profile_router)
     application.include_router(memories_router)
 

@@ -15,3 +15,11 @@
 - **Issue:** `uv run mypy` reports the untyped `mem0` import and dynamic response access errors while checking Agent's transitive imports.
 - **Scope:** The safe SSE stage change does not modify or import `app.memory.providers`; this is an existing type-checking gap.
 - **Suggested follow-up:** Add typed adapter narrowing for the Mem0 response in a focused memory maintenance task, then re-run `uv run mypy app`.
+
+## Pre-existing Test Directory Index Gap
+
+- **Observed during:** 06-02 Task 2 architecture validation
+- **Location:** `backend/tests/README.md`
+- **Issue:** `uv run pytest tests/architecture -q` fails because the existing parent index omits the already-present `backend/tests/agent/` directory.
+- **Scope:** The dashboard test directory is indexed by this plan; the missing Agent index predates and is unrelated to dashboard overview/history.
+- **Suggested follow-up:** Update `backend/tests/README.md` with the existing Agent test-directory entry in a documentation maintenance task, then re-run the architecture contract.

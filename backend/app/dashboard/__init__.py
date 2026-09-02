@@ -1,1 +1,1 @@
-"""Dashboard consumer contracts; implementation arrives with the read API."""
+"""Dashboard read projections over confirmed meal snapshots and completion-target eligibility."""

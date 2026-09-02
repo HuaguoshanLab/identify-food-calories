@@ -49,6 +49,10 @@ def _row(*, day: date, energy: str, count: int = 1) -> object:
             "totals": DashboardNutritionTotals(
                 energy_kcal=Decimal(energy), protein_g=Decimal("20"), fat_g=Decimal("10"), carbohydrate_g=Decimal("30")
             ),
+            "energy_kcal": Decimal(energy),
+            "protein_g": Decimal("20"),
+            "fat_g": Decimal("10"),
+            "carbohydrate_g": Decimal("30"),
             "meal_count": count,
             "consumed_at": NOW,
             "id": uuid.uuid4(),
@@ -58,7 +62,7 @@ def _row(*, day: date, energy: str, count: int = 1) -> object:
 
 def test_overview_has_seven_local_days_and_reads_targets_only_from_the_narrow_projection_port() -> None:
     user_id = uuid.uuid4()
-    repository = FakeDashboardRepository([_row(day=date(2026, 9, 1), energy="456.50", count=2)])
+    repository = FakeDashboardRepository([_row(day=date(2026, 9, 2), energy="456.50", count=2)])
     target_port = FakeTargetPort(PlanningTargetEligibility.unavailable())
 
     overview = DashboardService(

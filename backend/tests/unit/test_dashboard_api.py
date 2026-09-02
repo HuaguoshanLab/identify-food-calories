@@ -13,6 +13,7 @@ from app.auth.api import get_authenticated_principal
 from app.dashboard.api import get_dashboard_service
 from app.dashboard.ports import PlanningTargetEligibility
 from app.dashboard.schemas import DashboardDaySummary, DashboardHistoryPage, DashboardNutritionTotals, DashboardOverview
+from app.dashboard.service import InvalidDashboardCursor
 from app.main import create_app
 
 
@@ -33,7 +34,9 @@ class StubDashboardService:
         return DashboardOverview(today=_day(date(2026, 9, 2)), week=tuple(_day(date(2026, 8, 27) + timedelta(days=index)) for index in range(7)), target_eligibility=PlanningTargetEligibility.unavailable())
 
     def get_history(self, *, user_id: uuid.UUID, cursor: str | None, limit: int) -> DashboardHistoryPage:
-        del user_id, cursor, limit
+        del user_id, limit
+        if cursor is not None:
+            raise InvalidDashboardCursor()
         return DashboardHistoryPage(groups=(), next_cursor=None)
 
 

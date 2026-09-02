@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.planning.schemas import DailyTarget
+
+
+class CompletionTargetProjection(Protocol):
+    """Attributes the dashboard may transform, without importing the planning ORM."""
+
+    energy_kcal_lower: Decimal
+    energy_kcal_upper: Decimal
+    carbohydrate_g_lower: Decimal
+    carbohydrate_g_upper: Decimal
+    protein_g_lower: Decimal
+    protein_g_upper: Decimal
+    fat_g_lower: Decimal
+    fat_g_upper: Decimal
+    target_version: str
 
 
 class PlanningTargetEligibility(BaseModel):
@@ -30,7 +45,7 @@ class PlanningTargetEligibility(BaseModel):
         return cls(eligible=False)
 
     @classmethod
-    def from_projection(cls, projection: object) -> "PlanningTargetEligibility":
+    def from_projection(cls, projection: CompletionTargetProjection) -> "PlanningTargetEligibility":
         from app.planning.schemas import TargetRange
 
         return cls(

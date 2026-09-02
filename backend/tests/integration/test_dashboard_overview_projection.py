@@ -8,6 +8,8 @@ from decimal import Decimal
 
 import pytest
 
+from app.agent.models import AgentRun, AgentThread
+from app.auth.models import User, UserRole
 from app.dashboard.ports import PlanningTargetEligibility
 from app.dashboard.repository import SqlAlchemyDashboardRepository
 from app.dashboard.service import DashboardService
@@ -30,11 +32,20 @@ class FakePlanningPort:
 
 
 def test_overview_omits_targets_when_the_injected_projection_port_revokes_or_is_foreign(db_session) -> None:
-    owner, other = uuid.uuid4(), uuid.uuid4()
     now = datetime(2026, 9, 2, tzinfo=UTC)
+    owner = User(id=uuid.uuid4(), email=f"dashboard-projection-{uuid.uuid4().hex}@example.test", password_hash="digest", role=UserRole.USER.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
+    thread = AgentThread(id=uuid.uuid4(), user_id=owner.id, status="completed", revision=1, created_at=now, last_activity_at=now, deleted_at=None)
+    run = AgentRun(id=uuid.uuid4(), user_id=owner.id, thread_id=thread.id, command_key=f"dashboard-projection-run-{uuid.uuid4().hex}", command_hash="a" * 64, status="completed", graph_version="dashboard.v1", prompt_version="prompt.v1", tool_version="tools.v1", model_provider=None, model_version=None, graph_steps=1, model_calls=0, tool_calls=0, elapsed_ms=1, estimated_cost_usd=Decimal("0"), failure_code=None, created_at=now, updated_at=now, finished_at=now)
+    db_session.add(owner)
+    db_session.flush()
+    db_session.add(thread)
+    db_session.flush()
+    db_session.add(run)
+    db_session.flush()
+    other = uuid.uuid4()
     db_session.add(
         MealRecord(
-            id=uuid.uuid4(), user_id=owner, source_run_id=uuid.uuid4(), agent_thread_id=uuid.uuid4(), agent_run_id=uuid.uuid4(),
+            id=uuid.uuid4(), user_id=owner.id, source_run_id=run.id, agent_thread_id=thread.id, agent_run_id=run.id,
             command_key=f"dashboard-projection-{uuid.uuid4().hex}", consumed_at=now, consumed_time_zone="UTC", consumed_local_date=date(2026, 9, 2),
             local_date_source="submitted_time_zone", nutrition_catalog_version="catalog.v1", calculation_version="calculation.v1",
             energy_kcal=Decimal("120"), protein_g=Decimal("10"), fat_g=Decimal("2"), carbohydrate_g=Decimal("20"),
@@ -44,10 +55,10 @@ def test_overview_omits_targets_when_the_injected_projection_port_revokes_or_is_
     db_session.flush()
     service = DashboardService(
         repository=SqlAlchemyDashboardRepository(db_session),
-        target_port=FakePlanningPort(owner, PlanningTargetEligibility.unavailable()), now=lambda: now,
+        target_port=FakePlanningPort(owner.id, PlanningTargetEligibility.unavailable()), now=lambda: now,
     )
 
-    owner_overview = service.get_overview(user_id=owner, week_start=date(2026, 8, 31))
+    owner_overview = service.get_overview(user_id=owner.id, week_start=date(2026, 8, 31))
     foreign_overview = service.get_overview(user_id=other, week_start=date(2026, 8, 31))
 
     assert owner_overview.today.meal_count == 1
