@@ -10,12 +10,13 @@ from decimal import Decimal
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, validate_test_database_configuration
 from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
 from app.planning.models import ControlledRecipe, ControlledRecipeIngredient
+from app.planning.schemas import CONTROLLED_RECIPE_VERSION
 
 
 class ControlledRecipeImportError(ValueError):
@@ -118,6 +119,8 @@ def apply_manifest(manifest: ControlledRecipeManifest, database_url: str) -> boo
             )
             if existing is not None:
                 return False
+            is_active = manifest.recipe_version == CONTROLLED_RECIPE_VERSION
+            now = datetime.now(UTC)
             for recipe in manifest.recipes:
                 model = ControlledRecipe(
                     stable_id=recipe.stable_id,
@@ -137,9 +140,9 @@ def apply_manifest(manifest: ControlledRecipeManifest, database_url: str) -> boo
                     audited_at=recipe.audited_at,
                     audited_by_role=recipe.audited_by_role,
                     audit_version=recipe.audit_version,
-                    is_active=True,
-                    created_at=datetime.now(UTC),
-                    updated_at=datetime.now(UTC),
+                    is_active=is_active,
+                    created_at=now,
+                    updated_at=now,
                 )
                 for position, ingredient in enumerate(recipe.ingredients):
                     food = session.scalar(
@@ -161,6 +164,19 @@ def apply_manifest(manifest: ControlledRecipeManifest, database_url: str) -> boo
                         )
                     )
                 session.add(model)
+            if is_active:
+                # Recipe totals are a safety boundary.  Historical versions stay
+                # queryable for audit, but only the reviewed active version can be
+                # composed into a user plan.
+                session.execute(
+                    update(ControlledRecipe)
+                    .where(
+                        ControlledRecipe.catalog_version_id == catalog.id,
+                        ControlledRecipe.recipe_version != manifest.recipe_version,
+                        ControlledRecipe.is_active.is_(True),
+                    )
+                    .values(is_active=False, updated_at=now)
+                )
             session.commit()
             return True
     except Exception:

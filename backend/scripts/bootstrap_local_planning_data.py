@@ -48,9 +48,12 @@ def main() -> int:
         for relative_path in catalog_paths:
             changed = apply_catalog_manifest(load_catalog_manifest(BACKEND_ROOT / relative_path), database_url)
             print(f"{relative_path}: {'applied' if changed else 'already applied'}")
-        recipe_path = "app/planning/data/controlled-recipes.v1.json"
-        changed = apply_recipe_manifest(load_recipe_manifest(BACKEND_ROOT / recipe_path), database_url)
-        print(f"{recipe_path}: {'applied' if changed else 'already applied'}")
+        for recipe_path in (
+            "app/planning/data/controlled-recipes.v1.json",
+            "app/planning/data/controlled-recipes.v2.json",
+        ):
+            changed = apply_recipe_manifest(load_recipe_manifest(BACKEND_ROOT / recipe_path), database_url)
+            print(f"{recipe_path}: {'applied' if changed else 'already applied'}")
         return 0
     except (ConfigurationError, SQLAlchemyError, ValueError):
         print("local planning bootstrap failed", file=sys.stderr)

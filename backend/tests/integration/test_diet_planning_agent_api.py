@@ -7,6 +7,7 @@ import subprocess
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -22,6 +23,7 @@ from app.core.config import Settings, validate_test_database_configuration
 from app.main import create_app
 from app.records.models import PreferenceMemoryLedger
 from app.planning.models import PlanningProfile
+from app.planning.schemas import HEALTH_REFUSAL_MESSAGE
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -72,17 +74,21 @@ def _create_user(session: Session, *, label: str) -> tuple[User, str]:
     return user, token
 
 
-def _command(*, confirmed: bool = True, save_profile: bool = True) -> dict[str, object]:
+def _command(
+    *, confirmed: bool = True, save_profile: bool = True, profile_overrides: dict[str, object] | None = None
+) -> dict[str, object]:
+    profile: dict[str, object] = {
+        "height_cm": "170",
+        "weight_kg": "65",
+        "age_years": 30,
+        "formula_variant": "mifflin_st_jeor_female",
+        "activity_level": "moderate",
+        "goal": "loss",
+        "goal_speed": "gradual_loss",
+    }
+    profile.update(profile_overrides or {})
     return {
-        "profile": {
-            "height_cm": "170",
-            "weight_kg": "65",
-            "age_years": 30,
-            "formula_variant": "mifflin_st_jeor_female",
-            "activity_level": "moderate",
-            "goal": "loss",
-            "goal_speed": "gradual_loss",
-        },
+        "profile": profile,
         "preferences": {
             "confirmed": confirmed,
             "exclusions": ["花生"],
@@ -90,6 +96,86 @@ def _command(*, confirmed: bool = True, save_profile: bool = True) -> dict[str, 
         },
         "save_profile": save_profile,
     }
+
+
+def test_health_scope_remains_fail_closed_through_public_planning_api() -> None:
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run(
+        [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
+        cwd=BACKEND_ROOT,
+        env=_test_env(settings),
+        check=True,
+    )
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            user, token = _create_user(session, label="health-scope")
+            authentication = AuthenticationService(
+                repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5",
+                commit=session.commit, rollback=session.rollback,
+            )
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            with TestClient(app) as client:
+                response = client.post(
+                    PLANNING_PATH,
+                    json=_command(profile_overrides={"age_years": 18}),
+                    headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "diet-plan-health-scope-0001"},
+                )
+
+            assert response.status_code == 201, response.text
+            snapshot = response.json()
+            assert snapshot["status"] == "retryable"
+            assert snapshot["report"] == {"stage": "needs_input", "message": HEALTH_REFUSAL_MESSAGE}
+            assert session.query(PlanningProfile).filter_by(user_id=user.id, deleted_at=None).count() == 0
+    finally:
+        engine.dispose()
+
+
+def test_public_api_composes_v2_seed_above_floor_for_a_sedentary_adult() -> None:
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run(
+        [sys.executable, "scripts/run_initialized_app.py", "--prepare-only"],
+        cwd=BACKEND_ROOT,
+        env=_test_env(settings),
+        check=True,
+    )
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            user, token = _create_user(session, label="v2-seed-adult")
+            authentication = AuthenticationService(
+                repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5",
+                commit=session.commit, rollback=session.rollback,
+            )
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            with TestClient(app) as client:
+                response = client.post(
+                    PLANNING_PATH,
+                    json=_command(profile_overrides={
+                        "height_cm": "161", "weight_kg": "50", "age_years": 28,
+                        "activity_level": "sedentary", "goal": "maintain", "goal_speed": "maintain",
+                    }),
+                    headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "diet-plan-v2-seed-adult-0001"},
+                )
+
+            assert response.status_code == 201, response.text
+            report = response.json()["report"]
+            assert response.json()["status"] == "completed"
+            total_energy = sum(
+                (Decimal(meal["nutrients"]["energy_kcal"]) for meal in report["meals"]),
+                Decimal("0"),
+            )
+            assert total_energy >= Decimal("1200")
+            assert Decimal(report["target"]["energy_kcal"]["lower"]) <= total_energy
+            assert total_energy <= Decimal(report["target"]["energy_kcal"]["upper"])
+    finally:
+        engine.dispose()
 
 
 def test_diet_planning_command_is_owner_scoped_idempotent_and_streams_only_safe_business_events() -> None:

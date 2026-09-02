@@ -216,9 +216,9 @@ def test_0006_round_trip_matches_agent_and_nutrition_metadata_without_seed_data(
     assert _schema_fingerprint(os.environ["DATABASE_URL"]) == development_before
 
 
-def test_0006_is_the_single_head_and_contains_no_seed_statement() -> None:
-    migration = Path("migrations/versions/0006_multimodal_images.py")
+def test_0012_is_the_single_head_and_contains_no_seed_insert() -> None:
+    migration = Path("migrations/versions/0012_activate_controlled_recipes_v2.py")
     script = ScriptDirectory.from_config(Config("alembic.ini"))
 
-    assert script.get_heads() == ["0006"]
+    assert script.get_heads() == ["0012"]
     assert "INSERT" not in migration.read_text(encoding="utf-8").upper()

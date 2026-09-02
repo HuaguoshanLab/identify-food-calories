@@ -14,4 +14,5 @@
 
 | 文件 | 职责 |
 |---|---|
-| `controlled-recipes.v1.json` | R-03 项目自有的早餐、午餐、晚餐受控菜谱 metadata 与固定食材引用；午餐保留两个审核候选以支持局部替换。 |
+| `controlled-recipes.v1.json` | 已停用的历史 R-03 seed；仅用于审计和升级链验证，不能再被用户计划选中。 |
+| `controlled-recipes.v2.json` | 当前启用的项目自有早餐、午餐、晚餐受控菜谱 metadata 与固定食材引用；每餐有可替换候选，三餐总量满足普通成人最低能量地板与宏量比例校验。 |

@@ -15,7 +15,9 @@ class PlanningRepository(Protocol):
 
     def get_planning_profile(self, *, user_id: uuid.UUID) -> PlanningProfileInput | None: ...
 
-    def list_controlled_recipes(self, *, catalog_version: str) -> list[ControlledRecipe]: ...
+    def list_controlled_recipes(
+        self, *, catalog_version: str, recipe_version: str
+    ) -> list[ControlledRecipe]: ...
 
 
 class PlanningProfileRepository(Protocol):

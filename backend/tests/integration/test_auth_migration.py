@@ -95,7 +95,7 @@ def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
             "uq_refresh_tokens_token_digest"
         }
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0012"
     finally:
         engine.dispose()
     assert _public_tables(development_url) == development_tables_before

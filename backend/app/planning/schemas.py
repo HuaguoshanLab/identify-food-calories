@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 TARGET_POLICY_VERSION = "target-policy.v1"
 FORMULA_VERSION = "mifflin-st-jeor.v1"
 CONTROLLED_RECIPE_LICENSE = "LicenseRef-Project-Authored-v1"
+CONTROLLED_RECIPE_VERSION = "controlled-recipes.v2"
 HEALTH_REFUSAL_MESSAGE = (
     "我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、"
     "进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。"

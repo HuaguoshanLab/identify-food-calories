@@ -76,18 +76,22 @@ def apply_seed(database_url: str) -> None:
             ],
             database_url,
         )
-    _run_for_test_target(
-        [
-            sys.executable,
-            "-m",
-            "app.planning.importer",
-            "--apply",
-            "app/planning/data/controlled-recipes.v1.json",
-            "--database-url",
+    for manifest_path in (
+        "app/planning/data/controlled-recipes.v1.json",
+        "app/planning/data/controlled-recipes.v2.json",
+    ):
+        _run_for_test_target(
+            [
+                sys.executable,
+                "-m",
+                "app.planning.importer",
+                "--apply",
+                manifest_path,
+                "--database-url",
+                database_url,
+            ],
             database_url,
-        ],
-        database_url,
-    )
+        )
 
 
 def launch_uvicorn(_database_url: str, host: str, port: int) -> None:

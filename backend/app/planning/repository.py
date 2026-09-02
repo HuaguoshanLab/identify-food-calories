@@ -52,11 +52,15 @@ class SqlAlchemyPlanningProfileRepository:
         self._session.flush()
         return profile
 
-    def list_controlled_recipes(self, *, catalog_version: str) -> list[ControlledRecipe]:
+    def list_controlled_recipes(
+        self, *, catalog_version: str, recipe_version: str
+    ) -> list[ControlledRecipe]:
         """Expose only recipes whose complete ingredient chain remains qualified and aligned."""
 
         rows = self._session.scalars(
-            self._active_recipe_statement(catalog_version=catalog_version)
+            self._active_recipe_statement(
+                catalog_version=catalog_version, recipe_version=recipe_version
+            )
         ).unique()
         return [self._to_controlled_recipe(row) for row in rows]
 
@@ -67,7 +71,9 @@ class SqlAlchemyPlanningProfileRepository:
         )
 
     @staticmethod
-    def _active_recipe_statement(*, catalog_version: str) -> Select[tuple[ControlledRecipeModel]]:
+    def _active_recipe_statement(
+        *, catalog_version: str, recipe_version: str
+    ) -> Select[tuple[ControlledRecipeModel]]:
         invalid_ingredient = (
             select(ControlledRecipeIngredientModel.id)
             .join(
@@ -103,6 +109,7 @@ class SqlAlchemyPlanningProfileRepository:
                 ControlledRecipeModel.audit_status == "approved",
                 ControlledRecipeModel.audited_by_role == "nutrition_catalog_reviewer",
                 ControlledRecipeModel.catalog_version == catalog_version,
+                ControlledRecipeModel.recipe_version == recipe_version,
                 NutritionCatalogVersion.version == catalog_version,
                 ~exists(invalid_ingredient),
             )

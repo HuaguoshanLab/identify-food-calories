@@ -889,9 +889,6 @@ class DietPlanningGraph:
             )
 
         current = state
-        if current.save_profile and not current.profile_save_completed:
-            current = self._call_profile_upsert(current)
-
         target_result = self._tools.calculate_daily_target(
             profile=current.profile, preferences=current.preferences
         )
@@ -901,6 +898,10 @@ class DietPlanningGraph:
         current = current.model_copy(
             update={"target": target_result.target, "next_action": DietPlanningAction.COMPOSE_PLAN}
         )
+        # A health-scope refusal must not persist the transient command as a profile.  Saving is
+        # intentionally deferred until the deterministic health guard has accepted the request.
+        if current.save_profile and not current.profile_save_completed:
+            current = self._call_profile_upsert(current)
 
         while current.replan_count < 3:
             composition = self._tools.compose_daily_plan(
@@ -925,6 +926,26 @@ class DietPlanningGraph:
             )
             if validation.action is PlanValidationAction.PASS:
                 report = _planning_report(target=target_result.target, meals=composition.meals)
+                return current.model_copy(
+                    update={
+                        "meals": composition.meals,
+                        "next_action": DietPlanningAction.COMPLETE,
+                        "status": AgentRuntimeStatus.COMPLETED,
+                        "report": report,
+                    }
+                )
+            if validation.action is PlanValidationAction.RELAX:
+                # Relaxation is a bounded, deterministic fallback.  It must remain
+                # visible in the public report instead of being mistaken for a hard
+                # target pass or falling through into a meaningless retry loop.
+                report = _planning_report(target=target_result.target, meals=composition.meals)
+                report.update(
+                    _relaxation_projection(
+                        target=target_result.target,
+                        meals=composition.meals,
+                        reason=validation.safe_message,
+                    )
+                )
                 return current.model_copy(
                     update={
                         "meals": composition.meals,
@@ -1002,9 +1023,11 @@ class DietPlanningGraph:
         current = self._record_tool(current, "validate_plan", validation.action.value, validation)
         if validation.action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
             return self._safe_terminal(current, validation.action, validation.safe_message)
+        if validation.action is PlanValidationAction.NEEDS_INPUT:
+            return self._safe_terminal(current, validation.action, validation.safe_message)
+        if validation.action is PlanValidationAction.REPLAN:
+            return self._safe_terminal(current, validation.action, validation.safe_message)
         next_count = current.replan_count + 1
-        if next_count >= 3:
-            return self._adjustment_limit(current.model_copy(update={"meals": composition.meals, "replan_count": next_count}))
         report = _planning_report(target=target, meals=composition.meals)
         report["adjustment"] = {
             "changed_slots": [slot.value],

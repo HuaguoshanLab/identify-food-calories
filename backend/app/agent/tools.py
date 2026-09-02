@@ -22,6 +22,7 @@ from app.nutrition.service import NutritionService
 from app.retrieval.ports import RetrievedContextItem
 from app.memory.ports import MemoryProvider
 from app.planning.schemas import (
+    CONTROLLED_RECIPE_VERSION,
     DailyTarget,
     MealCompositionResult,
     PlanValidationAction,
@@ -77,7 +78,7 @@ class PlanningToolAdapter(Protocol):
     ) -> MealCompositionResult: ...
 
     def validate_daily_plan(
-        self, *, target: DailyTarget, meals: tuple[object, ...], replan_count: int
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
     ) -> PlanValidationResult: ...
 
     def upsert_planning_profile(
@@ -260,6 +261,7 @@ class SessionNutritionToolAdapter:
             return service.compose_daily_meals(
                 catalog_version="foundation-foods-2026-08-rice-fist-v1",
                 preferences=preferences,
+                recipe_version=CONTROLLED_RECIPE_VERSION,
             )
         finally:
             session.close()
@@ -283,6 +285,7 @@ class SessionNutritionToolAdapter:
             replacement_plan = service.compose_daily_meals(
                 catalog_version="foundation-foods-2026-08-rice-fist-v1",
                 preferences=preferences,
+                recipe_version=CONTROLLED_RECIPE_VERSION,
                 exclude_recipe_ids=(current.recipe_id,),
             )
             if replacement_plan.action is not PlanValidationAction.PASS:
@@ -297,12 +300,13 @@ class SessionNutritionToolAdapter:
             session.close()
 
     def validate_daily_plan(
-        self, *, target: DailyTarget, meals: tuple[object, ...], replan_count: int
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
     ) -> PlanValidationResult:
         session, service = self._planning_service()
         try:
             return service.validate_plan(
                 target=target,
+                meals=meals,
                 allow_target_relaxation=replan_count >= 2,
             )
         finally:

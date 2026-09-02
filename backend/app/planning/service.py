@@ -26,6 +26,7 @@ from app.planning.schemas import (
     PlanningProfileWrite,
     PreferenceReview,
     FORMULA_VERSION,
+    CONTROLLED_RECIPE_VERSION,
     TARGET_POLICY_VERSION,
     TargetCalculationResult,
     TargetRange,
@@ -108,10 +109,16 @@ class PlanningService:
         self,
         *,
         target: DailyTarget,
+        meals: tuple[PlannedMeal, ...],
         matched_exclusions: tuple[str, ...] = (),
         allow_target_relaxation: bool = False,
     ) -> PlanValidationResult:
-        """Keep exclusions and health floors outside the only relaxable target dimensions."""
+        """Recompute the three-meal totals before any safe routing decision.
+
+        The graph can ask for a validation result, but it cannot claim that a recipe
+        combination is safe.  Keeping the aggregation here means a model, adapter,
+        or client cannot turn a per-meal value into an unchecked daily plan.
+        """
 
         if target.energy_kcal.lower < MIN_SAFE_ENERGY_KCAL:
             return PlanValidationResult(
@@ -119,27 +126,68 @@ class PlanningService:
                 rule_id="minimum-energy-floor",
                 safe_message=HEALTH_REFUSAL_MESSAGE,
             )
+        if len(meals) != len(MealSlot) or {meal.slot for meal in meals} != set(MealSlot):
+            return PlanValidationResult(
+                action=PlanValidationAction.REPLAN,
+                rule_id="incomplete-meal-slots",
+                safe_message="餐单必须包含不重复的早餐、午餐和晚餐后才能校验。",
+            )
+        if len({meal.recipe_id for meal in meals}) != len(meals):
+            return PlanValidationResult(
+                action=PlanValidationAction.REPLAN,
+                rule_id="duplicate-controlled-recipe",
+                safe_message="同一受控菜谱不能在一天内重复使用。",
+            )
+        displayed_exclusions = tuple(
+            summary
+            for meal in meals
+            for summary in meal.matched_exclusion_summaries
+        )
+        matched_exclusions = (*matched_exclusions, *displayed_exclusions)
         if matched_exclusions:
             return PlanValidationResult(
                 action=PlanValidationAction.REPLAN,
                 rule_id="confirmed-exclusion",
                 safe_message="受控餐单包含已确认的排除项，不能放宽该约束。",
             )
-        if allow_target_relaxation:
+
+        totals = self._daily_totals(meals)
+        if totals.energy_kcal < MIN_SAFE_ENERGY_KCAL:
+            return PlanValidationResult(
+                action=PlanValidationAction.REPLAN,
+                rule_id="minimum-plan-energy-floor",
+                safe_message="当前三餐能量低于安全下限，不能通过放宽目标接受该餐单。",
+            )
+
+        failed_metric = self._first_failed_target_metric(target=target, totals=totals)
+        if failed_metric is None:
+            failed_metric = self._first_failed_macro_ratio(totals)
+        if failed_metric is None:
+            return PlanValidationResult(
+                action=PlanValidationAction.PASS,
+                rule_id="planning-validation-pass",
+                safe_message="餐单通过确定性总量、宏量比例、重复度和约束校验。",
+            )
+        if allow_target_relaxation and not failed_metric.endswith("-ratio"):
             return PlanValidationResult(
                 action=PlanValidationAction.RELAX,
-                rule_id="energy-or-macro-relaxation",
-                relaxed_metric="energy_or_macro",
+                rule_id=f"{failed_metric}-target-relaxation",
+                relaxed_metric=failed_metric,
                 safe_message="可在保留已确认排除项和健康边界的前提下调整能量或宏量目标。",
             )
         return PlanValidationResult(
-            action=PlanValidationAction.PASS,
-            rule_id="planning-validation-pass",
-            safe_message="餐单通过确定性目标与约束校验。",
+            action=PlanValidationAction.REPLAN,
+            rule_id=f"{failed_metric}-out-of-range",
+            safe_message="三餐总量或宏量比例未满足当前目标，需要在受控候选中重新组合。",
         )
 
     def compose_daily_meals(
-        self, *, catalog_version: str, preferences: PreferenceReview, exclude_recipe_ids: tuple[uuid.UUID, ...] = ()
+        self,
+        *,
+        catalog_version: str,
+        preferences: PreferenceReview,
+        recipe_version: str = CONTROLLED_RECIPE_VERSION,
+        exclude_recipe_ids: tuple[uuid.UUID, ...] = (),
     ) -> MealCompositionResult:
         """Select one fully qualified candidate per stable slot and recompute every ingredient."""
 
@@ -148,7 +196,9 @@ class PlanningService:
                 action=PlanValidationAction.NEEDS_INPUT,
                 safe_message="请先确认本次要使用的忌口和口味偏好。",
             )
-        recipes = self._repository.list_controlled_recipes(catalog_version=catalog_version)
+        recipes = self._repository.list_controlled_recipes(
+            catalog_version=catalog_version, recipe_version=recipe_version
+        )
         meals: list[PlannedMeal] = []
         for slot in MealSlot:
             meal = next(
@@ -157,7 +207,9 @@ class PlanningService:
                     for recipe in recipes
                     if slot in recipe.meal_slots
                     and recipe.catalog_version == catalog_version
+                    and recipe.recipe_version == recipe_version
                     and recipe.id not in exclude_recipe_ids
+                    and recipe.id not in {selected.recipe_id for selected in meals}
                     and not self._matches_exclusion(recipe=recipe, exclusions=preferences.exclusions)
                     and (
                         built_meal := self._build_meal(
@@ -243,6 +295,42 @@ class PlanningService:
             for preference in preferences.taste_preferences
             if preference.casefold() in {tag.casefold() for tag in recipe.flavour_tags}
         )
+
+    @staticmethod
+    def _daily_totals(meals: tuple[PlannedMeal, ...]) -> PlanningNutritionValues:
+        return PlanningNutritionValues(
+            energy_kcal=sum((meal.nutrients.energy_kcal for meal in meals), Decimal("0")),
+            protein_g=sum((meal.nutrients.protein_g for meal in meals), Decimal("0")),
+            fat_g=sum((meal.nutrients.fat_g for meal in meals), Decimal("0")),
+            carbohydrate_g=sum(
+                (meal.nutrients.carbohydrate_g for meal in meals), Decimal("0")
+            ),
+        )
+
+    @staticmethod
+    def _first_failed_target_metric(
+        *, target: DailyTarget, totals: PlanningNutritionValues
+    ) -> str | None:
+        for field in ("energy_kcal", "carbohydrate_g", "protein_g", "fat_g"):
+            bounds = getattr(target, field)
+            value = getattr(totals, field)
+            if value < bounds.lower or value > bounds.upper:
+                return field
+        return None
+
+    @staticmethod
+    def _first_failed_macro_ratio(totals: PlanningNutritionValues) -> str | None:
+        if totals.energy_kcal <= 0:
+            return "energy_kcal"
+        for field, kcal_per_gram, bounds in (
+            ("carbohydrate_g", Decimal("4"), CARBOHYDRATE_AMDR),
+            ("protein_g", Decimal("4"), PROTEIN_AMDR),
+            ("fat_g", Decimal("9"), FAT_AMDR),
+        ):
+            ratio = getattr(totals, field) * kcal_per_gram / totals.energy_kcal
+            if ratio < bounds[0] or ratio > bounds[1]:
+                return f"{field}-ratio"
+        return None
 
     @staticmethod
     def _has_complete_inputs(profile: PlanningProfileInput, preferences: PreferenceReview) -> bool:

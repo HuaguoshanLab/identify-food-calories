@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.planning.schemas import (
     ACTIVITY_FACTORS,
+    CONTROLLED_RECIPE_VERSION,
     HEALTH_REFUSAL_MESSAGE,
     TARGET_POLICY_VERSION,
     ActivityLevel,
@@ -19,6 +20,8 @@ from app.planning.schemas import (
     DailyTarget,
     MealSlot,
     PlanValidationAction,
+    PlannedMeal,
+    PlanningNutritionValues,
     PlanningProfileInput,
     PreferenceReview,
 )
@@ -38,9 +41,11 @@ class FakePlanningRepository:
         self.recipe_search_calls = 0
         self.recipes = recipes or []
 
-    def list_controlled_recipes(self, *, catalog_version: str) -> list[ControlledRecipe]:
+    def list_controlled_recipes(
+        self, *, catalog_version: str, recipe_version: str
+    ) -> list[ControlledRecipe]:
         self.recipe_search_calls += 1
-        return self.recipes
+        return [recipe for recipe in self.recipes if recipe.recipe_version == recipe_version]
 
 
 class FakeNutritionPort:
@@ -129,7 +134,7 @@ def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> Cont
         id=uuid.uuid4(),
         stable_id=f"recipe.{slot.value}.v1",
         display_name=name,
-        recipe_version="controlled-recipes.v1",
+        recipe_version=CONTROLLED_RECIPE_VERSION,
         catalog_version=CATALOG_VERSION,
         meal_slots=(slot,),
         portion_description="一份",
@@ -147,6 +152,46 @@ def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> Cont
         source_reference="backend/app/planning/data/controlled-recipes.v1.json",
         audited_at=datetime(2026, 9, 1, tzinfo=UTC),
         audit_version="recipe-audit.v1",
+    )
+
+
+def validation_target() -> DailyTarget:
+    return DailyTarget.model_validate(
+        {
+            "energy_kcal": {"lower": "1800", "upper": "2000"},
+            "carbohydrate_g": {"lower": "202.5", "upper": "325"},
+            "protein_g": {"lower": "45", "upper": "175"},
+            "fat_g": {"lower": "40", "upper": "77.8"},
+        }
+    )
+
+
+def planned_meal(
+    *, slot: MealSlot, energy: str, carbohydrate: str, protein: str, fat: str,
+    recipe_id: uuid.UUID | None = None,
+) -> PlannedMeal:
+    return PlannedMeal(
+        slot=slot,
+        recipe_id=recipe_id or uuid.uuid4(),
+        display_name=f"{slot.value} 受控餐",
+        portion_description="一份",
+        portion_grams=Decimal("100"),
+        method_tags=("快手",),
+        flavour_tags=("清淡",),
+        nutrients=PlanningNutritionValues(
+            energy_kcal=Decimal(energy),
+            carbohydrate_g=Decimal(carbohydrate),
+            protein_g=Decimal(protein),
+            fat_g=Decimal(fat),
+        ),
+    )
+
+
+def valid_daily_meals() -> tuple[PlannedMeal, ...]:
+    return (
+        planned_meal(slot=MealSlot.BREAKFAST, energy="600", carbohydrate="80", protein="30", fat="20"),
+        planned_meal(slot=MealSlot.LUNCH, energy="700", carbohydrate="90", protein="40", fat="20"),
+        planned_meal(slot=MealSlot.DINNER, energy="600", carbohydrate="80", protein="30", fat="20"),
     )
 
 
@@ -245,20 +290,90 @@ def test_plan_validation_actions_are_closed_and_relax_never_accepts_exclusions()
         "NEEDS_INPUT",
     }
 
-    target = DailyTarget.model_validate(
-        {
-            "energy_kcal": {"lower": "1800", "upper": "2000"},
-            "carbohydrate_g": {"lower": "202.5", "upper": "325"},
-            "protein_g": {"lower": "45", "upper": "175"},
-            "fat_g": {"lower": "40", "upper": "77.8"},
-        }
-    )
+    target = validation_target()
     result = PlanningService(
         repository=FakePlanningRepository(), nutrition_port=FakeNutritionPort()
-    ).validate_plan(target=target, matched_exclusions=("香菜",), allow_target_relaxation=True)
+    ).validate_plan(
+        target=target,
+        meals=valid_daily_meals(),
+        matched_exclusions=("香菜",),
+        allow_target_relaxation=True,
+    )
 
     assert result.action is PlanValidationAction.REPLAN
     assert result.safe_message == "受控餐单包含已确认的排除项，不能放宽该约束。"
+
+
+def test_plan_validation_recomputes_daily_totals_and_macro_ratios_before_pass() -> None:
+    service = PlanningService(repository=FakePlanningRepository(), nutrition_port=FakeNutritionPort())
+
+    result = service.validate_plan(target=validation_target(), meals=valid_daily_meals())
+
+    assert result.action is PlanValidationAction.PASS
+    assert result.rule_id == "planning-validation-pass"
+
+
+def test_plan_validation_rejects_out_of_range_totals_and_only_relaxes_target_dimensions() -> None:
+    service = PlanningService(repository=FakePlanningRepository(), nutrition_port=FakeNutritionPort())
+    too_low = tuple(
+        planned_meal(
+            slot=slot,
+            energy="350",
+            carbohydrate="50",
+            protein="20",
+            fat="15",
+        )
+        for slot in MealSlot
+    )
+
+    rejected = service.validate_plan(target=validation_target(), meals=too_low)
+
+    assert rejected.action is PlanValidationAction.REPLAN
+    assert rejected.rule_id == "minimum-plan-energy-floor"
+    assert service.validate_plan(
+        target=validation_target(), meals=too_low, allow_target_relaxation=True
+    ).action is PlanValidationAction.REPLAN
+
+
+def test_plan_validation_rejects_macro_ratio_and_duplicate_recipe_before_relaxation() -> None:
+    service = PlanningService(repository=FakePlanningRepository(), nutrition_port=FakeNutritionPort())
+    ratio_failure = (
+        planned_meal(slot=MealSlot.BREAKFAST, energy="600", carbohydrate="80", protein="30", fat="13"),
+        planned_meal(slot=MealSlot.LUNCH, energy="700", carbohydrate="90", protein="40", fat="14"),
+        planned_meal(slot=MealSlot.DINNER, energy="600", carbohydrate="80", protein="30", fat="13"),
+    )
+
+    macro_result = service.validate_plan(target=validation_target(), meals=ratio_failure)
+
+    assert macro_result.action is PlanValidationAction.REPLAN
+    assert macro_result.rule_id == "fat_g-ratio-out-of-range"
+    shared_recipe_id = uuid.uuid4()
+    duplicate_result = service.validate_plan(
+        target=validation_target(),
+        meals=(
+            planned_meal(slot=MealSlot.BREAKFAST, energy="600", carbohydrate="80", protein="30", fat="20", recipe_id=shared_recipe_id),
+            planned_meal(slot=MealSlot.LUNCH, energy="700", carbohydrate="90", protein="40", fat="20", recipe_id=shared_recipe_id),
+            planned_meal(slot=MealSlot.DINNER, energy="600", carbohydrate="80", protein="30", fat="20"),
+        ),
+        allow_target_relaxation=True,
+    )
+
+    assert duplicate_result.action is PlanValidationAction.REPLAN
+    assert duplicate_result.rule_id == "duplicate-controlled-recipe"
+
+
+def test_composition_never_reuses_a_multi_slot_recipe() -> None:
+    food = qualified_food(name="测试食材", energy="600")
+    recipe = controlled_recipe(slot=MealSlot.BREAKFAST, food=food, name="唯一受控餐").model_copy(
+        update={"meal_slots": tuple(MealSlot)}
+    )
+
+    result = PlanningService(
+        repository=FakePlanningRepository([recipe]), nutrition_port=RecipeNutritionPort([food])
+    ).compose_daily_meals(catalog_version=CATALOG_VERSION, preferences=confirmed_preferences())
+
+    assert result.action is PlanValidationAction.REPLAN
+    assert result.meals == ()
 
 
 def test_public_dtos_are_frozen_and_reject_unknown_fields() -> None:

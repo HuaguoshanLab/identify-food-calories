@@ -90,6 +90,7 @@ class FakePlanningTools(PlanningToolAdapter):
         self.target_calls = 0
         self.compose_calls = 0
         self.validate_calls = 0
+        self.validated_meals: list[tuple[PlannedMeal, ...]] = []
         self.upsert_calls: list[tuple[uuid.UUID, PlanningProfileInput, str]] = []
         self.capture_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
         self.replacement_calls: list[tuple[MealSlot, str]] = []
@@ -134,6 +135,7 @@ class FakePlanningTools(PlanningToolAdapter):
         self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
     ) -> PlanValidationResult:
         self.validate_calls += 1
+        self.validated_meals.append(meals)
         return PlanValidationResult(
             action=self._validation_action,
             rule_id="planning-validation-pass",
@@ -203,6 +205,9 @@ def test_confirmed_profile_runs_only_through_tools_and_returns_exactly_three_saf
         "dinner",
     )
     assert tools.target_calls == tools.compose_calls == tools.validate_calls == 1
+    assert [meal.display_name for meal in tools.validated_meals[0]] == [
+        "燕麦早餐", "鸡胸肉午餐", "豆腐晚餐"
+    ]
     assert tools.upsert_calls == [(state.user_id, state.profile, state.command_key)]
     import json
 
@@ -235,6 +240,33 @@ def test_replan_budget_stops_after_three_attempts_without_looping() -> None:
     assert stopped.report == {
         "stage": "needs_input",
         "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
+    }
+
+
+def test_non_health_validation_failure_is_bounded_and_never_becomes_health_refusal() -> None:
+    tools = FakePlanningTools(validation_action=PlanValidationAction.REPLAN)
+
+    stopped = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+
+    assert stopped.status.value == "limit_reached"
+    assert stopped.replan_count == 3
+    assert tools.validate_calls == 3
+    assert stopped.report == {
+        "stage": "needs_input",
+        "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
+    }
+
+
+def test_initial_target_relaxation_completes_with_a_public_deviation() -> None:
+    tools = FakePlanningTools(validation_action=PlanValidationAction.RELAX)
+
+    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+
+    assert completed.status.value == "completed"
+    assert completed.report is not None
+    assert completed.report["stage"] == "complete"
+    assert set(completed.report["relaxation"]) == {
+        "metric", "original_range", "plan_value", "deviation", "reason"
     }
 
 
@@ -321,20 +353,22 @@ def test_adjustment_relaxes_only_energy_or_macro_and_fourth_command_skips_compos
             )
         )
 
-    assert current.status.value == "limit_reached"
+    assert current.status.value == "completed"
     assert current.replan_count == 3
-    assert current.report == {
-        "stage": "needs_input",
-        "code": "LIMIT_REACHED",
-        "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。",
-    }
+    assert current.report is not None
+    assert current.report["adjustment"]["changed_slots"] == ["lunch"]
     calls_before_fourth = len(tools.replacement_calls)
     fourth = asyncio.run(
         DietPlanningGraph(tools=tools).ainvoke(
             current, resume={"feedback": "午餐换清淡一些"}
         )
     )
-    assert fourth is current
+    assert fourth.status.value == "limit_reached"
+    assert fourth.report == {
+        "stage": "needs_input",
+        "code": "LIMIT_REACHED",
+        "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。",
+    }
     assert len(tools.replacement_calls) == calls_before_fourth
 
 
