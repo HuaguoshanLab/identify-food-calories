@@ -12,8 +12,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createAgentImageThread, createAgentThread, deleteAgentThread, getAgentThread, submitAgentInput, uploadAgentMealImage } from '../api/client.generated'
 import { agentErrorResponseSchema, agentImageAcceptedResponseSchema, agentThreadSnapshotSchema, type AgentThreadSnapshot } from '../api/schemas.generated'
+import type { SafeStreamStage } from '../api/stream'
 import { useAgentEventStream } from '../stream/useAgentEventStream'
 import { confirmMealRecord } from '@/features/records/api/client'
+import { SafeProgressStages } from './SafeProgressStages'
 
 const MAX_DESCRIPTION_LENGTH = 1000
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -71,6 +73,7 @@ function recoveryContent(code: string | null | undefined) {
 export function AnalyzePage() {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const { request, status: authenticationStatus } = useAuth()
@@ -80,6 +83,7 @@ export function AnalyzePage() {
   const [status, setStatus] = useState<AnalysisStatus>('idle')
   const [snapshot, setSnapshot] = useState<AgentThreadSnapshot>()
   const [progress, setProgress] = useState('')
+  const [progressStage, setProgressStage] = useState<SafeStreamStage>()
   const [selectedImage, setSelectedImage] = useState<File>()
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({})
   const [gramAnswers, setGramAnswers] = useState<Record<string, string>>({})
@@ -96,8 +100,8 @@ export function AnalyzePage() {
     const next = agentThreadSnapshotSchema.parse(body)
     setSnapshot(next)
     setStatus(next.status === 'completed' ? 'completed' : next.status === 'retryable' || next.status === 'terminal' ? 'error' : 'idle')
-    if (next.status === 'completed') setProgress('分析报告已生成。')
-    if (next.status === 'retryable' || next.status === 'terminal') setProgress('分析未能完成。')
+    if (next.status === 'completed') { setProgress('分析报告已生成。'); setProgressStage('completed') }
+    if (next.status === 'retryable' || next.status === 'terminal') { setProgress('分析未能完成。'); setProgressStage(next.status) }
     setSelectedCandidates({})
     setGramAnswers({})
     const url = new URL(window.location.href)
@@ -122,8 +126,8 @@ export function AnalyzePage() {
   }, [applySnapshot, authenticationStatus, request, snapshot?.thread_id])
   useAgentEventStream({ threadId: snapshot?.thread_id, request, onEvent: (event) => {
     if (snapshot?.status === 'retryable' || snapshot?.status === 'terminal' || snapshot?.status === 'completed') return
-    setProgress(event.summary)
-  }, onSnapshot: applySnapshot })
+    setProgressStage(event.stage)
+  }, onInvalidEvent: () => { setStatus('error'); setProgressStage('retryable'); setProgress('分析进度暂时不可用，请重新尝试。') }, onSnapshot: applySnapshot })
 
   const isBusy = ['validating-image', 'uploading-image', 'submitting', 'deleting'].includes(status)
   const report = snapshot?.report as AnalysisReport | undefined
@@ -183,8 +187,14 @@ export function AnalyzePage() {
     if (description.length > MAX_DESCRIPTION_LENGTH) { setFieldError(`描述最多可输入 ${MAX_DESCRIPTION_LENGTH} 个字符。`); return }
     setFieldError(undefined)
     setProgress('正在提交描述')
+    setProgressStage('perception')
     setStatus('submitting')
-    try { await applySnapshot(await createAgentThread(request, { input_text: inputText })) } catch { setStatus('error'); setProgress('暂时无法完成分析，请检查描述后重试。') }
+    try { await applySnapshot(await createAgentThread(request, { input_text: inputText })) } catch { setStatus('error'); setProgressStage('retryable'); setProgress('暂时无法完成分析，请检查描述后重试。') } finally { window.requestAnimationFrame(() => submitButtonRef.current?.focus()) }
+  }
+
+  function retryAnalysis() {
+    if (!description.trim()) { setProgress('请重新描述餐食后再试。'); focusTextFallback(); return }
+    textInputRef.current?.form?.requestSubmit()
   }
 
   async function submitFollowup(payload: Record<string, unknown>) {
@@ -223,6 +233,7 @@ export function AnalyzePage() {
       const response = await deleteAgentThread(request, snapshot.thread_id)
       if (!response.ok) throw new Error('agent deletion request failed')
       setSnapshot(undefined); setDescription(''); setCorrection(''); setSelectedCandidates({}); setGramAnswers({})
+      setProgressStage(undefined)
       setProgress('删除请求已提交：分析、事件流和本地缓存已关闭，数据将在 24 小时内清理。')
       setStatus('idle'); setDeleteOpen(false)
       const url = new URL(window.location.href); url.searchParams.delete('thread')
@@ -258,8 +269,8 @@ export function AnalyzePage() {
         <details className="rounded-lg border border-border p-3 text-[13px] leading-5 text-muted-foreground"><summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-foreground"><ShieldCheck aria-hidden="true" className="size-5" />仅用于本次分析；完成或超时后删除。</summary><p className="pt-2">图片会由第三方视觉模型处理；本服务会在本次分析完成或超时后删除临时副本。</p></details>
         <Button className="h-11 w-full" disabled={isBusy} onClick={focusTextFallback} type="button" variant="ghost"><MessageSquareText aria-hidden="true" className="size-5" />改为文字描述这餐</Button>
       </CardContent></Card>
-      <form className="space-y-3" noValidate onSubmit={handleSubmit}><div className="space-y-2"><Label htmlFor="meal-description">餐食描述</Label><textarea aria-describedby={fieldError ? 'meal-description-error' : undefined} aria-invalid={Boolean(fieldError)} className="min-h-28 w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" disabled={isBusy} id="meal-description" onChange={(event) => setDescription(event.target.value)} placeholder="例如：米饭 100 克" ref={textInputRef} value={description} />{fieldError ? <p id="meal-description-error" className="text-[13px] leading-5 text-destructive">{fieldError}</p> : null}</div><Button className="h-11 w-full" disabled={isBusy} type="submit">{status === 'submitting' ? '正在分析…' : '开始分析'}</Button></form>
-      <Alert aria-live="polite" role="status"><RefreshCw aria-hidden="true" className={isBusy ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} /><AlertTitle>{progress || '等待分析'}</AlertTitle><AlertDescription>阶段状态只显示安全摘要，最终结果以报告卡片为准。</AlertDescription></Alert>
+      <form className="space-y-3" noValidate onSubmit={handleSubmit}><div className="space-y-2"><Label htmlFor="meal-description">餐食描述</Label><textarea aria-describedby={fieldError ? 'meal-description-error' : undefined} aria-invalid={Boolean(fieldError)} className="min-h-28 w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" disabled={isBusy} id="meal-description" onChange={(event) => setDescription(event.target.value)} placeholder="例如：米饭 100 克" ref={textInputRef} value={description} />{fieldError ? <p id="meal-description-error" className="text-[13px] leading-5 text-destructive">{fieldError}</p> : null}</div><Button className="h-11 w-full" disabled={isBusy} ref={submitButtonRef} type="submit">{status === 'submitting' ? '正在分析…' : '开始分析'}</Button></form>
+      {progressStage ? <SafeProgressStages onRetry={retryAnalysis} stage={progressStage} /> : <Alert aria-live="polite" role="status"><RefreshCw aria-hidden="true" className={isBusy ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} /><AlertTitle>{progress || '等待分析'}</AlertTitle><AlertDescription>阶段状态只显示安全摘要，最终结果以报告卡片为准。</AlertDescription></Alert>}
       {recovery ? <Alert variant={recoveryCode === 'OUTCOME_UNKNOWN' ? 'default' : 'destructive'}><CircleAlert aria-hidden="true" /><AlertTitle>{recovery.title}</AlertTitle><AlertDescription className="space-y-3"><p>{recovery.body}</p>{recoveryCode === 'OUTCOME_UNKNOWN' ? <Button className="h-11 w-full" onClick={startNewImageAnalysis} type="button" variant="outline">{recovery.action}</Button> : <Button className="h-11 w-full" onClick={focusTextFallback} type="button" variant="outline">{recovery.action}</Button>}</AlertDescription></Alert> : null}
       {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} inputMode="decimal" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
       {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{report.unaccounted_items?.join('、') || '请查看待补充项'}。</> : <>未匹配菜品：{report.unaccounted_items?.join('、') || '请补充菜品和份量'}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,7 +74,7 @@ describe('AnalyzePage', () => {
     })
     renderPage(request)
 
-    expect(await screen.findByText('分析未能完成。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('本次分析暂未完成'))
     expect(screen.getByRole('alert')).toHaveTextContent('图片未能识别')
     expect(screen.queryByText('分析任务正在运行。')).not.toBeInTheDocument()
   })

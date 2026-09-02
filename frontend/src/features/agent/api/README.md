@@ -16,3 +16,4 @@
 | `generate-contracts.mjs` | 唯一的运行时 OpenAPI → frozen JSON → TypeScript/Zod → operation client 生成与逐字漂移检查入口；JSON 与 multipart 图片上传均从 contract 推导。 |
 | `schemas.generated.ts` | 从 OpenAPI schema 生成的 TypeScript 声明与 Zod runtime validator；禁止手改 |
 | `client.generated.ts` | 从 operationId 生成、接收 AuthProvider 的运行时 request 后访问公开 Agent API 的客户端；含空图片线程和 multipart 上传操作，禁止手改 |
+| `stream.ts` | 版本化安全 SSE 阶段的严格 Zod 边界；拒绝未知字段和原始 payload。 |

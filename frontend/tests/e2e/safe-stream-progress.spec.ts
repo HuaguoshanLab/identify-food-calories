@@ -39,7 +39,8 @@ test.describe('safe stream progress', () => {
     await submit.focus()
     await submit.click()
 
-    await expect(page.getByRole('status')).toContainText(/正在读取已确认的资料与饮食偏好|等待你补充信息|正在计算每日目标区间|正在校验营养与已确认约束|计划已生成/)
+    await expect(page.getByRole('status')).toContainText(/正在读取已确认的资料与饮食偏好|等待你补充信息|正在计算每日目标区间|正在校验营养与已确认约束|计划已生成|本次计划暂未完成，你可以重新尝试/)
+    await expect(page.getByRole('status')).not.toContainText('计划已生成')
     await expect(page.getByText(/provider|node|stack|reasoning|raw payload/i)).toHaveCount(0)
     await expect(submit).toBeFocused()
   })

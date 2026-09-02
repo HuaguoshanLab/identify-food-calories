@@ -20,5 +20,6 @@
 | `h5-visual.spec.ts` | 430px 八张视觉基线、Phase 2 文字分析与 Phase 3 图片估算 candidate，以及 320px/桌面、键盘、历史和滚动边界回归 |
 | `h5-visual.spec.ts-snapshots/` | Git 维护的八张 H5 视觉基线与其安全更新合同 |
 | `agent.spec.ts` | 真实注册登录后的文字 Agent 纵向报告、SSE 公开路径、刷新同线程恢复、图片 multipart 估算，以及“我不吃辣”自动记忆的查看、编辑、确认删除和 320px 空态回归。 |
+| `safe-stream-progress.spec.ts` | 真实认证用户的分析/规划安全阶段、无内部泄露和键盘焦点路径。 |
 
 E2E 的前端与 CORS origin 固定为 `http://127.0.0.1:5178`；账号只可经过页面注册、Mailpit 公开 HTTP 读取验证码和页面登录获得身份，禁止 seed 数据库或注入 token。

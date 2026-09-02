@@ -15,3 +15,5 @@
 |---|---|
 | `AnalyzePage.tsx` | 受保护分析 Tab 的拍照/相册 multipart 上传、隐私说明、文字降级、集中追问、估算与 partial 披露、权威快照报告、定向修正和 URL thread 恢复；不持久化图片或 token。 |
 | `AnalyzePage.test.tsx` | 图片本地校验、multipart 合约、估算披露、输入校验、集中候选不自动选择、受控英文食物中文展示与权威快照行为测试。 |
+| `SafeProgressStages.tsx` | 本地 allowlist 的五阶段进度语义和受控重试入口，不渲染 SSE 原文。 |
+| `SafeProgressStages.test.tsx` | 阶段、无障碍播报与 SSE 边界安全测试。 |

@@ -20,5 +20,7 @@
 | `PlanOverview.tsx` | 四项目标区间、计划值及文本状态概览。 |
 | `MealCard.tsx` | 固定餐次的标准菜名、受控份量、标签和已遵守约束。 |
 | `PlanningStatus.tsx` | 六种 allowlisted 业务进度及安全错误/拒绝状态。 |
+| `SafePlanningProgress.tsx` | 复用分析的阶段语义，并适配规划页面的本地安全文案。 |
+| `SafePlanningProgress.test.tsx` | 规划阶段、受控重试与 SSE 边界安全测试。 |
 | `PersonalProfilePage.tsx` | DetailLayout 内的资料查看、编辑、删除和唯一 memory 偏好入口。 |
 | `PersonalProfilePage.test.tsx` | 资料 CRUD、不可逆删除和偏好职责分离合同。 |

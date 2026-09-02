@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -40,6 +40,7 @@ type ProfileGoalFormProps = {
 
 export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, onStarted }: ProfileGoalFormProps) {
   const { request } = useAuth()
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
   const [pageError, setPageError] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const profileQuery = useQuery({ queryKey: ['planning-profile'], queryFn: () => getPlanningProfile(request), enabled: initialValues === undefined })
@@ -90,7 +91,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
         return
       }
       setPageError('暂时无法生成计划。请检查资料和网络后重试；若问题持续，请稍后再试。')
-    }
+    } finally { window.requestAnimationFrame(() => submitButtonRef.current?.focus()) }
   })
 
   const loading = isLoading || profileQuery.isLoading || memoriesQuery.isLoading
@@ -111,7 +112,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
     <p className="text-sm text-muted-foreground">生成前会由系统计算目标区间，并校验餐单是否符合已确认约束。</p>
     {pageError ? <Alert variant="destructive"><AlertDescription>{pageError}</AlertDescription></Alert> : null}
     {statusMessage ? <p aria-live="polite" className="text-sm text-muted-foreground">{statusMessage}</p> : null}
-    <Button className="h-11 w-full" disabled={loading || form.formState.isSubmitting || showPreferenceLoadError} type="submit">{form.formState.isSubmitting ? '正在生成餐单…' : '生成今日餐单'}</Button>
+    <Button className="h-11 w-full" disabled={loading || form.formState.isSubmitting || showPreferenceLoadError} ref={submitButtonRef} type="submit">{form.formState.isSubmitting ? '正在生成餐单…' : '生成今日餐单'}</Button>
   </form>
 }
 

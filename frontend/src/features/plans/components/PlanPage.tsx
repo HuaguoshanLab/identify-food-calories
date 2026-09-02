@@ -12,11 +12,13 @@ import { listMemories } from '@/features/memory/api/client'
 import { routePaths } from '@/routePaths'
 import { submitDietPlanningAdjustment } from '../api/client'
 import { getPlanningProfile, planningProfileQueryKey } from '../api/profile'
-import { dietPlanningSafeEventSchema, type DietPlanningStartResponse } from '../api/schemas'
+import type { DietPlanningStartResponse } from '../api/schemas'
+import { parseSafePlanningStageEvent, type SafePlanningStage } from '../api/stream'
 import { formatPlanNumber, formatPlanRange } from '../format'
 import { MealCard } from './MealCard'
 import { PlanOverview } from './PlanOverview'
-import { CompletedPlanningStatus, FocusedPlanningAlert, PlanningStatus } from './PlanningStatus'
+import { CompletedPlanningStatus, FocusedPlanningAlert } from './PlanningStatus'
+import { SafePlanningProgress } from './SafePlanningProgress'
 import { ProfileGoalForm, type PreferenceSummaries } from './ProfileGoalForm'
 
 const decimalSchema = z.string().regex(/^\d+(?:\.\d+)?$/)
@@ -41,7 +43,6 @@ const planReportSchema = z.object({
 })
 const needsInputReportSchema = z.object({ stage: z.literal('needs_input'), message: z.string().min(1).max(500), code: z.literal('LIMIT_REACHED').optional(), input_choices: z.array(slotSchema).length(3).optional() }).strict()
 const safeSnapshotSchema = z.object({ thread_id: z.string().uuid(), status: z.enum(['waiting', 'partial', 'completed', 'retryable', 'terminal', 'deletion_pending']), revision: z.number().int().nonnegative(), report: z.unknown().optional(), recovery_code: z.string().min(1).max(80).nullable().optional() }).strict()
-const safePlanningEventCopy = { reading_context: '正在读取已确认的资料与饮食偏好…', calculating_targets: '正在计算每日目标区间…', composing_plan: '正在组合一日三餐…', validating_plan: '正在校验营养与已确认约束…', complete: '计划已生成。', needs_input: '需要你补充或确认信息后继续。' } as const
 const healthScopeCopy = '我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。你仍可以查看通用、非医疗的均衡饮食原则。'
 const slotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐' } as const
 const metricLabels = { energy_kcal: ['能量', 'kcal'], carbohydrate_g: ['碳水', 'g'], protein_g: ['蛋白质', 'g'], fat_g: ['脂肪', 'g'] } as const
@@ -73,6 +74,7 @@ export function PlanPage() {
   const [mealAdjustment, setMealAdjustment] = useState<Record<PlanMeal['slot'], PlanMealAdjustment | undefined>>({ breakfast: undefined, lunch: undefined, dinner: undefined })
   const [statusKind, setStatusKind] = useState<'idle' | 'working' | 'error' | 'refusal'>('idle')
   const [statusMessage, setStatusMessage] = useState<string>()
+  const [progressStage, setProgressStage] = useState<SafePlanningStage>()
   const [inputChoices, setInputChoices] = useState<PlanMeal['slot'][]>()
   const [adjustmentText, setAdjustmentText] = useState('')
   const [adjustmentError, setAdjustmentError] = useState('')
@@ -97,7 +99,7 @@ export function PlanPage() {
         if (previousName) setMealAdjustment((current) => ({ ...current, [changedSlot]: { previousName, matchedConstraint: parsedReport.data.adjustment!.matched_constraint, rangeStatus: adjustmentRangeSummary(parsedReport.data.adjustment!.range_status) } }))
         setUpdatedSlot(changedSlot)
       }
-      setReport(parsedReport.data); setInputChoices(undefined); setLimitReached(false); setStatusKind('idle'); setStatusMessage(undefined)
+      setReport(parsedReport.data); setInputChoices(undefined); setLimitReached(false); setStatusKind('idle'); setStatusMessage(undefined); setProgressStage('completed')
       return
     }
     if (snapshot.status === 'terminal' && needsInput.success && needsInput.data.code === 'LIMIT_REACHED') {
@@ -105,7 +107,7 @@ export function PlanPage() {
       return
     }
     if (snapshot.status === 'waiting' && needsInput.success && needsInput.data.input_choices) {
-      setInputChoices(needsInput.data.input_choices); setStatusKind('working'); setStatusMessage(safePlanningEventCopy.needs_input)
+      setInputChoices(needsInput.data.input_choices); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('awaiting_input')
       return
     }
     // `terminal` also represents bounded candidate exhaustion. Only the explicit safe
@@ -115,41 +117,46 @@ export function PlanPage() {
       setReport(undefined); setInputChoices(undefined); setLimitReached(false); setStatusKind('refusal'); setStatusMessage(undefined)
       return
     }
-    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(needsInput.success ? needsInput.data.message : undefined)
+    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(needsInput.success ? needsInput.data.message : undefined); setProgressStage('retryable')
   }, [report])
 
   useAgentEventStream({ threadId, request, onEvent: (event) => {
-    const safeEvent = dietPlanningSafeEventSchema.safeParse(event)
-    if (!safeEvent.success) return
-    setStatusKind(safeEvent.data.type === 'complete' ? 'idle' : 'working')
-    setStatusMessage(safePlanningEventCopy[safeEvent.data.type])
-  }, onSnapshot: applySnapshot })
+    try {
+      const safeEvent = parseSafePlanningStageEvent(event)
+      setStatusKind(safeEvent.stage === 'completed' ? 'idle' : 'working')
+      setStatusMessage(undefined)
+      setProgressStage(safeEvent.stage)
+    } catch {
+      setStatusKind('error'); setStatusMessage(undefined); setProgressStage('retryable')
+    }
+  }, onInvalidEvent: () => { setStatusKind('error'); setStatusMessage(undefined); setProgressStage('retryable') }, onSnapshot: applySnapshot })
 
   function onStarted(snapshot: DietPlanningStartResponse) {
-    setThreadId(snapshot.thread_id); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('working'); setStatusMessage(safePlanningEventCopy.reading_context)
+    setThreadId(snapshot.thread_id); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('perception')
   }
 
   async function submitAdjustment(text: string) {
     if (!threadId || adjusting || limitReached || statusKind === 'refusal') return
     const normalized = text.trim()
     if (!normalized) { setAdjustmentError('请说明想调整什么。'); return }
-    setAdjusting(true); setAdjustmentError(''); setStatusKind('working'); setStatusMessage(safePlanningEventCopy.composing_plan)
+    setAdjusting(true); setAdjustmentError(''); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('tool_calculation')
     try {
       await submitDietPlanningAdjustment(request, threadId, normalized)
       await applySnapshot(await request(`/agent/threads/${encodeURIComponent(threadId)}`))
       setAdjustmentText('')
-    } catch { setStatusKind('error'); setAdjustmentError('暂时无法提交调整。请检查网络后重试。') } finally { setAdjusting(false) }
+    } catch { setStatusKind('error'); setProgressStage('retryable'); setAdjustmentError('暂时无法提交调整。请检查网络后重试。') } finally { setAdjusting(false) }
   }
 
   function startNewPlan() {
-    setThreadId(undefined); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('idle'); setStatusMessage(undefined); setAdjustmentText('')
+    setThreadId(undefined); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('idle'); setStatusMessage(undefined); setProgressStage(undefined); setAdjustmentText('')
   }
 
   const relaxation = report?.adjustment?.relaxation
   return <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
     <div className="space-y-2"><h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold leading-9 tracking-tight">计划</h1><p className="text-[15px] leading-6 text-muted-foreground">根据已确认的资料和偏好生成一日三餐参考。</p></div>
     <Alert><AlertTitle>普通饮食参考，不替代医疗建议。</AlertTitle></Alert>
-    <PlanningStatus kind={statusKind === 'refusal' ? 'idle' : statusKind} message={statusMessage} />
+    {statusMessage ? <Alert variant="destructive"><AlertTitle>{statusMessage}</AlertTitle></Alert> : null}
+    {statusKind !== 'refusal' ? <SafePlanningProgress onRetry={startNewPlan} stage={progressStage} /> : null}
     {profileQuery.isError ? <Alert variant="destructive"><AlertTitle>无法读取个人资料</AlertTitle><AlertDescription>你仍可填写本次资料；系统不会自动保存。</AlertDescription></Alert> : null}
     <ProfileGoalForm initialValues={profileQuery.data ?? null} isLoading={profileQuery.isLoading || memoriesQuery.isLoading} preferenceLoadError={memoriesQuery.isError} preferenceSummaries={preferenceSummaries} onStarted={onStarted} />
     {inputChoices ? <section aria-labelledby="adjustment-choice-title" className="space-y-3"><h2 className="text-xl font-semibold" id="adjustment-choice-title">请确认要调整哪一餐</h2><p className="text-[15px] leading-6 text-muted-foreground">你的要求可能影响多餐，请选择要替换的餐次。</p><div className="grid grid-cols-3 gap-2">{inputChoices.map((slot) => <Button className="h-11" disabled={adjusting} key={slot} onClick={() => void submitAdjustment(slot)} type="button" variant="outline">{slotLabels[slot]}</Button>)}</div><Button className="h-11" disabled={adjusting} onClick={() => setInputChoices(undefined)} type="button" variant="ghost">返回修改描述</Button></section> : null}

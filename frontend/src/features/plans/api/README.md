@@ -2,17 +2,18 @@
 
 ## 职责
 
-封装公开的 `/api/v1/planning/profile` 显式 CRUD、只读预填和 `/api/v1/agent/threads/diet-planning` 启动命令，所有传入及返回的浏览器 DTO 均经过 Zod 运行时校验。
+定义规划页面使用的公开 HTTP 与 SSE 契约；在进入组件前完成 Zod 运行时校验，不传播未验证的响应、Graph State 或 Provider 数据。
 
 ## 允许依赖
 
-- Zod 与 `auth/AuthContext.ts` 的 `AuthenticatedRequest`。
-- 禁止导入后端实现、直接 `fetch`、本地持久化资料或绕过 Agent 启动命令的 profile 写入。
+- Zod、认证请求能力和本 feature 的 Schema。
+- 禁止后端源码、直接 DOM 操作、组件导入和 localStorage 健康资料缓存。
 
 ## 文件索引
 
 | 文件 | 职责 |
-|---|---|
-| `schemas.ts` | Closed profile、启动命令与安全事件 DTO。 |
-| `client.ts` | 资料预填读取和具备幂等键的规划启动请求。 |
-| `profile.ts` | 个人资料的安全 CRUD、缓存键和结构化公开错误。 |
+| --- | --- |
+| `client.ts` | 规划启动与调整的受控公开 API 调用。 |
+| `profile.ts` | 个人资料 HTTP 契约和安全错误映射。 |
+| `schemas.ts` | 规划表单、快照和报告运行时 Schema。 |
+| `stream.ts` | 版本化安全 SSE 阶段的严格 Zod 边界。 |

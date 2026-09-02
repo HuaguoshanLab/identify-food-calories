@@ -1,7 +1,9 @@
 import { createParser } from 'eventsource-parser'
 import { useEffect, useRef } from 'react'
 
-export type AgentProgressEvent = { id: string; type: string; summary: string }
+import { parseSafeAgentStageEvent, type SafeAgentStageEvent } from '../api/stream'
+
+export type AgentProgressEvent = SafeAgentStageEvent & { id: string }
 
 type RequestWithSession = (path: string, init?: RequestInit) => Promise<Response>
 
@@ -9,6 +11,7 @@ type AgentEventStreamOptions = {
   threadId?: string
   request: RequestWithSession
   onEvent: (event: AgentProgressEvent) => void
+  onInvalidEvent?: () => void
   onSnapshot?: (response: Response) => void | Promise<void>
 }
 
@@ -16,14 +19,19 @@ type AgentEventStreamOptions = {
  * Replays safe events only after reading the ledger-owned snapshot. `request` comes from
  * AuthProvider, whose one-refresh/one-replay rule is the sole 401 recovery authority.
  */
-export function useAgentEventStream({ threadId, request, onEvent, onSnapshot }: AgentEventStreamOptions) {
+export function useAgentEventStream({ threadId, request, onEvent, onInvalidEvent, onSnapshot }: AgentEventStreamOptions) {
   const eventCallbackRef = useRef(onEvent)
+  const invalidEventCallbackRef = useRef(onInvalidEvent)
   const snapshotCallbackRef = useRef(onSnapshot)
   const lastSequenceRef = useRef(0)
 
   useEffect(() => {
     eventCallbackRef.current = onEvent
   }, [onEvent])
+
+  useEffect(() => {
+    invalidEventCallbackRef.current = onInvalidEvent
+  }, [onInvalidEvent])
 
   useEffect(() => {
     snapshotCallbackRef.current = onSnapshot
@@ -59,12 +67,14 @@ export function useAgentEventStream({ threadId, request, onEvent, onSnapshot }: 
                 return
               }
               try {
-                const payload = JSON.parse(event.data) as { type?: string; summary?: string }
-                if (typeof payload.type !== 'string' || typeof payload.summary !== 'string') return
+                const payload = parseSafeAgentStageEvent(JSON.parse(event.data))
                 lastSequenceRef.current = sequence
-                eventCallbackRef.current({ id: String(sequence), type: payload.type, summary: payload.summary })
+                eventCallbackRef.current({ id: String(sequence), ...payload })
               } catch {
-                // Malformed server text is not a report and is not eligible for reconnect/retry.
+                // Consume unknown event IDs and show a local generic failure rather than looping
+                // forever on malformed stream data while the H5 remains on a stale stage.
+                lastSequenceRef.current = sequence
+                invalidEventCallbackRef.current?.()
               }
             },
             onError: () => undefined,
