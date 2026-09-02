@@ -24,6 +24,9 @@ from app.providers.reasoning.dto import (
     ProviderCallMetadataDTO,
     ProviderFailureKind,
     ProviderUsageDTO,
+    WeeklyReviewOutputDTO,
+    WeeklyReviewRequest,
+    WeeklyReviewResult,
 )
 
 
@@ -81,18 +84,44 @@ class DeepSeekReasoningModelProvider:
         except ValidationError as error:
             raise _schema_error(metadata) from error
 
+    async def generate_weekly_review(self, request: WeeklyReviewRequest) -> WeeklyReviewResult:
+        payload, metadata = await self._request(
+            operation="generate_weekly_review",
+            user_text=request.facts.model_dump_json(),
+            schema=WeeklyReviewOutputDTO,
+            instructions=(
+                "Return only JSON matching the supplied JSON schema. Use only the supplied "
+                "de-identified weekly facts. Give one to three optional general dietary "
+                "references; never output numbers, diagnosis, disease, medication, treatment, "
+                "extreme restriction, coercive language, or reasoning."
+            ),
+            max_output_tokens=360,
+        )
+        try:
+            return WeeklyReviewResult(
+                value=WeeklyReviewOutputDTO.model_validate(payload), metadata=metadata
+            )
+        except ValidationError as error:
+            raise _schema_error(metadata) from error
+
     async def _request(
-        self, *, operation: str, user_text: str, schema: type[ParsedMealDTO] | type[CorrectionDTO]
+        self,
+        *,
+        operation: str,
+        user_text: str,
+        schema: type[ParsedMealDTO] | type[CorrectionDTO] | type[WeeklyReviewOutputDTO],
+        instructions: str | None = None,
+        max_output_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> tuple[dict[str, Any], ProviderCallMetadataDTO]:
         body = {
             "model": self._model,
-            "instructions": (
+            "instructions": instructions or (
                 "Return only JSON matching the supplied JSON schema. Do not include reasoning, "
                 "nutrition values, or text outside JSON."
             ),
             "input": [{"role": "user", "content": user_text}],
             "reasoning": {"effort": "none"},
-            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "max_output_tokens": max_output_tokens,
             "store": False,
             "text": {
                 "format": {

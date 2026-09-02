@@ -18,6 +18,9 @@ from app.providers.reasoning.dto import (
     ProviderCallMetadataDTO,
     ProviderFailureKind,
     ProviderUsageDTO,
+    WeeklyReviewOutputDTO,
+    WeeklyReviewRequest,
+    WeeklyReviewResult,
 )
 
 
@@ -36,6 +39,7 @@ class FakeProviderCall:
 
 ParseOutcome = ParseMealResult | ProviderCallError
 CorrectionOutcome = ApplyCorrectionResult | ProviderCallError
+WeeklyReviewOutcome = WeeklyReviewResult | ProviderCallError
 
 
 class FakeReasoningModelProvider:
@@ -44,6 +48,7 @@ class FakeReasoningModelProvider:
     def __init__(self) -> None:
         self._parse_outcomes: deque[ParseOutcome] = deque()
         self._correction_outcomes: deque[CorrectionOutcome] = deque()
+        self._weekly_review_outcomes: deque[WeeklyReviewOutcome] = deque()
         self.calls: list[FakeProviderCall] = []
 
     def queue_parse_result(
@@ -102,6 +107,36 @@ class FakeReasoningModelProvider:
             )
         )
 
+    def queue_weekly_review_result(
+        self,
+        value: WeeklyReviewOutputDTO,
+        *,
+        usage: ProviderUsageDTO | None = None,
+        latency_ms: int = 0,
+        model_alias: str = "fake-reasoning-v1",
+    ) -> None:
+        self._weekly_review_outcomes.append(
+            WeeklyReviewResult(
+                value=value,
+                metadata=_metadata(usage=usage, latency_ms=latency_ms, model_alias=model_alias),
+            )
+        )
+
+    def queue_weekly_review_error(
+        self, *, kind: ProviderFailureKind | str, code: str, safe_message: str | None = None
+    ) -> None:
+        normalized_kind = (
+            ProviderFailureKind[kind] if isinstance(kind, str) and kind in ProviderFailureKind.__members__
+            else ProviderFailureKind(kind)
+        )
+        self._weekly_review_outcomes.append(
+            ProviderCallError(
+                kind=normalized_kind,
+                code=code,
+                safe_message=safe_message or "Scripted weekly review provider failure.",
+            )
+        )
+
     async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
         del request  # Input can contain meal text; trace storage must not retain it.
         outcome = _next_parse_outcome(self._parse_outcomes)
@@ -120,7 +155,17 @@ class FakeReasoningModelProvider:
             raise outcome
         return outcome
 
-    def _record_call(self, operation: str, outcome: ParseOutcome | CorrectionOutcome) -> None:
+    async def generate_weekly_review(self, request: WeeklyReviewRequest) -> WeeklyReviewResult:
+        del request  # Facts are sensitive health data; this trace intentionally retains no body.
+        outcome = _next_weekly_review_outcome(self._weekly_review_outcomes)
+        self._record_call("generate_weekly_review", outcome)
+        if isinstance(outcome, ProviderCallError):
+            raise outcome
+        return outcome
+
+    def _record_call(
+        self, operation: str, outcome: ParseOutcome | CorrectionOutcome | WeeklyReviewOutcome
+    ) -> None:
         metadata = outcome.metadata if not isinstance(outcome, ProviderCallError) else outcome.metadata
         metadata = metadata or _metadata()
         self.calls.append(
@@ -195,4 +240,16 @@ def _next_correction_outcome(outcomes: deque[CorrectionOutcome]) -> CorrectionOu
         kind=ProviderFailureKind.PERMANENT,
         code="FAKE_UNSCRIPTED_CALL",
         safe_message="No scripted apply_correction outcome is available.",
+    )
+
+
+def _next_weekly_review_outcome(
+    outcomes: deque[WeeklyReviewOutcome],
+) -> WeeklyReviewOutcome:
+    if outcomes:
+        return outcomes.popleft()
+    return ProviderCallError(
+        kind=ProviderFailureKind.PERMANENT,
+        code="FAKE_UNSCRIPTED_CALL",
+        safe_message="No scripted generate_weekly_review outcome is available.",
     )

@@ -2,7 +2,7 @@
 
 ## 职责
 
-`reasoning/` 定义文本推理模型的窄异步 Port、独立 Pydantic DTO、确定性 Fake 和 Provider 选择工厂。它将供应商响应限制为餐食解析/修正观察，不能提供热量、蛋白质、脂肪或碳水真值。
+`reasoning/` 定义文本推理模型的窄异步 Port、独立 Pydantic DTO、确定性 Fake 和 Provider 选择工厂。它将供应商响应限制为餐食解析/修正观察或 facts-only 周复盘自然语言，不能提供热量、蛋白质、脂肪或碳水真值。
 
 ## 运行时供应链说明
 
@@ -19,8 +19,8 @@
 | 文件 | 职责 |
 |---|---|
 | `__init__.py` | Python 包标识 |
-| `dto.py` | extra-forbid Provider 输入、输出、用量和安全错误 DTO |
-| `ports.py` | `ReasoningModelProvider` 异步协议 |
-| `fake.py` | 无网络的可编程结果、错误、用量与安全调用轨迹 |
+| `dto.py` | extra-forbid Provider 输入、输出、用量和安全错误 DTO；周复盘仅允许去标识聚合 facts。 |
+| `ports.py` | `ReasoningModelProvider` 异步协议，包含有界周复盘生成。 |
+| `fake.py` | 无网络的可编程结果、错误、用量与不保留请求体的安全调用轨迹。 |
 | `factory.py` | test 强制 Fake；`fake` 保持本机可预测验收；`deepseek` 从完整环境配置创建受限的 DeepSeek adapter，缺项 fail-closed |
-| `deepseek.py` | `/responses` JSON Schema adapter；仅记录安全调用元数据，未知结果绝不重发 |
+| `deepseek.py` | `/responses` JSON Schema adapter；周复盘固定 360 output token，且仅记录安全调用元数据、未知结果绝不重发。 |

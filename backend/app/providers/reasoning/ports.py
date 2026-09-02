@@ -9,6 +9,8 @@ from app.providers.reasoning.dto import (
     ApplyCorrectionResult,
     ParseMealRequest,
     ParseMealResult,
+    WeeklyReviewRequest,
+    WeeklyReviewResult,
 )
 
 
@@ -18,3 +20,5 @@ class ReasoningModelProvider(Protocol):
     async def apply_correction(
         self, request: ApplyCorrectionRequest
     ) -> ApplyCorrectionResult: ...
+
+    async def generate_weekly_review(self, request: WeeklyReviewRequest) -> WeeklyReviewResult: ...

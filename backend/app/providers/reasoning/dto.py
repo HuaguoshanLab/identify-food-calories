@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 SafeIdentifier = Annotated[
@@ -109,6 +110,67 @@ class ParseMealResult(ProviderDTO):
 
 class ApplyCorrectionResult(ProviderDTO):
     value: CorrectionDTO
+    metadata: ProviderCallMetadataDTO
+
+
+WeeklyReviewCategory = Literal[
+    "meal_balance", "meal_regularity", "food_variety", "portion_awareness"
+]
+
+
+class WeeklyReviewTotalsDTO(ProviderDTO):
+    """Numeric facts are inputs only; generated output can never carry them forward."""
+
+    energy_kcal: int = Field(ge=0)
+    protein_g: int = Field(ge=0)
+    fat_g: int = Field(ge=0)
+    carbohydrate_g: int = Field(ge=0)
+
+
+class WeeklyReviewFactsDTO(ProviderDTO):
+    """The complete de-identified whitelist allowed to cross into a reasoning provider."""
+
+    facts_version: SafeIdentifier
+    week_start: date
+    week_end_exclusive: date
+    week_kind: Literal["completed", "current_to_date"]
+    coverage_days: int = Field(ge=0, le=7)
+    meal_count: int = Field(ge=0)
+    totals: WeeklyReviewTotalsDTO
+    allowed_patterns: list[WeeklyReviewCategory] = Field(default_factory=list, max_length=4)
+    coverage_sufficient: bool
+
+    @field_validator("allowed_patterns")
+    @classmethod
+    def reject_duplicate_patterns(cls, values: list[WeeklyReviewCategory]) -> list[WeeklyReviewCategory]:
+        if len(values) != len(set(values)):
+            raise ValueError("weekly review patterns must be unique")
+        return values
+
+
+class WeeklyReviewRequest(ProviderDTO):
+    """Transient facts-only request; ledgers retain its digest, never this body."""
+
+    facts: WeeklyReviewFactsDTO
+    prompt_version: SafeIdentifier = "weekly-review-prompt.v1"
+    schema_version: SafeIdentifier = "weekly-review-schema.v1"
+    retry_reason: Literal["schema_or_safety_invalid"] | None = None
+
+
+class WeeklyReviewSuggestionDTO(ProviderDTO):
+    category: WeeklyReviewCategory
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=12, max_length=220)]
+
+
+class WeeklyReviewOutputDTO(ProviderDTO):
+    """Structured shape only; graph-owned semantics revalidate every result."""
+
+    suggestions: list[WeeklyReviewSuggestionDTO] = Field(min_length=1, max_length=3)
+    disclaimer: Literal["仅基于已记录数据，供一般饮食参考，不构成医疗建议。"]
+
+
+class WeeklyReviewResult(ProviderDTO):
+    value: WeeklyReviewOutputDTO
     metadata: ProviderCallMetadataDTO
 
 

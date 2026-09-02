@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import importlib.util
+import sys
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -10,14 +13,22 @@ import pytest
 
 from app.dashboard.weekly_review_graph import WeeklyReviewGraph, WeeklyReviewGraphConfig, WeeklyReviewGraphResult
 from app.providers.reasoning.fake import FakeReasoningModelProvider
-from tests.evals.fixtures.weekly_review.loader import load_catalog
 
 
 CATALOG_PATH = Path(__file__).parents[1] / "evals/fixtures/weekly_review/weekly_review_cases.v1.json"
 
 
 def _cases() -> list[Mapping[str, object]]:
-    return load_catalog(CATALOG_PATH)
+    spec = importlib.util.spec_from_file_location("weekly_review_loader", CATALOG_PATH.parent / "loader.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return [
+        {"id": case.id, "facts": case.facts, "config": case.config,
+         "provider_script": case.provider_script, "expected": case.expected, "ledger": case.ledger}
+        for case in module.load_catalog(CATALOG_PATH)
+    ]
 
 
 def _graph(case: Mapping[str, object]) -> tuple[WeeklyReviewGraph, FakeReasoningModelProvider]:
@@ -25,11 +36,10 @@ def _graph(case: Mapping[str, object]) -> tuple[WeeklyReviewGraph, FakeReasoning
     return WeeklyReviewGraph(provider=provider, config=WeeklyReviewGraphConfig.from_fixture(case["config"])), provider
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("case", _cases(), ids=lambda case: str(case["id"]))
-async def test_frozen_cases_keep_calls_and_minimal_ledger_stable(case: Mapping[str, object]) -> None:
+def test_frozen_cases_keep_calls_and_minimal_ledger_stable(case: Mapping[str, object]) -> None:
     graph, provider = _graph(case)
-    result = await graph.ainvoke_fixture(case)
+    result = asyncio.run(graph.ainvoke_fixture(case))
     expected = case["expected"]
     assert isinstance(result, WeeklyReviewGraphResult)
     assert result.code == expected["stable_code"]
@@ -44,23 +54,21 @@ async def test_frozen_cases_keep_calls_and_minimal_ledger_stable(case: Mapping[s
     }
 
 
-@pytest.mark.asyncio
-async def test_rejects_sensitive_fact_before_provider_work() -> None:
+def test_rejects_sensitive_fact_before_provider_work() -> None:
     case = next(case for case in _cases() if case["id"] == "case-13-privacy-contamination")
     graph, provider = _graph(case)
     contaminated = deepcopy(case)
     contaminated["facts"]["email"] = "private@example.invalid"
-    result = await graph.ainvoke_fixture(contaminated)
+    result = asyncio.run(graph.ainvoke_fixture(contaminated))
     assert result.code == "WEEKLY_REVIEW_FACTS_INVALID"
     assert result.model_calls == 0
     assert provider.calls == []
 
 
-@pytest.mark.asyncio
-async def test_unknown_outcome_is_never_replayed() -> None:
+def test_unknown_outcome_is_never_replayed() -> None:
     case = next(case for case in _cases() if case["id"] == "case-01-sufficient-variety")
     graph, provider = _graph(case)
     provider.queue_weekly_review_error(kind="OUTCOME_UNKNOWN", code="PROVIDER_OUTCOME_UNKNOWN")
-    result = await graph.ainvoke_fixture(case)
+    result = asyncio.run(graph.ainvoke_fixture(case))
     assert result.code == "PROVIDER_OUTCOME_UNKNOWN"
     assert result.model_calls == len(provider.calls) == 1
