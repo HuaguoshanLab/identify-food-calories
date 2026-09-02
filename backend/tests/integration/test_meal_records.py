@@ -68,15 +68,15 @@ def test_completed_report_can_be_confirmed_updated_and_deleted_without_deleting_
                 assert analyzed.status_code == 201, analyzed.text
                 thread_id = analyzed.json()["thread_id"]
                 report_catalog_version = analyzed.json()["report"]["items"][0]["catalog_version"]
-                saved = client.post("/api/v1/meal-records", json={"thread_id": thread_id, "command_key": "save-key-00000001"}, headers=headers)
+                saved = client.post("/api/v1/meal-records", json={"thread_id": thread_id, "command_key": "save-key-00000001", "time_zone": "UTC"}, headers=headers)
                 assert saved.status_code == 201, saved.text
                 record = saved.json()
                 assert record["energy_kcal"] == "130.000000" and record["nutrition_catalog_version"] == report_catalog_version
-                repeated = client.post("/api/v1/meal-records", json={"thread_id": thread_id, "command_key": "save-key-00000001"}, headers=headers)
+                repeated = client.post("/api/v1/meal-records", json={"thread_id": thread_id, "command_key": "save-key-00000001", "time_zone": "UTC"}, headers=headers)
                 assert repeated.status_code == 201 and repeated.json()["id"] == record["id"]
                 assert client.get(f"/api/v1/meal-records/{record['id']}", headers={"Authorization": f"Bearer {other_token}"}).status_code == 404
                 changed_time = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-                updated = client.patch(f"/api/v1/meal-records/{record['id']}", json={"consumed_at": changed_time}, headers=headers)
+                updated = client.patch(f"/api/v1/meal-records/{record['id']}", json={"consumed_at": changed_time, "time_zone": "UTC"}, headers=headers)
                 assert updated.status_code == 200 and updated.json()["id"] == record["id"] and updated.json()["energy_kcal"] == record["energy_kcal"]
                 assert client.delete(f"/api/v1/meal-records/{record['id']}", headers=headers).status_code == 204
                 assert client.get(f"/api/v1/meal-records/{record['id']}", headers=headers).status_code == 404

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
@@ -22,6 +22,13 @@ class MealRecord(Base):
         UniqueConstraint("user_id", "source_run_id", name="uq_meal_records_user_source_run"),
         UniqueConstraint("user_id", "command_key", name="uq_meal_records_user_command_key"),
         Index("ix_meal_records_user_consumed_active", "user_id", "consumed_at", "id", postgresql_where=text("deleted_at IS NULL")),
+        Index("ix_meal_records_user_local_date_active", "user_id", "consumed_local_date", "id", postgresql_where=text("deleted_at IS NULL")),
+        CheckConstraint(
+            "(consumed_time_zone IS NULL AND consumed_local_date IS NULL AND local_date_source IS NULL) "
+            "OR (consumed_time_zone IS NOT NULL AND consumed_local_date IS NOT NULL "
+            "AND local_date_source IN ('submitted_time_zone', 'confirmed_timezone_backfill'))",
+            name="ck_meal_records_local_date_attribution",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -31,6 +38,9 @@ class MealRecord(Base):
     agent_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_runs.id", ondelete="RESTRICT"), nullable=False)
     command_key: Mapped[str] = mapped_column(String(128), nullable=False)
     consumed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_time_zone: Mapped[str | None] = mapped_column(String(64))
+    consumed_local_date: Mapped[date | None] = mapped_column(nullable=True)
+    local_date_source: Mapped[str | None] = mapped_column(String(48))
     nutrition_catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
     calculation_version: Mapped[str] = mapped_column(String(80), nullable=False)
     energy_kcal: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
@@ -42,6 +52,36 @@ class MealRecord(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     items: Mapped[list["MealRecordItem"]] = relationship(back_populates="record", cascade="all, delete-orphan")
+
+
+class DashboardTimezonePreference(Base):
+    """One user-confirmed dashboard statistical basis, never a claim about historical location."""
+
+    __tablename__ = "dashboard_timezone_preferences"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    time_zone: Mapped[str] = mapped_column(String(64), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class DashboardTimezoneBackfillAudit(Base):
+    """Immutable evidence that a user explicitly chose the basis used for legacy rows."""
+
+    __tablename__ = "dashboard_timezone_backfill_audits"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_dashboard_timezone_backfill_audits_user"),
+        CheckConstraint("records_backfilled >= 0", name="ck_dashboard_timezone_backfill_audits_count"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    confirmed_time_zone: Mapped[str] = mapped_column(String(64), nullable=False)
+    records_backfilled: Mapped[int] = mapped_column(Integer, nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class MealRecordItem(Base):

@@ -109,5 +109,5 @@ def test_foreign_record_uuid_has_the_same_not_found_result_for_get_patch_and_del
     service = StubMealRecordService(record)
     with _client(principal=other, service=service) as client:
         assert client.get(f"/api/v1/meal-records/{record.id}").status_code == 404
-        assert client.patch(f"/api/v1/meal-records/{record.id}", json={"consumed_at": NOW.isoformat()}).status_code == 404
+        assert client.patch(f"/api/v1/meal-records/{record.id}", json={"consumed_at": NOW.isoformat(), "time_zone": "UTC"}).status_code == 404
         assert client.delete(f"/api/v1/meal-records/{record.id}").status_code == 404

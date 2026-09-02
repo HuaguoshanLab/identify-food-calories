@@ -25,3 +25,5 @@
 | `0009_direct_memory_provisioning.py` | 直接偏好写入的可审计 provisioning 状态与幂等 request key。 |
 | `0010_planning_profiles.py` | 最小化的用户身体资料/目标、active-row partial unique index 与软删除 schema。 |
 | `0011_controlled_recipes.py` | 受审核 project-authored 菜谱、固定克数食材引用与 catalog FK schema。 |
+| `0012_activate_controlled_recipes_v2.py` | 停用未达标的 v1 受控菜谱候选，保留不可变审计历史。 |
+| `0013_dashboard_time_attribution.py` | 用户确认统计时区、餐食本地日冻结与历史回填审计 schema。 |

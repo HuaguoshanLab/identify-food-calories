@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,12 +15,31 @@ class MealRecordConfirmRequest(BaseModel):
     thread_id: uuid.UUID
     command_key: str = Field(min_length=16, max_length=128)
     consumed_at: datetime | None = None
+    time_zone: str = Field(min_length=1, max_length=64)
 
 
 class MealRecordUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     consumed_at: datetime
+    time_zone: str = Field(min_length=1, max_length=64)
+
+
+class DashboardTimezoneConfirmationRequest(BaseModel):
+    """A statistical basis confirmation, not a reconstruction of historical whereabouts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    time_zone: str = Field(min_length=1, max_length=64)
+
+
+class DashboardTimezoneConfirmationResponse(BaseModel):
+    """Safe current-basis DTO with no claim about historical location."""
+
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    dashboard_time_zone: str
+    confirmed_at: datetime
 
 
 class MealRecordItemResponse(BaseModel):
@@ -42,6 +61,9 @@ class MealRecordResponse(BaseModel):
 
     id: uuid.UUID
     consumed_at: datetime
+    consumed_time_zone: str | None
+    consumed_local_date: date | None
+    local_date_source: str | None
     nutrition_catalog_version: str
     calculation_version: str
     energy_kcal: Decimal

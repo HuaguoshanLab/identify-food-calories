@@ -78,11 +78,14 @@ class FakeMealRecordRepository:
     def list_records_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
         return sorted((record for record in self.records if record.user_id == user_id and record.deleted_at is None), key=lambda record: (record.consumed_at, record.id), reverse=True)
 
-    def get_dashboard_time_zone_for_user(self, *, user_id: uuid.UUID, for_update: bool = False) -> str | None:
-        return self.dashboard_time_zones.get(user_id)
+    def get_dashboard_time_zone_preference_for_user(self, *, user_id: uuid.UUID, for_update: bool = False) -> object | None:
+        return object() if user_id in self.dashboard_time_zones else None
 
-    def set_dashboard_time_zone_for_user(self, *, user_id: uuid.UUID, time_zone: str, confirmed_at: datetime) -> None:
+    def add_dashboard_time_zone_preference(self, preference: object) -> object:
+        user_id = getattr(preference, "user_id")
+        time_zone = getattr(preference, "time_zone")
         self.dashboard_time_zones[user_id] = time_zone
+        return preference
 
     def list_records_without_local_date_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
         return [record for record in self.records if record.user_id == user_id and record.consumed_local_date is None]
@@ -100,10 +103,10 @@ def test_confirm_requires_the_current_users_completed_complete_report() -> None:
     owner, other, thread = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     repository = FakeMealRecordRepository(run=_run(user_id=owner, thread_id=thread), report=_report())
     with pytest.raises(MealRecordConfirmationUnavailable):
-        _service(repository).confirm_from_completed_run(user_id=other, thread_id=thread, command_key="save-key-00000001", consumed_at=None)
+        _service(repository).confirm_from_completed_run(user_id=other, thread_id=thread, command_key="save-key-00000001", consumed_at=None, time_zone="UTC")
     repository.report = _report(partial=True)
     with pytest.raises(MealRecordConfirmationUnavailable):
-        _service(repository).confirm_from_completed_run(user_id=owner, thread_id=thread, command_key="save-key-00000001", consumed_at=None)
+        _service(repository).confirm_from_completed_run(user_id=owner, thread_id=thread, command_key="save-key-00000001", consumed_at=None, time_zone="UTC")
     assert repository.records == []
 
 
@@ -112,8 +115,8 @@ def test_confirm_is_idempotent_and_uses_only_completed_report_snapshot() -> None
     repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
     commits: list[bool] = []
     service = _service(repository, commits)
-    first = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=NOW - timedelta(hours=1))
-    second = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=NOW - timedelta(hours=1))
+    first = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=NOW - timedelta(hours=1), time_zone="UTC")
+    second = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=NOW - timedelta(hours=1), time_zone="UTC")
     assert first.id == second.id and len(repository.records) == 1 and commits == [True]
     assert first.energy_kcal == Decimal("130.0")
     assert first.items[0].food_reference and first.nutrition_catalog_version == "fdc-seed-v1"
@@ -123,10 +126,10 @@ def test_future_time_update_keeps_record_id_and_does_not_recalculate_snapshot() 
     user_id, thread_id = uuid.uuid4(), uuid.uuid4()
     repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
     service = _service(repository)
-    record = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=None)
+    record = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=None, time_zone="UTC")
     with pytest.raises(ConsumedAtInvalid):
-        service.update_record(record_id=record.id, user_id=user_id, consumed_at=NOW + timedelta(seconds=1))
-    updated = service.update_record(record_id=record.id, user_id=user_id, consumed_at=NOW - timedelta(days=2))
+        service.update_record(record_id=record.id, user_id=user_id, consumed_at=NOW + timedelta(seconds=1), time_zone="UTC")
+    updated = service.update_record(record_id=record.id, user_id=user_id, consumed_at=NOW - timedelta(days=2), time_zone="UTC")
     assert updated.id == record.id and updated.energy_kcal == Decimal("130.0") and updated.updated_at == NOW
 
 
@@ -134,7 +137,7 @@ def test_delete_hides_record_and_items_without_deleting_agent_thread() -> None:
     user_id, thread_id = uuid.uuid4(), uuid.uuid4()
     repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
     service = _service(repository)
-    record = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=None)
+    record = service.confirm_from_completed_run(user_id=user_id, thread_id=thread_id, command_key="save-key-00000001", consumed_at=None, time_zone="UTC")
     service.delete_record(record_id=record.id, user_id=user_id)
     assert service.list_records(user_id=user_id) == []
     assert all(item.deleted_at == NOW for item in record.items)

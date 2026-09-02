@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.records.models import MealRecord, MealRecordItem
+from sqlalchemy.exc import IntegrityError
+
+from app.records.models import DashboardTimezoneBackfillAudit, DashboardTimezonePreference, MealRecord, MealRecordItem
 from app.records.ports import MealRecordRepository
+from app.records.schemas import DashboardTimezoneConfirmationResponse
 
 
 class MealRecordUnavailable(LookupError):
@@ -26,6 +30,14 @@ class MealRecordCommandConflict(ValueError):
 
 class ConsumedAtInvalid(ValueError):
     """Future meal times are forbidden because they would fabricate history."""
+
+
+class InvalidTimeZone(ValueError):
+    """Timezone input must be a named IANA zone that zoneinfo can resolve."""
+
+
+class DashboardTimeZoneAlreadyConfirmed(ValueError):
+    """Legacy attribution is intentionally a one-time user-confirmed operation."""
 
 
 class MealRecordService:
@@ -45,11 +57,13 @@ class MealRecordService:
         self._rollback = rollback or (lambda: None)
 
     def confirm_from_completed_run(
-        self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None
+        self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None,
+        time_zone: str,
     ) -> MealRecord:
         now = self._now()
         when = consumed_at or now
         self._validate_consumed_at(when, now)
+        zone = self._validated_time_zone(time_zone)
         by_command = self._repository.get_record_for_command_for_user(
             command_key=command_key, user_id=user_id, include_deleted=True
         )
@@ -72,7 +86,9 @@ class MealRecordService:
         snapshot = self._validated_snapshot(report)
         record = MealRecord(
             id=uuid.uuid4(), user_id=user_id, source_run_id=run.id, agent_thread_id=thread_id, agent_run_id=run.id,
-            command_key=command_key, consumed_at=when, nutrition_catalog_version=snapshot["catalog_version"],
+            command_key=command_key, consumed_at=when, consumed_time_zone=zone.key,
+            consumed_local_date=self._local_date(when, zone), local_date_source="submitted_time_zone",
+            nutrition_catalog_version=snapshot["catalog_version"],
             calculation_version=snapshot["calculation_version"], energy_kcal=snapshot["energy_kcal"],
             protein_g=snapshot["protein_g"], fat_g=snapshot["fat_g"], carbohydrate_g=snapshot["carbohydrate_g"],
             created_at=now, updated_at=now, deleted_at=None,
@@ -102,18 +118,60 @@ class MealRecordService:
             raise MealRecordUnavailable("meal record is unavailable")
         return record
 
-    def update_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime) -> MealRecord:
+    def update_record(
+        self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str
+    ) -> MealRecord:
         now = self._now()
         self._validate_consumed_at(consumed_at, now)
+        zone = self._validated_time_zone(time_zone)
         record = self._repository.get_record_for_user(record_id=record_id, user_id=user_id, for_update=True)
         if record is None:
             raise MealRecordUnavailable("meal record is unavailable")
         try:
             # Changing occurrence time must not silently recalculate an historical nutrition snapshot.
             record.consumed_at = consumed_at
+            record.consumed_time_zone = zone.key
+            record.consumed_local_date = self._local_date(consumed_at, zone)
+            record.local_date_source = "submitted_time_zone"
             record.updated_at = now
             self._commit()
             return record
+        except Exception:
+            self._rollback()
+            raise
+
+    def confirm_dashboard_time_zone(
+        self, *, user_id: uuid.UUID, time_zone: str
+    ) -> DashboardTimezoneConfirmationResponse:
+        """Backfill only after an explicit current statistical-basis confirmation."""
+
+        now = self._now()
+        zone = self._validated_time_zone(time_zone)
+        if self._repository.get_dashboard_time_zone_preference_for_user(user_id=user_id, for_update=True):
+            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed")
+        legacy_records = self._repository.list_records_without_local_date_for_user(user_id=user_id)
+        try:
+            self._repository.add_dashboard_time_zone_preference(
+                DashboardTimezonePreference(user_id=user_id, time_zone=zone.key, confirmed_at=now)
+            )
+            for record in legacy_records:
+                record.consumed_time_zone = zone.key
+                record.consumed_local_date = self._local_date(record.consumed_at, zone)
+                record.local_date_source = "confirmed_timezone_backfill"
+                record.updated_at = now
+            self._repository.add_timezone_backfill_audit(
+                DashboardTimezoneBackfillAudit(
+                    id=uuid.uuid4(), user_id=user_id, confirmed_time_zone=zone.key,
+                    records_backfilled=len(legacy_records), confirmed_at=now,
+                )
+            )
+            self._commit()
+            return DashboardTimezoneConfirmationResponse(dashboard_time_zone=zone.key, confirmed_at=now)
+        except IntegrityError as error:
+            # The unique preference/audit constraints are the final one-time-confirmation guard
+            # when concurrent requests both observed no row before acquiring their transaction locks.
+            self._rollback()
+            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed") from error
         except Exception:
             self._rollback()
             raise
@@ -138,6 +196,17 @@ class MealRecordService:
     def _validate_consumed_at(consumed_at: datetime, now: datetime) -> None:
         if consumed_at.tzinfo is None or consumed_at > now:
             raise ConsumedAtInvalid("consumed_at must be a past or current aware datetime")
+
+    @staticmethod
+    def _validated_time_zone(time_zone: str) -> ZoneInfo:
+        try:
+            return ZoneInfo(time_zone)
+        except (TypeError, ZoneInfoNotFoundError) as error:
+            raise InvalidTimeZone("time_zone must be a valid IANA timezone") from error
+
+    @staticmethod
+    def _local_date(consumed_at: datetime, zone: ZoneInfo) -> date:
+        return consumed_at.astimezone(zone).date()
 
     @staticmethod
     def _decimal(value: object, *, field: str) -> Decimal:

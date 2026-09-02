@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.agent.models import AgentEvent, AgentRun
-from app.records.models import MealRecord
+from app.records.models import DashboardTimezoneBackfillAudit, DashboardTimezonePreference, MealRecord
 
 
 class SqlAlchemyMealRecordRepository:
@@ -75,6 +75,35 @@ class SqlAlchemyMealRecordRepository:
                 self._record_statement(user_id=user_id).order_by(MealRecord.consumed_at.desc(), MealRecord.id.desc())
             )
         )
+
+    def get_dashboard_time_zone_preference_for_user(
+        self, *, user_id: uuid.UUID, for_update: bool = False
+    ) -> DashboardTimezonePreference | None:
+        statement = select(DashboardTimezonePreference).where(DashboardTimezonePreference.user_id == user_id)
+        if for_update:
+            statement = statement.with_for_update()
+        return self._session.scalar(statement)
+
+    def add_dashboard_time_zone_preference(
+        self, preference: DashboardTimezonePreference
+    ) -> DashboardTimezonePreference:
+        self._session.add(preference)
+        self._session.flush()
+        return preference
+
+    def list_records_without_local_date_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
+        return list(
+            self._session.scalars(
+                self._record_statement(user_id=user_id).where(MealRecord.consumed_local_date.is_(None))
+            )
+        )
+
+    def add_timezone_backfill_audit(
+        self, audit: DashboardTimezoneBackfillAudit
+    ) -> DashboardTimezoneBackfillAudit:
+        self._session.add(audit)
+        self._session.flush()
+        return audit
 
     @staticmethod
     def _record_statement(*, user_id: uuid.UUID, include_deleted: bool = False):

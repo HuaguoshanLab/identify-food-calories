@@ -12,9 +12,17 @@ from sqlalchemy.orm import Session
 from app.auth.api import AuthenticatedPrincipal
 from app.core.database import get_session
 from app.records.repository import SqlAlchemyMealRecordRepository
-from app.records.schemas import MealRecordConfirmRequest, MealRecordResponse, MealRecordUpdateRequest
+from app.records.schemas import (
+    DashboardTimezoneConfirmationRequest,
+    DashboardTimezoneConfirmationResponse,
+    MealRecordConfirmRequest,
+    MealRecordResponse,
+    MealRecordUpdateRequest,
+)
 from app.records.service import (
     ConsumedAtInvalid,
+    DashboardTimeZoneAlreadyConfirmed,
+    InvalidTimeZone,
     MealRecordCommandConflict,
     MealRecordConfirmationUnavailable,
     MealRecordService,
@@ -42,9 +50,12 @@ def confirm_meal_record(
     try:
         return MealRecordResponse.model_validate(
             service.confirm_from_completed_run(
-                user_id=principal, thread_id=payload.thread_id, command_key=payload.command_key, consumed_at=payload.consumed_at
+                user_id=principal, thread_id=payload.thread_id, command_key=payload.command_key,
+                consumed_at=payload.consumed_at, time_zone=payload.time_zone,
             )
         )
+    except InvalidTimeZone:
+        raise _bad_request("time_zone 必须是有效的 IANA 时区。") from None
     except ConsumedAtInvalid:
         raise _validation("consumed_at 必须是当前或过去的带时区时间。") from None
     except MealRecordConfirmationUnavailable:
@@ -56,6 +67,22 @@ def confirm_meal_record(
 @router.get("", operation_id="listMealRecords", response_model=list[MealRecordResponse])
 def list_meal_records(principal: AuthenticatedPrincipal, service: ServiceDependency) -> list[MealRecordResponse]:
     return [MealRecordResponse.model_validate(record) for record in service.list_records(user_id=principal)]
+
+
+@router.post(
+    "/dashboard-time-zone-confirmations",
+    operation_id="confirmDashboardTimeZone",
+    response_model=DashboardTimezoneConfirmationResponse,
+)
+def confirm_dashboard_time_zone(
+    payload: DashboardTimezoneConfirmationRequest, principal: AuthenticatedPrincipal, service: ServiceDependency
+) -> DashboardTimezoneConfirmationResponse:
+    try:
+        return service.confirm_dashboard_time_zone(user_id=principal, time_zone=payload.time_zone)
+    except InvalidTimeZone:
+        raise _bad_request("time_zone 必须是有效的 IANA 时区。") from None
+    except DashboardTimeZoneAlreadyConfirmed:
+        raise _conflict("统计时区已经确认，不能再次回填历史记录。") from None
 
 
 @router.get("/{record_id}", operation_id="getMealRecord", response_model=MealRecordResponse)
@@ -72,8 +99,13 @@ def update_meal_record(
 ) -> MealRecordResponse:
     try:
         return MealRecordResponse.model_validate(
-            service.update_record(record_id=record_id, user_id=principal, consumed_at=payload.consumed_at)
+            service.update_record(
+                record_id=record_id, user_id=principal, consumed_at=payload.consumed_at,
+                time_zone=payload.time_zone,
+            )
         )
+    except InvalidTimeZone:
+        raise _bad_request("time_zone 必须是有效的 IANA 时区。") from None
     except ConsumedAtInvalid:
         raise _validation("consumed_at 必须是当前或过去的带时区时间。") from None
     except MealRecordUnavailable:
@@ -95,6 +127,10 @@ def _unavailable() -> HTTPException:
 
 def _validation(message: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=message)
+
+
+def _bad_request(message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
 
 
 def _conflict(message: str) -> HTTPException:

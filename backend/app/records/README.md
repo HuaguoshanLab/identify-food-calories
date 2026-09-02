@@ -15,9 +15,9 @@
 | 路径 | 职责 |
 |---|---|
 | `__init__.py` | Python 包标识 |
-| `models.py` | 餐食快照、记忆授权账本和删除 outbox ORM |
+| `models.py` | 餐食快照、看板统计时区确认/回填审计、记忆授权账本和删除 outbox ORM |
 | `ports.py` | 记录 Service 所依赖的窄 Repository Protocol |
-| `repository.py` | tenant-filtered、flush-only SQLAlchemy adapter |
-| `service.py` | 显式确认、修改、删除及事务边界 |
-| `schemas.py` | 独立 HTTP 请求/响应 DTO |
-| `api.py` | 认证保护的餐食记录 REST 路由 |
+| `repository.py` | tenant-filtered、flush-only SQLAlchemy adapter（含统计时区回填查询） |
+| `service.py` | 显式确认、修改、删除、IANA 本地日冻结及一次性回填事务边界 |
+| `schemas.py` | 独立 HTTP 请求/响应 DTO，不描述历史所在地 |
+| `api.py` | 认证保护的餐食记录与统计时区确认 REST 路由 |
