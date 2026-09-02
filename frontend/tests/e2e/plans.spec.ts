@@ -39,7 +39,7 @@ test.describe('phase 5 daily planning H5', () => {
     }
   })
 
-  test('a real user can adjust one owned plan without changing the other meal cards', async ({ page, request }) => {
+  test('a real user can adjust one owned plan without changing the other meal cards or the reading position', async ({ page, request }) => {
     await clearMailbox(request)
     const account: E2eAccount = { email: 'daily-plan-adjustment@example.test', password: 'correct-horse-battery-staple' }
     await page.goto('/register')
@@ -60,9 +60,22 @@ test.describe('phase 5 daily planning H5', () => {
     const breakfast = await mealCard(page, '早餐').innerText()
     const dinner = await mealCard(page, '晚餐').innerText()
     await page.getByLabel('告诉我们想换什么').fill('午餐换清淡一些')
-    await page.getByRole('button', { name: '提交调整' }).click()
+    const submitButton = page.getByRole('button', { name: '提交调整' })
+    const scrollArea = page.getByTestId('page-scroll-area')
+    await scrollArea.evaluate((element) => { element.scrollTop = element.scrollHeight })
+    const scrollTopBeforeAdjustment = await scrollArea.evaluate((element) => element.scrollTop)
+    expect(scrollTopBeforeAdjustment).toBeGreaterThan(0)
+    await submitButton.focus()
+    await expect(submitButton).toBeFocused()
+    await submitButton.click()
 
-    await expect(page.getByText('已更新午餐，其余餐次保持不变。')).toBeFocused()
+    const completionSummary = page.getByText('已更新午餐，其余餐次保持不变。')
+    await expect(completionSummary).toBeVisible()
+    await expect(completionSummary).toHaveAttribute('aria-live', 'polite')
+    await expect(completionSummary).not.toHaveAttribute('tabindex')
+    await expect(completionSummary).not.toBeFocused()
+    await expect(submitButton).toBeFocused()
+    await expect.poll(() => scrollArea.evaluate((element) => element.scrollTop)).toBe(scrollTopBeforeAdjustment)
     await expect(mealCard(page, '午餐')).toContainText('已调整')
     expect(await mealCard(page, '早餐').innerText()).toBe(breakfast)
     expect(await mealCard(page, '晚餐').innerText()).toBe(dinner)

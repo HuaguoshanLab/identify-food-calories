@@ -153,7 +153,7 @@ describe('PlanPage', () => {
     expect(screen.queryByText('暂不能生成个性化餐单')).not.toBeInTheDocument()
   })
 
-  it('submits one labelled adjustment on the owned thread, updates only lunch, and focuses a safe replacement summary', async () => {
+  it('submits one labelled adjustment on the owned thread without moving focus to the polite replacement summary', async () => {
     const user = userEvent.setup()
     let adjusted = false
     const request = vi.fn(async (path: string, init?: RequestInit) => {
@@ -176,7 +176,10 @@ describe('PlanPage', () => {
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
     await screen.findByRole('heading', { name: '今日三餐计划' })
     await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换清淡一些，provider 不应显示')
-    await user.click(screen.getByRole('button', { name: '提交调整' }))
+    const submitButton = screen.getByRole('button', { name: '提交调整' })
+    submitButton.focus()
+    expect(submitButton).toHaveFocus()
+    await user.click(submitButton)
 
     const adjustment = request.mock.calls.find(([path]) => path.endsWith('/input'))
     expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({ kind: 'description', text: '午餐换清淡一些，provider 不应显示' })
@@ -184,7 +187,11 @@ describe('PlanPage', () => {
     expect(screen.getAllByText('已调整')).toHaveLength(1)
     expect(screen.getByText('已替换：鸡胸肉米饭午餐')).toBeInTheDocument()
     expect(screen.getByText('已满足：清淡')).toBeInTheDocument()
-    expect(screen.getByText('已更新午餐，其余餐次保持不变。')).toHaveFocus()
+    const completionSummary = screen.getByText('已更新午餐，其余餐次保持不变。')
+    expect(completionSummary).toHaveAttribute('aria-live', 'polite')
+    expect(completionSummary).not.toHaveAttribute('tabindex')
+    expect(completionSummary).not.toHaveFocus()
+    expect(submitButton).toHaveFocus()
     expect(screen.getByText('燕麦鸡蛋早餐')).toBeInTheDocument()
     expect(screen.getByText('三文鱼蔬菜晚餐')).toBeInTheDocument()
     expect(screen.queryByText('provider 不应显示')).not.toBeInTheDocument()
