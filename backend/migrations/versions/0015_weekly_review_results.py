@@ -3,6 +3,10 @@
 Revision ID: 0015
 Revises: 0014
 Create Date: 2026-09-02
+
+Phase 06 originally reserved 0013 for this change, but dashboard time attribution
+and planning completion already own 0013 and 0014.  Keep this migration on 0015
+to preserve the sole Alembic head; subsequent Phase 06 revisions continue at 0016.
 """
 
 from __future__ import annotations
