@@ -20,3 +20,6 @@
 | `auth/` | 管理员运行时身份、令牌清理和后续认证体验；不承担后端授权。 |
 | `styles/` | 后台语义 token、全局可访问性与减弱动画基线。 |
 | `test/` | Vitest、Testing Library、MSW 的共享测试运行时。 |
+| `layouts/` | 后台页面壳、导航和桌面/窄屏结构；不发领域请求，目录索引见 `layouts/README.md`。 |
+| `components/` | 仅跨两个以上后台 feature 的共享展示组件与官方 UI 原语；目录索引见 `components/README.md`。 |
+| `features/` | 按后台能力隔离的 API、Query、页面和组件；目录索引见 `features/README.md`。 |

@@ -22,9 +22,9 @@
 ```bash
 cd admin-frontend
 npm ci
+npm test
 npm run typecheck
 npm run build
-npm test
 npm run test:e2e
 ```
 
@@ -40,6 +40,7 @@ npm run test:e2e
 | `AGENTS.md` | 管理后台局部实现、安全、测试和文档约束 |
 | `ARCHITECTURE.md` | 独立后台的模块地图、依赖方向、新代码落点与变更门禁 |
 | `src/` | 独立 SPA 入口、认证运行时、全局样式和共享测试 setup；目录索引见 `src/README.md`。 |
+| `tests/` | 后台浏览器级跨栈验收；只能通过真实产品页面和公开 `/api/v1/admin/*` API 建立证据，目录索引见 `tests/README.md`。 |
 | `package.json` / `package-lock.json` | 已审计直接依赖、脚本与可复现 npm 安装锁 |
 | `vite.config.ts` | 独立端口、开发代理与生产 admin API fail-closed 校验 |
 | `tsconfig*.json` / `vite-env.d.ts` | 应用与 Vite 配置的严格 TypeScript project references、初始环境类型锚点 |
