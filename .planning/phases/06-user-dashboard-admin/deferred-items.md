@@ -23,3 +23,11 @@
 - **Issue:** `uv run pytest tests/architecture -q` fails because the existing parent index omits the already-present `backend/tests/agent/` directory.
 - **Scope:** The dashboard test directory is indexed by this plan; the missing Agent index predates and is unrelated to dashboard overview/history.
 - **Suggested follow-up:** Update `backend/tests/README.md` with the existing Agent test-directory entry in a documentation maintenance task, then re-run the architecture contract.
+
+## Pre-existing Frontend Fast Refresh Lint Violation
+
+- **Observed during:** 06-04 Task 2 validation
+- **Location:** `frontend/src/features/agent/components/SafeProgressStages.tsx:8`
+- **Issue:** `npm run lint` fails `react-refresh/only-export-components` because the file exports a non-component alongside a component.
+- **Scope:** The records dashboard neither imports nor modifies this Agent component.
+- **Suggested follow-up:** Move the shared constant or function to the Agent feature’s owned module, then re-run the full frontend lint gate.
