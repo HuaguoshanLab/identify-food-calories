@@ -64,7 +64,13 @@ blocked: 0
   reason: "用户报告：点击提交调整后，页面整体自动滚到上方，需要手动往下滑动才能查看调整结果。"
   severity: minor
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "PlanPage.tsx 的 effect 在 updatedSlot 变化时对 sr-only 的替换摘要调用 focus()；浏览器会滚动到这个不可见元素，导致用户离开提交调整时的阅读位置。现有单测还把该隐藏元素获得焦点当成正确行为。"
+  artifacts:
+    - path: "frontend/src/features/plans/components/PlanPage.tsx"
+      issue: "第 88 行的 programmatic focus 指向第 160 行的 sr-only 摘要。"
+    - path: "frontend/src/features/plans/components/PlanPage.test.tsx"
+      issue: "局部调整测试断言隐藏摘要拥有焦点，固化了页面滚动副作用。"
+  missing:
+    - "保留 aria-live 通知，但取消对隐藏摘要的 programmatic focus。"
+    - "改为验证视觉滚动位置不被调整完成逻辑劫持。"
+  debug_session: "inline: PlanPage focus-effect inspection"
