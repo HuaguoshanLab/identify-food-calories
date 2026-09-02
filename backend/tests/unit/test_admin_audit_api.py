@@ -35,7 +35,7 @@ def test_audit_endpoint_requires_current_role_and_returns_minimal_projection() -
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
     app.dependency_overrides[get_admin_service] = StubAuditService
     with TestClient(app) as client:
-        response = client.get("/api/v1/admin/audit?limit=1&action=catalog.publish")
+        response = client.get("/api/v1/admin/audit?limit=1&action=catalog.publish&actor=admin-id")
     assert response.status_code == 200
     assert set(response.json()["items"][0]) == {
         "id", "actor_identifier", "occurred_at", "action", "object_type", "object_id",

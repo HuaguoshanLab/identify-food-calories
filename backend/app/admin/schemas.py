@@ -48,12 +48,12 @@ class AdminAuditQuery(BaseModel):
     action: str | None = Field(default=None, max_length=80)
     object_type: str | None = Field(default=None, max_length=80)
     object_id: str | None = Field(default=None, max_length=160)
-    actor_identifier: str | None = Field(default=None, max_length=320)
+    actor: str | None = Field(default=None, max_length=320)
     reason: str | None = Field(default=None, max_length=500)
     occurred_after: datetime | None = None
     occurred_before: datetime | None = None
 
-    @field_validator("action", "object_type", "object_id", "actor_identifier", "reason")
+    @field_validator("action", "object_type", "object_id", "actor", "reason")
     @classmethod
     def normalize_optional_filter(cls, value: str | None) -> str | None:
         if value is None:
