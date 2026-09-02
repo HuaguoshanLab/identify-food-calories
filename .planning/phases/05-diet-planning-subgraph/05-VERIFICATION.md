@@ -1,24 +1,32 @@
 ---
 phase: 05-diet-planning-subgraph
-verified: 2026-09-02T01:56:54Z
-status: passed
-score: 5/5 must-haves verified
+verified: 2026-09-02T03:45:04Z
+status: human_needed
+score: 4/5 roadmap must-haves verified
 overrides_applied: 0
 re_verification:
-  previous_status: gaps_found
-  previous_score: 4/5
-  gaps_closed:
-    - "规划子图检索受控菜谱，生成餐单并用工具校验总量、比例、忌口和重复度。"
+  previous_status: passed
+  previous_score: 5/5
+  gaps_closed: []
   gaps_remaining: []
   regressions: []
+human_verification:
+  - test: "在可生成三餐的隔离合成账号中，滚到调整区，提交一次午餐调整。"
+    expected: "午餐显示已调整，早餐和晚餐保持原样；polite 完成通知不获得焦点，page-scroll-area 的 scrollTop 不回到顶部。"
+    why_human: "隔离 Playwright 在生成三餐之前显示通用错误，未执行本计划新增的滚动、焦点和局部替换断言。"
+  - test: "恢复前端依赖后，重跑 PlanPage Vitest、typecheck、lint 和隔离 plans.spec.ts。"
+    expected: "组件/静态门禁仍通过；E2E 到达今日三餐计划并运行 scrollTop 断言。"
+    why_human: "本次复核环境没有 frontend/node_modules，vitest、tsc、eslint 均不可执行；不能把执行摘要的历史通过结果伪装成此次复跑结果。"
 ---
 
-# Phase 5: 饮食规划子图 Verification Report
+# Phase 5: 饮食规划子图复验报告
 
 **Phase Goal:** Agent 根据用户目标和偏好生成可校验、可交互调整的一日三餐方案。
-**Verified:** 2026-09-02T01:56:54Z
-**Status:** passed
-**Re-verification:** Yes — PLN-04 缺口关闭后复验
+**Verified:** 2026-09-02T03:45:04Z
+**Status:** human_needed（代码修复已验证，端到端闭环未验证）
+**Re-verification:** Yes — UAT-05 滚动劫持修复后复验
+
+> MVP 元数据与工作流格式存在历史不一致：路线图将 Phase 5 标为 `mvp`，但 Goal 不是规定的 user-story 格式。以下按路线图五项可观察结果和 05-11 的 UAT 缺口复核；这不替代后续将 Goal 规范化为用户故事的工作。
 
 ## Goal Achievement
 
@@ -26,79 +34,107 @@ re_verification:
 
 | # | Truth | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | 身体数据与目标经确定性公式生成每日能量和宏量营养约束。 | ✓ VERIFIED | `PlanningService.calculate_target()` 使用 Decimal、固定 Mifflin–St Jeor/活动系数/速度和版本化目标策略；service 测试覆盖成人计算和无效输入。 |
-| 2 | 规划子图检索受控菜谱，生成餐单并用工具校验总量、比例、忌口和重复度。 | ✓ VERIFIED | `validate_plan(target, meals, ...)` 对实际三餐重算 kcal/蛋白/脂肪/碳水，检查三槽、recipe 去重、忌口、1200 kcal 地板、目标区间和 AMDR；`SessionNutritionToolAdapter` 将 graph 的 `composition.meals` 原样传入。正反例覆盖 totals、ratio、duplicate 和 exclusion。 |
-| 3 | 不合格方案仅在有限次数内重排，之后给出可解释失败结果。 | ✓ VERIFIED | `DietPlanningGraph` 初始生成和局部调整均受三次重排预算限制；第四次调整返回 `LIMIT_REACHED`，不会继续请求模型或菜谱替换。 |
-| 4 | 用户反馈“换清淡”“不吃某菜”后，保留其他约束并恢复图继续规划。 | ✓ VERIFIED | graph 仅替换受影响 slot，adapter 以 `existing_meals` 排除已保留的 recipe；图/API/前端测试覆盖同线程局部替换和其他餐次保持不变。 |
-| 5 | 输出明确声明非医疗建议，并拒绝高风险健康请求。 | ✓ VERIFIED | `_is_health_scope_blocked()` 在任何目标/菜谱计算前拒绝未成年、孕哺、疾病/用药、进食障碍/自伤及极端目标；真实 API 测试断言 18 岁请求只得到 `needs_input`，且不会保存 profile。H5 始终显示非医疗免责声明。 |
+| 1 | 身体数据与目标经确定性公式生成每日能量和宏量营养约束。 | ✓ VERIFIED | 05-11 仅修改前端完成通知及其测试；`bfe962b` 没有改动任何后端、目标公式、API 或配置。此前已验证的确定性链无本次回归迹象。 |
+| 2 | 规划子图检索受控菜谱，生成餐单并用工具校验总量、比例、忌口和重复度。 | ✓ VERIFIED | 05-11 提交范围仅为 `PlanPage.tsx`、其组件测试和 `plans.spec.ts`；代码 diff 未触及图、受控菜谱或校验服务。 |
+| 3 | 不合格方案仅在有限次数内重排，之后给出可解释失败结果。 | ✓ VERIFIED | `PlanPage.tsx` 仍保留既有 `limitReached`/`FocusedPlanningAlert` 分支；本次 diff 未触及线程、重排计数或拒绝路径。 |
+| 4 | 用户反馈“换清淡”“不吃某菜”后，保留其他约束并恢复图继续规划。 | ? UNCERTAIN | 局部 UI 路径有实质代码和 mocked 组件合同：`submitAdjustment()` 将同一 `threadId` 发往 `/input`，安全快照的 `changed_slots` 驱动单餐标记，测试断言午餐更新、早餐/晚餐仍在。可是真实隔离 E2E 在初始三餐生成前失败，未执行局部替换、焦点或滚动断言；UAT-05 仍是 `issue`。 |
+| 5 | 输出明确声明非医疗建议，并拒绝高风险健康请求。 | ✓ VERIFIED | 修复保留页首和页尾免责声明、既有 `statusKind === 'refusal'` 分支；`bfe962b` 没有改动这些安全边界。 |
 
-**Score:** 5/5 truths verified
+**Score:** 4/5 roadmap truths verified；第 4 项是 **UNCERTAIN**，不是通过。
 
-## Required Artifacts
+## UAT-05 Gap-Closure Evidence
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| 原因是否真实移除 | ✓ VERIFIED | `bfe962b` 删除 `summaryRef`、`updatedSlot` 的 `focus()` effect 和 live region 的 `ref`/`tabIndex`。现存 `PlanPage.tsx:86` 的 `headingRef.current?.focus()` 只在首次进入页执行，是计划明确要求保留的标题焦点，不能误判为回归。 |
+| 非侵入式通知是否保留 | ✓ VERIFIED | `PlanPage.tsx:158` 仅在 `updatedSlot` 存在时渲染 `<p aria-live="polite" className="sr-only">`；没有 `tabIndex`、ref、`focus()`、`scrollIntoView()` 或滚动 API。 |
+| 提交后焦点合同 | ✓ VERIFIED（mocked component） | `PlanPage.test.tsx:156-198` 在提交前保存/聚焦按钮，断言 completion summary 有 polite live region、没有 tabindex、不获得焦点，提交按钮仍为 active element。 |
+| 局部餐次合同 | ✓ VERIFIED（mocked component） | 同一组件测试断言请求发送到 owned thread 的 `/input`，仅有一个“已调整”，并保留早餐与晚餐文本。 |
+| 真正滚动位置合同 | ? NOT EXECUTED | `plans.spec.ts:42-81` 正确把 `page-scroll-area.scrollTop` 设为非零并在调整后比较，但其运行在第 58 行等待“今日三餐计划”时失败，未到第 65-81 行。 |
+
+### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 | --- | --- | --- | --- |
-| `backend/app/planning/service.py` | 确定性目标、健康边界与全餐单校验 | ✓ VERIFIED | 非 stub；验证入口接收 `tuple[PlannedMeal, ...]`，总量与比例均来自餐单而非模型文本或硬编码。 |
-| `backend/app/agent/tools.py` + `backend/app/agent/graph.py` | 图到确定性校验的完整闭环 | ✓ VERIFIED | graph 传递 composition，adapter 传递 meals，service 返回 PASS/REPLAN/RELAX/BLOCK；RELAX 不会放宽能量地板、比例、忌口或重复度。 |
-| `backend/app/planning/data/controlled-recipes.v2.json` + `repository.py` | 当前可用的三餐候选 | ✓ VERIFIED | 查询同时限制 catalog、`controlled-recipes.v2` 与 `is_active`；五个 v2 recipes 足以生成不重复、超过最低能量的三餐。 |
-| `backend/migrations/versions/0012_activate_controlled_recipes_v2.py` + `importer.py` + `scripts/bootstrap_local_planning_data.py` | 保留 v1 审计历史并激活 v2 的本地启动 | ✓ VERIFIED | 0012 仅把 v1 标为 inactive、没有删除记录；importer 以版本幂等导入，v2 激活时停用旧 active 版本；local bootstrap 按 v1→v2 顺序导入且不重置资料/偏好。隔离数据库 round-trip 与 bootstrap 测试通过。 |
-| `backend/app/agent/api.py` + `frontend/src/features/plans/components/PlanPage.tsx` | 安全、无内部细节泄露的用户路径 | ✓ VERIFIED | 公开 API 返回 allowlisted planning snapshot；PlanPage 严格解析状态、固定展示三餐和免责声明。此前真实浏览器路径已由用户确认可用；本轮真实 API 覆盖明确命名的合成普通成人成功场景。 |
+| `frontend/src/features/plans/components/PlanPage.tsx` | 不夺焦点的 polite live-region 局部调整完成提示 | ✓ VERIFIED | 161 行实质组件；`updatedSlot` 从严格解析的 safe snapshot 得到，只控制固定中文通知。完成通知已无 programmatic focus 路径。 |
+| `frontend/src/features/plans/components/PlanPage.test.tsx` | 局部调整的非焦点 live-region 组件回归合同 | ✓ VERIFIED（组件层） | 260 行；导入并渲染真实 `PlanPage`，模拟 owned-thread snapshot 与 `/input`，明确验证非焦点与其他餐次不变。它不拥有真实 AppShell，因此不能单独验证 scrollTop。 |
+| `frontend/tests/e2e/plans.spec.ts` | 真实公开用户路径的滚动位置和局部替换回归 | ⚠️ WIRED, NOT EXECUTED | 83 行；使用注册、Mailpit 激活、登录和页面交互，且选择唯一 `page-scroll-area`。失败产物显示 Agent 生成通用可重试错误，断言入口未到达。 |
 
-## Key Link Verification
+### Key Link Verification
 
 | From | To | Via | Status | Details |
 | --- | --- | --- | --- | --- |
-| `DietPlanningGraph` | `SessionNutritionToolAdapter` | `validate_daily_plan(target, meals=composition.meals, ...)` | ✓ WIRED | 实际 composition 的 meal DTO 进入 adapter；不是只传 target 的空校验。 |
-| `SessionNutritionToolAdapter` | `PlanningService.validate_plan` | `meals=meals` | ✓ WIRED | adapter 将完整 meals、已匹配忌口和重排次数传给 service；服务端按真实 totals 决定结果。 |
-| `PlanningService.compose_daily_meals` | 版本化 controlled recipe repository | catalog + `CONTROLLED_RECIPE_VERSION` | ✓ WIRED | runtime 明确选择 v2；inactive 的 v1 不会进入当前候选。 |
-| Alembic 0012 / local bootstrap | controlled recipe data | deactivate v1 → import v1/v2 → activate v2 | ✓ WIRED | 迁移保留历史，bootstrap 使用同一 importer；隔离 PostgreSQL 测试证实当前版本只有 v2 active。 |
-| public diet-planning API | graph/service/report | FastAPI → AgentService → planning graph | ✓ WIRED | HTTPX + PostgreSQL 真实请求以明确命名的合成普通成人 fixture 返回完成的三餐计划。 |
+| `PlanPage.tsx` | `PlanPage.test.tsx` | `updatedSlot` completion announcement | ✓ WIRED | 测试导入 `PlanPage` 并通过 HTTP mock 驱动 `changed_slots: ['lunch']` 的安全快照；断言渲染的 live region 和 active element。`gsd-sdk verify.key-links` 的“Target not referenced”是把测试关系错误当成源码 import，不构成断链。 |
+| `plans.spec.ts` | `[data-testid="page-scroll-area"]` | 调整前后 `scrollTop` | ✓ WIRED, execution blocked | 第 64-78 行定位唯一滚动区、记录非零 scrollTop、比较更新后的值；运行时被初始 Agent 生成失败阻断。 |
+| `submitAdjustment()` | 受所有权约束的同一 planning thread | `POST /agent/threads/{threadId}/input` 后读取 safe snapshot | ✓ WIRED（代码） | `PlanPage.tsx:132-141` 调用 `submitDietPlanningAdjustment` 后读取同一 thread；`api/client.ts:29-45` 运行时校验 description payload，并使用公开 API。真实 E2E 未走到这里。 |
 
-## Data-Flow Trace (Level 4)
+### Data-Flow Trace (Level 4)
 
 | Artifact | Data Variable | Source | Produces Real Data | Status |
 | --- | --- | --- | --- | --- |
-| `PlanningService.validate_plan()` | `daily_totals`、macro energy ratio | 传入的 `PlannedMeal.nutrition` | Decimal 聚合三餐实际数值 | ✓ FLOWING |
-| `DietPlanningGraph` | `composition.meals` | repository 受控 recipe → deterministic nutrition calculation | 真实受控食材 grams 和营养 DTO | ✓ FLOWING |
-| public API response | `report.meals` / `target` / safe refusal | PostgreSQL profile + graph checkpoint/report | 真实 PostgreSQL API 成功与拒绝例 | ✓ FLOWING |
-| `PlanPage.tsx` | parsed planning snapshot | authenticated public Agent API | 严格 Zod allowlist，而非内部 exception/trace | ✓ FLOWING |
+| `PlanPage.tsx` | `updatedSlot` | `/agent/threads/{threadId}` 的 safe snapshot → `planReportSchema` → `adjustment.changed_slots[0]` | 组件逻辑只接受严格 schema 的单个 slot，而非文本或内部事件 | ✓ FLOWING（代码/组件 mock） |
+| `MealCard` 映射 | `report.meals` 和 `mealAdjustment` | 同一 safe snapshot 与上一次 report 的受影响 slot | 组件测试使 lunch 替换而早餐/晚餐保持 | ✓ FLOWING（组件 mock） |
+| AppShell 滚动区 | `scrollTop` | 真实浏览器 DOM | Playwright 已有读取与比较代码，但实例化三餐计划失败 | ⚠️ DISCONNECTED AT E2E ENTRY |
 
-## Behavioral Spot-Checks
+### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 | --- | --- | --- | --- |
-| 总量、宏量比例、重复度、忌口、图有界重排 | `cd backend && APP_ENV=test … uv run pytest tests/planning/test_planning_service.py tests/planning/test_controlled_recipe_importer.py tests/unit/test_diet_planning_graph.py -q` | 54 passed | ✓ PASS |
-| 真实 PostgreSQL API：成人成功路径与健康拒绝 | `cd backend && APP_ENV=test … uv run pytest tests/integration/test_diet_planning_agent_api.py -q` | 5 passed | ✓ PASS |
-| 0012 round-trip 与 v1/v2 seed 激活状态 | `cd backend && APP_ENV=test … uv run pytest tests/integration/test_agent_bootstrap.py tests/integration/test_agent_migration.py -q` | 3 passed（已知 SQLAlchemy `vector` reflection warning，不影响断言） | ✓ PASS |
-| 本轮合并独立回归 | `cd backend && APP_ENV=test … uv run pytest [上述六个测试文件] -q` | exit 0 | ✓ PASS |
-| 修改范围静态检查 | `cd backend && uv run ruff check app/planning app/agent tests/planning/test_planning_service.py tests/planning/test_controlled_recipe_importer.py tests/unit/test_diet_planning_graph.py tests/integration/test_diet_planning_agent_api.py` | All checks passed | ✓ PASS |
+| 非焦点完成通知组件回归 | `cd frontend && npm test -- --run src/features/plans/components/PlanPage.test.tsx` | 05-11 执行记录为 7 passed；本复核环境运行时 `vitest: command not found`，因为 `frontend/node_modules` 缺失。 | ? NOT RE-RUN |
+| TypeScript | `cd frontend && npm run typecheck` | 05-11 执行记录为 PASS；本复核环境运行时 `tsc: command not found`，因为依赖缺失。 | ? NOT RE-RUN |
+| Lint | `cd frontend && npm run lint` | 05-11 执行记录为 PASS；本复核环境运行时 `eslint: command not found`，因为依赖缺失。 | ? NOT RE-RUN |
+| 隔离公开 E2E | `E2E_BACKEND_PORT=8001 E2E_FRONTEND_PORT=5179 npm exec playwright test tests/e2e/plans.spec.ts` | 两条用例在“今日三餐计划”出现前超时；保存的 Playwright error context 显示页面 alert 为“暂时无法生成计划，请检查资料和网络后重试”。 | ✗ BLOCKED BEFORE TARGET ASSERTION |
 
-`…` 为报告中已省略的 `DATABASE_URL` 与 `TEST_DATABASE_URL`；两者均指向测试环境。未运行会写入开发库的 bootstrap 脚本；其不重置、只导入版本化 seed 的行为已通过代码审查和隔离 bootstrap 测试验证。
+### Probe Execution
 
-## Probe Execution
+Step 7c: SKIPPED — 仓库没有 `scripts/` 或 Phase 5 声明的 `probe-*.sh`。
 
-Step 7c: SKIPPED — 本阶段没有声明 `probe-*.sh`，仓库亦不存在 Phase 5 对应 probe。
-
-## Requirements Coverage
+### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| PLN-01 | 01, 03, 05, 07, 09 | 用户提交资料/目标/偏好 | ✓ SATISFIED | owner-scoped profile CRUD、显式保存和删除、前端预填/空态均已接线。 |
-| PLN-02 | 01, 02, 08, 09 | 确定性目标计算 | ✓ SATISFIED | 版本化策略、Decimal 计算和 service/API 测试。 |
-| PLN-03 | 02, 08, 09, 11 | 受控菜谱与三餐候选 | ✓ SATISFIED | audit/catalog/version 过滤、v2 seed 和本地 bootstrap。 |
-| PLN-04 | 01, 02, 04, 08, 10, 11 | 总量/宏量/忌口/重复度校验与有界重排 | ✓ SATISFIED | meals 已进入 service；总量、AMDR、排除项与唯一 recipe 均在确定性服务端执行。 |
-| PLN-05 | 04, 06, 10 | 同线程自然语言局部调整 | ✓ SATISFIED | affected-slot replacement、其余餐次保留和次数上限已测试。 |
-| PLN-06 | 01–06, 09, 10, 11 | 非医疗说明与医疗边界 | ✓ SATISFIED | fail-closed health guard、无 profile 写入的真实 API 拒绝和 H5 免责声明。 |
+| PLN-01 | 01, 03, 05, 07, 09 | 用户提交资料/目标/偏好 | ✓ SATISFIED (regression only) | 05-11 不修改资料、表单或 API。 |
+| PLN-02 | 01, 02, 08, 09 | 确定性目标计算 | ✓ SATISFIED (regression only) | 05-11 不修改计算或后端。 |
+| PLN-03 | 02, 08, 09 | 受控菜谱与三餐候选 | ✓ SATISFIED (regression only) | 05-11 不修改受控菜谱、检索或组合服务。 |
+| PLN-04 | 01, 02, 04, 08, 10 | 有界确定性校验与重排 | ✓ SATISFIED (regression only) | 05-11 不修改校验或重排路径。 |
+| PLN-05 | 04, 06, 10, 11 | 自然语言局部替换并保留约束 | ? NEEDS HUMAN | 修复代码和 mock 合同成立；真实生成/调整路径被隔离 E2E 前置失败阻断，不能宣称 UAT-05 已关闭。 |
+| PLN-06 | 01–06, 09, 10 | 非医疗说明与医疗边界 | ✓ SATISFIED (regression only) | 免责声明及 refusal 分支未被本次修复改变。 |
 
-## Anti-Patterns Found
+`REQUIREMENTS.md` 中 PLN-01..04、PLN-06 的复选状态仍未同步为完成；这是追踪文档不一致，未把它改写成实现缺陷或本次自动“通过”。
 
-未发现本阶段修改文件中的 `TBD`、`FIXME`、`XXX`、空实现、硬编码空数据或仅日志处理器。此前 PLN-04 的空心校验链已不再存在。
+### Anti-Patterns Found
+
+| File | Line | Pattern | Severity | Impact |
+| --- | --- | --- | --- | --- |
+| `PlanPage.tsx` | 86 / 150 | 首次页面标题的 `focus()` 与 `tabIndex={-1}` | ℹ️ Intentional | 这是初始页面焦点管理，计划要求保留；没有依赖 `updatedSlot`，不再导致提交调整后的滚动劫持。 |
+
+未发现本计划范围内未指向正式后续工作的 `TBD`、`FIXME`、`XXX`、空实现或 placeholder。
+
+### Human Verification Required
+
+#### 1. UAT-05 的真实调整闭环
+
+**Test:** 在隔离的合成账号完成生成三餐后，滚动到调整区，提交一次午餐调整。
+
+**Expected:** 完成通知由辅助技术礼貌播报且不获得焦点；午餐标为已调整；早餐和晚餐不变；`page-scroll-area` 不跳回顶部。
+
+**Why human:** 自动 E2E 在三餐生成前即失败，当前没有真实用户会话或资料的浏览器复验；不得将 mock 组件测试当成实际浏览器验收。
+
+#### 2. 恢复本地依赖后的自动回归
+
+**Test:** 恢复 `frontend` 的锁定依赖后，重跑 Vitest、typecheck、lint 与隔离 Playwright。
+
+**Expected:** 三个静态/组件门禁通过，且 Playwright 到达本次新增的 scrollTop、焦点和单餐替换断言。
+
+**Why human:** 本次 verifier 进程缺少开发依赖；不应通过联网安装或用摘要替代独立运行结果。
 
 ## Conclusion
 
-原先阻断 Phase 5 的 PLN-04 已由真实代码闭合：餐单数据从 graph 流入 adapter 和确定性 service，校验结果再驱动有界重排或安全终止；它没有以放宽能量、宏量比例、忌口、重复度或健康边界为代价。0012/v2 seed 方案保留 v1 历史，并在隔离本地启动等价路径和真实 PostgreSQL API 正反例中通过。阶段目标已达成。
+**结论：PARTIAL / BLOCKED，不能宣布 Phase 5 已完全 achieved。**
+
+UAT-05 的直接根因已在代码中被精确移除，新的组件和 Playwright 合同也确实覆盖“通知不夺焦点、午餐局部替换、唯一滚动区不回顶”。但隔离的真实公开路径在生成三餐前显示通用错误，目标滚动断言一次也没有运行；同时本复核环境无法独立重跑前端静态门禁。需要先恢复隔离 Agent 生成路径和前端依赖，再完成合成账号浏览器复验，方可把此 UAT 缺口标为关闭。
 
 ---
 
-_Verified: 2026-09-02T01:56:54Z_
+_Verified: 2026-09-02T03:45:04Z_
 _Verifier: the agent (gsd-verifier)_
