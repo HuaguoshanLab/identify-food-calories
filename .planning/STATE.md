@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-23-PLAN.md
-last_updated: "2026-09-02T11:58:52.395Z"
+stopped_at: Completed 06-12-PLAN.md
+last_updated: "2026-09-02T12:11:23.680Z"
 last_activity: 2026-09-02
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 79
+  completed_plans: 80
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 15 of 25
+Plan: 16 of 25
 Status: Ready to execute
 Last activity: 2026-09-02
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ Progress: [█████████░] 88%
 | Phase 06 P11 | 6min | 3 tasks | 16 files |
 | Phase 06 P23 | 7 min | 2 tasks | 13 files |
 | Phase 06 P09 | 17min | 2 tasks | 15 files |
+| Phase 06 P12 | 12min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Fake weekly-review Provider discards facts request bodies and retains only accounting metadata. — Facts are health data and traces must not become a secondary sensitive-data store.
 - [Phase 06]: 周复盘 HTTP 仅暴露闭合安全状态枚举；Provider 与 graph 技术码绝不进入 H5。 — 防止技术状态泄露和被误解。
 - [Phase 06]: 周复盘重新生成保留同一版本化 cache key；低覆盖在 Provider 前终止。 — 避免低覆盖或缓存命中绕过费用与安全边界。
+- [Phase 06]: Catalog 草稿变更仅保存服务端重算的浅层标量 diff；客户端 raw JSON diff 不被接受或作为草稿投影返回。 — 06-12 strict server-derived audit contract
+- [Phase 06]: Catalog 草稿 Idempotency-Key 绑定 request hash：同命令重试返回原草稿，不同输入复用同 key 返回冲突。 — 06-12 command integrity
+- [Phase 06]: Phase 06 catalog 草稿迁移经授权使用 0017 并以 0016 为唯一前驱，保持 Alembic 单一 head。 — 06-12 migration-chain preservation
 
 ### Pending Todos
 
@@ -204,6 +208,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T11:58:18.375Z
-Stopped at: Completed 06-23-PLAN.md
+Last session: 2026-09-02T12:11:23.673Z
+Stopped at: Completed 06-12-PLAN.md
 Resume file: None
