@@ -17,7 +17,7 @@ created: 2026-09-02
 
 **33/33 已关闭。**
 
-`T-05-30` 的计划缓解要求测试/浏览器产物使用合成数据，且 SUMMARY 不记录敏感值。测试现使用明确命名、与会话无关的合成普通成人 fixture；SUMMARY 和 verification 只描述该 fixture 类型，不再包含精确身体资料。已对 Phase 5 工件与受影响测试执行组合值扫描，未发现会话身体资料复现。
+`T-05-30` 的计划缓解要求测试/浏览器产物使用合成数据，且 SUMMARY 不记录敏感值。测试现使用明确命名、与会话无关的合成普通成人 fixture；SUMMARY 和 verification 只描述该 fixture 类型，不再包含精确身体资料。2026-09-02 复审已对 Phase 5 工件和受影响 API 测试执行原会话资料组合扫描，未发现复现。
 
 ## 信任边界
 
@@ -62,7 +62,7 @@ created: 2026-09-02
 | T-05-27 | Tampering | adjustment UI | mitigate | CLOSED | `PlanPage.tsx:71-91` 只提交 `{kind, text}` 到 owned thread；约束/health/relax 决策仍在 `service.py:108-181`。 |
 | T-05-28 | Information disclosure | feedback rendering | mitigate | CLOSED | 前端从相邻安全快照推导旧菜名，不渲染原反馈；`PlanPage.test.tsx:167-222` 断言 provider 文本、checkpoint/thread/memory ID 不可见。 |
 | T-05-29 | Denial of service | repeated adjustments | mitigate | CLOSED | `PlanPage.tsx:71-72` limit/refusal 时早退，后端 `graph.py:973-974` 仍是最终 hard cap。 |
-| T-05-30 | Information disclosure | test / browser artifacts | mitigate | CLOSED | `test_diet_planning_agent_api.py` 的 `SYNTHETIC_ORDINARY_ADULT_PROFILE` 明确标记合成 fixture；`05-11-SUMMARY.md` 与 `05-VERIFICATION.md` 仅记录“合成普通成人正例”，不含精确身体资料。Phase 5 工件和当前分支追踪文档的组合值扫描无会话资料复现。 |
+| T-05-30 | Information disclosure | test / browser artifacts | mitigate | CLOSED | `test_diet_planning_agent_api.py:32-39` 的 `SYNTHETIC_ORDINARY_ADULT_PROFILE` 明确标记合成 fixture（149cm/71kg/61岁）；`05-11-SUMMARY.md:41` 与 `05-VERIFICATION.md:45,55` 只记录“合成普通成人”。复审对 Phase 5 工件和该 API 测试的原会话资料组合扫描无匹配，且该测试 5 passed。 |
 | T-05-31 | Spoofing | E2E identity | mitigate | CLOSED | `frontend/tests/e2e/plans.spec.ts:8-70` 经公开注册、Mailpit 激活、登录进入页面；没有 forged token 或 direct DB。 |
 | T-05-32 | Tampering | security regression | mitigate | CLOSED | `test_planning_profile_api.py:112-177` A/B、删除和 422；`test_diet_planning_agent_api.py:101-335` owner/idempotency/refusal；`test_agent_bootstrap.py` 隔离 PG 与 bootstrap。 |
 | T-05-33 | Repudiation | documentation | mitigate | CLOSED | `docs/learning/05-diet-planning-subgraph.md:1-113` 明确普通饮食参考、拒绝范围、数据流和证据限制；无医疗疗效承诺。 |
@@ -86,13 +86,14 @@ created: 2026-09-02
 | `APP_ENV=test uv run pytest`（PlanningService、ProfileService、recipe importer、DietPlanningGraph） | **56 passed**，2026-09-02。 |
 | 包含 PostgreSQL 的完整 target suite | 本机未提供 `TEST_DATABASE_URL`，4 个集成测试按配置 fail-closed；这证明测试不会回退开发库，但本次不能重新声称该四项通过。已有 `05-VERIFICATION.md` 记录隔离库通过证据。 |
 | 静态实现审查 | owner predicates、closed DTO、guard、safe projection、版本选择和 loopback-only bootstrap 均在上述源码位置找到。 |
-| 工件敏感值扫描 | Phase 5 工件、受影响测试及当前分支追踪文档均未发现会话身体资料组合；API 正例 fixture 明确标为 synthetic。 |
+| T-05-30 复审扫描 | Phase 5 工件和受影响 API 测试均未发现原会话身体资料组合；API 正例 fixture 明确标为 synthetic。 |
 
 ## 安全审计轨迹
 
-| 审计日期 | 威胁总数 | 已关闭 | 开放 | 执行者 |
-|---|---:|---:|---:|---|
-| 2026-09-02 | 33 | 33 | 0 | gsd-security-auditor |
+| 审计日期 | 范围 | 已关闭 | 开放 | 执行者 |
+|---|---|---:|---:|---|
+| 2026-09-02 | 初始 33 项威胁登记 | 33 | 0 | gsd-security-auditor |
+| 2026-09-02 | T-05-30 修复复审：脱敏工件、synthetic fixture、组合扫描、隔离 API | 1 | 0 | gsd-security-auditor |
 
 ## Sign-off
 
