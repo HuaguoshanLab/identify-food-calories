@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-09-01T04:42:49.033Z"
+stopped_at: Completed 05-11-PLAN.md
+last_updated: "2026-09-02T03:38:31.026Z"
 last_activity: 2026-09-01
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 54
-  completed_plans: 54
-  percent: 63
+  completed_phases: 6
+  total_plans: 65
+  completed_plans: 65
+  percent: 75
 ---
 
 # Project State
@@ -30,7 +30,7 @@ Plan: Not started
 Status: Executing Phase 5
 Last activity: 2026-09-01
 
-Progress: [██████████] Phase 03 完成；可进入 Phase 04
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Progress: [██████████] Phase 03 完成；可进入 Phase 04
 | Phase 01.1 P09 | 13min | 1 tasks | 5 files |
 | Phase 03 P02 | 41 min | 2 tasks | 11 files |
 | Phase 03 P03 | 48 min | 2 tasks | 28 files |
+| Phase 05 P11 | 6min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -141,6 +142,8 @@ Recent decisions affecting current work:
 - [Phase 02]: 用户于 2026-08-31 手动接受 Phase 02 阶段工作完成，允许继续后续阶段；此决定不改变 `FAIL` 发布结论，也不允许对外宣称该阶段已发布通过。
 - [Phase 03]: Qwen-VL 使用华北2（北京）默认业务空间与 qwen3-vl-flash；价格按 CNY 分档配置。 — 用户已在 Model Studio 人工核实区域、业务空间、模型和数据处理条款，API Key 仅在未提交环境变量中。
 - [Phase 03]: 多模态 release 只接受合成、不可逆 fixture reference 的 Fake Vision hash-bound 回放；真实浏览器上传只作为可用性证据。 — 防止用户原图进入评测并避免把单次成功夸大为准确率指标。
+- [Phase 05]: 调整完成仅通过 polite live region 播报；提交按钮保留键盘焦点。 — 隐藏 live region 的 focus 会滚动唯一内容区，因此通知必须非侵入式。
+- [Phase 05]: 真实路径以唯一 page-scroll-area 的 scrollTop 作为滚动劫持回归合同。 — 焦点语义测试不足以捕捉用户阅读位置被重置的问题。
 
 ### Pending Todos
 
@@ -150,6 +153,7 @@ None yet.
 
 - [Phase 02]: 当前 24-case code-eval（文件 SHA `85971eb9…`）已完成双角色真实复审和独立 36-call Judge（实际计费上限 `0.00451584 CNY`）；新发布报告仍为 `FAIL`，因为五个 Judge 分数均为 4、Spearman 未定义。此发布限制不阻止后续阶段规划，但不得改分、重试刷绿或对外宣称发布通过；认证成功/错误/空态的内置浏览器矩阵仍未完成。
 - [Phase 4]: Mem0 长期记忆必须验证用户隔离、可审计写入和删除链。
+- Phase 05 isolated planning E2E cannot reach the completed three-meal snapshot: the Agent generation path shows the generic retryable UI before Plan 11's scroll/focus assertions. See .planning/phases/05-diet-planning-subgraph/deferred-items.md.
 
 ## Deferred Items
 
@@ -160,6 +164,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-31T07:10:00.000Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-09-02T03:38:12.856Z
+Stopped at: Completed 05-11-PLAN.md
 Resume file: None
