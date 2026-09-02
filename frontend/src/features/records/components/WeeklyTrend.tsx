@@ -1,0 +1,12 @@
+import { useRef } from 'react'
+import type { DashboardOverview } from '../api/dashboard'
+type Day = DashboardOverview['week'][number]
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
+function formatEnergy(value: string) { return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Number(value)) }
+function label(day: Day) { return `${dateFormatter.format(new Date(`${day.consumed_local_date}T00:00:00`))} ${formatEnergy(day.totals.energy_kcal)} kcal` }
+
+export function WeeklyTrend({ week }: { week: readonly Day[] }) {
+  const points = useRef<Array<SVGCircleElement | null>>([]); const max = Math.max(...week.map((day) => Number(day.totals.energy_kcal)), 1); const coordinates = week.map((day, index) => ({ x: 16 + index * 44, y: 116 - (Number(day.totals.energy_kcal) / max) * 92 })); const path = coordinates.map(({ x, y }, index) => `${index ? 'L' : 'M'}${x} ${y}`).join(' ')
+  const moveFocus = (index: number, direction: number) => points.current[(index + direction + week.length) % week.length]?.focus()
+  return <section aria-labelledby="weekly-trend-title" className="space-y-3"><div><h2 className="text-lg font-semibold" id="weekly-trend-title">本周趋势</h2><p className="text-sm text-muted-foreground">近七日已记录能量</p></div><svg aria-label="近七日能量趋势" className="h-36 w-full" role="img" viewBox="0 0 296 132"><path className="fill-none stroke-primary motion-reduce:transition-none" d={path} strokeWidth="3" />{coordinates.map(({ x, y }, index) => <circle aria-label={label(week[index])} className="fill-primary outline-none focus-visible:stroke-foreground" cx={x} cy={y} key={week[index].consumed_local_date} onKeyDown={(event) => { if (event.key === 'ArrowRight') { event.preventDefault(); moveFocus(index, 1) } if (event.key === 'ArrowLeft') { event.preventDefault(); moveFocus(index, -1) } }} r="5" ref={(element) => { points.current[index] = element }} role="button" tabIndex={0} />)}</svg><div className="overflow-x-auto"><table aria-label="近七日能量数据表" className="w-full text-left text-sm"><thead><tr><th scope="col">日期</th><th scope="col">能量</th><th scope="col">餐数</th></tr></thead><tbody>{week.map((day) => <tr key={day.consumed_local_date}><th scope="row">{dateFormatter.format(new Date(`${day.consumed_local_date}T00:00:00`))}</th><td className="tabular-nums">{formatEnergy(day.totals.energy_kcal)} kcal</td><td className="tabular-nums">{day.meal_count}</td></tr>)}</tbody></table></div></section>
+}

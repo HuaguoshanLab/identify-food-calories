@@ -14,7 +14,7 @@
 
 | 路径 | 职责 |
 |---|---|
-| `api/` | 安全 DTO 与公开 API 请求包装 |
-| `components/` | 记录列表、详情、编辑与删除交互 |
+| `api/` | 安全 DTO、已保存餐食与 dashboard projection 的公开 API 请求包装 |
+| `components/` | 记录 dashboard、详情、编辑与删除交互 |
 | `format.ts` | 持久化营养 Decimal 的只读展示和本地用餐时间转换 |
 | `format.test.ts` | 精度展示与本地时间转换的回归测试 |

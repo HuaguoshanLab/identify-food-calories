@@ -12,6 +12,9 @@
 
 | 文件 | 职责 |
 |---|---|
-| `RecordsPage.tsx` | 按日期分组的记录列表与真实空态 |
+| `RecordsPage.tsx` | projection-only dashboard 的今日、七日趋势和 history 组合页 |
+| `TodaySummaryCard.tsx` | overview totals/meal_count 与严格资格目标状态的首屏摘要 |
+| `WeeklyTrend.tsx` | 固定七日 SVG 与同数据可访问表格 |
+| `HistoryMealList.tsx` | 服务端 local-date 分组和 opaque cursor 历史列表 |
 | `MealRecordDetailPage.tsx` | 不会重算的营养快照详情 |
 | `MealRecordEditPage.tsx` | 过去用餐时间修改与删除确认 |
