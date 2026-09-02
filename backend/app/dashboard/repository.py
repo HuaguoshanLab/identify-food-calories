@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.dashboard.models import WeeklyReviewResult
@@ -113,6 +113,38 @@ class SqlAlchemyDashboardRepository:
         self._session.add(result)
         self._session.flush()
         return result
+
+    def claim_weekly_review(self, *, key: WeeklyReviewCacheKey, now) -> tuple[WeeklyReviewResult, bool]:
+        """Serialize one complete cache key across workers before any billable provider call."""
+        lock_key = ":".join(str(value) for value in key.model_dump(mode="json").values())
+        self._session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"), {"lock_key": lock_key})
+        row = self._session.scalar(select(WeeklyReviewResult).where(
+            WeeklyReviewResult.user_id == key.user_id, WeeklyReviewResult.week_start == key.week_start,
+            WeeklyReviewResult.facts_digest == key.facts_digest, WeeklyReviewResult.graph_version == key.graph_version,
+            WeeklyReviewResult.prompt_version == key.prompt_version, WeeklyReviewResult.schema_version == key.schema_version,
+            WeeklyReviewResult.runtime_config_version == key.runtime_config_version,
+        ).with_for_update())
+        if row is not None:
+            return row, False
+        row = WeeklyReviewResult(
+            user_id=key.user_id, week_start=key.week_start, facts_digest=key.facts_digest, graph_version=key.graph_version,
+            prompt_version=key.prompt_version, schema_version=key.schema_version, runtime_config_version=key.runtime_config_version,
+            status="running", advice=None, abstention_code=None, result_digest=key.facts_digest, agent_run_id=None, created_at=now, updated_at=now,
+        )
+        self._session.add(row)
+        self._session.flush()
+        return row, True
+
+    def finalize_weekly_review(self, *, result: WeeklyReviewResult, advice: str, result_digest: str, now) -> WeeklyReviewResult:
+        result.status, result.advice, result.abstention_code, result.result_digest, result.updated_at = "completed", advice, None, result_digest, now
+        self._session.flush()
+        self._session.commit()
+        return result
+
+    def mark_weekly_review_outcome_unknown(self, *, result: WeeklyReviewResult, now) -> None:
+        result.status, result.advice, result.abstention_code, result.updated_at = "outcome_unknown", None, None, now
+        self._session.flush()
+        self._session.commit()
 
     @staticmethod
     def _active_local_record_statement(*, user_id: uuid.UUID):

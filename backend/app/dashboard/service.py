@@ -157,6 +157,20 @@ class WeeklyReviewService:
         cached = self._get_cached(key)
         if cached is not None:
             return WeeklyReviewResponse(facts=facts, cache_key=key, advice=cached)
+        claimer = getattr(self._cache_repository, "claim_weekly_review", None)
+        if claimer is not None:
+            result, owns_claim = claimer(key=key, now=self._now())
+            if not owns_claim:
+                if result.status == "completed":
+                    return WeeklyReviewResponse(facts=facts, cache_key=key, advice=result.advice)
+                return WeeklyReviewResponse(facts=facts, cache_key=key, abstention_code="OUTCOME_UNKNOWN")
+            try:
+                advice = _safe_advice(self._provider(facts))
+            except Exception:
+                self._cache_repository.mark_weekly_review_outcome_unknown(result=result, now=self._now())
+                return WeeklyReviewResponse(facts=facts, cache_key=key, abstention_code="OUTCOME_UNKNOWN")
+            finalized = self._cache_repository.finalize_weekly_review(result=result, advice=advice, result_digest=_digest(advice), now=self._now())
+            return WeeklyReviewResponse(facts=facts, cache_key=key, advice=finalized.advice)
         try:
             advice = _safe_advice(self._provider(facts))
         except Exception:
