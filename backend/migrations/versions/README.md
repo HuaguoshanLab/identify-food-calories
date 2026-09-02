@@ -29,3 +29,4 @@
 | `0013_dashboard_time_attribution.py` | 用户确认统计时区、餐食本地日冻结与历史回填审计 schema。 |
 | `0014_planning_completion_projection.py` | 可撤销的 validated planning completion 投影、跨用户复合外键与 profile revision schema；唯一前驱是 `0013`。 |
 | `0015_weekly_review_results.py` | facts 摘要和全部安全版本组成唯一 key 的最小周复盘结果缓存；唯一前驱是 `0014`。 |
+| `0016_admin_audit_foundation.py` | 通用 append-only 管理命令审计、最小字段差异与稳定 keyset 查询索引；唯一前驱是 `0015`。 |
