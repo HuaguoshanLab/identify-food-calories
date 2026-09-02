@@ -16,3 +16,5 @@
 | `__init__.py` | Python 测试包标识。 |
 | `test_dashboard_target_port.py` | 窄目标资格 Port 的 unavailable、撤销和租户隔离契约。 |
 | `test_dashboard_service.py` | fake repository 下 overview 七日槽位、目标 Port 和 history cursor 契约。 |
+| `test_weekly_review_facts.py` | 周复盘 facts、覆盖阈值和零 Provider 调用契约。 |
+| `test_weekly_review_cache_service.py` | 周复盘 cache key、命中与版本失效服务契约。 |
