@@ -1,4 +1,7 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
+
+import { AdminRouteGuard } from './auth/AdminRouteGuard'
+import { AdminRuntimeConfigSummaryPage } from './features/config/ConfigSummaryPage'
 
 function AdminRuntimeRoot() {
   return (
@@ -15,7 +18,10 @@ function AdminRuntimeRoot() {
 export function App() {
   return (
     <Routes>
-      <Route path="*" element={<AdminRuntimeRoot />} />
+      <Route path="/admin/login" element={<AdminRuntimeRoot />} />
+      <Route path="/admin/forbidden" element={<main className="admin-runtime-root"><h1>无后台访问权限</h1></main>} />
+      <Route path="/admin/model-configs" element={<AdminRouteGuard><AdminRuntimeConfigSummaryPage /></AdminRouteGuard>} />
+      <Route path="*" element={<Navigate replace to="/admin/model-configs" />} />
     </Routes>
   )
 }

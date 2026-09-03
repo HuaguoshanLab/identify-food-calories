@@ -63,19 +63,33 @@ def probe(
 def configure_runtime(
     command: RuntimeConfigCommand,
     principal: AuthenticatedPrincipal,
+    if_match: int = Header(alias="If-Match", ge=0),
     idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> RuntimeConfigResponse | JSONResponse:
     """Create an immutable future-only policy version after fresh DB RBAC."""
 
     try:
-        return admin_service.configure_runtime(
-            actor_user_id=principal, command=command, command_key=idempotency_key
-        )
+        return admin_service.configure_runtime(actor_user_id=principal, command=command, command_key=idempotency_key, expected_version=if_match)
     except AdminPermissionDenied:
         return _forbidden()
     except RuntimeConfigConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="runtime config command conflict") from error
+
+
+@router.get("/runtime-config", response_model=RuntimeConfigResponse)
+def read_runtime_config(
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> RuntimeConfigResponse | JSONResponse:
+    """Read the current non-secret policy after current database RBAC."""
+
+    try:
+        return admin_service.read_runtime_config(actor_user_id=principal)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="runtime config not found") from error
 
 
 @router.get("/audit", response_model=AdminAuditPageResponse)

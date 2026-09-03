@@ -96,7 +96,8 @@ class AdminService:
         return user
 
     def configure_runtime(
-        self, *, actor_user_id: uuid.UUID, command: RuntimeConfigCommand, command_key: str
+        self, *, actor_user_id: uuid.UUID, command: RuntimeConfigCommand, command_key: str,
+        expected_version: int | None = None,
     ) -> RuntimeConfigResponse:
         """Append a non-secret policy version; old runs keep their prior snapshots."""
 
@@ -104,6 +105,9 @@ class AdminService:
         request_hash = self._request_hash("runtime_config", payload | {"reason": command.reason})
         actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         self._repository.acquire_runtime_config_lock()
+        active = self._repository.get_active_runtime_config()
+        if expected_version is not None and expected_version != (active.version if active else 0):
+            raise RuntimeConfigConflict("runtime config version conflict")
         existing = self._repository.get_runtime_config_command(command_key)
         if existing is not None:
             if self._runtime_request_hash(existing) != request_hash:
@@ -129,6 +133,15 @@ class AdminService:
             self._rollback()
             raise
         return self._runtime_response(version)
+
+    def read_runtime_config(self, *, actor_user_id: uuid.UUID) -> RuntimeConfigResponse:
+        """Return the current safe policy only after a fresh database role read."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        active = self._repository.get_active_runtime_config()
+        if active is None:
+            raise KeyError("runtime config not found")
+        return self._runtime_response(active)
 
     def admit_runtime_call(self) -> RuntimeConfigAdmission:
         """Freeze the active policy before a new Agent run reaches provider work.

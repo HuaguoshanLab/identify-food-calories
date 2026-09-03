@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.admin.schemas import RuntimeConfigCommand
-from app.admin.service import AdminPermissionDenied, AdminService, RuntimeAdmissionDenied
+from app.admin.service import AdminPermissionDenied, AdminService, RuntimeAdmissionDenied, RuntimeConfigConflict
 from app.agent.models import AgentRun, AgentThread
 from app.agent.ports import RuntimeConfigAdmission
 from app.agent.service import AgentService
@@ -130,6 +130,12 @@ def test_admin_versioning_is_immutable_idempotent_and_uses_current_db_role() -> 
     assert first.enabled is True  # a later command must not rewrite an in-flight snapshot
     assert repository.locked == 3  # replays lock too, so idempotency is race-safe
     assert len(repository.events) == 2
+    assert service.read_runtime_config(actor_user_id=actor.id).id == disabled.id
+    with pytest.raises(RuntimeConfigConflict):
+        service.configure_runtime(
+            actor_user_id=actor.id, command=_command(reason="stale browser edit"),
+            command_key="runtime-config-0006", expected_version=1,
+        )
     repository.user = _admin(UserRole.USER.value)
     with pytest.raises(AdminPermissionDenied):
         service.configure_runtime(actor_user_id=repository.user.id, command=_command(), command_key="runtime-config-0003")
