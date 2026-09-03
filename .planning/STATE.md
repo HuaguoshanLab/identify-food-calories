@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-16-PLAN.md
-last_updated: "2026-09-03T11:31:35.436Z"
+stopped_at: Completed 06-16 admission integration
+last_updated: "2026-09-03T11:47:19.006Z"
 last_activity: 2026-09-03
 progress:
   total_phases: 8
@@ -201,6 +201,7 @@ Recent decisions affecting current work:
 - [Phase 06]: 无变更时仍返回九个白名单生命周期字段并标注无变更，保证正常发布保持可读、可审计预览。
 - [Phase 06]: Phase 06 runtime configuration follows user-authorized 0019 after 0018; parallel Alembic heads are forbidden. — 0017 and 0018 were already occupied by completed work.
 - [Phase 06]: Runtime config commands accept only non-secret allowlisted policy data; Provider credentials and endpoint resolution remain environment-only. — Prevents the admin configuration surface from becoming a secret or SSRF bypass.
+- [Phase 06]: Every actual Agent HTTP new-run command now requires the injected RuntimeConfigAdmitter; idempotent replays retain the original immutable snapshot. — Stops post-disable calls before provider-facing work without rewriting already admitted runs.
 
 ### Pending Todos
 
@@ -221,6 +222,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T11:31:35.427Z
-Stopped at: Completed 06-16-PLAN.md
+Last session: 2026-09-03T11:47:18.998Z
+Stopped at: Completed 06-16 admission integration
 Resume file: None
