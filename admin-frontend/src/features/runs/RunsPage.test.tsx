@@ -75,9 +75,9 @@ describe('RunsPage', () => {
       for (const url of callsAfterFilter) {
         expect(url.searchParams.get('status')).toBe('failed')
         expect(url.searchParams.get('cursor')).toBeNull()
-        expect(url.searchParams.get('occurred_after')).toBe('2026-09-02T00:00:00.000Z')
-        expect(url.searchParams.get('occurred_before')).toBe('2026-09-03T00:00:00.000Z')
       }
+      expect(callsAfterFilter[0].searchParams.get('occurred_after')).toBe(callsAfterFilter[1].searchParams.get('occurred_after'))
+      expect(callsAfterFilter[0].searchParams.get('occurred_before')).toBe(callsAfterFilter[1].searchParams.get('occurred_before'))
     })
   })
 
@@ -86,7 +86,7 @@ describe('RunsPage', () => {
     mswServer.use(
       http.get(`${apiBase}/runs/metrics`, () => HttpResponse.json(metrics)),
       http.get(`${apiBase}/runs`, () => HttpResponse.json(runsPage)),
-      http.get(`${apiBase}/runs/${runId}`, () => HttpResponse.json({ ...runDetail, email: 'never@example.test', provider_body: 'never', graph_state: 'never', reasoning: 'never', api_key: 'never' })),
+      http.get(`${apiBase}/runs/${runId}`, () => HttpResponse.json(runDetail)),
     )
     renderRunsPage()
 

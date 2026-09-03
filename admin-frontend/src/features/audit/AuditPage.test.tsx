@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -74,10 +74,11 @@ describe('AuditPage', () => {
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce())
     expect(screen.queryByRole('table', { name: '操作审计时间线' })).not.toBeInTheDocument()
 
+    cleanup()
     mswServer.use(http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)))
     renderAuditPage()
     await screen.findByRole('table', { name: '操作审计时间线' })
     await user.click(screen.getByRole('link', { name: '跳到主要内容' }))
-    expect(screen.getByRole('main')).toHaveFocus()
+    expect(document.getElementById('audit-main')).toHaveFocus()
   })
 })
