@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-14 catalog publication eligibility
-last_updated: "2026-09-03T10:20:09.137Z"
+stopped_at: Completed 06-15 catalog lifecycle governance UI
+last_updated: "2026-09-03T11:19:36.870Z"
 last_activity: 2026-09-03
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 82
+  completed_plans: 83
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 17 of 25
+Plan: 18 of 25
 Status: Ready to execute
 Last activity: 2026-09-03
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ Progress: [█████████░] 91%
 | Phase 06 P12 | 12min | 3 tasks | 16 files |
 | Phase 06 P13 | 65 min | 2 tasks | 10 files |
 | Phase 06 P14 | 25 min | 3 tasks | 16 files |
+| Phase 06 P15 | 57min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -195,6 +196,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 目录草稿的 diff、影响范围和 If-Match 基线由预览 API 从当前 PostgreSQL 草稿计算。 — 前端本地回显不能证明并发基线或授权状态，且会伪造服务端预览。
 - [Phase 06]: Catalog publication uses per-draft PostgreSQL advisory locking, immutable typed snapshots, and append-only eligibility history for future-use exclusion. — Prevents first-publish races and immediate revocation bypasses without rewriting meal snapshots.
 - [Phase 06]: Phase 06-14 uses user-authorized migration 0018 after 0017, preserving the single Alembic head. — 0016 and 0017 were already occupied by completed earlier work.
+- [Phase 06]: 生命周期确认投影由服务端以 active immutable publication 对比当前草稿生成；浏览器不生成可信 before 值、impact 或 eligibility。
+- [Phase 06]: 无变更时仍返回九个白名单生命周期字段并标注无变更，保证正常发布保持可读、可审计预览。
 
 ### Pending Todos
 
@@ -215,6 +218,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T10:20:08.989Z
-Stopped at: Completed 06-14 catalog publication eligibility
+Last session: 2026-09-03T11:19:36.862Z
+Stopped at: Completed 06-15 catalog lifecycle governance UI
 Resume file: None
