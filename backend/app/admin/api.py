@@ -18,6 +18,8 @@ from app.admin.schemas import (
     CatalogDraftPreviewCommand,
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
+    CatalogLifecycleCommand,
+    CatalogPublicationResponse,
 )
 from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.api import AuthenticatedPrincipal
@@ -142,6 +144,60 @@ def patch_catalog_draft(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
     except CatalogDraftConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
+
+
+@router.post("/catalog-drafts/{draft_id}/review", response_model=CatalogPublicationResponse)
+def review_catalog_draft(
+    draft_id: uuid.UUID,
+    command: CatalogLifecycleCommand,
+    principal: AuthenticatedPrincipal,
+    if_match: int = Header(alias="If-Match", ge=1),
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogPublicationResponse | JSONResponse:
+    try:
+        return admin_service.review_catalog_draft(actor_user_id=principal, draft_id=draft_id, expected_revision=if_match, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict") from error
+
+
+@router.post("/catalog-drafts/{draft_id}/publish", response_model=CatalogPublicationResponse)
+def publish_catalog_draft(
+    draft_id: uuid.UUID,
+    command: CatalogLifecycleCommand,
+    principal: AuthenticatedPrincipal,
+    if_match: int = Header(alias="If-Match", ge=1),
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogPublicationResponse | JSONResponse:
+    try:
+        return admin_service.publish_catalog_draft(actor_user_id=principal, draft_id=draft_id, expected_revision=if_match, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict") from error
+
+
+@router.post("/catalog-publications/{publication_id}/disqualifications", response_model=CatalogPublicationResponse)
+def disqualify_catalog_publication(
+    publication_id: uuid.UUID,
+    command: CatalogLifecycleCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogPublicationResponse | JSONResponse:
+    try:
+        return admin_service.disqualify_catalog_publication(actor_user_id=principal, publication_id=publication_id, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
 
 
 def _authentication_required() -> JSONResponse:

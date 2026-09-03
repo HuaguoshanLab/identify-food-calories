@@ -128,7 +128,7 @@ def test_review_publish_is_idempotent_immutable_and_audited() -> None:
 
     assert review.content_hash == published.content_hash
     assert replay.id == published.id
-    assert published.snapshot["canonical_name"] == "Oats"
+    assert repository.publications[published.id].snapshot["canonical_name"] == "Oats"
     assert [event.action for event in repository.events[-2:]] == ["catalog.review", "catalog.publish"]
 
 
@@ -145,3 +145,5 @@ def test_publish_requires_current_review_and_confirmed_server_command() -> None:
         )
     with pytest.raises(ValueError):
         CatalogLifecycleCommand(reason="publish", confirm=False)
+    with pytest.raises(ValueError):
+        CatalogLifecycleCommand(reason="publish", confirm=True, client_diff={"fake": "diff"})

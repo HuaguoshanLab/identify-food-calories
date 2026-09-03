@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import Select, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.nutrition.models import (
     FoodCatalogAlias,
@@ -17,6 +18,10 @@ from app.nutrition.models import (
 )
 from app.nutrition.importer import CatalogManifest, ImportedCatalogVersion
 from app.nutrition.schemas import ControlledPortion, NutritionValues, QualifiedFood
+from app.admin.models import CatalogActivePublication, CatalogPublication, CatalogPublicationEligibility
+
+
+ADMIN_PUBLICATION_VERSION = "admin-publication-v1"
 
 
 class SqlAlchemyNutritionRepository:
@@ -33,7 +38,12 @@ class SqlAlchemyNutritionRepository:
             .order_by(FoodCatalogAlias.normalized_alias, FoodCatalogItem.canonical_name)
             .limit(limit)
         )
-        return [self._to_qualified_food(row) for row in self._session.scalars(statement).unique()]
+        imported = [self._to_qualified_food(row) for row in self._session.scalars(statement).unique()]
+        # The database enforces publication pointer and eligibility below. Python
+        # only performs the final name match over those already-qualified rows.
+        published = [self._to_published_food(row) for row in self._session.scalars(self._eligible_publication_statement())]
+        candidates = (*imported, *published)
+        return [food for food in candidates if normalized_query in {alias.casefold() for alias in food.aliases}][:limit]
 
     def get_qualified_food(
         self, *, food_id: uuid.UUID, catalog_version: str
@@ -43,7 +53,14 @@ class SqlAlchemyNutritionRepository:
             NutritionCatalogVersion.version == catalog_version,
         )
         item = self._session.scalar(statement)
-        return self._to_qualified_food(item) if item is not None else None
+        if item is not None:
+            return self._to_qualified_food(item)
+        if catalog_version != ADMIN_PUBLICATION_VERSION:
+            return None
+        publication = self._session.scalar(
+            self._eligible_publication_statement().where(CatalogPublication.id == food_id)
+        )
+        return self._to_published_food(publication) if publication is not None else None
 
     @staticmethod
     def _qualified_statement() -> Select[tuple[FoodCatalogItem]]:
@@ -87,6 +104,23 @@ class SqlAlchemyNutritionRepository:
         )
 
     @staticmethod
+    def _eligible_publication_statement() -> Select[tuple[CatalogPublication]]:
+        latest = aliased(CatalogPublicationEligibility)
+        latest_eligibility = (
+            select(latest.id)
+            .where(latest.publication_id == CatalogPublication.id)
+            .order_by(latest.occurred_at.desc(), latest.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        return (
+            select(CatalogPublication)
+            .join(CatalogActivePublication, CatalogActivePublication.publication_id == CatalogPublication.id)
+            .join(CatalogPublicationEligibility, CatalogPublicationEligibility.id == latest_eligibility)
+            .where(CatalogPublicationEligibility.status == "eligible")
+        )
+
+    @staticmethod
     def _to_qualified_food(item: FoodCatalogItem) -> QualifiedFood:
         # The SQL predicate is the qualification boundary; the assertions retain the
         # type-level promise if a future adapter accidentally weakens that predicate.
@@ -119,6 +153,23 @@ class SqlAlchemyNutritionRepository:
                 protein_g=item.protein_g_per_100g,
                 fat_g=item.fat_g_per_100g,
                 carbohydrate_g=item.carbohydrate_g_per_100g,
+            ),
+        )
+
+    @staticmethod
+    def _to_published_food(publication: CatalogPublication) -> QualifiedFood:
+        snapshot = publication.snapshot
+        aliases = snapshot["aliases"]
+        assert isinstance(aliases, list)
+        return QualifiedFood(
+            id=publication.id, canonical_name=str(snapshot["canonical_name"]),
+            catalog_version=ADMIN_PUBLICATION_VERSION, prepared_state="not_specified",
+            source_name=str(snapshot["source_name"]), source_url=str(snapshot["source_url"]),
+            license_name="LicenseRef-Admin-Publication-v1", aliases=tuple(str(alias) for alias in aliases),
+            portions=(),
+            nutrients_per_100g=NutritionValues(
+                energy_kcal=Decimal(str(snapshot["energy_kcal_per_100g"])), protein_g=Decimal(str(snapshot["protein_g_per_100g"])),
+                fat_g=Decimal(str(snapshot["fat_g_per_100g"])), carbohydrate_g=Decimal(str(snapshot["carbohydrate_g_per_100g"])),
             ),
         )
 

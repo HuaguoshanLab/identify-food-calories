@@ -8,10 +8,10 @@ import hashlib
 import hmac
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
-from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
+from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
 from app.admin.ports import AdminRepository
 from app.admin.schemas import (
     AdminAuditEventResponse,
@@ -23,6 +23,8 @@ from app.admin.schemas import (
     CatalogDraftPreviewCommand,
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
+    CatalogLifecycleCommand,
+    CatalogPublicationResponse,
 )
 from app.auth.models import User, UserRole
 
@@ -60,6 +62,7 @@ class AdminService:
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
         self._cursor_secret = cursor_secret.encode("utf-8") if cursor_secret else None
+        self._last_lifecycle_at: datetime | None = None
 
     def require_role(self, *, user_id: uuid.UUID, required_role: UserRole) -> User:
         """Read the active role from PostgreSQL; JWT claims are never authorization truth."""
@@ -302,6 +305,108 @@ class AdminService:
             impact_categories=impacts,
         )
 
+    def review_catalog_draft(
+        self, *, actor_user_id: uuid.UUID, draft_id: uuid.UUID, expected_revision: int,
+        command: CatalogLifecycleCommand, command_key: str,
+    ) -> CatalogPublicationResponse:
+        """Freeze a server-derived candidate; publication may only consume this review."""
+
+        self._repository.acquire_catalog_publication_lock(draft_id)
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        draft = self._repository.get_catalog_draft(draft_id, for_update=True)
+        if draft is None:
+            raise KeyError("catalog draft not found")
+        if draft.revision != expected_revision:
+            raise CatalogDraftConflict("catalog draft revision does not match If-Match")
+        existing = self._repository.get_catalog_review(draft_id=draft_id, revision=draft.revision)
+        if existing is not None:
+            if existing.command_key != command_key.strip():
+                raise CatalogDraftConflict("draft revision has already been reviewed")
+            return self._review_response(existing)
+        snapshot = self._publication_snapshot(draft)
+        content_hash = self._content_hash(snapshot)
+        review = self._repository.add_catalog_review(CatalogDraftReview(
+            id=uuid.uuid4(), draft_id=draft.id, draft_revision=draft.revision, snapshot=snapshot,
+            content_hash=content_hash, actor_identifier=str(actor.id), reason=command.reason,
+            command_key=command_key.strip(), reviewed_at=self._now(),
+        ))
+        self._record_catalog_lifecycle_audit(
+            actor_identifier=str(actor.id), action="catalog.review", object_id=str(draft.id), reason=command.reason,
+            command_key=command_key, before={"revision": draft.revision},
+            after={"content_hash": content_hash, "revision": draft.revision}, related_version=content_hash,
+        )
+        self._commit_catalog_mutation()
+        return self._review_response(review)
+
+    def publish_catalog_draft(
+        self, *, actor_user_id: uuid.UUID, draft_id: uuid.UUID, expected_revision: int,
+        command: CatalogLifecycleCommand, command_key: str,
+    ) -> CatalogPublicationResponse:
+        """Atomically advance one pointer to a reviewed immutable publication."""
+
+        self._repository.acquire_catalog_publication_lock(draft_id)
+        replay = self._repository.get_catalog_publication_command(command_key.strip())
+        if replay is not None:
+            return self._publication_response(replay, eligibility="eligible")
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        draft = self._repository.get_catalog_draft(draft_id, for_update=True)
+        if draft is None:
+            raise KeyError("catalog draft not found")
+        if draft.revision != expected_revision:
+            raise CatalogDraftConflict("catalog draft revision does not match If-Match")
+        if draft.authorization_status != "authorized":
+            raise CatalogDraftConflict("only authorized drafts may be published")
+        review = self._repository.get_catalog_review(draft_id=draft_id, revision=draft.revision)
+        if review is None:
+            raise CatalogDraftConflict("a current immutable review is required before publication")
+        snapshot = self._publication_snapshot(draft)
+        content_hash = self._content_hash(snapshot)
+        if content_hash != review.content_hash or snapshot != review.snapshot:
+            raise CatalogDraftConflict("draft changed after review")
+        publication = self._repository.add_catalog_publication(CatalogPublication(
+            id=uuid.uuid4(), draft_id=draft.id, review_id=review.id, draft_revision=draft.revision,
+            snapshot=dict(review.snapshot), content_hash=review.content_hash, actor_identifier=str(actor.id),
+            reason=command.reason, command_key=command_key.strip(), published_at=self._now(),
+        ))
+        self._repository.advance_active_catalog_publication(draft_id=draft.id, publication_id=publication.id)
+        self._repository.add_catalog_eligibility(CatalogPublicationEligibility(
+            id=uuid.uuid4(), publication_id=publication.id, status="eligible", actor_identifier=str(actor.id),
+            reason=command.reason, command_key=f"eligibility-{command_key.strip()}", occurred_at=self._lifecycle_now(),
+        ))
+        self._record_catalog_lifecycle_audit(
+            actor_identifier=str(actor.id), action="catalog.publish", object_id=str(publication.id), reason=command.reason,
+            command_key=command_key, before={"draft_revision": draft.revision},
+            after={"content_hash": publication.content_hash, "publication_id": str(publication.id)}, related_version=publication.content_hash,
+        )
+        self._commit_catalog_mutation()
+        return self._publication_response(publication, eligibility="eligible")
+
+    def disqualify_catalog_publication(
+        self, *, actor_user_id: uuid.UUID, publication_id: uuid.UUID,
+        command: CatalogLifecycleCommand, command_key: str,
+    ) -> CatalogPublicationResponse:
+        """Append a blocking future-use overlay; historical meal snapshots are untouched."""
+
+        publication = self._repository.get_catalog_publication(publication_id)
+        if publication is None:
+            raise KeyError("catalog publication not found")
+        self._repository.acquire_catalog_publication_lock(publication.draft_id)
+        replay = self._repository.get_catalog_eligibility_command(command_key.strip())
+        if replay is not None:
+            return self._publication_response(publication, eligibility=cast(Literal["eligible", "disqualified"], replay.status))
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.add_catalog_eligibility(CatalogPublicationEligibility(
+            id=uuid.uuid4(), publication_id=publication.id, status="disqualified", actor_identifier=str(actor.id),
+            reason=command.reason, command_key=command_key.strip(), occurred_at=self._lifecycle_now(),
+        ))
+        self._record_catalog_lifecycle_audit(
+            actor_identifier=str(actor.id), action="catalog.disqualify", object_id=str(publication.id), reason=command.reason,
+            command_key=command_key, before={"eligibility": "eligible"}, after={"eligibility": "disqualified"},
+            related_version=publication.content_hash,
+        )
+        self._commit_catalog_mutation()
+        return self._publication_response(publication, eligibility="disqualified")
+
     def _record_catalog_mutation(
         self,
         *,
@@ -386,6 +491,20 @@ class AdminService:
         }
 
     @staticmethod
+    def _publication_snapshot(draft: CatalogDraft) -> dict[str, object]:
+        """Keep typed content immutable; audit diffs intentionally remain scalar-only."""
+
+        return {
+            "canonical_name": draft.canonical_name, "aliases": list(draft.aliases),
+            "energy_kcal_per_100g": str(draft.energy_kcal_per_100g),
+            "protein_g_per_100g": str(draft.protein_g_per_100g),
+            "fat_g_per_100g": str(draft.fat_g_per_100g),
+            "carbohydrate_g_per_100g": str(draft.carbohydrate_g_per_100g),
+            "source_name": draft.source_name, "source_url": draft.source_url,
+            "authorization_status": draft.authorization_status, "revision": draft.revision,
+        }
+
+    @staticmethod
     def _catalog_preview_impacts(
         diffs: list[CatalogDraftFieldDiff],
     ) -> list[Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]]:
@@ -421,6 +540,59 @@ class AdminService:
             fat_g_per_100g=draft.fat_g_per_100g, carbohydrate_g_per_100g=draft.carbohydrate_g_per_100g,
             source_name=draft.source_name, source_url=draft.source_url,
             authorization_status=cast(Literal["authorized", "pending", "revoked"], draft.authorization_status), revision=draft.revision,
+        )
+
+    @staticmethod
+    def _content_hash(snapshot: dict[str, object]) -> str:
+        """Hash the exact server-derived snapshot, never a client-provided diff."""
+
+        normalized = json.dumps(snapshot, sort_keys=True, default=str, separators=(",", ":"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _lifecycle_now(self) -> datetime:
+        """Give append-only overlay events a deterministic total order per command flow."""
+
+        current = self._now()
+        if self._last_lifecycle_at is not None and current <= self._last_lifecycle_at:
+            current = self._last_lifecycle_at + timedelta(microseconds=1)
+        self._last_lifecycle_at = current
+        return current
+
+    @staticmethod
+    def _review_response(review: CatalogDraftReview) -> CatalogPublicationResponse:
+        return CatalogPublicationResponse(
+            id=review.id, draft_id=review.draft_id, draft_revision=review.draft_revision,
+            content_hash=review.content_hash, eligibility="eligible",
+        )
+
+    @staticmethod
+    def _publication_response(
+        publication: CatalogPublication, *, eligibility: Literal["eligible", "disqualified"]
+    ) -> CatalogPublicationResponse:
+        return CatalogPublicationResponse(
+            id=publication.id, draft_id=publication.draft_id, draft_revision=publication.draft_revision,
+            content_hash=publication.content_hash, eligibility=eligibility,
+        )
+
+    def _record_catalog_lifecycle_audit(
+        self,
+        *,
+        actor_identifier: str,
+        action: str,
+        object_id: str,
+        reason: str,
+        command_key: str,
+        before: dict[str, object],
+        after: dict[str, object],
+        related_version: str,
+    ) -> None:
+        self._repository.add_audit_event(
+            AdminAuditEvent(
+                id=uuid.uuid4(), actor_identifier=actor_identifier, occurred_at=self._now(), action=action,
+                object_type="catalog_publication", object_id=object_id, reason=reason.strip(),
+                before_diff=self._safe_diff(before), after_diff=self._safe_diff(after),
+                related_version=related_version, command_key=f"audit-{command_key.strip()}",
+            )
         )
 
     def _promotion_target(self, target_user_id: uuid.UUID) -> User:

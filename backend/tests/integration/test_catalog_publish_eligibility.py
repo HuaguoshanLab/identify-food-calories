@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+import threading
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.admin.models import CatalogActivePublication, CatalogPublication, CatalogPublicationEligibility
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
 from app.admin.service import AdminService
 from app.auth.models import User, UserRole
+from app.nutrition.repository import ADMIN_PUBLICATION_VERSION, SqlAlchemyNutritionRepository
 
 
 def _actor(now: datetime) -> User:
@@ -33,9 +36,53 @@ def test_published_pointer_has_one_immutable_publication_and_disqualification_is
     command = CatalogLifecycleCommand(reason="review complete", confirm=True)
     service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="review-publish-pg-0001")
     publication = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="publish-pg-0001")
+    nutrition = SqlAlchemyNutritionRepository(db_session)
+    assert nutrition.get_qualified_food(food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION) is not None
     service.disqualify_catalog_publication(actor_user_id=actor.id, publication_id=publication.id, command=CatalogLifecycleCommand(reason="authorization revoked", confirm=True), command_key="disqualify-pg-0001")
 
     assert db_session.scalar(select(CatalogActivePublication).where(CatalogActivePublication.draft_id == draft.id)).publication_id == publication.id
     assert db_session.scalar(select(CatalogPublication).where(CatalogPublication.id == publication.id)).snapshot["canonical_name"] == "Oats"
     history = list(db_session.scalars(select(CatalogPublicationEligibility).where(CatalogPublicationEligibility.publication_id == publication.id).order_by(CatalogPublicationEligibility.occurred_at)))
     assert [item.status for item in history] == ["eligible", "disqualified"]
+    assert nutrition.get_qualified_food(food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION) is None
+
+
+def test_two_postgresql_publishers_share_one_active_immutable_pointer(test_engine) -> None:
+    now = datetime.now(UTC)
+    with Session(test_engine) as session:
+        actor = _actor(now)
+        session.add(actor)
+        session.commit()
+        service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback)
+        draft = service.create_catalog_draft(actor_user_id=actor.id, command=_draft_command(), command_key="create-publish-concurrent-0001")
+        command = CatalogLifecycleCommand(reason="review complete", confirm=True)
+        service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="review-publish-concurrent-0001")
+        actor_id = actor.id
+        draft_id = draft.id
+
+    barrier = threading.Barrier(2)
+    results: list[uuid.UUID] = []
+    errors: list[BaseException] = []
+
+    def publish() -> None:
+        try:
+            with Session(test_engine) as session:
+                barrier.wait(timeout=5)
+                response = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback).publish_catalog_draft(
+                    actor_user_id=actor_id, draft_id=draft_id, expected_revision=1,
+                    command=CatalogLifecycleCommand(reason="publish", confirm=True), command_key="publish-concurrent-0001",
+                )
+                results.append(response.id)
+        except BaseException as error:  # pragma: no cover - assertion below reports thread failure
+            errors.append(error)
+
+    workers = [threading.Thread(target=publish) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+
+    assert not errors
+    assert len(results) == 2 and results[0] == results[1]
+    with Session(test_engine) as session:
+        assert session.scalar(select(CatalogActivePublication).where(CatalogActivePublication.draft_id == draft_id)).publication_id == results[0]

@@ -217,3 +217,30 @@ class CatalogDraftPreviewResponse(BaseModel):
     impact_categories: list[
         Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]
     ] = Field(min_length=1)
+
+
+class CatalogLifecycleCommand(BaseModel):
+    """High-risk lifecycle commands must be explicitly confirmed and explainable."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_lifecycle_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class CatalogPublicationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    draft_id: uuid.UUID
+    draft_revision: int
+    content_hash: str
+    eligibility: Literal["eligible", "disqualified"]

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.agent.models import AgentRun, AgentThread
 from app.dashboard.ports import PlanningTargetEligibility
 from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
+from app.admin.models import CatalogActivePublication, CatalogPublication, CatalogPublicationEligibility
 from app.planning.models import (
     ControlledRecipe as ControlledRecipeModel,
     ControlledRecipeIngredient as ControlledRecipeIngredientModel,
@@ -154,6 +155,15 @@ class SqlAlchemyPlanningProfileRepository:
     def _active_recipe_statement(
         *, catalog_version: str, recipe_version: str
     ) -> Select[tuple[ControlledRecipeModel]]:
+        disqualified_active_publication = (
+            select(CatalogPublicationEligibility.id)
+            .join(CatalogPublication, CatalogPublication.id == CatalogPublicationEligibility.publication_id)
+            .join(CatalogActivePublication, CatalogActivePublication.publication_id == CatalogPublication.id)
+            .where(
+                CatalogPublicationEligibility.status == "disqualified",
+                CatalogPublication.snapshot["canonical_name"].as_string() == FoodCatalogItem.canonical_name,
+            )
+        )
         invalid_ingredient = (
             select(ControlledRecipeIngredientModel.id)
             .join(
@@ -172,6 +182,7 @@ class SqlAlchemyPlanningProfileRepository:
                     FoodCatalogItem.protein_g_per_100g.is_(None),
                     FoodCatalogItem.fat_g_per_100g.is_(None),
                     FoodCatalogItem.carbohydrate_g_per_100g.is_(None),
+                    disqualified_active_publication.exists(),
                 ),
             )
         )

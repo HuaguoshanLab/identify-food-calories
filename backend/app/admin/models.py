@@ -151,3 +151,76 @@ class CatalogDraftRevision(Base):
     revision: Mapped[int] = mapped_column(nullable=False)
     snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CatalogDraftReview(Base):
+    """Frozen review evidence; a later draft edit cannot silently change its candidate."""
+
+    __tablename__ = "catalog_draft_reviews"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "draft_revision", name="uq_catalog_draft_reviews_revision"),
+        UniqueConstraint("command_key", name="uq_catalog_draft_reviews_command_key"),
+        CheckConstraint("draft_revision > 0", name="ck_catalog_draft_reviews_revision_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    draft_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_drafts.id", ondelete="RESTRICT"), nullable=False)
+    draft_revision: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_identifier: Mapped[str] = mapped_column(String(320), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    command_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CatalogPublication(Base):
+    """Immutable reviewed content made eligible for future deterministic lookup."""
+
+    __tablename__ = "catalog_publications"
+    __table_args__ = (
+        UniqueConstraint("command_key", name="uq_catalog_publications_command_key"),
+        UniqueConstraint("draft_id", "draft_revision", name="uq_catalog_publications_revision"),
+        CheckConstraint("draft_revision > 0", name="ck_catalog_publications_revision_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    draft_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_drafts.id", ondelete="RESTRICT"), nullable=False)
+    review_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_draft_reviews.id", ondelete="RESTRICT"), nullable=False)
+    draft_revision: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_identifier: Mapped[str] = mapped_column(String(320), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    command_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CatalogActivePublication(Base):
+    """One mutable pointer per draft; snapshots themselves are never overwritten."""
+
+    __tablename__ = "catalog_active_publications"
+
+    draft_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_drafts.id", ondelete="RESTRICT"), primary_key=True)
+    publication_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_publications.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    advanced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CatalogPublicationEligibility(Base):
+    """Append-only future-use status history; query code selects its latest event."""
+
+    __tablename__ = "catalog_publication_eligibilities"
+    __table_args__ = (
+        UniqueConstraint("command_key", name="uq_catalog_publication_eligibilities_command_key"),
+        CheckConstraint("status IN ('eligible', 'disqualified')", name="ck_catalog_publication_eligibilities_status"),
+        CheckConstraint("reason = btrim(reason) AND reason <> ''", name="ck_catalog_publication_eligibilities_reason"),
+        Index("ix_catalog_publication_eligibilities_latest", "publication_id", "occurred_at", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    publication_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("catalog_publications.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_identifier: Mapped[str] = mapped_column(String(320), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    command_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
