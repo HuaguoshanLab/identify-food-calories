@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal, InvalidOperation
 from typing import Literal
 
 from app.core.config import ConfigurationError, ReasoningProviderMode, Settings
@@ -55,8 +56,11 @@ def create_reasoning_provider(
             raise ConfigurationError(
                 "DEEPSEEK_PRICE_SNAPSHOT_VERSION is required for the DeepSeek provider"
             )
-        input_price = runtime_config["input_usd_per_m"] if runtime_config is not None else settings.deepseek_input_usd_per_m
-        output_price = runtime_config["output_usd_per_m"] if runtime_config is not None else settings.deepseek_output_usd_per_m
+        try:
+            input_price = Decimal(str(runtime_config["input_usd_per_m"])) if runtime_config is not None else settings.deepseek_input_usd_per_m
+            output_price = Decimal(str(runtime_config["output_usd_per_m"])) if runtime_config is not None else settings.deepseek_output_usd_per_m
+        except (InvalidOperation, ValueError) as error:
+            raise ConfigurationError("runtime config prices must be decimals") from error
         if input_price is None or output_price is None or input_price < 0 or output_price < 0:
             raise ConfigurationError(
                 "DEEPSEEK_INPUT_USD_PER_M and DEEPSEEK_OUTPUT_USD_PER_M are required"

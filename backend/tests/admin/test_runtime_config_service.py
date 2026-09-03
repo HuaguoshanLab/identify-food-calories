@@ -12,6 +12,8 @@ from pydantic import ValidationError
 from app.admin.schemas import RuntimeConfigCommand
 from app.admin.service import AdminPermissionDenied, AdminService, RuntimeAdmissionDenied
 from app.auth.models import User, UserRole
+from app.core.config import ConfigurationError, Settings
+from app.providers.reasoning.factory import create_reasoning_provider
 
 
 NOW = datetime(2026, 9, 3, tzinfo=UTC)
@@ -120,3 +122,22 @@ def test_admission_blocks_disabled_or_over_budget_new_calls_without_replaying_un
     with pytest.raises(RuntimeAdmissionDenied):
         service.admit_runtime_call(actor_user_id=actor.id, worst_case_cost_usd=Decimal("0.01"))
     assert snapshot.enabled is True  # already admitted work retains the old immutable policy
+
+
+def test_provider_factory_accepts_only_safe_snapshot_and_resolves_key_from_environment_settings() -> None:
+    settings = Settings(
+        app_env="local", reasoning_provider_mode="deepseek", deepseek_api_key="environment-only-key",
+        deepseek_model="deepseek-v4-flash", deepseek_price_snapshot_version="pricing-v1",
+        deepseek_input_usd_per_m=Decimal("0.20"), deepseek_output_usd_per_m=Decimal("0.80"),
+    )
+    provider = create_reasoning_provider(
+        settings,
+        runtime_config={
+            "version": 1, "provider": "deepseek", "model_alias": "deepseek-v4-flash", "enabled": True,
+            "single_call_cap_usd": "0.03", "period_cap_usd": "3.00",
+            "input_usd_per_m": "0.20", "output_usd_per_m": "0.80",
+        },
+    )
+    assert provider.__class__.__name__ == "DeepSeekReasoningModelProvider"
+    with pytest.raises(ConfigurationError):
+        create_reasoning_provider(settings, runtime_config={"endpoint": "https://unsafe.invalid"})
