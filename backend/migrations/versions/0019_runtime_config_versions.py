@@ -1,5 +1,9 @@
 """Add immutable non-secret reasoning runtime configuration snapshots.
 
+Phase 06's draft reserved 0017, but completed catalog work already occupies
+0017 and 0018. The user authorized this successor to continue the actual
+single-head lineage instead of creating a parallel revision.
+
 Revision ID: 0019
 Revises: 0018
 Create Date: 2026-09-03
