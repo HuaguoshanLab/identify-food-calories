@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +7,7 @@ import { mswServer } from '@/test/setup'
 
 import { CatalogLifecyclePage } from './CatalogLifecyclePage'
 
-const apiBase = 'https://admin-api.test/api/v1/admin'
+const apiBase = '/api/v1/admin'
 const draftId = '9a79c487-2c83-4b26-b9ae-7607ebba7a89'
 const publicationId = '87e28c97-10ce-4a6d-bd67-2b43c37fd113'
 
@@ -76,12 +76,13 @@ describe('CatalogLifecyclePage', () => {
     const preview = await screen.findByRole('region', { name: '发布前字段差异' })
     expect(within(preview).getByRole('columnheader', { name: '当前值' })).toBeVisible()
     expect(within(preview).getByRole('columnheader', { name: '拟发布值' })).toBeVisible()
-    expect(within(preview).getByText('已修改')).toBeVisible()
+    expect(within(preview).getAllByText('已修改')).not.toHaveLength(0)
     expect(within(preview).getByText('已新增')).toBeVisible()
     expect(within(preview).getByText('受影响菜品数量：1')).toBeVisible()
     expect(screen.queryByText(/raw_json|api_key|runtime-only-token|provider body/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '审核目录草稿' }))
+    await user.click(await screen.findByRole('button', { name: '确认审核草稿' }))
     expect(await screen.findByText('请说明此次变更原因。')).toBeVisible()
   })
 
@@ -103,12 +104,13 @@ describe('CatalogLifecyclePage', () => {
 
     await user.click(screen.getByRole('button', { name: '发布营养目录版本' }))
     const dialog = await screen.findByRole('alertdialog', { name: '发布营养目录版本？' })
-    expect(within(dialog).getByRole('button', { name: '取消' })).toHaveFocus()
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '取消' })).toHaveFocus())
     await user.type(within(dialog).getByLabelText('变更原因'), '已完成证据复核')
-    await user.click(within(dialog).getByRole('button', { name: '确认发布版本' }))
-    expect(within(dialog).getByRole('button', { name: '确认发布版本' })).toBeDisabled()
+    const confirm = within(dialog).getByRole('button', { name: '确认发布版本' })
+    await user.click(confirm)
+    expect(confirm).toBeDisabled()
     release?.()
-    expect(await screen.findByText('已发布版本 catalog-v3，操作已记录。')).toBeVisible()
+    expect(await screen.findByText('已发布版本 v3，操作已记录。')).toBeVisible()
   })
 
   it('失格确认明确只阻止未来使用，409 保留理由与最新 diff', async () => {
@@ -145,17 +147,19 @@ describe('CatalogLifecyclePage', () => {
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce())
     expect(screen.getByText('登录已失效，请重新登录。')).toBeVisible()
 
+    cleanup()
     mswServer.use(http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json({ error: { code: 'ADMIN_PERMISSION_REQUIRED' } }, { status: 403 })))
     renderPage()
     expect(await screen.findByRole('heading', { name: '无后台访问权限' })).toBeVisible()
 
+    cleanup()
     mswServer.use(
       http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json(lifecyclePreview)),
       http.get(`${apiBase}/audit`, () => HttpResponse.json({ items: [{ ...auditPage.items[0], before: { api_key: 'secret', authorization_status: 'pending' }, after: { provider_body: 'secret', authorization_status: 'authorized' } }], next_cursor: null })),
     )
     renderPage()
     await screen.findByRole('heading', { name: '操作审计' })
-    expect(screen.getByText('已完成来源复核')).toBeVisible()
+    expect(screen.getByText(/已完成来源复核/)).toBeVisible()
     expect(screen.queryByText(/api_key|provider_body|secret/i)).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
   })

@@ -61,6 +61,68 @@ export const catalogDraftPreviewSchema = z.object({
 
 export type CatalogDraftPreview = z.infer<typeof catalogDraftPreviewSchema>
 
+const lifecycleChangeSchema = z.enum(['added', 'modified', 'removed'])
+
+const lifecyclePreviewSchema = z.object({
+  draft: catalogDraftSchema,
+  publication: z.object({
+    id: z.string().uuid(),
+    draft_revision: z.number().int().positive(),
+    eligibility: z.enum(['eligible', 'disqualified']),
+    related_version: z.string().min(1).max(120),
+  }).strict().nullable(),
+  field_diffs: z.array(z.object({
+    field: catalogDraftDiffFieldSchema,
+    before: z.string().nullable(),
+    after: z.string().nullable(),
+    change: lifecycleChangeSchema,
+  }).strict()).min(1),
+  impact: z.object({
+    affected_catalog_items: z.number().int().nonnegative(),
+    description: z.string().min(1).max(500),
+  }).strict(),
+}).strict()
+
+export type CatalogLifecyclePreview = z.infer<typeof lifecyclePreviewSchema>
+
+const catalogPublicationSchema = z.object({
+  id: z.string().uuid(),
+  draft_id: z.string().uuid(),
+  draft_revision: z.number().int().positive(),
+  content_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  eligibility: z.enum(['eligible', 'disqualified']),
+}).strict()
+
+export type CatalogPublication = z.infer<typeof catalogPublicationSchema>
+
+const auditDiffValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
+const auditEventSchema = z.object({
+  id: z.string().uuid(),
+  actor_identifier: z.string().min(1).max(320),
+  occurred_at: z.string().datetime({ offset: true }),
+  action: z.string().min(1).max(80),
+  object_type: z.string().min(1).max(80),
+  object_id: z.string().min(1).max(160),
+  reason: z.string().min(1).max(500),
+  before: z.record(z.string(), auditDiffValueSchema),
+  after: z.record(z.string(), auditDiffValueSchema),
+  related_version: z.string().min(1).max(120).nullable(),
+  command_key: z.string().min(1).max(160),
+}).strict()
+
+const auditPageSchema = z.object({
+  items: z.array(auditEventSchema),
+  next_cursor: z.string().min(16).max(500).nullable(),
+}).strict()
+
+export type CatalogAuditEvent = z.infer<typeof auditEventSchema>
+
+export const lifecycleReasonSchema = z.object({
+  reason: z.string().trim().min(1, '请说明此次变更原因。').max(500),
+}).strict()
+
+export type CatalogLifecycleAction = 'review' | 'publish' | 'disqualify'
+
 export class CatalogApiError extends Error {
   constructor(readonly status: 401 | 403 | 404 | 409 | 500) {
     super(`Catalog admin API request failed with ${status}`)
@@ -133,4 +195,42 @@ export function readCatalogDraft(accessToken: string, draftId: string) {
     headers: requestHeaders(accessToken),
     method: 'GET',
   }).then(catalogDraftSchema.parse)
+}
+
+/** A server-derived projection is mandatory; this client never generates a trusted diff. */
+export function readCatalogLifecyclePreview(accessToken: string, draftId: string) {
+  return sendCatalogRequest(`/catalog-drafts/${draftId}/lifecycle-preview`, {
+    headers: requestHeaders(accessToken),
+    method: 'GET',
+  }).then(lifecyclePreviewSchema.parse)
+}
+
+export function submitCatalogLifecycleCommand(
+  accessToken: string,
+  preview: CatalogLifecyclePreview,
+  action: CatalogLifecycleAction,
+  reason: string,
+  idempotencyKey: string,
+) {
+  const command = { ...lifecycleReasonSchema.parse({ reason }), confirm: true as const }
+  const path = action === 'disqualify'
+    ? `/catalog-publications/${preview.publication?.id ?? ''}/disqualifications`
+    : `/catalog-drafts/${preview.draft.id}/${action}`
+
+  if (action === 'disqualify' && !preview.publication) {
+    throw new CatalogApiError(409)
+  }
+
+  return sendCatalogRequest(path, {
+    body: JSON.stringify(command),
+    headers: commandHeaders(accessToken, idempotencyKey, action === 'disqualify' ? undefined : preview.draft.revision),
+    method: 'POST',
+  }).then(catalogPublicationSchema.parse)
+}
+
+export function listCatalogAuditEvents(accessToken: string) {
+  return sendCatalogRequest('/audit?limit=20', {
+    headers: requestHeaders(accessToken),
+    method: 'GET',
+  }).then(auditPageSchema.parse)
 }
