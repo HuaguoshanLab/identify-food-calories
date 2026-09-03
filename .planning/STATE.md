@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 06-18-PLAN.md
-last_updated: "2026-09-03T12:13:08.974Z"
+last_updated: "2026-09-03T12:24:48.390Z"
 last_activity: 2026-09-03
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 86
+  completed_plans: 87
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 20 of 25
+Plan: 21 of 25
 Status: Ready to execute
 Last activity: 2026-09-03
 
-Progress: [██████████] 96%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Progress: [██████████] 96%
 | Phase 06 P16 | 31min | 3 tasks | 12 files |
 | Phase 06 P17 | 42min | 2 tasks | 15 files |
 | Phase 06 P18 | 24 min | 2 tasks | 10 files |
+| Phase 06 P19 | 10min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -207,6 +208,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 后台 guard 只改善 UX；运行配置 API 每次以 PostgreSQL 当前角色授权，If-Match 在 advisory lock 下验证 append-only version。
 - [Phase 06]: 管理员 run metrics 与 keyset list 复用同一 finished_at + terminal status UTC predicate；游标以 HMAC 保护。 — 防止 overview 与列表数据口径漂移，并拒绝客户端伪造分页位置。
 - [Phase 06]: 管理员 run detail 只映射白名单 run/invocation 字段。 — 阻止用户数据、Provider 原文、图像、Graph State、reasoning 或密钥越过后台响应边界。
+- [Phase 06]: runs metrics 与列表共用同一 UTC allowlist filter，筛选变化清除 opaque cursor。 — 防止 overview/list 口径漂移或旧分页位置穿越新的筛选集。
+- [Phase 06]: audit 页面只渲染服务端 audit DTO 中的固定安全 scalar diff 字段，不显示 command key 或未知字段。 — 保持通用审计可读，同时阻止未来敏感字段自动穿透到 DOM。
 
 ### Pending Todos
 
@@ -227,6 +230,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T12:13:08.966Z
+Last session: 2026-09-03T12:24:48.382Z
 Stopped at: Completed 06-18-PLAN.md
 Resume file: None
