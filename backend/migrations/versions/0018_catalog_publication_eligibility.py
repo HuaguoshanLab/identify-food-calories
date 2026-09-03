@@ -1,5 +1,9 @@
 """Add immutable catalog publication evidence and future-use eligibility history.
 
+The original Phase 06 plan reserved 0016, but 0016 and 0017 were already
+committed by preceding work. User-authorized renumbering therefore continues the
+single Alembic chain from the actual 0017 head rather than creating a fork.
+
 Revision ID: 0018
 Revises: 0017
 Create Date: 2026-09-03
