@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { useAdminAuth } from '@/auth/AdminAuthProvider'
 
@@ -6,12 +7,19 @@ import type { RunFilterValues, AdminRun, AdminRunMetrics } from './api'
 import { readRun, readRunMetrics, readRuns, RunsApiError } from './api'
 import { RunDetailDrawer } from './RunDetailDrawer'
 
-type RunsPageProps = Readonly<{ accessToken: string | undefined, onSessionExpired: () => void }>
+type RunsPageProps = Readonly<{ accessToken: string | undefined, initialFilters?: RunFilterValues, onSessionExpired: () => void }>
 type LoadState = 'loading' | 'ready' | 'expired' | 'forbidden' | 'error'
 
 function defaultFilters(): RunFilterValues {
   const occurredBefore = new Date()
   return { occurred_after: new Date(occurredBefore.getTime() - 24 * 60 * 60 * 1000).toISOString(), occurred_before: occurredBefore.toISOString() }
+}
+
+function filtersFromSearch(searchParams: URLSearchParams): RunFilterValues {
+  const occurredAfter = searchParams.get('occurred_after')
+  const occurredBefore = searchParams.get('occurred_before')
+  if (!occurredAfter || !occurredBefore || Number.isNaN(Date.parse(occurredAfter)) || Number.isNaN(Date.parse(occurredBefore))) return defaultFilters()
+  return { occurred_after: occurredAfter, occurred_before: occurredBefore }
 }
 
 function formatDuration(value: number | null) { return value === null ? '—' : `${value} ms` }
@@ -20,8 +28,8 @@ function MetricsCard({ label, value }: Readonly<{ label: string, value: string |
   return <section className="rounded-lg border bg-card p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold admin-numeric">{value}</p></section>
 }
 
-export function RunsPage({ accessToken, onSessionExpired }: RunsPageProps) {
-  const [filters, setFilters] = useState<RunFilterValues>(defaultFilters)
+export function RunsPage({ accessToken, initialFilters, onSessionExpired }: RunsPageProps) {
+  const [filters, setFilters] = useState<RunFilterValues>(() => initialFilters ?? defaultFilters())
   const [metrics, setMetrics] = useState<AdminRunMetrics>()
   const [runs, setRuns] = useState<AdminRun[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -95,5 +103,7 @@ export function RunsPage({ accessToken, onSessionExpired }: RunsPageProps) {
 export function AdminRunsPage() {
   // Route assembly owns the runtime-only token; this component never persists it.
   const { accessToken, clearSession } = useAdminAuth()
-  return <RunsPage accessToken={accessToken} onSessionExpired={clearSession} />
+  const [searchParams] = useSearchParams()
+  const initialFilters = useMemo(() => filtersFromSearch(searchParams), [searchParams])
+  return <RunsPage accessToken={accessToken} initialFilters={initialFilters} key={JSON.stringify(initialFilters)} onSessionExpired={clearSession} />
 }

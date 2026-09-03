@@ -20,5 +20,6 @@
 | `audit/` | 后端白名单审计证据的只读语义时间线；目录索引见 `audit/README.md`。 |
 | `config/` | 未来 Agent 调用的非密钥运行配置审阅与确认；目录索引见 `config/README.md`。 |
 | `runs/` | 终态运行指标、签名游标列表与最小诊断详情；目录索引见 `runs/README.md`。 |
+| `overview/` | 固定 UTC 24 小时终态运行指标及到 runs 审计的过滤深链接；目录索引见 `overview/README.md`。 |
 
 后续每个 capability 目录首次创建时，必须同次加入本级 README，并在此表登记其职责和公开依赖边界。

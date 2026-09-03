@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
@@ -12,7 +13,7 @@ const response = { terminal_count: 42, failure_ratio: '0.125', p50_elapsed_ms: 1
 describe('AdminOverviewPage', () => {
   it('只显示严格运行指标，并将同一 UTC 窗口带到运行审计链接', async () => {
     mswServer.use(http.get(`${apiBase}/runs/metrics`, () => HttpResponse.json(response)))
-    render(<MemoryRouter><AdminOverviewPage accessToken="runtime-only-token" onSessionExpired={() => undefined} /></MemoryRouter>)
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><AdminOverviewPage accessToken="runtime-only-token" onSessionExpired={() => undefined} /></MemoryRouter></QueryClientProvider>)
     expect(await screen.findByText('42')).toBeVisible()
     expect(screen.getByText('P50 / P95 耗时')).toBeVisible()
     for (const link of screen.getAllByRole('link', { name: /查看运行审计|总终态运行数|失败率|P50|总估算费用/ })) {
