@@ -16,3 +16,4 @@
 | --- | --- |
 | `AdminAuthProvider.tsx` | 仅在内存保存后台 access token；身份变化或退出时清空 Query cache。 |
 | `AdminRouteGuard.tsx` | 以当前内存 token 调用后台 probe；只改善路由 UX，401/403 清空会话与缓存。 |
+| `AdminLoginPage.tsx` | 受 label/运行时 schema 保护的公开登录页；仅建立内存会话，随后由 probe 确认后台访问。 |

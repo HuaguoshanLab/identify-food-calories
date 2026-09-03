@@ -15,7 +15,7 @@
 | 路径 | 职责 |
 | --- | --- |
 | `main.tsx` | 按 BrowserRouter、QueryClientProvider、AdminAuthProvider、App 的固定顺序装配运行时。 |
-| `App.tsx` | 独立后台路由根；后续计划在此登记真实后台路由。 |
+| `App.tsx` | 独立后台路由根，组合登录、probe guard、AdminShell 与 feature outlet。 |
 | `vite-env.d.ts` | Vite 与经构建校验的后台 API base 类型声明。 |
 | `auth/` | 管理员运行时身份、令牌清理和后续认证体验；不承担后端授权。 |
 | `styles/` | 后台语义 token、全局可访问性与减弱动画基线。 |

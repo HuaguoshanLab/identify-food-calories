@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useEffect, useState, type PropsWithChildren } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 
 import { useAdminAuth } from './AdminAuthProvider'
 
@@ -26,6 +26,7 @@ async function probeAdminAccess(accessToken: string) {
  */
 export function AdminRouteGuard({ children }: PropsWithChildren) {
   const { accessToken, clearSession } = useAdminAuth()
+  const location = useLocation()
   const [state, setState] = useState<ProbeState>(accessToken ? 'checking' : 'unauthenticated')
 
   useEffect(() => {
@@ -50,6 +51,10 @@ export function AdminRouteGuard({ children }: PropsWithChildren) {
 
   if (state === 'checking') return <main aria-busy="true" aria-live="polite" className="admin-runtime-root">正在验证后台访问权限…</main>
   if (state === 'forbidden') return <Navigate replace to="/admin/forbidden" />
-  if (state === 'unauthenticated') return <Navigate replace to="/admin/login" />
+  if (state === 'unauthenticated') {
+    const returnTo = `${location.pathname}${location.search}`
+    const login = returnTo.startsWith('/admin/') ? `/admin/login?returnTo=${encodeURIComponent(returnTo)}` : '/admin/login'
+    return <Navigate replace to={login} />
+  }
   return <>{children}</>
 }

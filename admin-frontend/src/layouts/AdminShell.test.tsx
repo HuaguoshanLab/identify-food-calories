@@ -5,11 +5,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AdminShell } from './AdminShell'
+import { AdminAuthProvider } from '@/auth/AdminAuthProvider'
 
 function renderShell() {
   const logout = vi.fn()
-  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/admin/overview']}><AdminShell onLogout={logout}><h2>概览内容</h2></AdminShell></MemoryRouter></QueryClientProvider>)
-  return { logout }
+  const result = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/admin/overview']}><AdminAuthProvider><AdminShell onLogout={logout}><h2>概览内容</h2></AdminShell></AdminAuthProvider></MemoryRouter></QueryClientProvider>)
+  return { logout, ...result }
 }
 
 describe('AdminShell', () => {
@@ -19,7 +20,7 @@ describe('AdminShell', () => {
     await user.click(screen.getByRole('link', { name: '跳到主要内容' }))
     expect(screen.getByRole('main')).toHaveFocus()
     await user.click(screen.getByRole('button', { name: '打开会话菜单' }))
-    await user.click(screen.getByRole('button', { name: '退出登录' }))
+    await user.click(screen.getByRole('menuitem', { name: '退出登录' }))
     expect(logout).toHaveBeenCalledOnce()
     expect(screen.getByRole('link', { name: '运行审计' })).toHaveAttribute('href', '/admin/runs')
   })

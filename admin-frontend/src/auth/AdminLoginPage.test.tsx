@@ -30,11 +30,6 @@ describe('AdminLoginPage', () => {
         expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
         return HttpResponse.json({ id: '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c', email: 'admin@example.com', email_verified_at: '2026-09-03T00:00:00Z', is_active: true, role: 'admin' })
       }),
-      http.get('/api/v1/admin/probe', ({ request }) => {
-        requests.push(new URL(request.url).pathname)
-        expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
-        return HttpResponse.json({ status: 'ADMIN_ACCESS_GRANTED' })
-      }),
     )
     renderLogin()
     await user.click(screen.getByRole('button', { name: '登录后台' }))
@@ -43,7 +38,7 @@ describe('AdminLoginPage', () => {
     await user.type(screen.getByLabelText('邮箱'), 'admin@example.com')
     await user.type(screen.getByLabelText('密码'), 'correct-horse-battery')
     await user.click(screen.getByRole('button', { name: '登录后台' }))
-    await waitFor(() => expect(requests).toEqual(['/api/v1/auth/login', '/api/v1/users/me', '/api/v1/admin/probe']))
+    await waitFor(() => expect(requests).toEqual(['/api/v1/auth/login', '/api/v1/users/me']))
   })
 
   it('普通账号、过期会话及非后台 returnTo 都不渲染敏感导航', async () => {
@@ -56,7 +51,7 @@ describe('AdminLoginPage', () => {
     await user.type(screen.getByLabelText('邮箱'), 'member@example.com')
     await user.type(screen.getByLabelText('密码'), 'correct-horse-battery')
     await user.click(screen.getByRole('button', { name: '登录后台' }))
-    expect(await screen.findByText('无后台访问权限')).toBeVisible()
+    expect(await screen.findByText(/无后台访问权限/)).toBeVisible()
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(screen.queryByText('runtime-only-token')).not.toBeInTheDocument()
   })

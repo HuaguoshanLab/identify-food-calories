@@ -15,5 +15,6 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 页面壳职责、允许依赖与文件索引。 |
+| `AdminShell.tsx` | 后台导航、响应式 shell、session menu 和 main landmark；不发领域请求。 |
 
 后续 `AdminShell`、导航和响应式结构文件必须在这里登记，并同步更新 `src/README.md`。

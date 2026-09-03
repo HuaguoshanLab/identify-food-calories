@@ -1,18 +1,15 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes } from 'react-router-dom'
 
+import { AdminLoginPage } from './auth/AdminLoginPage'
 import { AdminRouteGuard } from './auth/AdminRouteGuard'
 import { AdminAuditPage } from './features/audit/AuditPage'
 import { AdminCatalogDraftPage } from './features/catalog/CatalogDraftPage'
 import { AdminRuntimeConfigSummaryPage } from './features/config/ConfigSummaryPage'
 import { AdminRunsPage } from './features/runs/RunsPage'
+import { AdminShell } from './layouts/AdminShell'
 
-function AdminRuntimeRoot() {
-  return (
-    <main className="admin-runtime-root" aria-label="管理后台">
-      <h1>管理后台</h1>
-    </main>
-  )
-}
+function ForbiddenPage() { return <main className="admin-runtime-root mx-auto max-w-2xl" aria-labelledby="admin-forbidden-title"><h1 className="text-[28px] font-semibold" id="admin-forbidden-title">无后台访问权限</h1><p className="mt-4">你的当前账号没有管理权限。请使用管理员账号登录。</p><div className="mt-6 flex gap-3"><Link className="rounded-md border px-4 py-2" to="/admin/login">重新登录</Link><a className="rounded-md border px-4 py-2" href="/app">返回用户端</a></div></main> }
+function AdminOverviewPlaceholder() { return <section className="p-6"><h2 className="text-[28px] font-semibold">运行概览</h2></section> }
 
 /**
  * 此处只保留后台路由装配边界，避免在启动层混入领域请求或用户 H5 路由。
@@ -21,13 +18,16 @@ function AdminRuntimeRoot() {
 export function App() {
   return (
     <Routes>
-      <Route path="/admin/login" element={<AdminRuntimeRoot />} />
-      <Route path="/admin/forbidden" element={<main className="admin-runtime-root"><h1>无后台访问权限</h1></main>} />
-      <Route path="/admin/catalog" element={<AdminRouteGuard><AdminCatalogDraftPage /></AdminRouteGuard>} />
-      <Route path="/admin/runs" element={<AdminRouteGuard><AdminRunsPage /></AdminRouteGuard>} />
-      <Route path="/admin/model-configs" element={<AdminRouteGuard><AdminRuntimeConfigSummaryPage /></AdminRouteGuard>} />
-      <Route path="/admin/audit" element={<AdminRouteGuard><AdminAuditPage /></AdminRouteGuard>} />
-      <Route path="*" element={<Navigate replace to="/admin/model-configs" />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/forbidden" element={<ForbiddenPage />} />
+      <Route element={<AdminRouteGuard><AdminShell /></AdminRouteGuard>}>
+        <Route path="/admin/overview" element={<AdminOverviewPlaceholder />} />
+        <Route path="/admin/catalog" element={<AdminCatalogDraftPage />} />
+        <Route path="/admin/runs" element={<AdminRunsPage />} />
+        <Route path="/admin/model-configs" element={<AdminRuntimeConfigSummaryPage />} />
+        <Route path="/admin/audit" element={<AdminAuditPage />} />
+      </Route>
+      <Route path="*" element={<Navigate replace to="/admin/overview" />} />
     </Routes>
   )
 }
