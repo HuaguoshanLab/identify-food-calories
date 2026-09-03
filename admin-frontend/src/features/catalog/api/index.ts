@@ -61,7 +61,7 @@ export const catalogDraftPreviewSchema = z.object({
 
 export type CatalogDraftPreview = z.infer<typeof catalogDraftPreviewSchema>
 
-const lifecycleChangeSchema = z.enum(['added', 'modified', 'removed'])
+const lifecycleChangeSchema = z.enum(['added', 'modified', 'removed', 'unchanged'])
 
 const lifecyclePreviewSchema = z.object({
   draft: catalogDraftSchema,
