@@ -32,3 +32,4 @@
 | `0016_admin_audit_foundation.py` | 通用 append-only 管理命令审计、最小字段差异与稳定 keyset 查询索引；唯一前驱是 `0015`。 |
 | `0017_catalog_drafts.py` | mutable catalog draft、server-computed change-set 与 immutable revision evidence；唯一前驱是 `0016`。 |
 | `0018_catalog_publication_eligibility.py` | immutable review/publication snapshot、active pointer 与 append-only future-use eligibility history；唯一前驱是 `0017`。 |
+| `0019_runtime_config_versions.py` | immutable non-secret reasoning runtime policy、Agent run/invocation snapshot 与准入计价上限；唯一前驱是 `0018`。 |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 from app.core.config import ConfigurationError, ReasoningProviderMode, Settings
@@ -15,6 +16,7 @@ def create_reasoning_provider(
     *,
     app_env: Literal["local", "test", "production"] | None = None,
     provider_mode: ReasoningProviderMode | None = None,
+    runtime_config: Mapping[str, object] | None = None,
 ) -> ReasoningModelProvider:
     """Select only a configured adapter; test never reaches a paid network provider."""
 
@@ -23,6 +25,13 @@ def create_reasoning_provider(
     if settings is not None:
         app_env = settings.app_env
         provider_mode = settings.reasoning_provider_mode
+
+    if runtime_config is not None:
+        allowed = {"provider", "model_alias", "enabled", "single_call_cap_usd", "period_cap_usd", "input_usd_per_m", "output_usd_per_m", "version"}
+        if set(runtime_config) != allowed or not runtime_config.get("enabled", False):
+            raise ConfigurationError("runtime config is invalid or disabled")
+        if runtime_config["provider"] != "deepseek" or runtime_config["model_alias"] != "deepseek-v4-flash":
+            raise ConfigurationError("runtime config provider or model is unsupported")
 
     if app_env is None:
         raise ConfigurationError("APP_ENV is required to choose a reasoning provider")
@@ -39,21 +48,22 @@ def create_reasoning_provider(
             raise ConfigurationError("DeepSeek provider requires Settings")
         if settings.deepseek_api_key is None or not settings.deepseek_api_key.get_secret_value():
             raise ConfigurationError("DEEPSEEK_API_KEY is required for the DeepSeek provider")
-        if not settings.deepseek_model:
+        configured_model = runtime_config["model_alias"] if runtime_config is not None else settings.deepseek_model
+        if not configured_model:
             raise ConfigurationError("DEEPSEEK_MODEL is required for the DeepSeek provider")
         if not settings.deepseek_price_snapshot_version:
             raise ConfigurationError(
                 "DEEPSEEK_PRICE_SNAPSHOT_VERSION is required for the DeepSeek provider"
             )
-        input_price = settings.deepseek_input_usd_per_m
-        output_price = settings.deepseek_output_usd_per_m
+        input_price = runtime_config["input_usd_per_m"] if runtime_config is not None else settings.deepseek_input_usd_per_m
+        output_price = runtime_config["output_usd_per_m"] if runtime_config is not None else settings.deepseek_output_usd_per_m
         if input_price is None or output_price is None or input_price < 0 or output_price < 0:
             raise ConfigurationError(
                 "DEEPSEEK_INPUT_USD_PER_M and DEEPSEEK_OUTPUT_USD_PER_M are required"
             )
         return DeepSeekReasoningModelProvider(
             api_key=settings.deepseek_api_key.get_secret_value(),
-            model=settings.deepseek_model,
+            model=str(configured_model),
             timeout_seconds=20,
             price_snapshot={
                 "input_usd_per_m": input_price,

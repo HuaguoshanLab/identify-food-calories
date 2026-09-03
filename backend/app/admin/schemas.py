@@ -39,6 +39,47 @@ class AdminAuditPageResponse(BaseModel):
     next_cursor: str | None
 
 
+class RuntimeConfigCommand(BaseModel):
+    """Allowlisted, non-secret input for a future provider policy version."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: Literal["deepseek"]
+    model_alias: Literal["deepseek-v4-flash"]
+    enabled: bool
+    single_call_cap_usd: Decimal = Field(ge=0, le=1000, max_digits=12, decimal_places=6)
+    period_cap_usd: Decimal = Field(ge=0, le=100000, max_digits=12, decimal_places=6)
+    input_usd_per_m: Decimal = Field(ge=0, le=1000, max_digits=12, decimal_places=6)
+    output_usd_per_m: Decimal = Field(ge=0, le=1000, max_digits=12, decimal_places=6)
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_runtime_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class RuntimeConfigResponse(BaseModel):
+    """Safe immutable configuration projection; no resolver secret can reach HTTP."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    version: int = Field(gt=0)
+    provider: Literal["deepseek"]
+    model_alias: Literal["deepseek-v4-flash"]
+    enabled: bool
+    single_call_cap_usd: Decimal
+    period_cap_usd: Decimal
+    input_usd_per_m: Decimal
+    output_usd_per_m: Decimal
+    created_at: datetime
+
+
 class AdminAuditQuery(BaseModel):
     """Bounded, read-only filters accepted by the audit timeline."""
 

@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.models import Base
@@ -79,6 +79,12 @@ class AgentRun(Base):
     tool_version: Mapped[str] = mapped_column(String(80), nullable=False)
     model_provider: Mapped[str | None] = mapped_column(String(80))
     model_version: Mapped[str | None] = mapped_column(String(120))
+    # This is an immutable, non-secret policy projection. Credentials and endpoints
+    # stay in process configuration and are deliberately absent from the ledger.
+    runtime_config_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("agent_runtime_config_versions.id", ondelete="RESTRICT")
+    )
+    runtime_config_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON)
     graph_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     model_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -157,6 +163,10 @@ class AgentInvocation(Base):
     input_version: Mapped[str] = mapped_column(String(80), nullable=False)
     operation_version: Mapped[str] = mapped_column(String(80), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_config_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("agent_runtime_config_versions.id", ondelete="RESTRICT")
+    )
+    price_cap_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="prepared")
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost_usd: Mapped[Decimal] = mapped_column(
@@ -166,6 +176,42 @@ class AgentInvocation(Base):
     failure_code: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentRuntimeConfigVersion(Base):
+    """Append-only non-secret policy used to admit future reasoning calls.
+
+    The active policy is the highest version. Disabling creates a new version so an
+    already-admitted run retains evidence of exactly what it was allowed to use.
+    """
+
+    __tablename__ = "agent_runtime_config_versions"
+    __table_args__ = (
+        CheckConstraint("version > 0", name="ck_agent_runtime_config_versions_positive"),
+        CheckConstraint("provider IN ('deepseek')", name="ck_agent_runtime_config_provider"),
+        CheckConstraint("model_alias IN ('deepseek-v4-flash')", name="ck_agent_runtime_config_model"),
+        CheckConstraint("single_call_cap_usd >= 0", name="ck_agent_runtime_config_single_cap"),
+        CheckConstraint("period_cap_usd >= 0", name="ck_agent_runtime_config_period_cap"),
+        CheckConstraint("input_usd_per_m >= 0 AND output_usd_per_m >= 0", name="ck_agent_runtime_config_prices"),
+        CheckConstraint("reason = btrim(reason) AND reason <> ''", name="ck_agent_runtime_config_reason"),
+        UniqueConstraint("version", name="uq_agent_runtime_config_versions_version"),
+        UniqueConstraint("command_key", name="uq_agent_runtime_config_versions_command_key"),
+        Index("ix_agent_runtime_config_versions_created", "created_at", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model_alias: Mapped[str] = mapped_column(String(120), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    single_call_cap_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    period_cap_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    input_usd_per_m: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    output_usd_per_m: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    command_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AgentImage(Base):

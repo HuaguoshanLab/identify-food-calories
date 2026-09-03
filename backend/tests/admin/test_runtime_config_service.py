@@ -60,18 +60,13 @@ class FakeRuntimeConfigRepository:
 
 
 def _command(**overrides: object) -> RuntimeConfigCommand:
-    return RuntimeConfigCommand(
-        provider="deepseek",
-        model_alias="deepseek-v4-flash",
-        enabled=True,
-        single_call_cap_usd=Decimal("0.03"),
-        period_cap_usd=Decimal("3.00"),
-        input_usd_per_m=Decimal("0.20"),
-        output_usd_per_m=Decimal("0.80"),
-        reason="price and safety limits reviewed",
-        confirm=True,
-        **overrides,
-    )
+    payload: dict[str, object] = {
+        "provider": "deepseek", "model_alias": "deepseek-v4-flash", "enabled": True,
+        "single_call_cap_usd": Decimal("0.03"), "period_cap_usd": Decimal("3.00"),
+        "input_usd_per_m": Decimal("0.20"), "output_usd_per_m": Decimal("0.80"),
+        "reason": "price and safety limits reviewed", "confirm": True,
+    }
+    return RuntimeConfigCommand(**(payload | overrides))
 
 
 def test_runtime_config_command_is_strict_allowlisted_and_never_accepts_secrets() -> None:
@@ -101,11 +96,13 @@ def test_admin_versioning_is_immutable_idempotent_and_uses_current_db_role() -> 
     assert replay.id == first.id
     assert disabled.version == 2
     assert first.enabled is True  # a later command must not rewrite an in-flight snapshot
-    assert repository.locked == 2
+    assert repository.locked == 3  # replays lock too, so idempotency is race-safe
     assert len(repository.events) == 2
     repository.user = _admin(UserRole.USER.value)
     with pytest.raises(AdminPermissionDenied):
         service.configure_runtime(actor_user_id=repository.user.id, command=_command(), command_key="runtime-config-0003")
+    with pytest.raises(AdminPermissionDenied):
+        service.configure_runtime(actor_user_id=repository.user.id, command=_command(), command_key="runtime-config-0001")
 
 
 def test_admission_blocks_disabled_or_over_budget_new_calls_without_replaying_unknown_outcome() -> None:

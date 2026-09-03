@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, exists, or_, select, text
+from sqlalchemy import and_, exists, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogActivePublication, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
+from app.agent.models import AgentRuntimeConfigVersion
 from app.auth.models import User, UserRole
 
 
@@ -55,6 +56,29 @@ class SqlAlchemyAdminRepository:
         self._session.add(event)
         self._session.flush()
         return event
+
+    def acquire_runtime_config_lock(self) -> None:
+        """Serialize active-policy selection and version allocation per transaction."""
+
+        self._session.execute(text("SELECT pg_advisory_xact_lock(60516019)"))
+
+    def get_runtime_config_command(self, command_key: str) -> AgentRuntimeConfigVersion | None:
+        return self._session.scalar(
+            select(AgentRuntimeConfigVersion).where(AgentRuntimeConfigVersion.command_key == command_key)
+        )
+
+    def get_active_runtime_config(self) -> AgentRuntimeConfigVersion | None:
+        return self._session.scalar(
+            select(AgentRuntimeConfigVersion).order_by(AgentRuntimeConfigVersion.version.desc()).limit(1)
+        )
+
+    def next_runtime_config_version(self) -> int:
+        return int(self._session.scalar(select(func.coalesce(func.max(AgentRuntimeConfigVersion.version), 0))) or 0) + 1
+
+    def add_runtime_config_version(self, version: AgentRuntimeConfigVersion) -> AgentRuntimeConfigVersion:
+        self._session.add(version)
+        self._session.flush()
+        return version
 
     def get_catalog_draft(self, draft_id: uuid.UUID, *, for_update: bool = False) -> CatalogDraft | None:
         statement = select(CatalogDraft).where(CatalogDraft.id == draft_id)

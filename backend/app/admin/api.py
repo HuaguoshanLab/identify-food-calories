@@ -21,8 +21,10 @@ from app.admin.schemas import (
     CatalogLifecycleCommand,
     CatalogLifecyclePreviewResponse,
     CatalogPublicationResponse,
+    RuntimeConfigCommand,
+    RuntimeConfigResponse,
 )
-from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict
+from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict, RuntimeConfigConflict
 from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
 from app.core.database import get_session
@@ -55,6 +57,25 @@ def probe(
     except AdminPermissionDenied:
         return _forbidden()
     return AdminProbeResponse()
+
+
+@router.post("/runtime-config", response_model=RuntimeConfigResponse, status_code=status.HTTP_201_CREATED)
+def configure_runtime(
+    command: RuntimeConfigCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> RuntimeConfigResponse | JSONResponse:
+    """Create an immutable future-only policy version after fresh DB RBAC."""
+
+    try:
+        return admin_service.configure_runtime(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except RuntimeConfigConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="runtime config command conflict") from error
 
 
 @router.get("/audit", response_model=AdminAuditPageResponse)

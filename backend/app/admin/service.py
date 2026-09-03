@@ -9,9 +9,11 @@ import hmac
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Literal, cast
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
+from app.agent.models import AgentRuntimeConfigVersion
 from app.admin.ports import AdminRepository
 from app.admin.schemas import (
     AdminAuditEventResponse,
@@ -29,6 +31,8 @@ from app.admin.schemas import (
     CatalogLifecyclePreviewResponse,
     CatalogLifecyclePublicationResponse,
     CatalogPublicationResponse,
+    RuntimeConfigCommand,
+    RuntimeConfigResponse,
 )
 from app.auth.models import User, UserRole
 
@@ -47,6 +51,14 @@ class AdminAuditCursorInvalid(ValueError):
 
 class CatalogDraftConflict(ValueError):
     """A stale revision or incompatible idempotency replay cannot overwrite a draft."""
+
+
+class RuntimeConfigConflict(ValueError):
+    """A configuration idempotency key was reused for a different command."""
+
+
+class RuntimeAdmissionDenied(ValueError):
+    """A future model call was rejected before any provider request was prepared."""
 
 
 _CATALOG_LIFECYCLE_FIELDS: tuple[CatalogDraftDiffField, ...] = (
@@ -82,6 +94,96 @@ class AdminService:
         if user is None or not user.is_active or user.role != required_role.value:
             raise AdminPermissionDenied("database role does not permit this operation")
         return user
+
+    def configure_runtime(
+        self, *, actor_user_id: uuid.UUID, command: RuntimeConfigCommand, command_key: str
+    ) -> RuntimeConfigResponse:
+        """Append a non-secret policy version; old runs keep their prior snapshots."""
+
+        payload = command.model_dump(exclude={"reason", "confirm"})
+        request_hash = self._request_hash("runtime_config", payload | {"reason": command.reason})
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_runtime_config_lock()  # type: ignore[attr-defined]
+        existing = self._repository.get_runtime_config_command(command_key)  # type: ignore[attr-defined]
+        if existing is not None:
+            if self._runtime_request_hash(existing) != request_hash:
+                raise RuntimeConfigConflict("runtime config idempotency key payload mismatch")
+            return self._runtime_response(existing)
+        now = self._now()
+        version = AgentRuntimeConfigVersion(
+            id=uuid.uuid4(), version=self._repository.next_runtime_config_version(),  # type: ignore[attr-defined]
+            **payload, reason=command.reason, actor_user_id=actor.id, command_key=command_key,
+            created_at=now,
+        )
+        self._repository.add_runtime_config_version(version)  # type: ignore[attr-defined]
+        self._repository.add_audit_event(AdminAuditEvent(
+            id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+            action="runtime_config.configure", object_type="agent_runtime_config_version",
+            object_id=str(version.id), reason=command.reason,
+            before_diff={}, after_diff=self._runtime_audit_payload(version),
+            related_version=str(version.version), command_key=command_key,
+        ))
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return self._runtime_response(version)
+
+    def admit_runtime_call(
+        self, *, actor_user_id: uuid.UUID, worst_case_cost_usd: Decimal
+    ) -> RuntimeConfigResponse:
+        """Lock and freeze the current policy before a provider request can be prepared."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        if worst_case_cost_usd < 0:
+            raise RuntimeAdmissionDenied("worst-case cost must be non-negative")
+        self._repository.acquire_runtime_config_lock()  # type: ignore[attr-defined]
+        active = self._repository.get_active_runtime_config()  # type: ignore[attr-defined]
+        if active is None or not active.enabled:
+            raise RuntimeAdmissionDenied("reasoning provider is disabled")
+        if worst_case_cost_usd > active.single_call_cap_usd or worst_case_cost_usd > active.period_cap_usd:
+            raise RuntimeAdmissionDenied("reasoning call exceeds configured cap")
+        return self._runtime_response(active)
+
+    @staticmethod
+    def runtime_snapshot(config: RuntimeConfigResponse) -> dict[str, object]:
+        """The only ledger payload admissible for an already-approved future call."""
+
+        return {
+            "version": config.version, "provider": config.provider, "model_alias": config.model_alias,
+            "enabled": config.enabled, "single_call_cap_usd": str(config.single_call_cap_usd),
+            "period_cap_usd": str(config.period_cap_usd), "input_usd_per_m": str(config.input_usd_per_m),
+            "output_usd_per_m": str(config.output_usd_per_m),
+        }
+
+    @staticmethod
+    def _runtime_request_hash(version: AgentRuntimeConfigVersion) -> str:
+        return AdminService._request_hash("runtime_config", {
+            "provider": version.provider, "model_alias": version.model_alias, "enabled": version.enabled,
+            "single_call_cap_usd": version.single_call_cap_usd, "period_cap_usd": version.period_cap_usd,
+            "input_usd_per_m": version.input_usd_per_m, "output_usd_per_m": version.output_usd_per_m,
+            "reason": version.reason,
+        })
+
+    @staticmethod
+    def _runtime_audit_payload(version: AgentRuntimeConfigVersion) -> dict[str, object]:
+        return {
+            "version": version.version, "provider": version.provider, "model_alias": version.model_alias,
+            "enabled": version.enabled, "single_call_cap_usd": str(version.single_call_cap_usd),
+            "period_cap_usd": str(version.period_cap_usd), "input_usd_per_m": str(version.input_usd_per_m),
+            "output_usd_per_m": str(version.output_usd_per_m),
+        }
+
+    @staticmethod
+    def _runtime_response(version: AgentRuntimeConfigVersion) -> RuntimeConfigResponse:
+        return RuntimeConfigResponse(
+            id=version.id, version=version.version, provider=cast(Literal["deepseek"], version.provider),
+            model_alias=cast(Literal["deepseek-v4-flash"], version.model_alias), enabled=version.enabled,
+            single_call_cap_usd=version.single_call_cap_usd, period_cap_usd=version.period_cap_usd,
+            input_usd_per_m=version.input_usd_per_m, output_usd_per_m=version.output_usd_per_m,
+            created_at=version.created_at,
+        )
 
     def bootstrap_first_admin(
         self, *, target_user_id: uuid.UUID, reason: str

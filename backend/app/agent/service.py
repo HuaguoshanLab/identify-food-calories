@@ -156,6 +156,8 @@ class AgentService:
         command_key: str,
         canonical_command: dict[str, object],
         graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
+        runtime_config_version_id: uuid.UUID | None = None,
+        runtime_config_snapshot: dict[str, object] | None = None,
     ) -> AgentRun:
         thread = self._repository.get_thread_for_user(
             thread_id=thread_id, user_id=user_id, for_update=True
@@ -163,6 +165,9 @@ class AgentService:
         if thread is None or thread.deleted_at is not None:
             raise AgentThreadUnavailable("agent thread is unavailable")
         command_hash = canonical_command_hash(canonical_command)
+        self._validate_runtime_config_snapshot(
+            version_id=runtime_config_version_id, snapshot=runtime_config_snapshot
+        )
         existing = self._repository.get_run_for_command_for_user(
             thread_id=thread_id,
             user_id=user_id,
@@ -187,6 +192,8 @@ class AgentService:
                 tool_version=(DIET_PLANNING_TOOL_VERSION if graph_kind is AgentGraphKind.DIET_PLANNING else TOOL_VERSION),
                 model_provider=None,
                 model_version=None,
+                runtime_config_version_id=runtime_config_version_id,
+                runtime_config_snapshot=runtime_config_snapshot,
                 graph_steps=0,
                 model_calls=0,
                 tool_calls=0,
@@ -662,6 +669,8 @@ class AgentService:
                 input_version=input_version,
                 operation_version=operation_version,
                 request_hash=request_hash,
+                runtime_config_version_id=run.runtime_config_version_id,
+                price_cap_snapshot=self._price_cap_snapshot(run.runtime_config_snapshot),
                 status="prepared",
                 attempt=0,
                 cost_usd=Decimal("0"),
@@ -673,6 +682,32 @@ class AgentService:
         )
         self._commit_or_rollback()
         return invocation
+
+    @staticmethod
+    def _validate_runtime_config_snapshot(
+        *, version_id: uuid.UUID | None, snapshot: dict[str, object] | None
+    ) -> None:
+        """Reject unsafe caller data before it can become durable ledger metadata."""
+
+        if (version_id is None) != (snapshot is None):
+            raise ValueError("runtime config version and snapshot must be supplied together")
+        if snapshot is None:
+            return
+        allowed = {
+            "version", "provider", "model_alias", "enabled", "single_call_cap_usd",
+            "period_cap_usd", "input_usd_per_m", "output_usd_per_m",
+        }
+        if set(snapshot) != allowed or any("key" in key or "endpoint" in key for key in snapshot):
+            raise ValueError("runtime config snapshot contains unsupported or sensitive fields")
+
+    @staticmethod
+    def _price_cap_snapshot(snapshot: dict[str, object] | None) -> dict[str, object] | None:
+        if snapshot is None:
+            return None
+        return {
+            key: snapshot[key]
+            for key in ("single_call_cap_usd", "period_cap_usd", "input_usd_per_m", "output_usd_per_m")
+        }
 
     def record_validated_image(
         self,
