@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-13-PLAN.md
-last_updated: "2026-09-03T01:38:05.642Z"
+stopped_at: Completed 06-13 server preview/read follow-up
+last_updated: "2026-09-03T10:03:58.061Z"
 last_activity: 2026-09-03
 progress:
   total_phases: 8
@@ -191,6 +191,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Phase 06 catalog 草稿迁移经授权使用 0017 并以 0016 为唯一前驱，保持 Alembic 单一 head。 — 06-12 migration-chain preservation
 - [Phase 06]: 后台目录 HTTP 请求和 Zod DTO 固定归属 features/catalog/api；401 委托 AdminAuthProvider 清空内存会话和 Query cache，403 不渲染目录数据。 — 06-13 admin catalog UI boundary
 - [Phase 06]: 目录 UI 仅展示严格校验的服务器确认投影；06-12 未提供 server diff/impact/read 合约时，409 只保留本地编辑且不得伪称为服务器最新差异。 — 06-13 honesty boundary
+- [Phase 06]: 目录草稿的 diff、影响范围和 If-Match 基线由预览 API 从当前 PostgreSQL 草稿计算。 — 前端本地回显不能证明并发基线或授权状态，且会伪造服务端预览。
 
 ### Pending Todos
 
@@ -211,6 +212,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T01:38:05.507Z
-Stopped at: Completed 06-13-PLAN.md
+Last session: 2026-09-03T10:03:58.053Z
+Stopped at: Completed 06-13 server preview/read follow-up
 Resume file: None
