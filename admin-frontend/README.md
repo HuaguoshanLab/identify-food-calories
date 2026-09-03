@@ -28,7 +28,7 @@ npm run build
 npm run test:e2e
 ```
 
-开发服务器固定在 `127.0.0.1:5179`，仅将 `/api/v1/admin` 代理到显式配置的本地后端目标。生产构建必须提供 `VITE_ADMIN_API_BASE_URL`：它只能是 `/api/v1/admin`（或其子路径）或路径同样以 `/api/v1/admin` 开头的 HTTPS URL。缺失、非 HTTPS、协议相对 URL 或越出 admin API 边界的值都会让构建失败；不存在面向用户 H5 或通用 `/api/v1` 的静默回退。
+开发服务器固定在 `127.0.0.1:5179`，将 `/api/v1/admin` 及登录必须的公开 `/api/v1/auth`、`/api/v1/users` 代理到显式配置的本地后端目标。生产构建必须提供 `VITE_ADMIN_API_BASE_URL`：它只能是 `/api/v1/admin`（或其子路径）或路径同样以 `/api/v1/admin` 开头的 HTTPS URL。缺失、非 HTTPS、协议相对 URL 或越出 admin API 边界的值都会让构建失败；公开认证仍使用同源 `/api/v1`，不存在面向用户 H5 领域 API 的静默回退。
 
 前端路由和可见性只改善体验。每一个真实请求仍由后端 `/api/v1/admin/*` 从 PostgreSQL 读取当前角色并执行 RBAC；前端不能保存、伪造或替代该授权判断。
 

@@ -58,6 +58,10 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         [ADMIN_API_PATH]: apiProxyTarget,
+        // Login is public but still same-origin: its HttpOnly refresh cookie must
+        // be scoped by the backend, never copied into the admin SPA.
+        '/api/v1/auth': apiProxyTarget,
+        '/api/v1/users': apiProxyTarget,
       },
     },
     preview: {
@@ -66,6 +70,8 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         [ADMIN_API_PATH]: apiProxyTarget,
+        '/api/v1/auth': apiProxyTarget,
+        '/api/v1/users': apiProxyTarget,
       },
     },
     test: {
