@@ -22,7 +22,7 @@ from app.agent.models import (
     AgentVisionInvocation,
 )
 from app.images.schemas import ValidatedImageReference
-from app.agent.ports import AgentRepository
+from app.agent.ports import AgentRepository, RuntimeConfigAdmitter
 from app.agent.state import (
     AgentGraphKind,
     AgentNextAction,
@@ -51,6 +51,10 @@ class AgentCommandConflict(ValueError):
 
 class AgentLeaseUnavailable(RuntimeError):
     """Another worker currently owns the persisted execution lease."""
+
+
+class AgentRuntimeAdmissionDenied(RuntimeError):
+    """No new provider-facing run may start without an active policy snapshot."""
 
 
 GRAPH_VERSION = "meal-agent-graph.v1"
@@ -115,12 +119,14 @@ class AgentService:
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
         planning_completion_writer: PlanningCompletionProjectionWriter | None = None,
+        runtime_config_admitter: RuntimeConfigAdmitter | None = None,
     ) -> None:
         self._repository = repository
         self._now = now or (lambda: datetime.now(UTC))
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
         self._planning_completion_writer = planning_completion_writer
+        self._runtime_config_admitter = runtime_config_admitter
 
     def create_thread(self, *, user_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> AgentThread:
         if thread_id is not None:
@@ -165,9 +171,6 @@ class AgentService:
         if thread is None or thread.deleted_at is not None:
             raise AgentThreadUnavailable("agent thread is unavailable")
         command_hash = canonical_command_hash(canonical_command)
-        self._validate_runtime_config_snapshot(
-            version_id=runtime_config_version_id, snapshot=runtime_config_snapshot
-        )
         existing = self._repository.get_run_for_command_for_user(
             thread_id=thread_id,
             user_id=user_id,
@@ -178,6 +181,15 @@ class AgentService:
             if existing.command_hash != command_hash:
                 raise AgentCommandConflict("idempotency key payload mismatch")
             return existing
+        if self._runtime_config_admitter is not None:
+            if runtime_config_version_id is not None or runtime_config_snapshot is not None:
+                raise ValueError("runtime config is injected by the admission port")
+            admission = self._runtime_config_admitter.admit_runtime_call()
+            runtime_config_version_id = admission.version_id
+            runtime_config_snapshot = admission.snapshot
+        self._validate_runtime_config_snapshot(
+            version_id=runtime_config_version_id, snapshot=runtime_config_snapshot
+        )
         now = self._now()
         run = self._repository.add_run(
             AgentRun(

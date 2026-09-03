@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Generator, Iterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
@@ -30,7 +30,9 @@ from app.agent.schemas import (
     SafeStreamStage,
     SafeStreamStageEvent,
 )
-from app.agent.service import DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
+from app.agent.service import AgentRuntimeAdmissionDenied, DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
+from app.admin.repository import SqlAlchemyAdminRepository
+from app.admin.service import AdminService
 from app.agent.state import AgentGraphKind, StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.images.schemas import ImageValidationError, ValidatedImageReference
@@ -82,6 +84,10 @@ def get_agent_service(request: Request) -> Generator[AgentService, None, None]:
             rollback=session.rollback,
             planning_completion_writer=PlanningCompletionProjectionService(
                 repository=SqlAlchemyPlanningProfileRepository(session)
+            ),
+            runtime_config_admitter=AdminService(
+                repository=SqlAlchemyAdminRepository(session),
+                now=lambda: datetime.now(UTC),
             ),
         )
     finally:
@@ -172,9 +178,12 @@ async def _execute(
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)
-async def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentThreadSnapshot:
+async def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentThreadSnapshot | JSONResponse:
     thread = service.create_thread(user_id=principal)
-    run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
+    try:
+        run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
+    except AgentRuntimeAdmissionDenied:
+        return _runtime_admission_rejected()
     await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
@@ -216,6 +225,8 @@ async def create_diet_planning_thread(
             )
     except AgentCommandConflict:
         return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同计划命令。")
+    except AgentRuntimeAdmissionDenied:
+        return _runtime_admission_rejected()
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
 
@@ -306,6 +317,9 @@ async def upload_agent_meal_image(
     except AgentCommandConflict:
         safety.delete(reference)
         return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同图片。")
+    except AgentRuntimeAdmissionDenied:
+        safety.delete(reference)
+        return _runtime_admission_rejected()
     except Exception:
         safety.delete(reference)
         raise
@@ -341,6 +355,28 @@ async def submit_agent_input(
         text=payload.text,
         graph_kind=AgentGraphKind.DIET_PLANNING if planning_thread else AgentGraphKind.MEAL_ANALYSIS,
     )
+    try:
+        return await _submit_agent_input_after_admission(
+            thread_id=thread_id, payload=payload, principal=principal, service=service,
+            runtime=runtime, latest=latest, planning_thread=planning_thread, resume_payload=resume_payload,
+        )
+    except AgentRuntimeAdmissionDenied:
+        return _runtime_admission_rejected()
+
+
+async def _submit_agent_input_after_admission(
+    *,
+    thread_id: uuid.UUID,
+    payload: AgentInputRequest,
+    principal: AgentPrincipal,
+    service: AgentService,
+    runtime: AgentRuntime,
+    latest: object | None,
+    planning_thread: bool,
+    resume_payload: dict[str, object] | None,
+) -> AgentCommandAcceptedResponse | JSONResponse:
+    """Keep admission failures at the HTTP boundary while AgentService owns creation."""
+
     if planning_thread:
         assert latest is not None
         if resume_payload is None:
@@ -475,6 +511,16 @@ def delete_agent_thread(
 
 def _unavailable() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent thread is unavailable.")
+
+
+def _runtime_admission_rejected() -> JSONResponse:
+    """Do not reveal whether a provider is disabled, capped, or unconfigured."""
+
+    return _error(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "AGENT_RUNTIME_UNAVAILABLE",
+        "当前分析服务暂不可用，请稍后重试。",
+    )
 
 
 def _error(status_code: int, code: str, message: str) -> JSONResponse:

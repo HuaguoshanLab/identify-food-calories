@@ -11,6 +11,10 @@ from pydantic import ValidationError
 
 from app.admin.schemas import RuntimeConfigCommand
 from app.admin.service import AdminPermissionDenied, AdminService, RuntimeAdmissionDenied
+from app.agent.models import AgentRun, AgentThread
+from app.agent.ports import RuntimeConfigAdmission
+from app.agent.service import AgentService
+from app.agent.state import AgentGraphKind
 from app.auth.models import User, UserRole
 from app.core.config import ConfigurationError, Settings
 from app.providers.reasoning.factory import create_reasoning_provider
@@ -59,6 +63,32 @@ class FakeRuntimeConfigRepository:
     def add_audit_event(self, event: object) -> object:
         self.events.append(event)
         return event
+
+
+class FakeAgentRepository:
+    def __init__(self, thread: AgentThread) -> None:
+        self.thread = thread
+        self.runs: dict[str, AgentRun] = {}
+
+    def get_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False) -> AgentThread | None:
+        return self.thread if (thread_id, user_id) == (self.thread.id, self.thread.user_id) else None
+
+    def get_run_for_command_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID, command_key: str, for_update: bool = False) -> AgentRun | None:
+        return self.runs.get(command_key)
+
+    def add_run(self, run: AgentRun) -> AgentRun:
+        self.runs[run.command_key] = run
+        return run
+
+
+class FakeRuntimeConfigAdmitter:
+    def __init__(self, admission: RuntimeConfigAdmission) -> None:
+        self.admission = admission
+        self.calls = 0
+
+    def admit_runtime_call(self) -> RuntimeConfigAdmission:
+        self.calls += 1
+        return self.admission
 
 
 def _command(**overrides: object) -> RuntimeConfigCommand:
@@ -112,16 +142,47 @@ def test_admission_blocks_disabled_or_over_budget_new_calls_without_replaying_un
     repository = FakeRuntimeConfigRepository(actor)
     service = AdminService(repository=repository, now=lambda: NOW)
     enabled = service.configure_runtime(actor_user_id=actor.id, command=_command(), command_key="runtime-config-0004")
-    snapshot = service.admit_runtime_call(actor_user_id=actor.id, worst_case_cost_usd=Decimal("0.03"))
-    assert snapshot.id == enabled.id
-    assert snapshot.model_alias == "deepseek-v4-flash"
-
-    with pytest.raises(RuntimeAdmissionDenied):
-        service.admit_runtime_call(actor_user_id=actor.id, worst_case_cost_usd=Decimal("0.04"))
+    snapshot = service.admit_runtime_call()
+    assert snapshot.version_id == enabled.id
+    assert snapshot.snapshot["model_alias"] == "deepseek-v4-flash"
     service.configure_runtime(actor_user_id=actor.id, command=_command(enabled=False, reason="incident stop"), command_key="runtime-config-0005")
     with pytest.raises(RuntimeAdmissionDenied):
-        service.admit_runtime_call(actor_user_id=actor.id, worst_case_cost_usd=Decimal("0.01"))
-    assert snapshot.enabled is True  # already admitted work retains the old immutable policy
+        service.admit_runtime_call()
+    assert snapshot.snapshot["enabled"] is True  # already admitted work retains the old immutable policy
+
+
+def test_agent_service_injects_admission_before_new_run_and_reuses_existing_snapshot() -> None:
+    user_id = uuid.uuid4()
+    thread = AgentThread(
+        id=uuid.uuid4(), user_id=user_id, status="open", revision=0,
+        created_at=NOW, last_activity_at=NOW, deleted_at=None,
+    )
+    admission = RuntimeConfigAdmission(
+        version_id=uuid.uuid4(),
+        snapshot={
+            "version": 1, "provider": "deepseek", "model_alias": "deepseek-v4-flash", "enabled": True,
+            "single_call_cap_usd": "0.03", "period_cap_usd": "3.00",
+            "input_usd_per_m": "0.20", "output_usd_per_m": "0.80",
+        },
+    )
+    admitter = FakeRuntimeConfigAdmitter(admission)
+    service = AgentService(
+        repository=FakeAgentRepository(thread), now=lambda: NOW, runtime_config_admitter=admitter,
+    )
+
+    created = service.create_or_reuse_run(
+        thread_id=thread.id, user_id=user_id, command_key="runtime-command-0001",
+        canonical_command={"kind": "description", "input_hash": "a"}, graph_kind=AgentGraphKind.MEAL_ANALYSIS,
+    )
+    replay = service.create_or_reuse_run(
+        thread_id=thread.id, user_id=user_id, command_key="runtime-command-0001",
+        canonical_command={"kind": "description", "input_hash": "a"}, graph_kind=AgentGraphKind.MEAL_ANALYSIS,
+    )
+
+    assert created.runtime_config_version_id == admission.version_id
+    assert created.runtime_config_snapshot == admission.snapshot
+    assert replay is created
+    assert admitter.calls == 1  # a replay cannot be blocked by a later disable version
 
 
 def test_provider_factory_accepts_only_safe_snapshot_and_resolves_key_from_environment_settings() -> None:

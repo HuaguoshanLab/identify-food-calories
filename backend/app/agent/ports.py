@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -16,6 +17,19 @@ from app.agent.models import (
     AgentThread,
     AgentVisionInvocation,
 )
+
+@dataclass(frozen=True, slots=True)
+class RuntimeConfigAdmission:
+    """Non-secret policy evidence supplied through the admin-owned admission port."""
+
+    version_id: uuid.UUID
+    snapshot: dict[str, object]
+
+
+class RuntimeConfigAdmitter(Protocol):
+    """Narrow policy port: Agent code cannot query admin tables directly."""
+
+    def admit_runtime_call(self) -> RuntimeConfigAdmission: ...
 
 
 class AgentRepository(Protocol):
