@@ -24,6 +24,10 @@ from app.admin.schemas import (
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
     CatalogLifecycleCommand,
+    CatalogLifecycleFieldDiff,
+    CatalogLifecycleImpact,
+    CatalogLifecyclePreviewResponse,
+    CatalogLifecyclePublicationResponse,
     CatalogPublicationResponse,
 )
 from app.auth.models import User, UserRole
@@ -43,6 +47,13 @@ class AdminAuditCursorInvalid(ValueError):
 
 class CatalogDraftConflict(ValueError):
     """A stale revision or incompatible idempotency replay cannot overwrite a draft."""
+
+
+_CATALOG_LIFECYCLE_FIELDS: tuple[CatalogDraftDiffField, ...] = (
+    "canonical_name", "aliases", "energy_kcal_per_100g", "protein_g_per_100g",
+    "fat_g_per_100g", "carbohydrate_g_per_100g", "source_name", "source_url",
+    "authorization_status",
+)
 
 
 class AdminService:
@@ -305,6 +316,56 @@ class AdminService:
             impact_categories=impacts,
         )
 
+    def preview_catalog_lifecycle(
+        self, *, actor_user_id: uuid.UUID, draft_id: uuid.UUID
+    ) -> CatalogLifecyclePreviewResponse:
+        """Project only server-held immutable/current values for a risky command.
+
+        The browser cannot select a historical baseline, claim publication
+        eligibility, or send a diff.  Reading the current DB role before either
+        projection prevents an expired or demoted session from receiving audit
+        evidence.
+        """
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        draft = self._repository.get_catalog_draft(draft_id)
+        if draft is None:
+            raise KeyError("catalog draft not found")
+        publication = self._repository.get_active_catalog_publication(draft_id)
+        publication_response: CatalogLifecyclePublicationResponse | None = None
+        before: dict[str, object | None]
+        if publication is None:
+            before = {field: None for field in _CATALOG_LIFECYCLE_FIELDS}
+            description = "首次发布后，新分析和新餐单将使用此不可变版本；历史已确认餐食不会被改写。"
+        else:
+            eligibility = self._repository.get_latest_catalog_eligibility(publication.id)
+            if eligibility is None:
+                raise CatalogDraftConflict("active publication has no eligibility state")
+            before = {field: publication.snapshot.get(field) for field in _CATALOG_LIFECYCLE_FIELDS}
+            publication_response = CatalogLifecyclePublicationResponse(
+                id=publication.id,
+                draft_revision=publication.draft_revision,
+                eligibility=cast(Literal["eligible", "disqualified"], eligibility.status),
+                related_version=publication.content_hash,
+            )
+            description = "发布后，新分析和新餐单将使用此不可变版本；历史已确认餐食不会被改写。"
+
+        candidate = self._publication_snapshot(draft)
+        field_diffs = [
+            CatalogLifecycleFieldDiff(
+                field=field,
+                before=self._lifecycle_scalar(before[field]),
+                after=self._lifecycle_scalar(candidate[field]),
+                change=self._lifecycle_change(before[field], candidate[field]),
+            )
+            for field in _CATALOG_LIFECYCLE_FIELDS
+        ]
+        return CatalogLifecyclePreviewResponse(
+            draft=self._catalog_response(draft), publication=publication_response,
+            field_diffs=field_diffs,
+            impact=CatalogLifecycleImpact(affected_catalog_items=1, description=description),
+        )
+
     def review_catalog_draft(
         self, *, actor_user_id: uuid.UUID, draft_id: uuid.UUID, expected_revision: int,
         command: CatalogLifecycleCommand, command_key: str,
@@ -526,6 +587,18 @@ class AdminService:
         if "authorization_status" in changed:
             impacts.append("authorization_status")
         return impacts
+
+    @staticmethod
+    def _lifecycle_scalar(value: object | None) -> str | None:
+        return None if value is None else str(AdminService._audit_scalar(value))
+
+    @staticmethod
+    def _lifecycle_change(before: object | None, after: object | None) -> Literal["added", "modified", "removed", "unchanged"]:
+        if before is None and after is not None:
+            return "added"
+        if before is not None and after is None:
+            return "removed"
+        return "unchanged" if AdminService._lifecycle_scalar(before) == AdminService._lifecycle_scalar(after) else "modified"
 
     @staticmethod
     def _request_hash(operation: str, payload: dict[str, object]) -> str:

@@ -7,7 +7,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.admin.api import get_admin_service
-from app.admin.schemas import CatalogDraftPreviewResponse, CatalogDraftResponse
+from app.admin.schemas import CatalogDraftPreviewResponse, CatalogDraftResponse, CatalogLifecyclePreviewResponse
 from app.admin.service import AdminPermissionDenied
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.auth.api import get_authenticated_principal
@@ -34,6 +34,16 @@ class StubCatalogService:
             base_revision=0,
             field_diffs=[{"field": "canonical_name", "before": None, "after": "Oats"}],
             impact_categories=["catalog_identity"],
+        )
+
+    def preview_catalog_lifecycle(self, **_kwargs: object) -> CatalogLifecyclePreviewResponse:
+        return CatalogLifecyclePreviewResponse(
+            draft=self.read_catalog_draft(),
+            publication=None,
+            field_diffs=[{
+                "field": "canonical_name", "before": None, "after": "Oats", "change": "added",
+            }],
+            impact={"affected_catalog_items": 1, "description": "首次发布后，新分析将使用不可变版本。"},
         )
 
 
@@ -79,6 +89,7 @@ def test_catalog_preview_and_read_are_rbac_protected_safe_projections() -> None:
     with TestClient(app) as client:
         preview = client.post("/api/v1/admin/catalog-drafts/preview", json=preview_payload | {"draft_id": None})
         read = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}")
+        lifecycle = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}/lifecycle-preview")
     assert preview.status_code == 200
     assert preview.json() == {
         "draft_id": None,
@@ -89,6 +100,10 @@ def test_catalog_preview_and_read_are_rbac_protected_safe_projections() -> None:
     assert "reason" not in read.json()
     assert "before_diff" not in read.json()
     assert read.status_code == 200
+    assert lifecycle.status_code == 200
+    assert lifecycle.json()["field_diffs"] == [{"field": "canonical_name", "before": None, "after": "Oats", "change": "added"}]
+    assert "snapshot" not in lifecycle.json()
+    assert "command_key" not in lifecycle.json()
 
 
 def test_catalog_write_maps_database_rbac_denial_to_forbidden() -> None:
@@ -116,6 +131,9 @@ def test_catalog_read_and_preview_map_database_rbac_denial_to_forbidden() -> Non
         def preview_catalog_draft(self, **_kwargs: object) -> CatalogDraftPreviewResponse:
             raise AdminPermissionDenied("database role does not permit this operation")
 
+        def preview_catalog_lifecycle(self, **_kwargs: object) -> CatalogLifecyclePreviewResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
     app.dependency_overrides[get_admin_service] = DeniedCatalogService
@@ -123,7 +141,10 @@ def test_catalog_read_and_preview_map_database_rbac_denial_to_forbidden() -> Non
     with TestClient(app) as client:
         preview = client.post("/api/v1/admin/catalog-drafts/preview", json=preview_payload | {"draft_id": None})
         read = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}")
+        lifecycle = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}/lifecycle-preview")
     assert preview.status_code == 403
     assert read.status_code == 403
     assert preview.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
     assert read.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
+    assert lifecycle.status_code == 403
+    assert lifecycle.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"

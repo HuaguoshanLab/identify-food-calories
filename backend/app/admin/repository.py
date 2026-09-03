@@ -121,6 +121,14 @@ class SqlAlchemyAdminRepository:
     def get_catalog_eligibility_command(self, command_key: str) -> CatalogPublicationEligibility | None:
         return self._session.scalar(select(CatalogPublicationEligibility).where(CatalogPublicationEligibility.command_key == command_key))
 
+    def get_latest_catalog_eligibility(self, publication_id: uuid.UUID) -> CatalogPublicationEligibility | None:
+        return self._session.scalar(
+            select(CatalogPublicationEligibility)
+            .where(CatalogPublicationEligibility.publication_id == publication_id)
+            .order_by(CatalogPublicationEligibility.occurred_at.desc(), CatalogPublicationEligibility.id.desc())
+            .limit(1)
+        )
+
     def add_catalog_eligibility(self, eligibility: CatalogPublicationEligibility) -> CatalogPublicationEligibility:
         self._session.add(eligibility)
         self._session.flush()

@@ -19,6 +19,7 @@ from app.admin.schemas import (
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
     CatalogLifecycleCommand,
+    CatalogLifecyclePreviewResponse,
     CatalogPublicationResponse,
 )
 from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict
@@ -122,6 +123,24 @@ def read_catalog_draft(
         return _forbidden()
     except KeyError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+
+
+@router.get("/catalog-drafts/{draft_id}/lifecycle-preview", response_model=CatalogLifecyclePreviewResponse)
+def preview_catalog_lifecycle(
+    draft_id: uuid.UUID,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogLifecyclePreviewResponse | JSONResponse:
+    """Return server-derived confirmation evidence without changing lifecycle state."""
+
+    try:
+        return admin_service.preview_catalog_lifecycle(actor_user_id=principal, draft_id=draft_id)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle preview conflict") from error
 
 
 @router.patch("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)

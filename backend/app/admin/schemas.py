@@ -219,6 +219,48 @@ class CatalogDraftPreviewResponse(BaseModel):
     ] = Field(min_length=1)
 
 
+class CatalogLifecycleFieldDiff(BaseModel):
+    """Safe before/current values for a high-risk review or publication command."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: CatalogDraftDiffField
+    before: str | None
+    after: str | None
+    change: Literal["added", "modified", "removed", "unchanged"]
+
+
+class CatalogLifecycleImpact(BaseModel):
+    """Bounded consequence text derived by the server, never by browser input."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    affected_catalog_items: int = Field(ge=0, le=1)
+    description: str = Field(min_length=1, max_length=500)
+
+
+class CatalogLifecyclePublicationResponse(BaseModel):
+    """Minimal active immutable-version state needed for an explicit command."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    draft_revision: int = Field(gt=0)
+    eligibility: Literal["eligible", "disqualified"]
+    related_version: str = Field(min_length=1, max_length=120)
+
+
+class CatalogLifecyclePreviewResponse(BaseModel):
+    """Read-only server projection for review/publish/disqualification confirmation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    draft: CatalogDraftResponse
+    publication: CatalogLifecyclePublicationResponse | None
+    field_diffs: list[CatalogLifecycleFieldDiff] = Field(min_length=1, max_length=9)
+    impact: CatalogLifecycleImpact
+
+
 class CatalogLifecycleCommand(BaseModel):
     """High-risk lifecycle commands must be explicitly confirmed and explainable."""
 

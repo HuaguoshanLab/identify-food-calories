@@ -36,9 +36,18 @@ def test_published_pointer_has_one_immutable_publication_and_disqualification_is
     command = CatalogLifecycleCommand(reason="review complete", confirm=True)
     service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="review-publish-pg-0001")
     publication = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="publish-pg-0001")
+    lifecycle_preview = service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
+    assert lifecycle_preview.publication is not None
+    assert lifecycle_preview.publication.id == publication.id
+    assert lifecycle_preview.publication.eligibility == "eligible"
+    assert {item.change for item in lifecycle_preview.field_diffs} == {"unchanged"}
+    assert "snapshot" not in lifecycle_preview.model_dump()
     nutrition = SqlAlchemyNutritionRepository(db_session)
     assert nutrition.get_qualified_food(food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION) is not None
     service.disqualify_catalog_publication(actor_user_id=actor.id, publication_id=publication.id, command=CatalogLifecycleCommand(reason="authorization revoked", confirm=True), command_key="disqualify-pg-0001")
+    disqualified_preview = service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
+    assert disqualified_preview.publication is not None
+    assert disqualified_preview.publication.eligibility == "disqualified"
 
     assert db_session.scalar(select(CatalogActivePublication).where(CatalogActivePublication.draft_id == draft.id)).publication_id == publication.id
     assert db_session.scalar(select(CatalogPublication).where(CatalogPublication.id == publication.id)).snapshot["canonical_name"] == "Oats"
