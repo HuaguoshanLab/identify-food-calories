@@ -41,6 +41,26 @@ export const catalogDraftSchema = z.object({
 
 export type CatalogDraft = z.infer<typeof catalogDraftSchema>
 
+const catalogDraftDiffFieldSchema = z.enum([
+  'canonical_name', 'aliases', 'energy_kcal_per_100g', 'protein_g_per_100g',
+  'fat_g_per_100g', 'carbohydrate_g_per_100g', 'source_name', 'source_url', 'authorization_status',
+])
+
+export const catalogDraftPreviewSchema = z.object({
+  draft_id: z.string().uuid().nullable(),
+  base_revision: z.number().int().nonnegative(),
+  field_diffs: z.array(z.object({
+    field: catalogDraftDiffFieldSchema,
+    before: z.string().nullable(),
+    after: z.string(),
+  }).strict()).min(1),
+  impact_categories: z.array(z.enum([
+    'catalog_identity', 'nutrition_per_100g', 'source_evidence', 'authorization_status',
+  ])).min(1),
+}).strict()
+
+export type CatalogDraftPreview = z.infer<typeof catalogDraftPreviewSchema>
+
 export class CatalogApiError extends Error {
   constructor(readonly status: 401 | 403 | 404 | 409 | 500) {
     super(`Catalog admin API request failed with ${status}`)
@@ -55,36 +75,62 @@ function toCommand(values: CatalogDraftFormValues) {
   }
 }
 
-async function sendCatalogCommand(path: string, init: RequestInit): Promise<CatalogDraft> {
+function toPreviewCommand(values: CatalogDraftFormValues, draftId?: string) {
+  const { reason: _reason, ...candidate } = toCommand(values)
+  return { ...candidate, draft_id: draftId ?? null }
+}
+
+async function sendCatalogRequest(path: string, init: RequestInit): Promise<unknown> {
   const response = await fetch(`${__ADMIN_API_BASE_URL__}${path}`, init)
   if (!response.ok) {
     const status = [401, 403, 404, 409].includes(response.status) ? response.status : 500
     throw new CatalogApiError(status as CatalogApiError['status'])
   }
-  return catalogDraftSchema.parse(await response.json())
+  return response.json()
 }
 
-function headers(accessToken: string, idempotencyKey: string, revision?: number) {
+function requestHeaders(accessToken: string) {
   return {
     Authorization: `Bearer ${accessToken}`,
     'Content-Type': 'application/json',
+  }
+}
+
+function commandHeaders(accessToken: string, idempotencyKey: string, revision?: number) {
+  return {
+    ...requestHeaders(accessToken),
     'Idempotency-Key': idempotencyKey,
     ...(revision ? { 'If-Match': String(revision) } : {}),
   }
 }
 
 export function createCatalogDraft(accessToken: string, values: CatalogDraftFormValues, idempotencyKey: string) {
-  return sendCatalogCommand('/catalog-drafts', {
+  return sendCatalogRequest('/catalog-drafts', {
     body: JSON.stringify(toCommand(values)),
-    headers: headers(accessToken, idempotencyKey),
+    headers: commandHeaders(accessToken, idempotencyKey),
     method: 'POST',
-  })
+  }).then(catalogDraftSchema.parse)
 }
 
-export function patchCatalogDraft(accessToken: string, draft: CatalogDraft, values: CatalogDraftFormValues, idempotencyKey: string) {
-  return sendCatalogCommand(`/catalog-drafts/${draft.id}`, {
+export function patchCatalogDraft(accessToken: string, draft: CatalogDraft, values: CatalogDraftFormValues, idempotencyKey: string, expectedRevision: number) {
+  return sendCatalogRequest(`/catalog-drafts/${draft.id}`, {
     body: JSON.stringify(toCommand(values)),
-    headers: headers(accessToken, idempotencyKey, draft.revision),
+    headers: commandHeaders(accessToken, idempotencyKey, expectedRevision),
     method: 'PATCH',
-  })
+  }).then(catalogDraftSchema.parse)
+}
+
+export function previewCatalogDraft(accessToken: string, values: CatalogDraftFormValues, draftId?: string) {
+  return sendCatalogRequest('/catalog-drafts/preview', {
+    body: JSON.stringify(toPreviewCommand(values, draftId)),
+    headers: requestHeaders(accessToken),
+    method: 'POST',
+  }).then(catalogDraftPreviewSchema.parse)
+}
+
+export function readCatalogDraft(accessToken: string, draftId: string) {
+  return sendCatalogRequest(`/catalog-drafts/${draftId}`, {
+    headers: requestHeaders(accessToken),
+    method: 'GET',
+  }).then(catalogDraftSchema.parse)
 }

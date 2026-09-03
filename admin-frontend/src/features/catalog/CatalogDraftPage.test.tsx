@@ -22,6 +22,16 @@ const createdDraft = {
   revision: 1,
 }
 
+const serverPreview = {
+  draft_id: null,
+  base_revision: 0,
+  field_diffs: [
+    { field: 'canonical_name', before: null, after: '燕麦' },
+    { field: 'energy_kcal_per_100g', before: null, after: '389' },
+  ],
+  impact_categories: ['catalog_identity', 'nutrition_per_100g'],
+}
+
 function renderPage() {
   const onSessionExpired = vi.fn()
   render(<CatalogDraftPage accessToken="runtime-only-token" onSessionExpired={onSessionExpired} />)
@@ -48,6 +58,11 @@ describe('CatalogDraftPage', () => {
     let releaseResponse: (() => void) | undefined
     let markRequestStarted: (() => void) | undefined
     const requestStarted = new Promise<void>((resolve) => { markRequestStarted = resolve })
+    mswServer.use(http.post(`${apiBase}/catalog-drafts/preview`, async ({ request }) => {
+      expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
+      expect(await request.json()).not.toHaveProperty('reason')
+      return HttpResponse.json(serverPreview)
+    }))
     mswServer.use(http.post(`${apiBase}/catalog-drafts`, async ({ request }) => {
       idempotencyKey = request.headers.get('Idempotency-Key') ?? ''
       expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
@@ -65,8 +80,9 @@ describe('CatalogDraftPage', () => {
     const dialog = await screen.findByRole('alertdialog', { name: '确认创建营养目录草稿？' })
     expect(dialog).toBeVisible()
     expect(screen.getByRole('button', { name: '取消' })).toHaveFocus()
-    expect(within(dialog).getByText('菜品名称')).toBeVisible()
-    expect(within(dialog).getByText('燕麦')).toBeVisible()
+    expect(within(dialog).getByText('服务器字段差异')).toBeVisible()
+    expect(within(dialog).getByText(/目录名称与别名、每 100g 营养数值/)).toBeVisible()
+    expect(within(dialog).getByText(/→ 燕麦/)).toBeVisible()
     expect(screen.queryByText(/raw_json|api_key|runtime-only-token/i)).not.toBeInTheDocument()
 
     const confirm = screen.getByRole('button', { name: '确认创建草稿' })
@@ -79,42 +95,67 @@ describe('CatalogDraftPage', () => {
     expect(await screen.findByText('草稿已保存，当前 revision 为 1。')).toBeVisible()
   })
 
-  it('409 时保留编辑内容与服务器返回的受限差异，不自动覆盖', async () => {
+  it('PATCH 409 后读取当前草稿并重新展示服务器计算的最新差异，不自动覆盖编辑', async () => {
     const user = userEvent.setup()
+    let previewCalls = 0
+    let readCalls = 0
+    mswServer.use(http.post(`${apiBase}/catalog-drafts/preview`, () => {
+      previewCalls += 1
+      return HttpResponse.json(previewCalls === 1 ? serverPreview : {
+        draft_id: createdDraft.id,
+        base_revision: 2,
+        field_diffs: [{ field: 'canonical_name', before: '服务器更新的燕麦', after: '有机燕麦' }],
+        impact_categories: ['catalog_identity'],
+      })
+    }))
     mswServer.use(http.post(`${apiBase}/catalog-drafts`, () => HttpResponse.json({
+      ...createdDraft,
+    }, { status: 201 })))
+    mswServer.use(http.patch(`${apiBase}/catalog-drafts/${createdDraft.id}`, () => HttpResponse.json({
       detail: 'catalog draft command conflict',
     }, { status: 409 })))
+    mswServer.use(http.get(`${apiBase}/catalog-drafts/${createdDraft.id}`, () => {
+      readCalls += 1
+      return HttpResponse.json({ ...createdDraft, canonical_name: '服务器更新的燕麦', revision: 2 })
+    }))
     renderPage()
     await fillDraft(user)
     await user.click(screen.getByRole('button', { name: '预览并确认' }))
     await user.click(await screen.findByRole('button', { name: '确认创建草稿' }))
 
-    expect(await screen.findByText('此草稿已被其他管理员更新。请查看最新差异后重新确认。')).toBeVisible()
-    expect(screen.getByLabelText('菜品名称')).toHaveValue('燕麦')
-    expect(screen.getByLabelText('变更原因')).toHaveValue('补充已授权的基础营养数据')
-    expect(screen.getByRole('button', { name: '预览并确认' })).toBeEnabled()
+    await screen.findByText('草稿已保存，当前 revision 为 1。')
+    const nameInput = screen.getByRole('textbox', { name: '菜品名称' })
+    await user.clear(nameInput)
+    await user.type(nameInput, '有机燕麦')
+    await user.click(screen.getByRole('button', { name: '预览并确认' }))
+    await user.click(await screen.findByRole('button', { name: '确认更新草稿' }))
+
+    expect(await screen.findByText('此草稿已被其他管理员更新。以下为基于最新服务器版本重新计算的差异，请再次确认。')).toBeVisible()
+    expect(readCalls).toBe(1)
+    expect(await screen.findByText(/服务器更新的燕麦 → 有机燕麦/)).toBeVisible()
+    expect(nameInput).toHaveValue('有机燕麦')
+    expect(screen.getByDisplayValue('补充已授权的基础营养数据')).toBeVisible()
+    expect(screen.getByRole('button', { name: '确认更新草稿' })).toBeEnabled()
   })
 
   it('401 清除会话且不显示目录数据，403 只显示固定无权页', async () => {
     const user = userEvent.setup()
-    mswServer.use(http.post(`${apiBase}/catalog-drafts`, () => HttpResponse.json({
+    mswServer.use(http.post(`${apiBase}/catalog-drafts/preview`, () => HttpResponse.json({
       error: { code: 'AUTHENTICATION_REQUIRED' },
     }, { status: 401 })))
     const { onSessionExpired } = renderPage()
     await fillDraft(user)
     await user.click(screen.getByRole('button', { name: '预览并确认' }))
-    await user.click(await screen.findByRole('button', { name: '确认创建草稿' }))
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce())
     expect(screen.getByText('登录已失效，请重新登录。')).toBeVisible()
     expect(screen.queryByText('燕麦')).not.toBeInTheDocument()
 
-    mswServer.use(http.post(`${apiBase}/catalog-drafts`, () => HttpResponse.json({
+    mswServer.use(http.post(`${apiBase}/catalog-drafts/preview`, () => HttpResponse.json({
       error: { code: 'ADMIN_PERMISSION_REQUIRED' },
     }, { status: 403 })))
     renderPage()
     await fillDraft(user)
     await user.click(screen.getByRole('button', { name: '预览并确认' }))
-    await user.click(await screen.findByRole('button', { name: '确认创建草稿' }))
     expect(await screen.findByRole('heading', { name: '无后台访问权限' })).toBeVisible()
     expect(screen.getByText('你的当前账号没有管理权限。请使用管理员账号登录。')).toBeVisible()
     expect(screen.queryByText('燕麦')).not.toBeInTheDocument()

@@ -44,3 +44,20 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
 - 将 cursor 做成明文 JSON 或 offset：前者可被篡改，后者在插入记录时会漏项或重复。
 - 重新按当前营养目录计算历史 totals：目录会演进，历史必须使用确认时快照。
 - 把餐食原文、图片、邮箱、Agent run 或模型数据塞进 history DTO：看板只需要最小的日期、总量和记录 ID。
+
+## 管理目录草稿：服务端预览不是前端回显
+
+目录草稿的可读差异和影响范围必须在服务端形成。后台表单向 `POST /api/v1/admin/catalog-drafts/preview` 提交完整候选目录字段与可选 `draft_id`，但不提交 diff、revision 或影响类别。`admin/api.py` 只把 HTTP 请求交给 `AdminService`；Service 先通过 Repository 读取当前用户的 PostgreSQL 角色，再读取当前草稿，并以允许列表字段计算 `before → after`、`base_revision` 和影响类别。预览不写 draft、audit 或 revision，因此可安全重复请求。
+
+```text
+CatalogDraftPage
+  → POST /api/v1/admin/catalog-drafts/preview
+  → AdminService.require_role + Repository.get_catalog_draft
+  → CatalogDraftPreviewResponse（安全字段差异、影响范围、当前 base_revision）
+  → PATCH If-Match: base_revision
+  → 409 时 GET /catalog-drafts/{id} 后重新 POST preview
+```
+
+这里的 `GET /catalog-drafts/{id}` 只返回 `CatalogDraftResponse` 安全投影，仍在每次请求重新做 DB-RBAC。409 后页面保留管理员输入，不直接覆盖表单；它以读取到的最新草稿作为服务端预览基线，再显示下一次确认对话框。这样 UI 不会把本地字段回显伪装成“服务器差异”。
+
+测试分层保持不变：`tests/admin/test_catalog_draft_service.py` 用 fake repository 锁定当前基线、差异和影响类别；`tests/unit/test_admin_catalog_api.py` 锁定公开 HTTP 投影；`CatalogDraftPage.test.tsx` 用 MSW 验证 preview、If-Match 和 409 后的 read + re-preview。Repository 的 `get_catalog_draft` 使用真实 PostgreSQL 的 integration test 覆盖 flush 后按 ID 读取。

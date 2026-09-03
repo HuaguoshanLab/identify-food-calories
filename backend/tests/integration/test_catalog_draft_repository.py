@@ -29,3 +29,4 @@ def test_catalog_draft_and_audit_flush_together_without_commit(db_session) -> No
         related_version=None, command_key="catalog-create-00000001",
     ))
     assert db_session.scalar(select(CatalogDraft).where(CatalogDraft.id == draft.id)) == draft
+    assert repository.get_catalog_draft(draft.id) == draft

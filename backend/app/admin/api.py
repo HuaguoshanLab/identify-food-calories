@@ -9,7 +9,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.schemas import AdminAuditPageResponse, AdminAuditQuery, AdminProbeResponse, CatalogDraftCreateCommand, CatalogDraftPatchCommand, CatalogDraftResponse
+from app.admin.schemas import (
+    AdminAuditPageResponse,
+    AdminAuditQuery,
+    AdminProbeResponse,
+    CatalogDraftCreateCommand,
+    CatalogDraftPatchCommand,
+    CatalogDraftPreviewCommand,
+    CatalogDraftPreviewResponse,
+    CatalogDraftResponse,
+)
 from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
@@ -77,6 +86,40 @@ def create_catalog_draft(
         return _forbidden()
     except CatalogDraftConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
+
+
+@router.post("/catalog-drafts/preview", response_model=CatalogDraftPreviewResponse)
+def preview_catalog_draft(
+    command: CatalogDraftPreviewCommand,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogDraftPreviewResponse | JSONResponse:
+    """Preview an allowlisted database-derived diff without mutating a draft."""
+
+    try:
+        return admin_service.preview_catalog_draft(actor_user_id=principal, command=command)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft preview conflict") from error
+
+
+@router.get("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)
+def read_catalog_draft(
+    draft_id: uuid.UUID,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogDraftResponse | JSONResponse:
+    """Read the current safe draft projection after current database RBAC."""
+
+    try:
+        return admin_service.read_catalog_draft(actor_user_id=principal, draft_id=draft_id)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
 
 
 @router.patch("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)

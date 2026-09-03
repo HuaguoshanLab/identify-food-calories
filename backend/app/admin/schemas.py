@@ -183,22 +183,25 @@ class CatalogDraftPreviewCommand(_CatalogDraftFields):
     draft_id: uuid.UUID | None = None
 
 
+CatalogDraftDiffField = Literal[
+    "canonical_name",
+    "aliases",
+    "energy_kcal_per_100g",
+    "protein_g_per_100g",
+    "fat_g_per_100g",
+    "carbohydrate_g_per_100g",
+    "source_name",
+    "source_url",
+    "authorization_status",
+]
+
+
 class CatalogDraftFieldDiff(BaseModel):
     """An allowlisted, readable scalar difference produced by the server."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    field: Literal[
-        "canonical_name",
-        "aliases",
-        "energy_kcal_per_100g",
-        "protein_g_per_100g",
-        "fat_g_per_100g",
-        "carbohydrate_g_per_100g",
-        "source_name",
-        "source_url",
-        "authorization_status",
-    ]
+    field: CatalogDraftDiffField
     before: str | None
     after: str
 

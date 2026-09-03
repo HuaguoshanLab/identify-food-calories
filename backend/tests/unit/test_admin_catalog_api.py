@@ -75,8 +75,9 @@ def test_catalog_preview_and_read_are_rbac_protected_safe_projections() -> None:
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
     app.dependency_overrides[get_admin_service] = StubCatalogService
+    preview_payload = {key: value for key, value in _payload().items() if key != "reason"}
     with TestClient(app) as client:
-        preview = client.post("/api/v1/admin/catalog-drafts/preview", json=_payload() | {"draft_id": None})
+        preview = client.post("/api/v1/admin/catalog-drafts/preview", json=preview_payload | {"draft_id": None})
         read = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}")
     assert preview.status_code == 200
     assert preview.json() == {
@@ -105,3 +106,24 @@ def test_catalog_write_maps_database_rbac_denial_to_forbidden() -> None:
         )
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
+
+
+def test_catalog_read_and_preview_map_database_rbac_denial_to_forbidden() -> None:
+    class DeniedCatalogService(StubCatalogService):
+        def read_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+        def preview_catalog_draft(self, **_kwargs: object) -> CatalogDraftPreviewResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = DeniedCatalogService
+    preview_payload = {key: value for key, value in _payload().items() if key != "reason"}
+    with TestClient(app) as client:
+        preview = client.post("/api/v1/admin/catalog-drafts/preview", json=preview_payload | {"draft_id": None})
+        read = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}")
+    assert preview.status_code == 403
+    assert read.status_code == 403
+    assert preview.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
+    assert read.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"

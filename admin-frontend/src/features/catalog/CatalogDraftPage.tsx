@@ -9,9 +9,12 @@ import {
   CatalogApiError,
   type CatalogDraft,
   type CatalogDraftFormValues,
+  type CatalogDraftPreview,
   catalogDraftFormSchema,
   createCatalogDraft,
   patchCatalogDraft,
+  previewCatalogDraft,
+  readCatalogDraft,
 } from './api'
 
 type CatalogDraftPageProps = Readonly<{
@@ -36,6 +39,30 @@ function ServerConfirmedDraft({ draft }: Readonly<{ draft: CatalogDraft }>) {
   </section>
 }
 
+const diffLabels = {
+  canonical_name: '菜品名称', aliases: '别名', energy_kcal_per_100g: '每 100g 能量', protein_g_per_100g: '每 100g 蛋白质',
+  fat_g_per_100g: '每 100g 脂肪', carbohydrate_g_per_100g: '每 100g 碳水', source_name: '来源名称',
+  source_url: '来源链接', authorization_status: '授权状态',
+} as const
+
+const impactLabels = {
+  catalog_identity: '目录名称与别名', nutrition_per_100g: '每 100g 营养数值', source_evidence: '来源依据', authorization_status: '授权状态',
+} as const
+
+function ServerPreview({ preview }: Readonly<{ preview: CatalogDraftPreview }>) {
+  return <section aria-label="服务器预览" className="mt-4 rounded-md border p-4">
+    <h2 className="font-semibold">服务器字段差异</h2>
+    <p className="mt-1 text-sm text-muted-foreground">差异和影响范围由后端基于当前数据库草稿计算。</p>
+    <dl className="mt-3 space-y-2 text-sm">
+      {preview.field_diffs.map((diff) => <div className="grid grid-cols-[9rem_1fr] gap-3" key={diff.field}>
+        <dt className="text-muted-foreground">{diffLabels[diff.field]}</dt>
+        <dd>{diff.before ?? '—'} → {diff.after}</dd>
+      </div>)}
+    </dl>
+    <p className="mt-3 text-sm"><span className="font-medium">影响范围：</span>{preview.impact_categories.map((impact) => impactLabels[impact]).join('、')}</p>
+  </section>
+}
+
 function UnauthorizedPage() {
   return <main className="mx-auto max-w-2xl p-8"><h1 className="text-[28px] font-semibold leading-9">无后台访问权限</h1><p className="mt-4 text-base">你的当前账号没有管理权限。请使用管理员账号登录。</p></main>
 }
@@ -43,6 +70,7 @@ function UnauthorizedPage() {
 export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraftPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [draft, setDraft] = useState<CatalogDraft>()
+  const [preview, setPreview] = useState<CatalogDraftPreview>()
   const [error, setError] = useState('')
   const [securityState, setSecurityState] = useState<'expired' | 'forbidden'>()
   const [submitting, setSubmitting] = useState(false)
@@ -53,25 +81,67 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
   if (securityState === 'expired' || !accessToken) return <main className="mx-auto max-w-2xl p-8"><h1 className="text-[28px] font-semibold leading-9">登录已失效，请重新登录。</h1></main>
   const token = accessToken
 
+  function handleSecurityError(requestError: unknown): boolean {
+    if (!(requestError instanceof CatalogApiError)) return false
+    if (requestError.status === 401) {
+      onSessionExpired()
+      setSecurityState('expired')
+      return true
+    }
+    if (requestError.status === 403) {
+      setSecurityState('forbidden')
+      return true
+    }
+    return false
+  }
+
+  async function openPreview() {
+    setError('')
+    try {
+      const nextPreview = await previewCatalogDraft(token, form.getValues(), draft?.id)
+      setPreview(nextPreview)
+      setDialogOpen(true)
+    } catch (requestError) {
+      if (handleSecurityError(requestError)) return
+      setError('暂时无法生成服务器预览，请稍后重试。')
+    }
+  }
+
+  async function refreshServerPreviewAfterConflict() {
+    if (!draft) {
+      setError('目录草稿发生冲突。请重新生成服务器预览后确认。')
+      return
+    }
+    const current = await readCatalogDraft(token, draft.id)
+    const nextPreview = await previewCatalogDraft(token, form.getValues(), current.id)
+    setDraft(current)
+    setPreview(nextPreview)
+    setError('此草稿已被其他管理员更新。以下为基于最新服务器版本重新计算的差异，请再次确认。')
+    setDialogOpen(true)
+  }
+
   async function confirm() {
+    if (!preview) return
     setSubmitting(true)
     setError('')
     try {
       const idempotencyKey = crypto.randomUUID()
       const next = draft
-        ? await patchCatalogDraft(token, draft, form.getValues(), idempotencyKey)
+        ? await patchCatalogDraft(token, draft, form.getValues(), idempotencyKey, preview.base_revision)
         : await createCatalogDraft(token, form.getValues(), idempotencyKey)
       setDraft(next)
+      setPreview(undefined)
       setDialogOpen(false)
     } catch (requestError) {
-      if (requestError instanceof CatalogApiError && requestError.status === 401) {
-        onSessionExpired()
-        setSecurityState('expired')
-      } else if (requestError instanceof CatalogApiError && requestError.status === 403) {
-        setSecurityState('forbidden')
+      if (handleSecurityError(requestError)) {
+        setDialogOpen(false)
       } else if (requestError instanceof CatalogApiError && requestError.status === 409) {
         setDialogOpen(false)
-        setError('此草稿已被其他管理员更新。请查看最新差异后重新确认。')
+        try {
+          await refreshServerPreviewAfterConflict()
+        } catch (refreshError) {
+          if (!handleSecurityError(refreshError)) setError('草稿发生冲突，且无法读取最新服务器差异。请稍后重试。')
+        }
       } else {
         setError('暂时无法保存目录草稿，请稍后重试。')
       }
@@ -83,7 +153,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
   return <main className="mx-auto max-w-5xl space-y-6 p-8"><header><h1 className="text-[28px] font-semibold leading-9">营养目录草稿</h1><p className="mt-2 text-base text-muted-foreground">创建或编辑草稿前先核对字段；后端仍是唯一授权与审计真相。</p></header>
     {error ? <p aria-live="polite" className="rounded-md border p-4 text-sm" role="alert">{error}</p> : null}
     {draft ? <><p aria-live="polite">草稿已保存，当前 revision 为 {draft.revision}。</p><ServerConfirmedDraft draft={draft} /></> : null}
-    <form className="grid gap-4 rounded-lg border bg-card p-6 md:grid-cols-2" onSubmit={form.handleSubmit(() => setDialogOpen(true), () => setError('请检查表单中标记的字段。'))}>
+    <form className="grid gap-4 rounded-lg border bg-card p-6 md:grid-cols-2" onSubmit={form.handleSubmit(() => void openPreview(), () => setError('请检查表单中标记的字段。'))}>
       <FormField error={form.formState.errors.canonical_name?.message} label="菜品名称" registration={form.register('canonical_name')} />
       <FormField error={form.formState.errors.aliases?.message} label="别名" registration={form.register('aliases')} />
       <FormField error={form.formState.errors.energy_kcal_per_100g?.message} label="每 100g 能量（kcal）" registration={form.register('energy_kcal_per_100g')} type="number" />
@@ -96,7 +166,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
       <div className="md:col-span-2"><FormField error={form.formState.errors.reason?.message} label="变更原因" registration={form.register('reason')} /></div>
       <div className="md:col-span-2"><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground" type="submit">预览并确认</button></div>
     </form>
-    <AlertDialog.Root onOpenChange={setDialogOpen} open={dialogOpen}><AlertDialogContent aria-labelledby="catalog-dialog-title" initialFocus={cancelRef}><AlertDialog.Title className="text-xl font-semibold" id="catalog-dialog-title">确认{draft ? '更新' : '创建'}营养目录草稿？</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">请核对可读字段和变更原因。确认后会由后端执行 RBAC、revision 与审计校验。</AlertDialog.Description><dl className="mt-4"><FieldPreview label="菜品名称" value={form.getValues('canonical_name')} /><FieldPreview label="授权状态" value={form.getValues('authorization_status')} /><FieldPreview label="变更原因" value={form.getValues('reason')} /></dl><div className="mt-6 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} onClick={() => void confirm()} type="button">{submitting ? '正在提交…' : `确认${draft ? '更新' : '创建'}草稿`}</button></div></AlertDialogContent></AlertDialog.Root>
+    <AlertDialog.Root onOpenChange={setDialogOpen} open={dialogOpen}><AlertDialogContent aria-labelledby="catalog-dialog-title" initialFocus={cancelRef}><AlertDialog.Title className="text-xl font-semibold" id="catalog-dialog-title">确认{draft ? '更新' : '创建'}营养目录草稿？</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">请核对服务端计算的字段差异和变更原因。确认后会由后端执行 RBAC、revision 与审计校验。</AlertDialog.Description>{preview ? <ServerPreview preview={preview} /> : null}<p className="mt-4 text-sm"><span className="font-medium">变更原因：</span>{form.getValues('reason')}</p><div className="mt-6 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting || !preview} onClick={() => void confirm()} type="button">{submitting ? '正在提交…' : `确认${draft ? '更新' : '创建'}草稿`}</button></div></AlertDialogContent></AlertDialog.Root>
   </main>
 }
 

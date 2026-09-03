@@ -13,7 +13,17 @@ from typing import Literal, cast
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
 from app.admin.ports import AdminRepository
-from app.admin.schemas import AdminAuditEventResponse, AdminAuditPageResponse, CatalogDraftCreateCommand, CatalogDraftPatchCommand, CatalogDraftResponse
+from app.admin.schemas import (
+    AdminAuditEventResponse,
+    AdminAuditPageResponse,
+    CatalogDraftCreateCommand,
+    CatalogDraftDiffField,
+    CatalogDraftFieldDiff,
+    CatalogDraftPatchCommand,
+    CatalogDraftPreviewCommand,
+    CatalogDraftPreviewResponse,
+    CatalogDraftResponse,
+)
 from app.auth.models import User, UserRole
 
 
@@ -238,6 +248,60 @@ class AdminService:
         self._commit_catalog_mutation()
         return self._catalog_response(draft)
 
+    def read_catalog_draft(
+        self, *, actor_user_id: uuid.UUID, draft_id: uuid.UUID
+    ) -> CatalogDraftResponse:
+        """Return only the safe current projection after a fresh database RBAC check."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        draft = self._repository.get_catalog_draft(draft_id)
+        if draft is None:
+            raise KeyError("catalog draft not found")
+        return self._catalog_response(draft)
+
+    def preview_catalog_draft(
+        self, *, actor_user_id: uuid.UUID, command: CatalogDraftPreviewCommand
+    ) -> CatalogDraftPreviewResponse:
+        """Compute display-safe diffs from the current database record, without mutation.
+
+        The browser sends a candidate only.  It cannot select a base revision,
+        declare an impact, or manufacture the before side of a difference.
+        """
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        candidate = self._catalog_payload(command)
+        draft = (
+            self._repository.get_catalog_draft(command.draft_id)
+            if command.draft_id is not None
+            else None
+        )
+        if command.draft_id is not None and draft is None:
+            raise KeyError("catalog draft not found")
+
+        before = (
+            self._audit_catalog_payload(draft)
+            if draft is not None
+            else {field: None for field in candidate}
+        )
+        diffs = [
+            CatalogDraftFieldDiff(
+                field=cast(CatalogDraftDiffField, field),
+                before=cast(str | None, before[field]),
+                after=str(self._audit_scalar(candidate[field])),
+            )
+            for field in candidate
+            if before[field] != self._audit_scalar(candidate[field])
+        ]
+        if not diffs:
+            raise CatalogDraftConflict("catalog draft preview makes no change")
+        impacts = self._catalog_preview_impacts(diffs)
+        return CatalogDraftPreviewResponse(
+            draft_id=command.draft_id,
+            base_revision=draft.revision if draft is not None else 0,
+            field_diffs=diffs,
+            impact_categories=impacts,
+        )
+
     def _record_catalog_mutation(
         self,
         *,
@@ -292,8 +356,12 @@ class AdminService:
             raise
 
     @staticmethod
-    def _catalog_payload(command: CatalogDraftCreateCommand | CatalogDraftPatchCommand, *, partial: bool = False) -> dict[str, object]:
-        excluded = {"reason"}
+    def _catalog_payload(
+        command: CatalogDraftCreateCommand | CatalogDraftPatchCommand | CatalogDraftPreviewCommand,
+        *,
+        partial: bool = False,
+    ) -> dict[str, object]:
+        excluded = {"reason", "draft_id"}
         raw = command.model_dump(exclude=excluded, exclude_none=partial)
         if "source_url" in raw:
             raw["source_url"] = str(raw["source_url"])
@@ -316,6 +384,29 @@ class AdminService:
             "source_name": draft.source_name, "source_url": draft.source_url,
             "authorization_status": draft.authorization_status, "revision": draft.revision,
         }
+
+    @staticmethod
+    def _catalog_preview_impacts(
+        diffs: list[CatalogDraftFieldDiff],
+    ) -> list[Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]]:
+        """Classify only known catalog fields; no raw request payload reaches the UI."""
+
+        changed = {diff.field for diff in diffs}
+        impacts: list[Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]] = []
+        if changed & {"canonical_name", "aliases"}:
+            impacts.append("catalog_identity")
+        if changed & {
+            "energy_kcal_per_100g",
+            "protein_g_per_100g",
+            "fat_g_per_100g",
+            "carbohydrate_g_per_100g",
+        }:
+            impacts.append("nutrition_per_100g")
+        if changed & {"source_name", "source_url"}:
+            impacts.append("source_evidence")
+        if "authorization_status" in changed:
+            impacts.append("authorization_status")
+        return impacts
 
     @staticmethod
     def _request_hash(operation: str, payload: dict[str, object]) -> str:
