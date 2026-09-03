@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-12-PLAN.md
-last_updated: "2026-09-02T12:11:23.680Z"
-last_activity: 2026-09-02
+stopped_at: Completed 06-13-PLAN.md
+last_updated: "2026-09-03T01:38:05.642Z"
+last_activity: 2026-09-03
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 80
+  completed_plans: 81
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 16 of 25
+Plan: 17 of 25
 Status: Ready to execute
-Last activity: 2026-09-02
+Last activity: 2026-09-03
 
-Progress: [█████████░] 89%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Progress: [█████████░] 89%
 | Phase 06 P23 | 7 min | 2 tasks | 13 files |
 | Phase 06 P09 | 17min | 2 tasks | 15 files |
 | Phase 06 P12 | 12min | 3 tasks | 16 files |
+| Phase 06 P13 | 65 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -188,6 +189,8 @@ Recent decisions affecting current work:
 - [Phase 06]: Catalog 草稿变更仅保存服务端重算的浅层标量 diff；客户端 raw JSON diff 不被接受或作为草稿投影返回。 — 06-12 strict server-derived audit contract
 - [Phase 06]: Catalog 草稿 Idempotency-Key 绑定 request hash：同命令重试返回原草稿，不同输入复用同 key 返回冲突。 — 06-12 command integrity
 - [Phase 06]: Phase 06 catalog 草稿迁移经授权使用 0017 并以 0016 为唯一前驱，保持 Alembic 单一 head。 — 06-12 migration-chain preservation
+- [Phase 06]: 后台目录 HTTP 请求和 Zod DTO 固定归属 features/catalog/api；401 委托 AdminAuthProvider 清空内存会话和 Query cache，403 不渲染目录数据。 — 06-13 admin catalog UI boundary
+- [Phase 06]: 目录 UI 仅展示严格校验的服务器确认投影；06-12 未提供 server diff/impact/read 合约时，409 只保留本地编辑且不得伪称为服务器最新差异。 — 06-13 honesty boundary
 
 ### Pending Todos
 
@@ -208,6 +211,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-02T12:11:23.673Z
-Stopped at: Completed 06-12-PLAN.md
+Last session: 2026-09-03T01:38:05.507Z
+Stopped at: Completed 06-13-PLAN.md
 Resume file: None
