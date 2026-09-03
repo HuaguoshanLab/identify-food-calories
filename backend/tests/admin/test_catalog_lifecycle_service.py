@@ -8,9 +8,9 @@ from decimal import Decimal
 
 import pytest
 
-from app.admin.models import AdminAuditEvent, CatalogDraft, CatalogPublication
-from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
-from app.admin.service import AdminService, CatalogDraftConflict
+from app.admin.models import AdminAuditEvent, CatalogDraft, CatalogPublication, CatalogPublicationEligibility
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecyclePreviewResponse, CatalogLifecycleCommand
+from app.admin.service import AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.models import User, UserRole
 
 
@@ -42,6 +42,7 @@ class FakeLifecycleRepository:
         self.actor = actor
         self.drafts: dict[uuid.UUID, CatalogDraft] = {}
         self.publications: dict[uuid.UUID, CatalogPublication] = {}
+        self.eligibilities: dict[uuid.UUID, list[CatalogPublicationEligibility]] = {}
         self.commands: dict[str, object] = {}
         self.events: list[AdminAuditEvent] = []
 
@@ -99,7 +100,12 @@ class FakeLifecycleRepository:
 
     def add_catalog_eligibility(self, eligibility):
         self.commands[eligibility.command_key] = eligibility
+        self.eligibilities.setdefault(eligibility.publication_id, []).append(eligibility)
         return eligibility
+
+    def get_latest_catalog_eligibility(self, publication_id: uuid.UUID):
+        events = self.eligibilities.get(publication_id, [])
+        return events[-1] if events else None
 
     def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent:
         self.events.append(event)
@@ -147,3 +153,34 @@ def test_publish_requires_current_review_and_confirmed_server_command() -> None:
         CatalogLifecycleCommand(reason="publish", confirm=False)
     with pytest.raises(ValueError):
         CatalogLifecycleCommand(reason="publish", confirm=True, client_diff={"fake": "diff"})
+
+
+def test_lifecycle_preview_is_server_derived_and_requires_current_database_admin_role() -> None:
+    actor = _admin()
+    repository = FakeLifecycleRepository(actor)
+    service = AdminService(repository=repository, now=lambda: NOW)
+    draft = service.create_catalog_draft(actor_user_id=actor.id, command=_command(), command_key="create-lifecycle-preview-0001")
+
+    first = service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
+
+    assert isinstance(first, CatalogLifecyclePreviewResponse)
+    assert first.publication is None
+    assert first.impact.affected_catalog_items == 1
+    assert {row.change for row in first.field_diffs} == {"added"}
+    assert {row.field for row in first.field_diffs} == {
+        "canonical_name", "aliases", "energy_kcal_per_100g", "protein_g_per_100g",
+        "fat_g_per_100g", "carbohydrate_g_per_100g", "source_name", "source_url", "authorization_status",
+    }
+
+    command = CatalogLifecycleCommand(reason="reviewed", confirm=True)
+    service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=draft.revision, command=command, command_key="review-lifecycle-preview-0001")
+    publication = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=draft.revision, command=command, command_key="publish-lifecycle-preview-0001")
+    published = service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
+
+    assert published.publication is not None
+    assert published.publication.id == publication.id
+    assert published.publication.eligibility == "eligible"
+    assert {row.change for row in published.field_diffs} == {"unchanged"}
+    repository.actor.role = UserRole.USER.value
+    with pytest.raises(AdminPermissionDenied):
+        service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
