@@ -205,7 +205,7 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
-**Plans:** 19/25 plans executed
+**Plans:** 20/25 plans executed
 
 Plans:
 
@@ -225,7 +225,7 @@ Plans:
 - [x] 06-14-PLAN.md — 目录审核、发布与失格事务协议
 - [x] 06-15-PLAN.md — 目录审核、发布与失格后台 UI
 - [x] 06-16-PLAN.md — 非密钥运行配置与准入后端
-- [ ] 06-17-PLAN.md — 后台认证壳与模型配置 UI
+- [x] 06-17-PLAN.md — 后台认证壳与模型配置 UI
 - [ ] 06-18-PLAN.md — 运行指标与最小化查询 API
 - [ ] 06-19-PLAN.md — 后台 runs/audit UI
 - [ ] 06-20-PLAN.md — 跨栈真实路径回归与内置浏览器验收
@@ -266,5 +266,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | 19/25 | In Progress|  |
+| 6. 用户看板与后台管理 | 20/25 | In Progress|  |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |
