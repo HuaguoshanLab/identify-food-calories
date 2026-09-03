@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.admin.models import AdminAuditEvent, CatalogDraft, CatalogDraftChangeSet, CatalogDraftRevision
-from app.admin.schemas import CatalogDraftCreateCommand, CatalogDraftPatchCommand
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogDraftPatchCommand, CatalogDraftPreviewCommand
 from app.admin.service import AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.models import User, UserRole
 
@@ -99,6 +99,35 @@ def test_create_and_patch_compute_audit_diff_and_replay_same_command() -> None:
     event = repository.events[-1]
     assert event.before_diff == {"canonical_name": "Oats"}
     assert event.after_diff == {"canonical_name": "Organic oats"}
+
+
+def test_preview_and_read_use_current_database_draft_and_server_computed_impact() -> None:
+    actor = _admin()
+    repository = FakeCatalogDraftRepository(actor)
+    service = AdminService(repository=repository, now=lambda: NOW)
+    created = service.create_catalog_draft(actor_user_id=actor.id, command=_create(), command_key="create-000000-preview")
+
+    preview_payload = _create().model_dump(exclude={"reason"}) | {
+        "draft_id": created.id,
+        "canonical_name": "Organic oats",
+        "energy_kcal_per_100g": Decimal("401"),
+        "authorization_status": "pending",
+    }
+    preview = service.preview_catalog_draft(
+        actor_user_id=actor.id,
+        command=CatalogDraftPreviewCommand(**preview_payload),
+    )
+
+    assert preview.draft_id == created.id
+    assert preview.base_revision == created.revision
+    assert [(item.field, item.before, item.after) for item in preview.field_diffs] == [
+        ("canonical_name", "Oats", "Organic oats"),
+        ("energy_kcal_per_100g", "389", "401"),
+        ("authorization_status", "authorized", "pending"),
+    ]
+    assert preview.impact_categories == ["catalog_identity", "nutrition_per_100g", "authorization_status"]
+    assert service.read_catalog_draft(actor_user_id=actor.id, draft_id=created.id) == created
+    assert repository.events[-1].action == "catalog_draft.create"
 
 
 def test_patch_rejects_stale_revision_and_non_admin() -> None:

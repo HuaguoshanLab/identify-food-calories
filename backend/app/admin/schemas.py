@@ -171,3 +171,46 @@ class CatalogDraftResponse(BaseModel):
     source_url: str
     authorization_status: Literal["authorized", "pending", "revoked"]
     revision: int
+
+
+class CatalogDraftPreviewCommand(_CatalogDraftFields):
+    """A full candidate evaluated against the database's current draft state.
+
+    The browser supplies no diff, revision, or impact claim: those are derived by
+    the service after the same current-role check used by catalog mutations.
+    """
+
+    draft_id: uuid.UUID | None = None
+
+
+class CatalogDraftFieldDiff(BaseModel):
+    """An allowlisted, readable scalar difference produced by the server."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: Literal[
+        "canonical_name",
+        "aliases",
+        "energy_kcal_per_100g",
+        "protein_g_per_100g",
+        "fat_g_per_100g",
+        "carbohydrate_g_per_100g",
+        "source_name",
+        "source_url",
+        "authorization_status",
+    ]
+    before: str | None
+    after: str
+
+
+class CatalogDraftPreviewResponse(BaseModel):
+    """Safe server-computed preview for a create or edit command."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    draft_id: uuid.UUID | None
+    base_revision: int
+    field_diffs: list[CatalogDraftFieldDiff] = Field(min_length=1)
+    impact_categories: list[
+        Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]
+    ] = Field(min_length=1)

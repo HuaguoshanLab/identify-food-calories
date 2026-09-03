@@ -7,7 +7,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.admin.api import get_admin_service
-from app.admin.schemas import CatalogDraftResponse
+from app.admin.schemas import CatalogDraftPreviewResponse, CatalogDraftResponse
 from app.admin.service import AdminPermissionDenied
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.auth.api import get_authenticated_principal
@@ -23,6 +23,17 @@ class StubCatalogService:
             id=uuid.uuid4(), canonical_name="Oats", aliases=["rolled oats"], energy_kcal_per_100g="389",
             protein_g_per_100g="16.9", fat_g_per_100g="6.9", carbohydrate_g_per_100g="66.3",
             source_name="USDA", source_url="https://fdc.nal.usda.gov/", authorization_status="authorized", revision=1,
+        )
+
+    def read_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+        return self.create_catalog_draft()
+
+    def preview_catalog_draft(self, **_kwargs: object) -> CatalogDraftPreviewResponse:
+        return CatalogDraftPreviewResponse(
+            draft_id=None,
+            base_revision=0,
+            field_diffs=[{"field": "canonical_name", "before": None, "after": "Oats"}],
+            impact_categories=["catalog_identity"],
         )
 
 
@@ -58,6 +69,25 @@ def test_catalog_patch_requires_if_match() -> None:
             headers={"Idempotency-Key": "catalog-patch-00000001"},
         )
     assert response.status_code == 422
+
+
+def test_catalog_preview_and_read_are_rbac_protected_safe_projections() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    with TestClient(app) as client:
+        preview = client.post("/api/v1/admin/catalog-drafts/preview", json=_payload() | {"draft_id": None})
+        read = client.get(f"/api/v1/admin/catalog-drafts/{uuid.uuid4()}")
+    assert preview.status_code == 200
+    assert preview.json() == {
+        "draft_id": None,
+        "base_revision": 0,
+        "field_diffs": [{"field": "canonical_name", "before": None, "after": "Oats"}],
+        "impact_categories": ["catalog_identity"],
+    }
+    assert "reason" not in read.json()
+    assert "before_diff" not in read.json()
+    assert read.status_code == 200
 
 
 def test_catalog_write_maps_database_rbac_denial_to_forbidden() -> None:
