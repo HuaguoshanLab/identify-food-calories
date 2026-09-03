@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Protocol
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogActivePublication, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
-from app.agent.models import AgentRuntimeConfigVersion
+from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.auth.models import User
 
 
@@ -81,3 +81,11 @@ class AdminRepository(Protocol):
         occurred_after: datetime | None = None,
         occurred_before: datetime | None = None,
     ) -> list[AdminAuditEvent]: ...
+
+    def run_metrics(self, **filters: object) -> object: ...
+
+    def list_runs(self, *, limit: int, cursor_position: tuple[datetime, uuid.UUID] | None, **filters: object) -> list[AgentRun]: ...
+
+    def get_run(self, run_id: uuid.UUID) -> AgentRun | None: ...
+
+    def list_run_invocations(self, run_id: uuid.UUID) -> list[AgentInvocation]: ...

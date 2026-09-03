@@ -12,6 +12,10 @@ from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import (
     AdminAuditPageResponse,
     AdminAuditQuery,
+    AdminRunDetailResponse,
+    AdminRunMetricsResponse,
+    AdminRunPageResponse,
+    AdminRunQuery,
     AdminProbeResponse,
     CatalogDraftCreateCommand,
     CatalogDraftPatchCommand,
@@ -24,7 +28,7 @@ from app.admin.schemas import (
     RuntimeConfigCommand,
     RuntimeConfigResponse,
 )
-from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminService, CatalogDraftConflict, RuntimeConfigConflict
+from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminRunCursorInvalid, AdminService, CatalogDraftConflict, RuntimeConfigConflict
 from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
 from app.core.database import get_session
@@ -109,6 +113,49 @@ def list_audit(
         return _forbidden()
     except AdminAuditCursorInvalid as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid audit cursor") from error
+
+
+@router.get("/runs/metrics", response_model=AdminRunMetricsResponse)
+def run_metrics(
+    principal: AuthenticatedPrincipal,
+    query: AdminRunQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> AdminRunMetricsResponse | JSONResponse:
+    """Use the same validated terminal filters as the runs keyset endpoint."""
+
+    try:
+        return admin_service.get_run_metrics(actor_user_id=principal, **query.model_dump(exclude={"limit", "cursor"}))
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/runs", response_model=AdminRunPageResponse)
+def list_runs(
+    principal: AuthenticatedPrincipal,
+    query: AdminRunQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> AdminRunPageResponse | JSONResponse:
+    try:
+        values = query.model_dump()
+        return admin_service.list_agent_runs(actor_user_id=principal, **values)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except AdminRunCursorInvalid as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid run cursor") from error
+
+
+@router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)
+def get_run(
+    run_id: uuid.UUID,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> AdminRunDetailResponse | JSONResponse:
+    try:
+        return admin_service.get_agent_run(actor_user_id=principal, run_id=run_id)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="agent run not found") from error
 
 
 @router.post("/catalog-drafts", response_model=CatalogDraftResponse, status_code=status.HTTP_201_CREATED)

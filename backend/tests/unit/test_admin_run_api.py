@@ -54,9 +54,9 @@ def test_run_endpoints_return_only_allowlisted_ledger_fields() -> None:
     payload = detail.json()
     assert set(payload) == {
         "id", "status", "graph_version", "model_provider", "model_version", "graph_steps",
-        "model_calls", "tool_calls", "elapsed_ms", "estimated_cost_usd", "failure_code", "finished_at",
+        "model_calls", "tool_calls", "elapsed_ms", "estimated_cost_usd", "failure_code", "finished_at", "invocations",
     }
-    forbidden = {"email", "raw", "image", "provider", "body", "state", "reasoning", "key", "endpoint"}
+    forbidden = {"email", "raw", "image", "body", "state", "reasoning", "key", "endpoint"}
     assert forbidden.isdisjoint(" ".join(payload).lower())
 
 

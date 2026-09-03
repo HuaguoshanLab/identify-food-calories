@@ -327,3 +327,79 @@ class CatalogPublicationResponse(BaseModel):
     draft_revision: int
     content_hash: str
     eligibility: Literal["eligible", "disqualified"]
+
+
+class AdminRunQuery(BaseModel):
+    """Bounded filters for terminal Agent ledger evidence only."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    limit: int = Field(default=50, ge=1, le=100)
+    cursor: str | None = Field(default=None, min_length=16, max_length=500)
+    occurred_after: datetime | None = None
+    occurred_before: datetime | None = None
+    status: Literal["completed", "failed", "limit_reached"] | None = None
+    graph_version: str | None = Field(default=None, min_length=1, max_length=80)
+    model: str | None = Field(default=None, min_length=3, max_length=201)
+    failure_node: str | None = Field(default=None, min_length=1, max_length=80)
+    failure_code: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def validate_terminal_window_and_model(self) -> "AdminRunQuery":
+        if self.occurred_after is not None and self.occurred_before is not None and self.occurred_after > self.occurred_before:
+            raise ValueError("occurred_after must not be after occurred_before")
+        if self.model is not None and self.model.count(":") != 1:
+            raise ValueError("model must use provider:model_version")
+        return self
+
+
+class AdminRunMetricsResponse(BaseModel):
+    """Shared server-side terminal-run metrics; browsers do not recalculate them."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    terminal_count: int = Field(ge=0)
+    failure_ratio: Decimal = Field(ge=0, le=1)
+    p50_elapsed_ms: int | None = Field(default=None, ge=0)
+    p95_elapsed_ms: int | None = Field(default=None, ge=0)
+    total_cost_usd: Decimal = Field(ge=0)
+
+
+class AdminRunDetailResponse(BaseModel):
+    """Whitelist projection: no email, raw request/image, body, State, or secrets."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    status: Literal["completed", "failed", "limit_reached"]
+    graph_version: str
+    model_provider: str | None
+    model_version: str | None
+    graph_steps: int = Field(ge=0)
+    model_calls: int = Field(ge=0)
+    tool_calls: int = Field(ge=0)
+    elapsed_ms: int = Field(ge=0)
+    estimated_cost_usd: Decimal = Field(ge=0)
+    failure_code: str | None
+    finished_at: datetime
+    invocations: list["AdminRunInvocationResponse"] = Field(default_factory=list)
+
+
+class AdminRunInvocationResponse(BaseModel):
+    """Allowlisted tool/node outcome; provider inputs and bodies never cross this boundary."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    node_name: str
+    status: Literal["prepared", "completed", "failed", "outcome_unknown"]
+    attempt: int = Field(ge=0)
+    cost_usd: Decimal = Field(ge=0)
+    failure_code: str | None
+    safe_result_digest: str | None
+
+
+class AdminRunPageResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: list[AdminRunDetailResponse]
+    next_cursor: str | None

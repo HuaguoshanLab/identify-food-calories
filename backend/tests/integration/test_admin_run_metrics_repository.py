@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.agent.models import AgentInvocation, AgentRun, AgentThread
+from app.agent.models import AgentRun, AgentThread
 from app.auth.models import User, UserRole
 
 
@@ -29,10 +29,14 @@ def test_postgres_metrics_and_keyset_use_the_same_terminal_finished_at_predicate
         role=UserRole.USER.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now,
     )
     thread = AgentThread(
-        id=uuid.uuid4(), user_id=user.id, status="active", graph_version="agent-v1", prompt_version="prompt-v1",
-        tool_version="tool-v1", created_at=now - timedelta(days=1), last_activity_at=now,
+        id=uuid.uuid4(), user_id=user.id, status="open", revision=0,
+        created_at=now - timedelta(days=1), last_activity_at=now,
     )
-    db_session.add_all([user, thread])
+    db_session.add(user)
+    db_session.flush()
+    db_session.add(thread)
+    # AgentRun has two direct FKs; flush parents before inserting independent ORM rows.
+    db_session.flush()
     db_session.add_all([
         _run(user_id=user.id, thread_id=thread.id, finished_at=now - timedelta(hours=1), status="completed", elapsed_ms=10, cost="0.001000"),
         _run(user_id=user.id, thread_id=thread.id, finished_at=now - timedelta(hours=2), status="failed", elapsed_ms=30, cost="0.003000"),

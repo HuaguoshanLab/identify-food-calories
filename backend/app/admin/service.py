@@ -12,13 +12,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
-from app.agent.models import AgentRuntimeConfigVersion
+from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.agent.ports import RuntimeConfigAdmission
 from app.agent.service import AgentRuntimeAdmissionDenied
 from app.admin.ports import AdminRepository
 from app.admin.schemas import (
     AdminAuditEventResponse,
     AdminAuditPageResponse,
+    AdminRunDetailResponse,
+    AdminRunInvocationResponse,
+    AdminRunMetricsResponse,
+    AdminRunPageResponse,
     CatalogDraftCreateCommand,
     CatalogDraftDiffField,
     CatalogDraftFieldDiff,
@@ -56,6 +60,10 @@ class CatalogDraftConflict(ValueError):
 
 class RuntimeConfigConflict(ValueError):
     """A configuration idempotency key was reused for a different command."""
+
+
+class AdminRunCursorInvalid(ValueError):
+    """A supplied run cursor did not pass integrity or shape validation."""
 
 
 RuntimeAdmissionDenied = AgentRuntimeAdmissionDenied
@@ -318,6 +326,34 @@ class AdminService:
         return AdminAuditPageResponse(
             items=[self._audit_response(event) for event in visible], next_cursor=next_cursor
         )
+
+    def get_run_metrics(self, *, actor_user_id: uuid.UUID, **filters: object) -> AdminRunMetricsResponse:
+        """Read aggregate evidence only after a current database role check."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        return cast(AdminRunMetricsResponse, self._repository.run_metrics(**filters))
+
+    def list_agent_runs(
+        self, *, actor_user_id: uuid.UUID, limit: int, cursor: str | None, **filters: object
+    ) -> AdminRunPageResponse:
+        """Page terminal runs by signed finished-at/UUID position, never offset."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        position = self._decode_run_cursor(cursor) if cursor else None
+        runs = self._repository.list_runs(limit=limit + 1, cursor_position=position, **filters)
+        has_more = len(runs) > limit
+        visible = runs[:limit]
+        return AdminRunPageResponse(
+            items=[self._run_response(run, include_invocations=False) for run in visible],
+            next_cursor=self._encode_run_cursor(visible[-1]) if has_more and visible else None,
+        )
+
+    def get_agent_run(self, *, actor_user_id: uuid.UUID, run_id: uuid.UUID) -> AdminRunDetailResponse:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError("agent run not found")
+        return self._run_response(run, include_invocations=True)
 
     def create_catalog_draft(
         self, *, actor_user_id: uuid.UUID, command: CatalogDraftCreateCommand, command_key: str
@@ -861,6 +897,50 @@ class AdminService:
             reason=event.reason, before=event.before_diff, after=event.after_diff,
             related_version=event.related_version, command_key=event.command_key,
         )
+
+    def _run_response(self, run: AgentRun, *, include_invocations: bool) -> AdminRunDetailResponse:
+        # Do not add User, Event, image, Provider, or graph State fields here: this
+        # boundary is the explicit ledger minimisation gate for admin UI consumers.
+        invocations = self._repository.list_run_invocations(run.id) if include_invocations else []
+        return AdminRunDetailResponse(
+            id=run.id, status=cast(Literal["completed", "failed", "limit_reached"], run.status),
+            graph_version=run.graph_version, model_provider=run.model_provider, model_version=run.model_version,
+            graph_steps=run.graph_steps, model_calls=run.model_calls, tool_calls=run.tool_calls,
+            elapsed_ms=run.elapsed_ms, estimated_cost_usd=run.estimated_cost_usd,
+            failure_code=run.failure_code, finished_at=cast(datetime, run.finished_at),
+            invocations=[self._invocation_response(invocation) for invocation in invocations],
+        )
+
+    @staticmethod
+    def _invocation_response(invocation: AgentInvocation) -> AdminRunInvocationResponse:
+        return AdminRunInvocationResponse(
+            node_name=invocation.node_name,
+            status=cast(Literal["prepared", "completed", "failed", "outcome_unknown"], invocation.status),
+            attempt=invocation.attempt, cost_usd=invocation.cost_usd,
+            failure_code=invocation.failure_code, safe_result_digest=invocation.safe_result_digest,
+        )
+
+    def _encode_run_cursor(self, run: AgentRun) -> str:
+        if self._cursor_secret is None or run.finished_at is None:
+            raise AdminRunCursorInvalid("run cursor is unavailable")
+        payload = f"{run.finished_at.isoformat()}|{run.id}".encode("utf-8")
+        signature = hmac.new(self._cursor_secret, payload, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(payload + b"." + signature).decode("ascii")
+
+    def _decode_run_cursor(self, cursor: str) -> tuple[datetime, uuid.UUID]:
+        if self._cursor_secret is None:
+            raise AdminRunCursorInvalid("run cursor is unavailable")
+        try:
+            decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+            payload, signature = decoded.rsplit(b".", 1)
+            expected = hmac.new(self._cursor_secret, payload, hashlib.sha256).digest()
+            finished_raw, run_raw = payload.decode("utf-8").split("|", 1)
+            finished_at, run_id = datetime.fromisoformat(finished_raw), uuid.UUID(run_raw)
+        except (ValueError, UnicodeDecodeError, TypeError):
+            raise AdminRunCursorInvalid("invalid run cursor") from None
+        if finished_at.tzinfo is None or not hmac.compare_digest(signature, expected):
+            raise AdminRunCursorInvalid("invalid run cursor")
+        return finished_at, run_id
 
     def _encode_cursor(self, event: AdminAuditEvent) -> str:
         if self._cursor_secret is None:

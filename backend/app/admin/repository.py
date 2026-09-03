@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import and_, exists, func, or_, select, text
+from sqlalchemy import and_, case, exists, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogActivePublication, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
-from app.agent.models import AgentRuntimeConfigVersion
+from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
+from app.admin.schemas import AdminRunMetricsResponse
 from app.auth.models import User, UserRole
 
 
@@ -201,3 +203,70 @@ class SqlAlchemyAdminRepository:
                 statement.order_by(AdminAuditEvent.occurred_at.desc(), AdminAuditEvent.id.desc()).limit(limit)
             )
         )
+
+    @staticmethod
+    def _terminal_run_statement(**filters: object):
+        """Keep UTC terminal inclusion identical for aggregate and keyset reads."""
+
+        statement = select(AgentRun).where(
+            AgentRun.finished_at.is_not(None),
+            AgentRun.status.in_(("completed", "failed", "limit_reached")),
+        )
+        if (value := filters.get("occurred_after")) is not None:
+            statement = statement.where(AgentRun.finished_at >= value)
+        if (value := filters.get("occurred_before")) is not None:
+            statement = statement.where(AgentRun.finished_at <= value)
+        for name, column in (("status", AgentRun.status), ("graph_version", AgentRun.graph_version), ("failure_code", AgentRun.failure_code)):
+            if (value := filters.get(name)) is not None:
+                statement = statement.where(column == value)
+        if (model := filters.get("model")) is not None:
+            provider, version = str(model).split(":", 1)
+            statement = statement.where(AgentRun.model_provider == provider, AgentRun.model_version == version)
+        if (node := filters.get("failure_node")) is not None:
+            statement = statement.where(
+                select(AgentInvocation.id).where(
+                    AgentInvocation.run_id == AgentRun.id,
+                    AgentInvocation.node_name == node,
+                    AgentInvocation.failure_code.is_not(None),
+                ).exists()
+            )
+        return statement
+
+    def run_metrics(self, **filters: object) -> AdminRunMetricsResponse:
+        terminal = self._terminal_run_statement(**filters).subquery()
+        count, failures, p50, p95, cost = self._session.execute(
+            select(
+                func.count(terminal.c.id),
+                func.coalesce(func.sum(case((terminal.c.status == "failed", 1), else_=0)), 0),
+                func.percentile_cont(0.5).within_group(terminal.c.elapsed_ms),
+                func.percentile_cont(0.95).within_group(terminal.c.elapsed_ms),
+                func.coalesce(func.sum(terminal.c.estimated_cost_usd), 0),
+            )
+        ).one()
+        terminal_count = int(count)
+        return AdminRunMetricsResponse(
+            terminal_count=terminal_count,
+            failure_ratio=Decimal(int(failures)) / Decimal(terminal_count) if terminal_count else Decimal("0"),
+            p50_elapsed_ms=round(p50) if p50 is not None else None,
+            p95_elapsed_ms=round(p95) if p95 is not None else None,
+            total_cost_usd=Decimal(str(cost)),
+        )
+
+    def list_runs(self, *, limit: int, cursor_position: tuple[datetime, uuid.UUID] | None, **filters: object) -> list[AgentRun]:
+        statement = self._terminal_run_statement(**filters)
+        if cursor_position is not None:
+            finished_at, run_id = cursor_position
+            statement = statement.where(or_(AgentRun.finished_at < finished_at, and_(AgentRun.finished_at == finished_at, AgentRun.id < run_id)))
+        return list(self._session.scalars(statement.order_by(AgentRun.finished_at.desc(), AgentRun.id.desc()).limit(limit)))
+
+    def get_run(self, run_id: uuid.UUID) -> AgentRun | None:
+        return self._session.scalar(self._terminal_run_statement().where(AgentRun.id == run_id))
+
+    def list_run_invocations(self, run_id: uuid.UUID) -> list[AgentInvocation]:
+        """Expose only invocation ORM rows to the service whitelist mapper."""
+
+        return list(self._session.scalars(
+            select(AgentInvocation)
+            .where(AgentInvocation.run_id == run_id)
+            .order_by(AgentInvocation.created_at, AgentInvocation.id)
+        ))
