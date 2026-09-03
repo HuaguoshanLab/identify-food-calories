@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-13 server preview/read follow-up
-last_updated: "2026-09-03T10:03:58.061Z"
+stopped_at: Completed 06-14 catalog publication eligibility
+last_updated: "2026-09-03T10:20:09.137Z"
 last_activity: 2026-09-03
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 81
+  completed_plans: 82
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ Plan: 17 of 25
 Status: Ready to execute
 Last activity: 2026-09-03
 
-Progress: [█████████░] 90%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Progress: [█████████░] 90%
 | Phase 06 P09 | 17min | 2 tasks | 15 files |
 | Phase 06 P12 | 12min | 3 tasks | 16 files |
 | Phase 06 P13 | 65 min | 2 tasks | 10 files |
+| Phase 06 P14 | 25 min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -192,6 +193,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 后台目录 HTTP 请求和 Zod DTO 固定归属 features/catalog/api；401 委托 AdminAuthProvider 清空内存会话和 Query cache，403 不渲染目录数据。 — 06-13 admin catalog UI boundary
 - [Phase 06]: 目录 UI 仅展示严格校验的服务器确认投影；06-12 未提供 server diff/impact/read 合约时，409 只保留本地编辑且不得伪称为服务器最新差异。 — 06-13 honesty boundary
 - [Phase 06]: 目录草稿的 diff、影响范围和 If-Match 基线由预览 API 从当前 PostgreSQL 草稿计算。 — 前端本地回显不能证明并发基线或授权状态，且会伪造服务端预览。
+- [Phase 06]: Catalog publication uses per-draft PostgreSQL advisory locking, immutable typed snapshots, and append-only eligibility history for future-use exclusion. — Prevents first-publish races and immediate revocation bypasses without rewriting meal snapshots.
+- [Phase 06]: Phase 06-14 uses user-authorized migration 0018 after 0017, preserving the single Alembic head. — 0016 and 0017 were already occupied by completed earlier work.
 
 ### Pending Todos
 
@@ -212,6 +215,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T10:03:58.053Z
-Stopped at: Completed 06-13 server preview/read follow-up
+Last session: 2026-09-03T10:20:08.989Z
+Stopped at: Completed 06-14 catalog publication eligibility
 Resume file: None
