@@ -152,4 +152,41 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     expect(await screen.findByRole('heading', { name: '无后台访问权限' })).toBeVisible()
     expect(screen.queryByText('配置版本 v2')).not.toBeInTheDocument()
   })
+
+  it('空配置经 Guard 后以 version 0 创建首个启用的非密钥策略', async () => {
+    const user = userEvent.setup()
+    mswServer.use(
+      http.get(`${apiBase}/runtime-config`, () => HttpResponse.json({ detail: 'not found' }, { status: 404 })),
+      http.post(`${apiBase}/runtime-config`, async ({ request }) => {
+        expect(request.headers.get('Authorization')).toBe('Bearer runtime-only-token')
+        expect(request.headers.get('If-Match')).toBe('0')
+        expect(request.headers.get('Idempotency-Key')).toHaveLength(36)
+        expect(await request.json()).toEqual({
+          provider: 'deepseek', model_alias: 'deepseek-v4-flash', enabled: true,
+          single_call_cap_usd: '0.02', period_cap_usd: '12', input_usd_per_m: '0.14', output_usd_per_m: '0.28',
+          reason: '为隔离测试启用首个未来调用策略', confirm: true,
+        })
+        return HttpResponse.json({ ...runtimeConfig, version: 1 }, { status: 201 })
+      }),
+    )
+
+    renderConfigPage()
+    expect(await screen.findByRole('heading', { name: '尚无运行配置' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '确认变更未来运行配置？' })
+    await user.clear(within(dialog).getByLabelText('单次调用上限（USD）'))
+    await user.type(within(dialog).getByLabelText('单次调用上限（USD）'), '0.02')
+    await user.clear(within(dialog).getByLabelText('周期上限（USD）'))
+    await user.type(within(dialog).getByLabelText('周期上限（USD）'), '12')
+    await user.clear(within(dialog).getByLabelText('输入价格（USD / 百万 token）'))
+    await user.type(within(dialog).getByLabelText('输入价格（USD / 百万 token）'), '0.14')
+    await user.clear(within(dialog).getByLabelText('输出价格（USD / 百万 token）'))
+    await user.type(within(dialog).getByLabelText('输出价格（USD / 百万 token）'), '0.28')
+    await user.type(within(dialog).getByLabelText('变更原因'), '为隔离测试启用首个未来调用策略')
+    await user.click(within(dialog).getByRole('button', { name: '确认保存未来配置' }))
+
+    expect(await screen.findByText('配置版本 v1')).toBeVisible()
+    expect(screen.getByText('已启用')).toBeVisible()
+    expect(screen.queryByText(/api_key|endpoint|runtime-only-token/i)).not.toBeInTheDocument()
+  })
 })
