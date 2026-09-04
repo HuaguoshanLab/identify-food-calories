@@ -13,7 +13,7 @@ DeepSeek 与 Qwen-VL 通过 Provider 分工；营养事实始终来自确定性�
 - [x] **Phase 3: 多模态餐食分析闭环** — 接入安全图片上传与 Qwen-VL，多菜识别、份量追问、校验和最终报告。（发布证据已批准，UAT 4/4 通过）
 - [x] **Phase 4: 餐食记录与长期记忆** — 保存餐食历史，接入 Mem0 与 pgvector，并提供记忆查看和删除。 (completed 2026-09-01)
 - [x] **Phase 5: 饮食规划子图** — 根据身体目标生成并校验餐单，支持用户反馈后的 Human-in-the-loop 调整。 (completed 2026-09-02)
-- [ ] **Phase 6: 用户看板与后台管理** — 完成趋势分析、周复盘、营养目录管理、模型配置、运行审计与 RBAC 管理界面。（时区窗口缺口待执行）
+- [x] **Phase 6: 用户看板与后台管理** — 完成趋势分析、周复盘、营养目录管理、模型配置、运行审计与 RBAC 管理界面。（时区窗口缺口待执行） (completed 2026-09-04)
 - [ ] **Phase 7: 评测、安全与上线** — 冻结评测、攻击测试、成本和延迟门禁、CI 与 Docker 演示闭环。
 
 ## Phase Details
@@ -207,7 +207,7 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
-**Plans:** 29/32 plans complete（06-30 至 06-32 为已复核的统计时区缺口收尾计划）
+**Plans:** 32/32 plans complete
 
 Plans:
 
@@ -293,15 +293,15 @@ Plans:
 
 **Wave 18** *(gap closure; blocked on 06-29)*
 
-- [ ] 06-30-PLAN.md — 服务端用户统计时区窗口与 weekly API 边界
+- [x] 06-30-PLAN.md — 服务端用户统计时区窗口与 weekly API 边界
 
 **Wave 19** *(blocked on Wave 18 completion)*
 
-- [ ] 06-31-PLAN.md — H5 时区确认、local Monday 序列化与组件回归
+- [x] 06-31-PLAN.md — H5 时区确认、local Monday 序列化与组件回归
 
 **Wave 20** *(blocked on Wave 19 completion)*
 
-- [ ] 06-32-PLAN.md — 双 Records E2E、真实浏览器与文档时区证据
+- [x] 06-32-PLAN.md — 双 Records E2E、真实浏览器与文档时区证据
 
 **Success Criteria:**
 
@@ -335,5 +335,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | 29/32 | In Progress | - |
+| 6. 用户看板与后台管理 | 32/32 | Complete   | 2026-09-04 |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |
