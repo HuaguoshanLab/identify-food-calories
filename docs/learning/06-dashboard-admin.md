@@ -10,7 +10,7 @@ Phase 6 不是“再加几个统计卡片”。它把**已确认餐食快照**�
 
 餐食确认保存时，客户端提交 IANA `time_zone`；Records Service 校验它，并把 `consumed_at` 投影为持久化的 `consumed_local_date`。用户确认的统计时区只是一种当前统计口径，**不是**“恢复用户当时所在地点”。因此 overview、趋势和 history 都按保存的 local date 聚合，之后浏览器时区变化不会改写历史统计。
 
-链路：`frontend/src/features/records/api/client.ts` → [`backend/app/records/api.py`](../../backend/app/records/api.py) → [`backend/app/records/service.py`](../../backend/app/records/service.py) → `MealRecord`。迁移顺序从 Phase 5 的 `0012` 接到 `0013_dashboard_time_attribution.py`，后续 Phase 6 迁移连续到 `0018`；只能用 Alembic head，不允许手改表。
+链路：`frontend/src/features/records/api/client.ts` → [`backend/app/records/api.py`](../../backend/app/records/api.py) → [`backend/app/records/service.py`](../../backend/app/records/service.py) → `MealRecord`。迁移顺序从 Phase 5 的 `0012` 接到 `0013_dashboard_time_attribution.py`，后续 Phase 6 迁移连续到 `0019`（runtime config）；只能用 Alembic head，不允许手改表。
 
 验证：[`backend/tests/integration/test_record_local_time_attribution.py`](../../backend/tests/integration/test_record_local_time_attribution.py)、[`backend/tests/records/test_record_service.py`](../../backend/tests/records/test_record_service.py)。
 

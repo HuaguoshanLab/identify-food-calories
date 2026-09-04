@@ -97,7 +97,7 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
   uv run pytest tests/integration/test_dashboard_repository.py tests/integration/test_dashboard_overview_projection.py tests/integration/test_catalog_publish_eligibility.py -q
 ```
 
-Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit/runtime）、`0017`（catalog draft）与 `0018`（catalog lifecycle）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
+Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit）、`0017`（catalog draft）、`0018`（catalog lifecycle）与 `0019`（runtime config）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
 
 ## 文件索引
 
