@@ -41,7 +41,7 @@ completed: 2026-09-04
 - **Started:** 2026-09-04T06:10:00Z
 - **Completed:** 2026-09-04T06:23:15Z
 - **Tasks:** 2/2
-- **Files modified:** 7
+- **Files modified:** 8
 
 ## Accomplishments
 
@@ -56,6 +56,7 @@ Each task was committed atomically:
 
 1. **Task 1: 让空 RuntimeConfig 页面通过公共 admin 合约创建首个 enabled policy** — `6835b65` (`test`, TDD RED) and `6dfd479` (`feat`, TDD GREEN)
 2. **Task 2: 构建后台专属 runner，并串行验证管理生命周期与普通用户拒绝** — `b52d558` (`test`)
+3. **E2E 回归修复：使目录生命周期确认在真实桌面视口可达** — `a71e4f1` (`fix`)
 
 ## Files Created/Modified
 
@@ -63,6 +64,7 @@ Each task was committed atomically:
 - `admin-frontend/src/features/config/ConfigSummaryPage.test.tsx` — locks 404→v0 POST→201 and pre-request zero-budget rejection.
 - `admin-frontend/playwright.config.ts` — owns fixed test ports, guarded backend reset, CORS, two previews, readiness, no reuse and SIGTERM cleanup.
 - `admin-frontend/tests/e2e/admin-management.spec.ts` — performs the complete public browser/CLI/Guard/config/catalog/normal-user flow without direct database or token shortcuts.
+- `admin-frontend/src/features/catalog/CatalogLifecyclePage.tsx` — bounds and scrolls a long lifecycle dialog without changing its alertdialog or focus semantics.
 - `admin-frontend/tests/e2e/README.md`, `admin-frontend/tests/README.md`, `admin-frontend/README.md` — document the executable isolation order and bootstrap boundary.
 
 ## Decisions Made
@@ -77,7 +79,10 @@ Each task was committed atomically:
 - `cd admin-frontend && npm run typecheck` — **passed**.
 - `cd admin-frontend && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build` — **passed**.
 - `cd admin-frontend && npm run test:e2e -- --list` — **1 admin-management Chromium test discovered**.
-- `cd admin-frontend && E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND_PORT=5184 npm run test:e2e -- --grep admin-management` — **passed** against a freshly reset guarded `food_agent_test`, Mailpit, FastAPI and both Vite previews.
+- `cd admin-frontend && E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND_PORT=5184 npm run test:e2e -- --grep admin-management` — **initially failed**: the review dialog’s submit button was outside its fixed viewport, so no public review POST occurred and the old PASS assertion was incorrect. After `a71e4f1`, the same guarded isolated command **passed** against a freshly reset `food_agent_test`, Mailpit, FastAPI and both Vite previews; it observed review, publish and disqualification POST 200 plus the ordinary-user probe 403.
+- `cd admin-frontend && npm test -- src/features/catalog/CatalogLifecyclePage.test.tsx` — **4 tests passed** after the dialog repair.
+- `cd admin-frontend && npm run typecheck` — **passed** after the dialog repair.
+- `cd admin-frontend && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build` — **passed** after the dialog repair.
 - `git diff --check` — **passed**.
 
 ## Browser Verification
@@ -104,14 +109,23 @@ Playwright Chromium executed the real public path on the isolated product server
 - **Verification:** The full lifecycle and normal-user rejection E2E pass with no token persistence or injection.
 - **Committed in:** `b52d558`
 
+**3. [Rule 1 - Bug] Made long catalog lifecycle confirmations reachable in the declared desktop viewport**
+- **Found during:** Post-plan E2E regression verification
+- **Issue:** The project-level Desktop Chrome device preset silently overrode the declared 1280×900 viewport with 1280×720. Even at 1280×900, the lifecycle alertdialog had no height bound or overflow, so the full server diff pushed the confirmation button outside the fixed dialog viewport. The browser therefore did not click it and emitted no review POST.
+- **Fix:** Explicitly retained the 1280×900 project viewport; constrained the dialog to `max-h-[calc(100dvh-2rem)]` with vertical scrolling; and made the E2E scroll the real confirmation into view and assert it is in the viewport before clicking.
+- **Files modified:** `admin-frontend/playwright.config.ts`, `admin-frontend/src/features/catalog/CatalogLifecyclePage.tsx`, `admin-frontend/tests/e2e/admin-management.spec.ts`
+- **Verification:** The same isolated browser flow now observed real review, publish and disqualification POST 200 responses, then completed the normal-user 403/forbidden path.
+- **Committed in:** `a71e4f1`
+
 ---
 
-**Total deviations:** 2 auto-fixed (2 Rule 1 bugs).
-**Impact on plan:** Both fixes preserve the plan's fail-closed configuration and runtime-only token boundaries; no scope expansion or dependency change occurred.
+**Total deviations:** 3 auto-fixed (3 Rule 1 bugs).
+**Impact on plan:** All fixes preserve the plan's fail-closed configuration and runtime-only token boundaries; the third repair restores a real user-visible confirmation path rather than bypassing it.
 
 ## Issues Encountered
 
 - The sandbox initially denied Docker socket access. The plan's isolated runner was then executed only after explicit permission, using its guarded test wrapper; no development database was contacted.
+- The original E2E PASS report was false: later independent rerun reproduced a 45-second review-response timeout. Trace evidence showed the confirmation button was outside the dialog viewport, not an API route, status, race, or authorization failure. This was corrected and reverified with `a71e4f1`.
 
 ## Known Stubs
 
@@ -129,7 +143,7 @@ None - no external service configuration required. Local E2E requires the docume
 ## Self-Check: PASSED
 
 - Confirmed all seven implementation/test/documentation artifacts and this summary exist.
-- Confirmed TDD and task commits `6835b65`, `6dfd479`, and `b52d558` exist in Git history.
+- Confirmed TDD, task and regression-repair commits `6835b65`, `6dfd479`, `b52d558`, and `a71e4f1` exist in Git history.
 - Confirmed no whitespace errors in the final diff.
 
 *Phase: 06-user-dashboard-admin*
