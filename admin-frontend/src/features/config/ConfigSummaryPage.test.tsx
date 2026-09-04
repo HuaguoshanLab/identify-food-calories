@@ -189,4 +189,25 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     expect(screen.getByText('已启用')).toBeVisible()
     expect(screen.queryByText(/api_key|endpoint|runtime-only-token/i)).not.toBeInTheDocument()
   })
+
+  it('空配置的零预算在公开请求前被拒绝', async () => {
+    const user = userEvent.setup()
+    let postCalls = 0
+    mswServer.use(
+      http.get(`${apiBase}/runtime-config`, () => HttpResponse.json({ detail: 'not found' }, { status: 404 })),
+      http.post(`${apiBase}/runtime-config`, () => {
+        postCalls += 1
+        return HttpResponse.json(runtimeConfig, { status: 201 })
+      }),
+    )
+    renderConfigPage()
+    await screen.findByRole('heading', { name: '尚无运行配置' })
+    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.type(within(dialog).getByLabelText('变更原因'), '零预算不能创建未来调用策略')
+    await user.click(within(dialog).getByRole('button', { name: '确认保存未来配置' }))
+
+    expect(await screen.findByText('所有预算与价格必须为正数，配置未保存。')).toBeVisible()
+    expect(postCalls).toBe(0)
+  })
 })

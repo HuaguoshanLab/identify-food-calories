@@ -116,12 +116,26 @@ export function RuntimeConfigSummaryPage({ accessToken, onSessionExpired }: Runt
     setDialogOpen(true)
   }
 
-  async function submit() {
-    if (!token || !config) return
+  async function submit(values: RuntimeConfigFormValues) {
+    if (!token) return
+    const budgetFields = [
+      values.single_call_cap_usd,
+      values.period_cap_usd,
+      values.input_usd_per_m,
+      values.output_usd_per_m,
+    ]
+    if (budgetFields.some((value) => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
+      setError('所有预算与价格必须为正数，配置未保存。')
+      return
+    }
+    if (!config && !values.enabled) {
+      setError('创建首个运行配置时必须启用未来调用策略。')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
-      const next = await saveRuntimeConfig(token, form.getValues(), crypto.randomUUID(), config.version)
+      const next = await saveRuntimeConfig(token, values, crypto.randomUUID(), config?.version ?? 0)
       setConfig(next)
       form.reset(toFormValues(next))
       setDialogOpen(false)
@@ -154,7 +168,7 @@ export function RuntimeConfigSummaryPage({ accessToken, onSessionExpired }: Runt
       </fieldset>
       <label className="mt-4 grid gap-2 text-sm" htmlFor="runtime-config-reason">变更原因<textarea className="min-h-24 rounded-md border bg-background p-3" id="runtime-config-reason" {...form.register('reason')} /></label>
       {form.formState.errors.reason?.message ? <p className="mt-1 text-sm" role="alert">{form.formState.errors.reason.message}</p> : null}
-      <div className="mt-6 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} onClick={form.handleSubmit(() => void submit())} type="button">{submitting ? '正在保存…' : '确认保存未来配置'}</button></div>
+      <div className="mt-6 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} onClick={form.handleSubmit((values) => void submit(values))} type="button">{submitting ? '正在保存…' : '确认保存未来配置'}</button></div>
     </AlertDialogContent></AlertDialog.Root>
   </>
 }
