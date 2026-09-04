@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { useEffect, useState, type PropsWithChildren } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
@@ -25,6 +26,7 @@ async function probeAdminAccess(accessToken: string) {
  * Every admin request still receives its own backend RBAC check.
  */
 export function AdminRouteGuard({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient()
   const { accessToken, clearSession } = useAdminAuth()
   const location = useLocation()
   const [state, setState] = useState<ProbeState>(accessToken ? 'checking' : 'unauthenticated')
@@ -32,6 +34,8 @@ export function AdminRouteGuard({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true
     if (!accessToken) {
+      // A guard with no memory token must not expose cache left by a prior identity.
+      queryClient.clear()
       // A 403 cleared the token too; preserve its explicit non-disclosing outcome.
       setState((previous) => previous === 'forbidden' ? previous : 'unauthenticated')
       return () => { active = false }
@@ -47,7 +51,7 @@ export function AdminRouteGuard({ children }: PropsWithChildren) {
       setState('unauthenticated')
     })
     return () => { active = false }
-  }, [accessToken, clearSession])
+  }, [accessToken, clearSession, queryClient])
 
   if (state === 'checking') return <main aria-busy="true" aria-live="polite" className="admin-runtime-root">正在验证后台访问权限…</main>
   if (state === 'forbidden') return <Navigate replace to="/admin/forbidden" />
