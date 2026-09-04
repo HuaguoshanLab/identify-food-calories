@@ -32,7 +32,7 @@ npm run test:e2e
 
 前端路由和可见性只改善体验。每一个真实请求仍由后端 `/api/v1/admin/*` 从 PostgreSQL 读取当前角色并执行 RBAC；前端不能保存、伪造或替代该授权判断。
 
-`npm run test:e2e` 当前不是可通过门禁：项目尚无 Playwright 配置或 `admin-management.spec.ts`，不能把 Vitest、构建成功或手工页面观察称为后台 Playwright PASS。真实后台浏览器证据仅覆盖 catalog 草稿→审核→发布、runs 最小详情和 audit；overview、UTC filter 深链、失格、runtime disable、普通用户/过期会话拒绝仍待隔离环境补验，见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
+`npm run test:e2e -- --grep admin-management` 使用独立 Playwright runner：固定 backend `8003`、用户 SPA `5183`、admin SPA `5184`，每次从受 `run_pg.py` 验证的 `food_agent_test` reset 开始，并以 Mailpit 公共 HTTP 完成浏览器邮箱验证。它严格验证“验证账户 → audited first-admin CLI → Guard Bearer probe 200 → RuntimeConfig UI POST 201 → catalog lifecycle/audit”；普通用户必须获得真实 probe 403，且不能渲染 AdminShell 或私有数据。CLI 仅写首位角色审计，绝不创建 RuntimeConfig 或替代端点 RBAC。该命令必须在可访问本机 Docker 的隔离测试环境中运行；未实际运行时不能将配置存在、Vitest、构建或手工观察表述为 Playwright PASS。
 
 ### Phase 6 后台调试
 
@@ -59,6 +59,7 @@ npm run typecheck && npm run build
 | `tests/` | 后台浏览器级跨栈验收；只能通过真实产品页面和公开 `/api/v1/admin/*` API 建立证据，目录索引见 `tests/README.md`。 |
 | `package.json` / `package-lock.json` | 已审计直接依赖、脚本与可复现 npm 安装锁 |
 | `vite.config.ts` | 独立端口、开发代理与生产 admin API fail-closed 校验 |
+| `playwright.config.ts` | 独占端口、受保护 backend、双 Vite preview、readiness 与 SIGTERM cleanup 的后台 E2E runner。 |
 | `tsconfig*.json` / `vite-env.d.ts` | 应用与 Vite 配置的严格 TypeScript project references、初始环境类型锚点 |
 | `tailwind.config.ts` / `postcss.config.js` | 后台语义 token 与 Tailwind 构建适配 |
 | `components.json` | 官方 shadcn Base UI registry 的受限生成配置 |

@@ -15,6 +15,6 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 浏览器测试职责、允许依赖与文件索引。 |
-| `e2e/` | Playwright 真实页面与公开 API 的跨栈路径；目录索引见 `e2e/README.md`。 |
+| `e2e/` | Playwright 真实页面与公开 API 的跨栈路径；`admin-management.spec.ts` 在受保护空库中验证 bootstrap→probe→RuntimeConfig→目录治理及普通用户 403，目录索引见 `e2e/README.md`。 |
 
 新增浏览器测试目录或共享 fixture 时，必须在此登记，并同步更新根 `admin-frontend/README.md`。

@@ -15,5 +15,12 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 端到端测试职责、允许依赖与文件索引。 |
+| `admin-management.spec.ts` | 空隔离库中的验证账户、审计首位管理员 bootstrap、Guard、RuntimeConfig、目录生命周期和普通用户拒绝。 |
 
-后续 `.spec.ts`、fixture 或视觉基线文件必须逐项登记，并同步更新父级 `tests/README.md`。
+## 隔离运行合同
+
+`admin-management.spec.ts` 固定使用 backend `8003`、用户 SPA `5183` 与独立后台 SPA `5184`；只允许分别用 `E2E_ADMIN_BACKEND_PORT`、`E2E_ADMIN_USER_FRONTEND_PORT`、`E2E_ADMIN_FRONTEND_PORT` 覆盖。runner 每次经仓库根 `docker compose up -d --wait postgres-test mailpit`、`backend/tests/run_pg.py` 与 `backend/scripts/run_initialized_app.py` 启动，后者只会 reset 受 guard 保护的 `food_agent_test`、迁移和受控 seed；不复用本地服务，所有 server 均以 HTTP readiness、`reuseExistingServer: false` 和 SIGTERM cleanup 管理。
+
+严格顺序是：浏览器注册并通过 Mailpit 公共 HTTP 读取验证码完成验证 → 受 `run_pg.py` 包装的 audited `app.admin.cli bootstrap` 写入首位角色 → admin SPA 登录并观察 Bearer probe 200 → RuntimeConfig 页面以 If-Match 0 和 Idempotency-Key 的公开 POST 201 创建启用 policy → 目录草稿、服务器 diff、审核、发布、失格与审计 → 普通用户独立浏览器会话 probe 403。
+
+CLI 只允许首位管理员角色 bootstrap：它不会创建 RuntimeConfig，也不能取代 Guard 或业务 API 的 PostgreSQL RBAC。`/users/me` 仅建立活动身份；probe 与每个 `/api/v1/admin/*` 端点才是授权证据。不得通过数据库写入、token/cookie 注入、浏览器存储、fixture、内部 service/repository 或真实模型建立成功状态。
