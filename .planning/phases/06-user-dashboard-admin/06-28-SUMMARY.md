@@ -87,7 +87,7 @@ Each task was committed atomically:
 
 ## Browser Verification
 
-Playwright Chromium executed the real public path on the isolated product servers: user registration and Mailpit-backed email verification, audited first-admin bootstrap, admin login/probe 200, RuntimeConfig POST 201, catalog lifecycle/audit, and a separate ordinary user's probe 403/forbidden path. No database write, token/cookie injection, browser storage read, internal service call, fixture identity, or real model invocation was used.
+This is Playwright Chromium evidence on isolated product servers, not a substitute for the separately required Codex built-in-browser acceptance. It executed the real public path: user registration and Mailpit-backed email verification, audited first-admin bootstrap, admin login/probe 200, RuntimeConfig POST 201, catalog review/publish/disqualification/audit, and a separate ordinary user's probe 403/forbidden path. No database write, token/cookie injection, browser storage read, internal service call, fixture identity, or real model invocation was used.
 
 ## Deviations from Plan
 
