@@ -1,165 +1,164 @@
 ---
 phase: 06-user-dashboard-admin
-verified: 2026-09-04T02:40:00Z
+verified: 2026-09-04T08:37:25Z
 status: gaps_found
-score: 51/54 plan must-have truths verified
+score: 4/5 roadmap must-haves verified
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 51/54 plan must-have truths verified
+  gaps_closed:
+    - "四类 catalog 命令均在任何 replay/resource 返回前读取当前 PostgreSQL active-admin role；正常用户和已降权用户 replay 均被拒绝。"
+    - "独立 admin-management 与 records-dashboard Playwright runner/spec 已存在、可启动隔离产品栈且覆盖真实公开路径。"
+    - "全量 frontend Vitest 串行回归已恢复通过。"
+  gaps_remaining:
+    - "Dashboard 的‘今日/本周’窗口仍以服务器 UTC 日期计算，未连接用户确认的 IANA 统计时区；UTC 边界会把用户本地日和周窗口算错。"
+  regressions: []
 gaps:
-  - truth: "每个 /api/v1/admin/* 命令在读取或返回幂等重放前，重新从 PostgreSQL 校验当前 active admin role"
+  - truth: "用户可按其本地自然日查看今日、本周摄入、趋势和周复盘。"
     status: failed
-    reason: "目录 create、patch、publish、disqualify 在调用 require_role() 之前查询 command-key replay，并直接返回已有草稿或发布对象。已被降权但仍持有有效 JWT 的前管理员可用自己已知的幂等键绕过本次 DB-RBAC 检查，取得重放结果。"
+    reason: "记录写入已持久化 consumed_local_date，但 dashboard/weekly-review 的当前日与周起点仍由服务器 UTC date 计算；前端又以 toISOString() 截取本地周一，东半球周一凌晨会把 week_start 发送为周日。"
     artifacts:
-      - path: "backend/app/admin/service.py"
-        issue: "create_catalog_draft（约 371 行）、patch_catalog_draft、publish_catalog_draft（约 571 行）和 disqualify_catalog_publication（约 616 行）均在 require_role() 前 early-return replay。"
+      - path: "backend/app/dashboard/service.py"
+        issue: "DashboardService 与 WeeklyReviewService 默认 datetime.now(UTC).date()，没有读取 DashboardTimezonePreference 或接收/校验用户 IANA 时区。"
+      - path: "backend/app/dashboard/api.py"
+        issue: "overview/weekly-review HTTP 合约没有统计时区输入，也未在 composition 中注入用户时区读取端口。"
+      - path: "frontend/src/features/records/components/RecordsPage.tsx"
+        issue: "startOfWeek() 对本地 Date 调整后调用 toISOString().slice(0, 10)；UTC+ 时区的周一凌晨会产生前一日，导致后端 Monday 校验 422。"
     missing:
-      - "将当前 active-admin DB-RBAC 检查移到所有 replay 查询与任何资源投影返回之前。"
-      - "补充 normal-user 和已降权管理员使用既有 command key 重放四类目录命令时返回 403 的 service/API 回归测试。"
-  - truth: "自动化经真实公开路径覆盖 dashboard、SSE、周复盘和后台拒绝/管理流"
-    status: failed
-    reason: "06-20 明确要求的两份 Playwright 资产及后台 runner 配置在仓库中不存在；因此不能把组件测试、浏览器观察或已有周复盘 spec 当作这两条 E2E 的通过。"
-    artifacts:
-      - path: "frontend/tests/e2e/records-dashboard.spec.ts"
-        issue: "文件不存在。"
-      - path: "admin-frontend/playwright.config.ts"
-        issue: "文件不存在，admin-frontend 无法作为 Playwright 项目运行。"
-      - path: "admin-frontend/tests/e2e/admin-management.spec.ts"
-        issue: "文件不存在。"
-    missing:
-      - "为 records dashboard 建立真实公开 API、认证和 RuntimeConfig 准备路径的 Playwright spec。"
-      - "为独立后台建立 Playwright 配置和 admin-management 真实管理/拒绝流程 spec。"
-  - truth: "Phase 6 修改后用户端完整 Vitest 门禁保持通过"
-    status: failed
-    reason: "Phase 6 提交 f4b1c6e 修改了 PlanPage 的终态呈现，但没有同步旧的 PlanPage 测试期望；全量 frontend Vitest 现有 1 条失败。"
-    artifacts:
-      - path: "frontend/src/features/plans/components/PlanPage.tsx"
-        issue: "06-06 将 PlanningStatus 改为 SafePlanningProgress 后，受控候选耗尽分支不再呈现既有测试要求的“暂时无法生成计划”标题。"
-      - path: "frontend/src/features/plans/components/PlanPage.test.tsx"
-        issue: "第 151 行仍断言该标题，运行时无法找到。"
-    missing:
-      - "明确保留该用户可见标题，或按经确认的新文案更新测试与其行为合同，使全量用户端门禁恢复通过。"
+      - "为 dashboard 的当前日/周窗口建立明确、经 ZoneInfo 校验的用户统计时区来源，并把它接入 overview、history 相关周窗口与 weekly review。"
+      - "避免用 UTC 序列化截取浏览器本地日期；增加 Asia/Shanghai 与 America/Los_Angeles 的 UTC 跨日、周一凌晨和 API 422 回归测试。"
 ---
 
-# Phase 6：用户看板与后台管理验证报告
+# Phase 06：用户看板与后台管理验证报告
 
 **阶段目标：** 用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。
+**验证时间：** 2026-09-04T08:37:25Z
+**状态：** `gaps_found`
+**复验：** 是——针对上次 gap closure。
 
-**验证结论：** `gaps_found`。核心产品闭环、迁移链、目录治理、运行诊断和文档均有代码证据；但目录命令可在重放幂等请求时绕过本次 DB-RBAC 检查，这是管理员安全边界的阻断缺口。此外，计划承诺的 Playwright 资产缺失，且 Phase 6 对规划页的修改造成全量前端测试回归。不能标记通过。
+## MVP 合同守卫
 
-**验证模式：** 初次验证。没有既有 `06-VERIFICATION.md`，也没有可应用 override。
+ROADMAP 标记本阶段为 `mvp`，但 `gsd-sdk query user-story.validate` 对当前目标返回 `false`：它不是规定格式的用户故事。因此无法伪称完成 MVP User Flow Coverage；以下按 ROADMAP 五条成功标准做目标倒推。这是规划元数据缺陷，不是对代码功能的放行。
 
-**MVP 元数据守卫：** ROADMAP 将本阶段标为 `mode: mvp`，但 `gsd-sdk query user-story.validate --story "用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。" --pick valid` 返回 `false`；该目标不是 `As a …, I want to …, so that …` 的用户故事。因此本报告不能伪装成符合 MVP User Flow Coverage 合同的形式验证，只能按 ROADMAP 的五条 success criteria 执行标准目标倒推。应由负责人用 `/gsd mvp-phase 6` 修正元数据或移除错误的 `mvp` 标记。
+## Goal Achievement
 
-## 目标倒推与可观察事实
+### Observable Truths
 
-| # | 必须为真的事实 | 状态 | 直接证据 |
-|---|---|---|---|
-| 1 | 用户可查看今日/本周摄入、历史、趋势与周复盘。 | ✓ VERIFIED | `DashboardService` 按持久化 `consumed_local_date` 聚合并以签名 keyset 读取 history；Records 页严格消费 overview/history/weekly DTO。真实浏览器记录确认“白米饭 100 克”保存后显示 130 kcal、1 餐、趋势、history 与低覆盖周复盘。 |
-| 2 | 独立后台只调用 `/api/v1/admin/*`；普通用户不能由前端取得后台数据，用户 H5 不承载后台页面。 | ✗ FAILED | 独立前端/H5 隔离均成立，但 `AdminService` 四类 catalog 命令在 `require_role()` 前直接返回 command-key replay。已降权的原管理员持有既有 key 时可绕过当前 PostgreSQL RBAC 检查，故“每个 admin API 都执行当前角色校验”不成立。 |
-| 3 | 管理员可治理菜品、营养、来源、授权、版本并查看可读审计差异。 | ✓ VERIFIED | 草稿/预览/审核/发布/失格端点经 DB-RBAC、If-Match、幂等键和审计服务；发布创建 immutable snapshot，nutrition/planning 查询受 eligibility overlay 约束。真实后台已完成草稿→审核→发布。 |
-| 4 | 管理员可查看运行、失败信息、工具/耗时/费用，而不取得原图、密钥、原文或思维链。 | ✓ VERIFIED | `/runs/metrics`、`/runs`、`/runs/{id}` 共用终态 UTC predicate；`AdminRunDetailResponse` 只含 allowlist 字段。真实后台 runs 列表与详情已确认，记录未出现餐食原文、Provider body、图片或密钥。 |
-| 5 | README 有架构、状态、时序、启动/调试与可验证面试线索。 | ✓ VERIFIED | 根 README、三个子项目 README 和 `docs/learning/06-dashboard-admin.md` 均存在；文档链接到 API/service/repository/graph 与对应测试，也明确区分浏览器证据和未完成 E2E。 |
-| 6 | 06-20 声明的 records dashboard 与独立后台真实 Playwright 管理/拒绝流程可自动运行。 | ✗ FAILED | 三个必需资产不存在：`frontend/tests/e2e/records-dashboard.spec.ts`、`admin-frontend/playwright.config.ts`、`admin-frontend/tests/e2e/admin-management.spec.ts`。 |
-| 7 | Codex 内置浏览器已覆盖普通用户后台拒绝与过期会话拒绝。 | ? UNCERTAIN | `docs/verification/phase-06-browser-acceptance.md` 明确登记该拒绝矩阵尚未完成；后端 unit tests 覆盖了拒绝语义，但这不是浏览器验收。 |
+| # | Truth | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。 | ✗ FAILED | SQL 确实按 `consumed_local_date` 查询，但 `backend/app/dashboard/service.py` 以 `datetime.now(UTC).date()` 定义 today/week；API 未取得用户统计时区，`RecordsPage.tsx` 的 `toISOString()` 还会在 UTC+ 周一凌晨发送周日。该功能在时区边界不成立。 |
+| 2 | 独立 `admin-frontend/` 仅调用 `/api/v1/admin/*`；普通用户不能读取/修改后台数据，用户 H5 不含后台页面。 | ✓ VERIFIED | 独立 Vite 项目、admin-only API base、内存 token 与 `AdminRouteGuard` 存在；`AdminService` 四类 catalog mutation 都先 `require_role()`，隔离 admin E2E 观察到 normal-user Bearer probe `403`、`/admin/forbidden` 且无 AdminShell/private DOM。 |
+| 3 | 管理员可维护菜品、营养、来源、授权、版本并查看审计差异。 | ✓ VERIFIED | draft → review → immutable publish → eligibility/disqualify 由 `AdminService`/repository 事务、If-Match、idempotency 和 allowlisted audit diff 实现；admin-management E2E 观察 review/publish/disqualify `200`。 |
+| 4 | 管理员可查看运行、失败节点、工具耗时与费用，同时不暴露原图、密钥或思维链。 | ✓ VERIFIED | `AdminRunDetailResponse` 是 strict allowlist；run API/UI 仅消费 status、版本、计数、耗时、费用、失败码和安全 digest。无 email、原图、raw body、State 或 secret 字段的流入路径。 |
+| 5 | README 包含架构图、状态图、时序图、调试方式和面试深挖题。 | ✓ VERIFIED | 根 README 具备 Mermaid architecture/state/sequence 图、启动/调试命令和可链接源码/测试的面试题；三 SPA README 与 `docs/learning/06-dashboard-admin.md` 存在。见下方文档准确性 warning。 |
 
-**路线图成功条件：** 4/5 已支持；后台安全授权条件被 replay-before-RBAC 缺口阻断。  
-**计划级 must-haves：** 51/54 已验证；2 项明确失败（RBAC replay 绕过、缺失 E2E 资产），1 项须人工复验（浏览器拒绝矩阵）。
+**Score:** 4/5 roadmap truths verified
 
-## 关键工件与连接
+### Prior Gaps Rechecked
 
-| 工件 | L1/L2：存在且非 stub | L3：接线 | L4：数据流 |
-|---|---|---|---|
-| `backend/app/records/service.py` | ✓ ZoneInfo 校验、持久 local date、一次性回填与事务 rollback。 | ✓ records API 调用 service；保存只读取 `completed_validated` 报告。 | ✓ `MealRecord.consumed_local_date` 进入 dashboard SQL。 |
-| `backend/app/dashboard/{api,service,repository}.py` | ✓ overview/history/weekly 实现非静态返回。 | ✓ router 在 `main.py` 注册，service 注入 planning 窄 port。 | ✓ SQL 先按 `user_id`、未删行、本地日过滤，再聚合/分页；目标只由 completion projection 返回。 |
-| `backend/app/admin/{api,service,repository}.py` | ⚠️ RBAC、审计、目录、运行配置、runs API 均有实际实现，但 catalog replay 顺序有安全缺口。 | ⚠️ `/api/v1/admin/*` 路由→`AdminService`→repository；命令写审计并单次 commit；四类 catalog replay 却在 DB-RBAC 前返回。 | ✓ 当前角色、实体 revision、immutable publication/eligibility 和 run ledger 投影均来自 PostgreSQL；但 replay return 不应绕过角色投影。 |
-| `frontend/src/features/records/*` | ✓ Zod client、今日卡、趋势、history、周复盘存在且 targeted tests 通过。 | ✓ `RecordsPage` 使用 dashboard/weekly client，Load more 使用服务端 opaque cursor。 | ✓ 真实保存记录经公开 API 显示在 Records；未发现客户端 profile 推导目标。 |
-| `admin-frontend/src/*` | ✓ 独立入口、内存 token、guard、catalog/config/runs/audit/overview 页面存在。 | ✓ `main.tsx` 组合 BrowserRouter→QueryClientProvider→AdminAuthProvider；feature client 调 admin-only base。 | ✓ Guard probe 和每条后端 API 的 DB-RBAC 双层存在；401/403 清 session/Query cache。 |
-| `backend/migrations/versions/0013_*`–`0019_*` | ✓ 七份实体迁移存在。 | ✓ `alembic heads` 输出唯一 `0019 (head)`。 | ✓ 静态元数据依次为 0013←0012、0014←0013、0015←0014、0016←0015、0017←0016、0018←0017、0019←0018。 |
+| Prior gap | Status | Direct evidence |
+| --- | --- | --- |
+| Catalog replay 可绕过当前 DB-RBAC | ✓ CLOSED | `create_catalog_draft`、`patch_catalog_draft`、`publish_catalog_draft`、`disqualify_catalog_publication` 都在 replay 查询前调用 `require_role()`。`test_catalog_draft_service.py` 覆盖 create/patch 的 normal + demoted replay 拒绝；`test_catalog_lifecycle_service.py` 覆盖 publish/disqualify 的 normal + inactive-demoted replay 拒绝。活跃管理员 replay 保留同一 create/publish 对象语义。 |
+| Records/SSE/weekly 与独立后台管理/拒绝的 E2E 资产缺失 | ✓ CLOSED | `frontend/tests/e2e/records-dashboard.spec.ts`、`admin-frontend/playwright.config.ts`、`admin-frontend/tests/e2e/admin-management.spec.ts` 都存在且为非 stub。两 runner 都从 guarded `food_agent_test`、Mailpit、FastAPI 与两个 SPA preview 开始，`reuseExistingServer: false`。 |
+| 全量 frontend Vitest 回归失败 | ✓ CLOSED | 本轮根代理串行观察：`frontend npm test -- --run` 为 **26 files / 139 passed**。此前并发 timeout 在串行运行中可重复消失，属于资源竞争，不是仍存在的测试失败。 |
 
-## 数据流核验
+### Required Artifacts
 
-1. **记录→看板：** `MealRecordService.confirm_from_completed_run()` 校验 IANA 时区，以 `consumed_at` 写 `consumed_local_date`；`SqlAlchemyDashboardRepository` 用该列、租户和软删过滤聚合；`RecordsPage` 严格解析后渲染。真实浏览器已完成这条链。
-2. **目录→未来分析：** catalog draft 的 preview/diff 由服务端根据当前草稿计算；publish 生成 immutable publication，eligibility overlay 进入 nutrition/planning future-query；真实后台发布“白米饭”后，该 canonical name 能被公开分析命中并保存。
-3. **后台授权→审计：** 请求的 JWT 只认证；多数 service 操作会由 `require_role` 重新读取数据库当前角色。每项变更在 service 事务中写 scalar before/after diff 与 reason；audit/runs 读取使用签名 cursor 和白名单 DTO。**反证：** catalog create/patch/publish/disqualify 的 replay 查询与早返回发生在该检查前，不能视作完整 RBAC 闭环。
-4. **Agent 生命周期→H5：** 公共 SSE 仅输出 `safe-stream-stage.v1`、allowlist `stage` 与安全文案；前端本地 strict parser 映射阶段，未知事件变成通用可重试状态，不直接渲染 provider/state/reasoning。
+| Artifact | Expected | Status | Details |
+| --- | --- | --- |
+| `backend/app/records/service.py` + `0013_dashboard_time_attribution.py` | IANA 校验、不可漂移 local-date 归属和审计回填 | ✓ VERIFIED | `ZoneInfo` 校验并以 `consumed_at.astimezone(zone).date()` 写 `consumed_local_date`；迁移有一致性 check、用户/local-date partial index 和一次性 preference/audit 表。 |
+| `backend/app/dashboard/{api,service,repository}.py` | 本地日 dashboard 读模型 | ⚠️ HOLLOW | tenant/soft-delete/local-date SQL、HMAC keyset 和 strict DTO 都是实作；但 current today/week 的时区来源未接线，见 blocker。 |
+| `frontend/src/features/records/{api,components}` | 严格 DTO 的 summary/trend/history/weekly render | ⚠️ HOLLOW | `RecordsPage` 用 TanStack Query 与 strict Zod client 渲染四投影；本地周起点的 UTC 序列化错误破坏边界日。 |
+| `backend/app/admin/service.py` + catalog tests | current DB-RBAC、catalog lifecycle、审计 | ✓ VERIFIED | 四个 replay return 前都 refresh active role；normal/demoted replay tests 和 active replay identity assertions 存在。 |
+| `admin-frontend/playwright.config.ts` + `tests/e2e/admin-management.spec.ts` | 独立真实后台 management/rejection runner | ✓ VERIFIED | 公共注册/Mailpit 验证、audited bootstrap、Guard `200`、RuntimeConfig `201`、目录生命周期和 normal-user `403`；没有 DB 写入、token/Cookie 注入或 mock endpoint。 |
+| `frontend/playwright.config.ts` + `tests/e2e/records-dashboard.spec.ts` | 独立真实 Records/SSE/weekly runner | ✓ VERIFIED | 同一 fresh runner 先由 admin UI 建立 enabled RuntimeConfig，后 normal user 走 analyze → `text/event-stream` → confirm-save → `/app/records`，并断言安全 DOM/SSE。 |
+| `docs/verification/phase-06-browser-acceptance.md` | 与 Playwright 分层的实际 Codex 浏览器记录 | ✓ VERIFIED | 文件明确声明非 Playwright/截图/DB/token/internal shortcut；记录管理员 RuntimeConfig **v2**、normal-user analyze → safe SSE → save → Records，以及 normal-user probe `403`/forbidden/no private render。 |
 
-## 自动化与行为检查
+### Key Link Verification
 
-| 检查 | 实际结果 | 结论 |
-|---|---|---|
-| `backend: uv run pytest` Phase 6 targeted suite | 103 passed，3 skipped/9 errors；错误全部来自本会话未配置 `DATABASE_URL`/`TEST_DATABASE_URL` 的 PostgreSQL fixture，不是断言失败。 | 单元/API/fake/eval 有效；PostgreSQL 集成在当前环境 **未复验**。 |
-| `backend: ruff` Phase 6 source/tests | PASS。 | 无 lint blocker。 |
-| `backend: mypy app/dashboard app/admin` | FAIL，34 errors；其中 dashboard weekly-review typing、admin metrics `object`→`datetime`、以及既有 `app/memory/providers.py` 问题。 | ⚠️ 类型质量债务；不改变已观察到的运行闭环，但不能宣传完整 mypy 门禁通过。 |
-| `frontend: phase-6 targeted Vitest` | 8 files / 21 tests PASS；typecheck、build PASS。 | UI-02/UI-03 目标组件证据有效。 |
-| `frontend: npm test -- --run` | 25 files/138 tests PASS，`PlanPage.test.tsx` 1 FAIL。 | ✗ Phase 6 SSE 变更引入/暴露未闭合回归，见 gaps。 |
-| `admin-frontend: npm test -- --run` | 8 files / 22 tests PASS。 | 后台组件与 DTO 边界有自动化证据。 |
-| `admin-frontend: VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build` | PASS；静态扫描未找到 `frontend/src`、`localStorage`、`sessionStorage` 或 `indexedDB`。 | 独立构建与内存会话边界有效。 |
-| `backend: APP_ENV=test uv run alembic heads/history` | PASS，唯一 `0019 (head)`。 | 0013–0019 迁移链有效。 |
+| From | To | Via | Status | Details |
+| --- | --- | --- | --- | --- |
+| Meal record confirmation/edit | persisted local date | `ZoneInfo` → `consumed_local_date` | ✓ WIRED | service 计算，model/migration 约束，dashboard SQL 消费该列。 |
+| Dashboard overview/weekly review | user local current date/week | date/window computation | ✗ NOT WIRED | service/API 只使用 server UTC；frontend week start 以 UTC string 截取。 |
+| Catalog command | PostgreSQL active admin role | `require_role()` before replay/query response | ✓ WIRED | 代码顺序与 normal/demoted replay tests 一致。 |
+| Admin UI | runtime/catalog public APIs | Guard response + browser UI actions | ✓ WIRED | admin E2E waits for actual `201`/`200`/`403` response，非 fixture 成功。 |
+| Records UI | Agent/SSE/save/dashboard public APIs | authenticated requests + strict parse | ✓ WIRED | records E2E 在真实 guarded stack 上观察 SSE 与后续保存/Records 投影。 |
 
-## 真实浏览器证据与边界
+### Data-Flow Trace (Level 4)
 
-已验证的真实公开路径（2026-09-04）包括：
+| Artifact | Data variable | Source | Produces real data | Status |
+| --- | --- | --- | --- | --- |
+| `RecordsPage` | overview/history/weekly review | authenticated `/api/v1/dashboard/*` | SQL snapshot aggregation/weekly service，非静态数组 | ✓ FLOWING（日期窗口除外） |
+| Dashboard repository | `consumed_local_date` totals | `MealRecord` persisted columns，先 user_id + deleted_at filter | PostgreSQL aggregate/keyset records | ✓ FLOWING |
+| Admin catalog/config pages | strict DTO state | `/api/v1/admin/*` | DB RBAC + immutable/audited command results | ✓ FLOWING |
+| Current dashboard window | `today`, Monday `week_start` | server UTC / browser ISO UTC | 未采用用户统计时区 | ✗ DISCONNECTED |
 
-- 普通用户：`/app/analyze` 完成受控目录分析→确认保存→记录详情→`/app/records`（今日、趋势、history、低覆盖周复盘）。
-- 管理员：`/admin/catalog` 完成草稿→审核→发布；同一 SPA 会话验证 `/admin/runs` 最小详情和 `/admin/audit`。
+### Behavioral Spot-Checks
 
-这不是完整浏览器验收。尚未实测普通用户后台拒绝、过期会话、`/admin/overview` 与 UTC 深链接、runtime disable、catalog 失格后的历史 snapshot 稳定、跨日补记/cursor，以及周复盘 success/safety-abstain/retry 状态。详见 `docs/verification/phase-06-browser-acceptance.md`；该文件没有把它们伪装成通过。
+以下结果由本轮根代理在同一工作树串行实际观察；没有把 SUMMARY 当结果。
 
-## 需求可追溯性
+| Behavior | Command | Result | Status |
+| --- | --- | --- | --- |
+| Catalog RBAC replay + lint | Phase-06 catalog targeted pytest + ruff | 15 passed；ruff passed | ✓ PASS |
+| H5 complete regression | `cd frontend && npm test -- --run` | 26 files / 139 passed | ✓ PASS |
+| Admin component regression | `cd admin-frontend && npm test -- --run` | 9 files / 29 passed | ✓ PASS |
+| Admin build/type safety | admin typecheck + build | both passed | ✓ PASS |
+| Independent admin management E2E | `admin-management` isolated runner | 1 passed / 12.7 s; RuntimeConfig `201`, lifecycle `200`, normal probe `403` | ✓ PASS |
+| Independent Records E2E | `records-dashboard` isolated runner | 1 passed / 13.3 s; RuntimeConfig `201` → safe SSE → save `201` → overview/history/weekly | ✓ PASS |
+| User-local Monday / UTC-boundary dashboard behavior | no targeted test exists | static trace disproves the required connection | ✗ FAIL |
 
-| 需求 | 状态 | 证据 |
-|---|---|---|
-| UI-02 | ✓ SATISFIED（仍有 E2E gap） | dashboard 读模型、Records UI、facts-first weekly review、冻结 14-case eval、真实保存→Records 路径。 |
-| UI-03 | ✓ SATISFIED | 安全 SSE DTO、后端 stage mapping、两个 H5 safe-progress 组件与 targeted tests。 |
-| ADM-01 | ✗ BLOCKED | 独立后台和 memory-only UX guard 成立，但 catalog command replay 在 `require_role` 前返回，违反每次操作执行当前 PostgreSQL RBAC 的后端安全合同。 |
-| ADM-02 | ✓ SATISFIED | draft/review/publish/disqualify、immutable publication 与 future eligibility SQL guard；真实 catalog 发布。 |
-| ADM-03 | ✓ SATISFIED | metrics/list/detail 最小 DTO、相同 terminal predicate、runs 真实浏览器详情。 |
-| ADM-04 | ✓ SATISFIED（浏览器禁用路径待验） | immutable non-secret runtime config、admission snapshot、环境-only resolver 与 service tests。 |
-| ADM-05 | ✓ SATISFIED | append-only audit migration/trigger、reason、server scalar diff、cursor query 与真实 audit 页面。 |
-| ARC-08 | ✓ SATISFIED | 同级独立 `admin-frontend/`、独立 lockfile/build、admin-only API base 与无用户 H5 import 扫描。 |
-| EDU-02 | ✓ SATISFIED | README 架构/状态/时序、启动与调试命令，且对缺失 E2E 如实说明。 |
-| EDU-03 | ✓ SATISFIED | 根 README 与 Phase 6 learning 文档给出可链接到源码/测试的面试深挖题。 |
+### Probe Execution
 
-## 反模式与反证检查
+Step 7c: **SKIPPED** — Phase 06 has no declared `scripts/**/tests/probe-*.sh`; the applicable executable cross-stack evidence is the two isolated Playwright runners above.
 
-- 未发现 Phase 6 核心生产代码中的 `TODO`、`FIXME` 或 `XXX` 债务标记。
-- **反证 1（部分满足）：** E2E 计划写了三类自动化真实路径，但 records-dashboard 与 admin-management 文件/runner 实际缺失。这不是“文档待补”，而是可观察的交付缺口。
-- **反证 2（误导性成功测试）：** targeted SafePlanningProgress tests 通过，不能证明修改后的完整 Planning 页面仍满足既有终态文案合同；全量 Vitest 的失败已经证明这个覆盖缺口。
-- **反证 3（未覆盖错误路径）：** 当前浏览器证据不覆盖普通用户/过期管理员拒绝、runtime disable 和 catalog 失格；必须按下方人工项复验。
-- **反证 4（RBAC 顺序漏洞）：** `create_catalog_draft`、`patch_catalog_draft`、`publish_catalog_draft`、`disqualify_catalog_publication` 都在 `require_role()` 前接受 command-key replay 并返回对象；降权后的调用者可重放自己已知键。这是阻断项，不可降格为浏览器待验收。
-- `mypy` 当前不通过属于 warning；它不是用“存在文件”代替功能验证的理由，也不能被 SUMMARY 的旧 PASS 声明覆盖。
-- Phase 7 的“CI 运行 … Playwright E2E”只是一条通用质量目标，并未明确承接 `records-dashboard.spec.ts` 或 `admin-management.spec.ts` 的具体公开用户流；按保守 deferred 规则，这些仍是 Phase 6 明确计划的未交付项，未被转移。
+### Requirements Coverage
 
-## 人工/环境复验项
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| UI-02 | ✗ BLOCKED | Views, SQL and E2E exist, but local-day/current-week definition is wrong at UTC boundaries. |
+| UI-03 | ✓ SATISFIED | Versioned safe stage DTO, allowlist mapping and strict frontend parser; E2E asserts no forbidden SSE/DOM terms. |
+| ADM-01 | ✓ SATISFIED | Independent SPA plus backend DB-RBAC; all four catalog replay paths now recheck active role. |
+| ADM-02 | ✓ SATISFIED | Draft/review/publish/disqualify with immutable snapshots and future-use eligibility. |
+| ADM-03 | ✓ SATISFIED | Minimal run metrics/list/detail DTO and UI; sensitive fields excluded. |
+| ADM-04 | ✓ SATISFIED | Non-secret versioned RuntimeConfig, positive caps, admission snapshot and UI-created v1 E2E. |
+| ADM-05 | ✓ SATISFIED | Reason, actor/time and scalar before/after audit diff stored/read via protected API. |
+| ARC-08 | ✓ SATISFIED | Sibling `admin-frontend/`, independent lock/build/E2E config, no user-H5 import boundary violation. |
+| EDU-02 | ✓ SATISFIED | Required diagrams and debug documentation exist; see warning on stale E2E wording. |
+| EDU-03 | ✓ SATISFIED | Root README and learning document supply source/test-linked interview prompts and answers. |
 
-### 1. 后台拒绝与会话失效
+### Anti-Patterns Found
 
-**测试：** 以普通用户访问 admin，再让已登录管理员会话失效并访问 guarded 页面。  
-**预期：** 普通用户固定拒绝；401/403 清内存 session 与 Query cache，不渲染旧后台数据。  
-**原因：** 当前浏览器记录明确未覆盖此矩阵。
+| File | Line | Pattern | Severity | Impact |
+| --- | --- | --- | --- | --- |
+| `backend/app/dashboard/service.py` | 85, 89–90 | server-UTC date is presented as user dashboard current date | 🛑 BLOCKER | UTC boundary gives the user the wrong today/week facts. |
+| `frontend/src/features/records/components/RecordsPage.tsx` | 13 | local week calculation serialized as UTC date | 🛑 BLOCKER | UTC+ users can request Sunday as `week_start` during local Monday early hours and receive 422. |
+| `README.md` | 72 | says admin Playwright config and Records spec are absent | ⚠️ WARNING | Both assets now exist and pass isolated E2E; debugging guidance is stale. |
+| `docs/learning/06-dashboard-admin.md` | 64 | says records/admin Playwright assets are still missing | ⚠️ WARNING | Contradicts current test assets and verification evidence; update after the functional gap is fixed. |
 
-### 2. 后台运营命令
+No unreferenced `TBD`/`FIXME`/`XXX` debt marker was found in the Phase 06 production paths inspected.
 
-**测试：** 从 overview 点击带 UTC 参数的 runs 深链接；执行 runtime disable；对隔离测试 publication 执行失格，再检查未来使用被阻断而历史 MealRecord snapshot 不变。  
-**预期：** 指标/list 时间窗一致；新调用被拒绝、旧快照保留；失格不篡改历史。  
-**原因：** 需要真实管理员会话和受隔离数据，当前记录未覆盖。
+## Browser Evidence (separate from Playwright)
 
-### 3. 记录时间边界与周复盘分支
+The browser evidence file is internally consistent and intentionally narrow. It records, without sensitive identifiers:
 
-**测试：** 通过页面创建跨日补记并翻 history cursor；验证周复盘 success、safety-abstain 与 retryable 三种公开状态。  
-**预期：** 本地日稳定、分页无漏重；建议只出现在安全 success 状态。  
-**原因：** 当前真实路径仅有单条记录和低覆盖结果。
+- Admin on the independent SPA creates a non-secret enabled RuntimeConfig and sees server-confirmed **v2**.
+- A normal user completes real analyze → safe progress/SSE → save → Records, including today, seven-day trend table, history and low-coverage review.
+- The same normal user receives a real Bearer admin probe `403`, arrives at forbidden, and sees no AdminShell/catalog/overview content.
 
-### 4. PostgreSQL 复验环境
+It explicitly does **not** claim that Playwright is browser evidence and lists untested cross-day/history, other weekly states, config-disable, historical-snapshot and expired-session paths. The documented browser evidence is therefore truthful for the requested three paths; it cannot repair the discovered UTC window defect.
 
-**测试：** 使用受保护 `tests/run_pg.py --env-file .env.test.example` wrapper 重跑 dashboard/admin/records integration tests。  
-**预期：** 测试数据库隔离且 integration 全部通过。  
-**原因：** 本验证会话未提供 `DATABASE_URL` 与 `TEST_DATABASE_URL`，故拒绝猜测或连接开发库。
+## Deferred Items
+
+None. Phase 7's general quality/security/CI goals do not specifically implement a user-timezone source for dashboard windows, so this is not conservatively deferrable.
 
 ## Gaps Summary
 
-Phase 6 的产品骨架不是 stub：代码、路由、DTO、迁移与部分真实浏览器成功链都存在。但是“核心功能存在”不等于“阶段完整”。首先，catalog command 的幂等重放发生在 DB-RBAC 前，破坏了“管理员可以安全维护数据和配置”的核心安全前提，必须先修复并加降权重放回归测试。其次，06-20 计划承诺的两组 Playwright 资产根本不存在；再次，06-06 改动后全量前端测试有实际失败。三项都必须闭合后，才可以重新进行无保留的阶段验证；其余浏览器/测试库复验项是明确登记的证据缺口，不能被现有成功路径抵消。
+The three prior blockers are genuinely closed: RBAC replay ordering is fixed and tested, both isolated E2E assets execute the real public stacks, the catalog dialog is viewport-reachable, and full H5 Vitest passes serially. The phase still cannot pass because its central dashboard promise fails at ordinary timezone boundaries. Persisting each meal's local date is not sufficient when the API chooses "today" and the current week in server UTC, and the browser sends an ISO-derived wrong Monday in UTC+ time zones.
+
+Fix the timezone-window contract and add boundary regression tests, then re-verify. Also correct stale README/learning claims so operational documentation no longer says the now-present E2E assets are absent.
 
 ---
 
-_验证人：gsd-verifier_  
-_本报告未修改生产代码，也未采信 SUMMARY 作为完成证据。_
+_Verified: 2026-09-04T08:37:25Z_
+_Verifier: gsd-verifier (codebase evidence; no production/test/STATE/ROADMAP changes)_
