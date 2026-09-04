@@ -41,7 +41,10 @@ class SqlAlchemyMealRecordRepository:
             .where(
                 AgentEvent.run_id == run_id,
                 AgentEvent.user_id == user_id,
-                AgentEvent.event_type == "completed",
+                # AgentService persists the report only after deterministic validation;
+                # accepting another terminal event would allow an unvalidated snapshot to
+                # become a user record.
+                AgentEvent.event_type == "completed_validated",
             )
             .order_by(AgentEvent.seq.desc())
         )

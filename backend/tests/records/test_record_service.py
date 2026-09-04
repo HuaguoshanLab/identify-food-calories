@@ -60,7 +60,7 @@ class FakeMealRecordRepository:
     def get_completed_report_for_run_for_user(self, *, run_id: uuid.UUID, user_id: uuid.UUID) -> AgentEvent | None:
         if self.run is None or self.report is None or self.run.id != run_id or self.run.user_id != user_id:
             return None
-        return AgentEvent(id=uuid.uuid4(), thread_id=self.run.thread_id, run_id=self.run.id, user_id=user_id, seq=2, event_type="completed", payload={"report": self.report}, safe_summary="完成", created_at=NOW)
+        return AgentEvent(id=uuid.uuid4(), thread_id=self.run.thread_id, run_id=self.run.id, user_id=user_id, seq=2, event_type="completed_validated", payload={"report": self.report}, safe_summary="完成", created_at=NOW)
 
     def get_record_for_command_for_user(self, *, command_key: str, user_id: uuid.UUID, include_deleted: bool = False) -> MealRecord | None:
         return next((record for record in self.records if record.command_key == command_key and record.user_id == user_id and (include_deleted or record.deleted_at is None)), None)

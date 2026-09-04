@@ -13,6 +13,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from app.admin.repository import SqlAlchemyAdminRepository
+from app.admin.schemas import RuntimeConfigCommand
+from app.admin.service import AdminService
 from app.agent.models import AgentThread
 from app.auth.api import get_authentication_service
 from app.auth.models import AuthSession, User, UserRole
@@ -44,6 +47,29 @@ def _create_user(session: Session, *, label: str) -> tuple[User, str]:
     return user, token
 
 
+def _enable_test_runtime_config(session: Session) -> None:
+    """Admit the fake test provider through the same audited policy path as production."""
+
+    now = datetime.now(UTC)
+    actor = User(
+        id=uuid.uuid4(), email=f"runtime-admin-{uuid.uuid4().hex}@example.test", password_hash="argon2id-digest",
+        role=UserRole.ADMIN.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now,
+    )
+    session.add(actor)
+    session.flush()
+    AdminService(
+        repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback,
+    ).configure_runtime(
+        actor_user_id=actor.id,
+        command=RuntimeConfigCommand(
+            provider="deepseek", model_alias="deepseek-v4-flash", enabled=True,
+            single_call_cap_usd="0.03", period_cap_usd="3.00", input_usd_per_m="0.20", output_usd_per_m="0.80",
+            reason="test runtime policy", confirm=True,
+        ),
+        command_key="test-meal-record-runtime-config-0001",
+    )
+
+
 def test_completed_report_can_be_confirmed_updated_and_deleted_without_deleting_thread() -> None:
     settings = _settings()
     test_url = validate_test_database_configuration(settings)
@@ -58,6 +84,7 @@ def test_completed_report_can_be_confirmed_updated_and_deleted_without_deleting_
         with Session(engine) as session:
             owner, owner_token = _create_user(session, label="owner")
             _other, other_token = _create_user(session, label="other")
+            _enable_test_runtime_config(session)
             authentication = AuthenticationService(repository=SqlAlchemyAuthRepository(session), secret_key=SECRET, issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback)
             application = create_app(settings)
             application.dependency_overrides[get_authentication_service] = lambda: authentication
