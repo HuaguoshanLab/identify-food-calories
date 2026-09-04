@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-20-PLAN.md; missing Playwright assets are documented in its SUMMARY.
-last_updated: "2026-09-04T02:26:33.712Z"
+stopped_at: Completed 06-21-PLAN.md
+last_updated: "2026-09-04T02:33:14.223Z"
 last_activity: 2026-09-04
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 90
-  completed_plans: 89
-  percent: 75
+  completed_plans: 90
+  percent: 88
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 23 of 25
+Plan: 24 of 25
 Status: Ready to execute
 Last activity: 2026-09-04
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -101,6 +101,7 @@ Progress: [██████████] 99%
 | Phase 06 P18 | 24 min | 2 tasks | 10 files |
 | Phase 06 P19 | 10min | 2 tasks | 13 files |
 | Phase 06 P20 | 20 min | 3 tasks | 18 files |
+| Phase 06 P21 | 12min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -213,6 +214,8 @@ Recent decisions affecting current work:
 - [Phase 06]: audit 页面只渲染服务端 audit DTO 中的固定安全 scalar diff 字段，不显示 command key 或未知字段。 — 保持通用审计可读，同时阻止未来敏感字段自动穿透到 DOM。
 - [Phase 06]: 已发布目录的 canonical_name 必须进入受控搜索候选，餐食保存只能读取 completed_validated 报告。 — 真实浏览器发布→分析→保存链发现 aliases-only 与 completed 事件名漂移会使公开链路失败。
 - [Phase 06]: 前端严格 DTO 对 FastAPI 末页省略字段必须给出安全默认值。 — response_model_exclude_none 省略 next_cursor 时恢复 null，仍拒绝未知字段，避免将成功 history 误报为失败。
+- [Phase 06]: Phase 6 README separates verified browser evidence from blocked Playwright assets; no false E2E pass claims. — Browser acceptance and automation are distinct evidence tiers.
+- [Phase 06]: Phase 6 Alembic documentation records the authorized single chain 0013 through 0019. — The document must preserve the approved migration numbering shift and one-head constraint.
 
 ### Pending Todos
 
@@ -234,6 +237,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T02:25:51.811Z
-Stopped at: Completed 06-20-PLAN.md; missing Playwright assets are documented in its SUMMARY.
+Last session: 2026-09-04T02:33:14.214Z
+Stopped at: Completed 06-21-PLAN.md
 Resume file: None
