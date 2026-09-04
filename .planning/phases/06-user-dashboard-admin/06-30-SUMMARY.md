@@ -32,7 +32,7 @@ patterns-established:
   - "用户本地统计窗口：先读取 tenant-scoped preference，再 ZoneInfo 复验并将注入的 aware instant astimezone。"
   - "跨模块偏好所有权：records 负责确认/写入和审计，dashboard 只持有 consumer-owned read Port。"
 requirements-completed: [UI-02]
-duration: 6min
+duration: 9min
 completed: 2026-09-04
 ---
 
@@ -42,9 +42,9 @@ completed: 2026-09-04
 
 ## Performance
 
-- **Duration:** 6min
+- **Duration:** 9min
 - **Started:** 2026-09-04T09:16:27Z
-- **Completed:** 2026-09-04T09:22:46Z
+- **Completed:** 2026-09-04T09:25:27Z
 - **Tasks:** 2/2
 - **Files modified:** 13
 
@@ -59,6 +59,7 @@ completed: 2026-09-04
 
 1. **Task 1: 定义 dashboard 的只读统计时区边界，并从已确认 preference 做 tenant-scoped 投影** - `7ac1d33` (feat)
 2. **Task 2: 用同一个 validated IANA zone 驱动 overview、weekly review 与本地 Monday HTTP 校验** - `ab28461` (fix)
+3. **Task 2 follow-up: 完整拒绝所有无效 ZoneInfo key** - `2922c66` (fix)
 
 ## Files Created/Modified
 
@@ -94,10 +95,18 @@ completed: 2026-09-04
 - **Verification:** dashboard 服务回归 32 passed；受影响 PostgreSQL integration 4 passed。
 - **Committed in:** `ab28461`
 
+**2. [Rule 1 - Security bug] 将 ZoneInfo 的绝对路径 ValueError 纳入 fail-closed 分支**
+- **Found during:** Task 2 提交后安全边界审查
+- **Issue:** `ZoneInfo` 对绝对路径形式的损坏 key 抛出 `ValueError`；只捕获不存在/类型错误会让该持久化损坏值产生 500。
+- **Fix:** Service 和 HTTP/API regression fixtures 同时捕获 `ValueError`，并新增 `/invalid-timezone` 覆盖。
+- **Files modified:** `backend/app/dashboard/service.py`、dashboard service/API tests
+- **Verification:** 完整时区回归 15 passed、PostgreSQL integration 4 passed、Ruff passed。
+- **Committed in:** `2922c66`
+
 ---
 
-**Total deviations:** 1 auto-fixed（Rule 3 blocking）。
-**Impact on plan:** 仅让既有测试 fixtures 显式满足新的安全前置条件；未扩展产品范围、未新增 schema 或依赖。
+**Total deviations:** 2 auto-fixed（Rule 1 security bug、Rule 3 blocking）。
+**Impact on plan:** 修复仅使 fail-closed 对所有 ZoneInfo 异常完整生效，并让既有 fixtures 显式满足新的安全前置条件；未扩展产品范围、未新增 schema 或依赖。
 
 ## Issues Encountered
 
@@ -120,7 +129,7 @@ None - 沿用 records 已有的统计时区确认流程，无新环境变量或�
 ## Self-Check: PASSED
 
 - 已确认 13 个计划相关生产/测试/文档文件存在，Task commits `7ac1d33`、`ab28461` 均可从 Git 历史读取。
-- 计划规定验证通过：14 个 service/API 测试、3 个 PostgreSQL repository 测试与 Ruff；额外受影响 PostgreSQL overview projection 回归通过（合计 4 个 integration tests）。
+- 计划规定验证通过：15 个 service/API 测试、3 个 PostgreSQL repository 测试与 Ruff；额外受影响 PostgreSQL overview projection 回归通过（合计 4 个 integration tests）。
 
 ---
 *Phase: 06-user-dashboard-admin*
