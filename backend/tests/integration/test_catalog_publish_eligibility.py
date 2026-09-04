@@ -16,6 +16,8 @@ from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
 from app.admin.service import AdminService
 from app.auth.models import User, UserRole
 from app.nutrition.repository import ADMIN_PUBLICATION_VERSION, SqlAlchemyNutritionRepository
+from app.nutrition.schemas import FoodSearchInput, NutritionAction
+from app.nutrition.service import NutritionService
 
 
 def _actor(now: datetime) -> User:
@@ -54,6 +56,35 @@ def test_published_pointer_has_one_immutable_publication_and_disqualification_is
     history = list(db_session.scalars(select(CatalogPublicationEligibility).where(CatalogPublicationEligibility.publication_id == publication.id).order_by(CatalogPublicationEligibility.occurred_at)))
     assert [item.status for item in history] == ["eligible", "disqualified"]
     assert nutrition.get_qualified_food(food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION) is None
+
+
+def test_published_food_is_searchable_by_its_canonical_name_when_aliases_differ(db_session) -> None:
+    now = datetime.now(UTC)
+    actor = _actor(now)
+    db_session.add(actor)
+    db_session.flush()
+    service = AdminService(repository=SqlAlchemyAdminRepository(db_session), now=lambda: now, commit=db_session.commit, rollback=db_session.rollback)
+    draft = service.create_catalog_draft(
+        actor_user_id=actor.id,
+        command=CatalogDraftCreateCommand(
+            canonical_name="白米饭", aliases=["baimifan", "白饭"],
+            energy_kcal_per_100g=Decimal("116"), protein_g_per_100g=Decimal("2.6"),
+            fat_g_per_100g=Decimal("0.3"), carbohydrate_g_per_100g=Decimal("25.9"),
+            source_name="USDA", source_url="https://fdc.nal.usda.gov/", authorization_status="authorized",
+            reason="canonical-name search coverage",
+        ),
+        command_key="create-canonical-search-pg-0001",
+    )
+    command = CatalogLifecycleCommand(reason="review complete", confirm=True)
+    service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="review-canonical-search-pg-0001")
+    publication = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="publish-canonical-search-pg-0001")
+
+    result = NutritionService(repository=SqlAlchemyNutritionRepository(db_session)).search_food_catalog(FoodSearchInput(query="白米饭"))
+
+    assert result.action is NutritionAction.PASS
+    assert result.selected_food is not None
+    assert result.selected_food.id == publication.id
+    assert result.selected_food.catalog_version == ADMIN_PUBLICATION_VERSION
 
 
 def test_two_postgresql_publishers_share_one_active_immutable_pointer(test_engine) -> None:

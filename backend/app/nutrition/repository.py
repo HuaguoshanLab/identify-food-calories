@@ -161,11 +161,17 @@ class SqlAlchemyNutritionRepository:
         snapshot = publication.snapshot
         aliases = snapshot["aliases"]
         assert isinstance(aliases, list)
+        canonical_name = str(snapshot["canonical_name"])
+        # Admin drafts keep the display name separate from aliases.  The deterministic
+        # search contract, however, matches only controlled names, so a published food
+        # must expose its canonical name too; otherwise a UI-created food can be active
+        # yet impossible for the meal graph to select.
+        controlled_names = tuple(dict.fromkeys((canonical_name, *(str(alias) for alias in aliases))))
         return QualifiedFood(
-            id=publication.id, canonical_name=str(snapshot["canonical_name"]),
+            id=publication.id, canonical_name=canonical_name,
             catalog_version=ADMIN_PUBLICATION_VERSION, prepared_state="not_specified",
             source_name=str(snapshot["source_name"]), source_url=str(snapshot["source_url"]),
-            license_name="LicenseRef-Admin-Publication-v1", aliases=tuple(str(alias) for alias in aliases),
+            license_name="LicenseRef-Admin-Publication-v1", aliases=controlled_names,
             portions=(),
             nutrients_per_100g=NutritionValues(
                 energy_kcal=Decimal(str(snapshot["energy_kcal_per_100g"])), protein_g=Decimal(str(snapshot["protein_g_per_100g"])),
