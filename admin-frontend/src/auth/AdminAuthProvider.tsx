@@ -11,7 +11,6 @@ import {
 
 export type AdminIdentity = Readonly<{
   id: string
-  role: 'admin'
 }>
 
 export type AdminSession = Readonly<{
@@ -31,7 +30,7 @@ export type AdminAuthContextValue = Readonly<{
 const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefined)
 
 function isIdentityChange(previous: AdminIdentity | undefined, next: AdminIdentity) {
-  return previous?.id !== next.id || previous.role !== next.role
+  return previous?.id !== next.id
 }
 
 export function AdminAuthProvider({ children }: PropsWithChildren) {

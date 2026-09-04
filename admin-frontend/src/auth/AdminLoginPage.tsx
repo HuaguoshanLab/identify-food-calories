@@ -66,12 +66,12 @@ export function AdminLoginPage() {
       const identity = currentUserSchema.parse(await requestJson('/users/me', {
         headers: { Authorization: `Bearer ${access.access_token}` }, method: 'GET',
       }))
-      if (!identity.is_active || identity.role !== 'admin') {
-        setError('无后台访问权限。你的当前账号没有管理权限。请使用管理员账号登录。')
+      if (!identity.is_active) {
+        setError('账号尚不可登录。')
         return
       }
-      // The provider deliberately owns the token only in memory; role is not a grant.
-      establishSession({ accessToken: access.access_token, identity: { id: identity.id, role: 'admin' } })
+      // `/users/me` proves an active identity only; the guard's DB-RBAC probe owns admin UX.
+      establishSession({ accessToken: access.access_token, identity: { id: identity.id } })
       navigate(safeReturnTo(searchParams.get('returnTo')), { replace: true })
     } catch {
       setError('邮箱或密码不正确，或账号尚不可登录。')
