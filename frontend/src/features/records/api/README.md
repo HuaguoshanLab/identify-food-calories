@@ -15,6 +15,6 @@
 | `schemas.ts` | 餐食记录安全响应 DTO |
 | `client.ts` | 保存、列表、详情、修改和删除请求 |
 | `client.test.ts` | 保存请求必须提交浏览器 IANA 时区，且解析含本地归属字段的严格响应 |
-| `dashboard.test.ts` | history 严格 DTO 接受后端 RFC 3339 UTC offset 时间戳 |
+| `dashboard.test.ts` | history 严格 DTO 接受后端 RFC 3339 时间戳，并将被 `response_model_exclude_none` 省略的 cursor 恢复为 null |
 | `dashboard.ts` | strict dashboard overview/history DTO、query key 与公开请求 |
 | `weeklyReview.ts` | strict weekly-review safe-outcome DTO、query key 与公开请求 |

@@ -14,7 +14,7 @@ export const dashboardOverviewSchema = dashboardOverviewPayloadSchema.transform(
   const eligibility = dashboardTargetEligibilitySchema.safeParse(payload.target_eligibility)
   return { today: payload.today, week: payload.week, target_eligibility: eligibility.success ? eligibility.data : undefined }
 })
-export const dashboardHistoryPageSchema = z.object({ groups: z.array(z.object({ consumed_local_date: z.string().date(), totals: nutritionTotalsSchema, meal_count: z.number().int().nonnegative(), items: z.array(z.object({ id: z.string().uuid(), consumed_at: z.string().datetime({ offset: true }), totals: nutritionTotalsSchema }).strict()) }).strict()), next_cursor: z.string().min(1).nullable() }).strict()
+export const dashboardHistoryPageSchema = z.object({ groups: z.array(z.object({ consumed_local_date: z.string().date(), totals: nutritionTotalsSchema, meal_count: z.number().int().nonnegative(), items: z.array(z.object({ id: z.string().uuid(), consumed_at: z.string().datetime({ offset: true }), totals: nutritionTotalsSchema }).strict()) }).strict()), next_cursor: z.string().min(1).nullable().default(null) }).strict()
 export type DashboardOverview = z.infer<typeof dashboardOverviewSchema>
 export type DashboardHistoryPage = z.infer<typeof dashboardHistoryPageSchema>
 
