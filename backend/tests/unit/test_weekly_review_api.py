@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi.testclient import TestClient
 
@@ -11,16 +12,28 @@ from app.agent.graph import NoopAgentRuntimeFactory
 from app.auth.api import get_authenticated_principal
 from app.dashboard.api import get_weekly_review_service
 from app.dashboard.schemas import DashboardNutritionTotals, WeeklyReviewPublicResponse
+from app.dashboard.service import DashboardTimezonePreconditionError, WeeklyReviewWeekStartInvalid
 from app.main import create_app
 
 
 class StubWeeklyReviewService:
-    def __init__(self) -> None:
+    def __init__(self, timezone: str | None = "America/Los_Angeles") -> None:
         self.calls: list[tuple[uuid.UUID, date | None, bool]] = []
+        self.timezone = timezone
+        self.instant = datetime(2026, 9, 1, 1, tzinfo=UTC)
 
     def get_public_weekly_review(
         self, *, user_id: uuid.UUID, week_start: date | None, refresh: bool = False
     ) -> WeeklyReviewPublicResponse:
+        if self.timezone is None:
+            raise DashboardTimezonePreconditionError("missing preference")
+        try:
+            local_today = self.instant.astimezone(ZoneInfo(self.timezone)).date()
+        except (TypeError, ZoneInfoNotFoundError) as error:
+            raise DashboardTimezonePreconditionError("invalid preference") from error
+        current_start = local_today - timedelta(days=local_today.weekday())
+        if week_start is not None and (week_start.weekday() != 0 or week_start > current_start):
+            raise WeeklyReviewWeekStartInvalid("invalid local week")
         self.calls.append((user_id, week_start, refresh))
         return WeeklyReviewPublicResponse(
             status="insufficient_coverage",
@@ -80,3 +93,16 @@ def test_weekly_review_openapi_rejects_extra_or_technical_outcome_fields() -> No
     assert schema["additionalProperties"] is False
     assert "abstention_code" not in schema["properties"]
     assert "provider_error" not in schema["properties"]
+
+
+def test_weekly_review_get_and_refresh_map_missing_or_corrupt_timezone_without_invocation() -> None:
+    for timezone in (None, "Mars/Olympus"):
+        service = StubWeeklyReviewService(timezone=timezone)
+        with _client(service) as client:
+            get_response = client.get("/api/v1/dashboard/weekly-review")
+            refresh_response = client.post("/api/v1/dashboard/weekly-review/refresh")
+
+        assert get_response.status_code == 409
+        assert refresh_response.status_code == 409
+        assert get_response.json() == {"detail": "Dashboard statistics timezone confirmation is required."}
+        assert service.calls == []

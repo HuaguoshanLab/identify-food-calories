@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Generator
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,7 +15,14 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.dashboard.repository import SqlAlchemyDashboardRepository
 from app.dashboard.schemas import DashboardHistoryPage, DashboardOverview, WeeklyReviewPublicResponse
-from app.dashboard.service import DashboardService, InvalidDashboardCursor, WeeklyReviewService, _facts_digest
+from app.dashboard.service import (
+    DashboardService,
+    DashboardTimezonePreconditionError,
+    InvalidDashboardCursor,
+    WeeklyReviewService,
+    WeeklyReviewWeekStartInvalid,
+    _facts_digest,
+)
 from app.dashboard.weekly_review import run_weekly_review
 from app.dashboard.weekly_review_dto import WeeklyReviewFacts
 from app.dashboard.weekly_review_graph import WeeklyReviewGraph, WeeklyReviewGraphConfig
@@ -51,10 +58,10 @@ def get_weekly_review_service(session: SessionDependency) -> Generator[WeeklyRev
         ),
     )
 
-    def public_runner(facts: WeeklyReviewFacts):
+    def public_runner(facts: WeeklyReviewFacts, today: date):
         return asyncio.run(run_weekly_review(
             graph=graph,
-            facts=_graph_facts(facts=facts, today=datetime.now().date()),
+            facts=_graph_facts(facts=facts, today=today),
             facts_digest=_facts_digest(facts),
         ))
 
@@ -78,7 +85,13 @@ WeeklyReviewServiceDependency = Annotated[WeeklyReviewService, Depends(get_weekl
 def get_overview(
     principal: AuthenticatedPrincipal, service: ServiceDependency, week_start: date | None = None
 ) -> DashboardOverview:
-    return service.get_overview(user_id=principal, week_start=week_start)
+    try:
+        return service.get_overview(user_id=principal, week_start=week_start)
+    except DashboardTimezonePreconditionError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Dashboard statistics timezone confirmation is required.",
+        ) from None
 
 
 @router.get(
@@ -103,8 +116,9 @@ def get_weekly_review(
     service: WeeklyReviewServiceDependency,
     week_start: date | None = Query(default=None),
 ) -> WeeklyReviewPublicResponse:
-    _validate_week_start(week_start)
-    return service.get_public_weekly_review(user_id=principal, week_start=week_start)
+    return _public_weekly_review(
+        service=service, user_id=principal, week_start=week_start, refresh=False
+    )
 
 
 @router.post("/weekly-review/refresh", operation_id="refreshWeeklyReview", response_model=WeeklyReviewPublicResponse)
@@ -113,16 +127,28 @@ def refresh_weekly_review(
     service: WeeklyReviewServiceDependency,
     week_start: date | None = Query(default=None),
 ) -> WeeklyReviewPublicResponse:
-    _validate_week_start(week_start)
-    return service.get_public_weekly_review(user_id=principal, week_start=week_start, refresh=True)
+    return _public_weekly_review(
+        service=service, user_id=principal, week_start=week_start, refresh=True
+    )
 
 
-def _validate_week_start(week_start: date | None) -> None:
-    if week_start is None:
-        return
-    current_start = date.today() - timedelta(days=date.today().weekday())
-    if week_start.weekday() != 0 or week_start > current_start:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="week_start must be a current or completed Monday.")
+def _public_weekly_review(
+    *, service: WeeklyReviewService, user_id, week_start: date | None, refresh: bool
+) -> WeeklyReviewPublicResponse:
+    try:
+        return service.get_public_weekly_review(
+            user_id=user_id, week_start=week_start, refresh=refresh
+        )
+    except DashboardTimezonePreconditionError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Dashboard statistics timezone confirmation is required.",
+        ) from None
+    except WeeklyReviewWeekStartInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="week_start must be a current or completed Monday.",
+        ) from None
 
 
 def _graph_facts(*, facts: WeeklyReviewFacts, today: date) -> dict[str, object]:

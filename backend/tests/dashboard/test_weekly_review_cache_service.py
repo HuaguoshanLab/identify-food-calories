@@ -5,11 +5,16 @@ from decimal import Decimal
 import uuid
 
 from app.dashboard.repository import DashboardDailyAggregate
+from app.dashboard.ports import DashboardTimezone
 from app.dashboard.schemas import DashboardNutritionTotals
 from app.dashboard.service import WeeklyReviewService
 
 
 class DailyRepository:
+    def get_dashboard_timezone_for_user(self, *, user_id):
+        del user_id
+        return DashboardTimezone(time_zone="Asia/Shanghai")
+
     def get_daily_aggregates(self, *, user_id, start_date, end_date):
         return [
             DashboardDailyAggregate(

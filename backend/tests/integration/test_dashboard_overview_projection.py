@@ -13,7 +13,7 @@ from app.auth.models import User, UserRole
 from app.dashboard.ports import PlanningTargetEligibility
 from app.dashboard.repository import SqlAlchemyDashboardRepository
 from app.dashboard.service import DashboardService
-from app.records.models import MealRecord
+from app.records.models import DashboardTimezonePreference, MealRecord
 
 
 pytestmark = pytest.mark.skipif(
@@ -36,13 +36,17 @@ def test_overview_omits_targets_when_the_injected_projection_port_revokes_or_is_
     owner = User(id=uuid.uuid4(), email=f"dashboard-projection-{uuid.uuid4().hex}@example.test", password_hash="digest", role=UserRole.USER.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
     thread = AgentThread(id=uuid.uuid4(), user_id=owner.id, status="completed", revision=1, created_at=now, last_activity_at=now, deleted_at=None)
     run = AgentRun(id=uuid.uuid4(), user_id=owner.id, thread_id=thread.id, command_key=f"dashboard-projection-run-{uuid.uuid4().hex}", command_hash="a" * 64, status="completed", graph_version="dashboard.v1", prompt_version="prompt.v1", tool_version="tools.v1", model_provider=None, model_version=None, graph_steps=1, model_calls=0, tool_calls=0, elapsed_ms=1, estimated_cost_usd=Decimal("0"), failure_code=None, created_at=now, updated_at=now, finished_at=now)
-    db_session.add(owner)
+    other = User(id=uuid.uuid4(), email=f"dashboard-projection-other-{uuid.uuid4().hex}@example.test", password_hash="digest", role=UserRole.USER.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
+    db_session.add_all([owner, other])
     db_session.flush()
     db_session.add(thread)
     db_session.flush()
     db_session.add(run)
     db_session.flush()
-    other = uuid.uuid4()
+    db_session.add_all([
+        DashboardTimezonePreference(user_id=owner.id, time_zone="UTC", confirmed_at=now),
+        DashboardTimezonePreference(user_id=other.id, time_zone="UTC", confirmed_at=now),
+    ])
     db_session.add(
         MealRecord(
             id=uuid.uuid4(), user_id=owner.id, source_run_id=run.id, agent_thread_id=thread.id, agent_run_id=run.id,
@@ -59,7 +63,7 @@ def test_overview_omits_targets_when_the_injected_projection_port_revokes_or_is_
     )
 
     owner_overview = service.get_overview(user_id=owner.id, week_start=date(2026, 8, 31))
-    foreign_overview = service.get_overview(user_id=other, week_start=date(2026, 8, 31))
+    foreign_overview = service.get_overview(user_id=other.id, week_start=date(2026, 8, 31))
 
     assert owner_overview.today.meal_count == 1
     assert owner_overview.target_eligibility.model_dump(exclude_none=True) == {"eligible": False}

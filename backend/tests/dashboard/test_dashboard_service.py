@@ -6,22 +6,30 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from app.dashboard.ports import PlanningTargetEligibility
+import pytest
+
+from app.dashboard.ports import DashboardTimezone, PlanningTargetEligibility
 from app.dashboard.schemas import DashboardHistoryCursor, DashboardNutritionTotals
-from app.dashboard.service import DashboardService
+from app.dashboard.service import DashboardService, DashboardTimezonePreconditionError
 
 
 NOW = datetime(2026, 9, 2, 8, tzinfo=UTC)
 
 
 class FakeDashboardRepository:
-    def __init__(self, rows: list[object]) -> None:
+    def __init__(self, rows: list[object], timezone: str | None = "Asia/Shanghai") -> None:
         self.rows = rows
+        self.timezone = timezone
         self.history_calls: list[tuple[uuid.UUID, DashboardHistoryCursor | None, int]] = []
+        self.aggregate_calls: list[tuple[uuid.UUID, date, date]] = []
 
     def get_daily_aggregates(self, *, user_id: uuid.UUID, start_date: date, end_date: date) -> list[object]:
-        del user_id
+        self.aggregate_calls.append((user_id, start_date, end_date))
         return [row for row in self.rows if start_date <= row.consumed_local_date <= end_date]
+
+    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None:
+        del user_id
+        return DashboardTimezone(time_zone=self.timezone) if self.timezone is not None else None
 
     def get_history_page(
         self, *, user_id: uuid.UUID, cursor: DashboardHistoryCursor | None, limit: int
@@ -89,3 +97,35 @@ def test_history_keeps_server_cursor_opaque_and_groups_only_persisted_local_days
     assert page.groups[0].totals.energy_kcal == Decimal("10")
     assert page.next_cursor is not None and "{" not in page.next_cursor
     assert repository.history_calls[0][2] == 2
+
+
+def test_overview_uses_each_confirmed_iana_zone_at_one_utc_instant() -> None:
+    instant = datetime(2026, 3, 9, 0, 30, tzinfo=UTC)
+    target_port = FakeTargetPort(PlanningTargetEligibility.unavailable())
+    shanghai = DashboardService(
+        repository=FakeDashboardRepository([_row(day=date(2026, 3, 9), energy="100")], "Asia/Shanghai"),
+        target_port=target_port,
+        now=lambda: instant,
+    ).get_overview(user_id=uuid.uuid4())
+    los_angeles = DashboardService(
+        repository=FakeDashboardRepository([_row(day=date(2026, 3, 8), energy="100")], "America/Los_Angeles"),
+        target_port=target_port,
+        now=lambda: instant,
+    ).get_overview(user_id=uuid.uuid4())
+
+    assert shanghai.today.consumed_local_date == date(2026, 3, 9)
+    assert shanghai.week[0].consumed_local_date == date(2026, 3, 9)
+    assert los_angeles.today.consumed_local_date == date(2026, 3, 8)
+    assert los_angeles.week[0].consumed_local_date == date(2026, 3, 2)
+
+
+@pytest.mark.parametrize("timezone", [None, "Mars/Olympus"])
+def test_overview_fails_closed_before_queries_for_missing_or_invalid_timezone(timezone: str | None) -> None:
+    repository = FakeDashboardRepository([], timezone)
+    target_port = FakeTargetPort(PlanningTargetEligibility.unavailable())
+
+    with pytest.raises(DashboardTimezonePreconditionError):
+        DashboardService(repository=repository, target_port=target_port, now=lambda: NOW).get_overview(user_id=uuid.uuid4())
+
+    assert repository.aggregate_calls == []
+    assert target_port.calls == []

@@ -11,9 +11,9 @@ from fastapi.testclient import TestClient
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.auth.api import get_authenticated_principal
 from app.dashboard.api import get_dashboard_service
-from app.dashboard.ports import PlanningTargetEligibility
+from app.dashboard.ports import DashboardTimezone, PlanningTargetEligibility
 from app.dashboard.schemas import DashboardDaySummary, DashboardHistoryPage, DashboardNutritionTotals, DashboardOverview
-from app.dashboard.service import InvalidDashboardCursor
+from app.dashboard.service import DashboardService, InvalidDashboardCursor
 from app.main import create_app
 
 
@@ -40,6 +40,31 @@ class StubDashboardService:
         return DashboardHistoryPage(groups=(), next_cursor=None)
 
 
+class CountingDashboardRepository:
+    def __init__(self, timezone: str | None) -> None:
+        self.timezone = timezone
+        self.aggregate_calls = 0
+
+    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None:
+        del user_id
+        return DashboardTimezone(time_zone=self.timezone) if self.timezone is not None else None
+
+    def get_daily_aggregates(self, *, user_id: uuid.UUID, start_date: date, end_date: date):
+        del user_id, start_date, end_date
+        self.aggregate_calls += 1
+        return []
+
+    def get_history_page(self, *, user_id: uuid.UUID, cursor, limit: int):
+        del user_id, cursor, limit
+        return []
+
+
+class UnavailableTargetPort:
+    def get_dashboard_target_eligibility(self, *, user_id: uuid.UUID) -> PlanningTargetEligibility:
+        del user_id
+        return PlanningTargetEligibility.unavailable()
+
+
 def _client() -> TestClient:
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
@@ -63,3 +88,27 @@ def test_dashboard_rejects_tampered_cursor_and_invalid_page_range() -> None:
         range_error = client.get("/api/v1/dashboard/history", params={"limit": 0})
     assert cursor.status_code == 422
     assert range_error.status_code == 422
+
+
+def test_dashboard_overview_maps_missing_or_corrupt_timezone_without_aggregate_or_leaks() -> None:
+    for timezone in (None, "Mars/Olympus"):
+        repository = CountingDashboardRepository(timezone)
+        service = DashboardService(
+            repository=repository,
+            target_port=UnavailableTargetPort(),
+            now=lambda: NOW,
+        )
+        app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+        app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+        app.dependency_overrides[get_dashboard_service] = lambda: service
+
+        with TestClient(app) as client:
+            response = client.get("/api/v1/dashboard/overview")
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": "Dashboard statistics timezone confirmation is required."}
+        assert repository.aggregate_calls == 0
+        assert "Mars" not in response.text
+        assert "repository" not in response.text.lower()
+        assert "provider" not in response.text.lower()
+        assert "state" not in response.text.lower()

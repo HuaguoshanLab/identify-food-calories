@@ -12,8 +12,9 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.dashboard.ports import PlanningCompletionTargetPort
+from app.dashboard.ports import DashboardTimezone, PlanningCompletionTargetPort
 from app.dashboard.schemas import (
     DashboardDaySummary,
     DashboardHistoryCursor,
@@ -40,12 +41,21 @@ class DashboardAggregate(Protocol):
 
 
 class DashboardRepository(Protocol):
+    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None: ...
     def get_daily_aggregates(self, *, user_id: uuid.UUID, start_date: date, end_date: date) -> Sequence[DashboardAggregate]: ...
     def get_history_page(self, *, user_id: uuid.UUID, cursor: DashboardHistoryCursor | None, limit: int) -> Sequence[DashboardHistoryRecord]: ...
 
 
 class InvalidDashboardCursor(ValueError):
     """Raised before a malformed or modified cursor can reach the repository."""
+
+
+class DashboardTimezonePreconditionError(ValueError):
+    """The user must confirm a valid statistical basis before dashboard aggregation."""
+
+
+class WeeklyReviewWeekStartInvalid(ValueError):
+    """A weekly-review window is neither a Monday nor a completed/current local week."""
 
 
 class DashboardCursorCodec:
@@ -86,7 +96,7 @@ class DashboardService:
         self._cursor_codec = DashboardCursorCodec(cursor_secret)
 
     def get_overview(self, *, user_id: uuid.UUID, week_start: date | None = None) -> DashboardOverview:
-        today = self._now().date()
+        today = _local_dashboard_today(repository=self._repository, user_id=user_id, now=self._now)
         start = week_start or today - timedelta(days=today.weekday())
         end = start + timedelta(days=6)
         aggregates = {
@@ -143,15 +153,14 @@ class DashboardService:
 class WeeklyReviewService:
     """Facts-first cache orchestration; model work begins only after deterministic coverage gates."""
 
-    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, public_runner: Callable[[WeeklyReviewFacts], object] | None = None, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
+    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, public_runner: Callable[[WeeklyReviewFacts, date], object] | None = None, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
         self._repository, self._cache_repository, self._provider = repository, cache_repository, provider
         self._public_runner = public_runner
         self._now = now or (lambda: datetime.now(UTC))
         self._versions = (graph_version, prompt_version, schema_version, runtime_config_version)
 
     def get_weekly_review(self, *, user_id: uuid.UUID, week_start: date | None = None) -> WeeklyReviewResponse:
-        today = self._now().date()
-        start = week_start or (today - timedelta(days=today.weekday()))
+        _today, start = self._review_window(user_id=user_id, week_start=week_start)
         facts = self._facts(user_id=user_id, week_start=start)
         if facts.coverage_days < 4 or facts.meal_count < 8:
             return WeeklyReviewResponse(facts=facts, abstention_code="INSUFFICIENT_COVERAGE")
@@ -188,8 +197,7 @@ class WeeklyReviewService:
         service failure; it never turns insufficient coverage into a Provider request.
         """
         del refresh
-        today = self._now().date()
-        start = week_start or today - timedelta(days=today.weekday())
+        today, start = self._review_window(user_id=user_id, week_start=week_start)
         facts = self._facts(user_id=user_id, week_start=start)
         base = dict(
             week_start=start,
@@ -215,7 +223,7 @@ class WeeklyReviewService:
         if self._public_runner is None:
             return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
         try:
-            result = self._public_runner(facts)
+            result = self._public_runner(facts, today)
         except Exception:
             return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
 
@@ -236,6 +244,14 @@ class WeeklyReviewService:
         totals = DashboardNutritionTotals(energy_kcal=sum((row.totals.energy_kcal for row in rows), start=Decimal("0")), protein_g=sum((row.totals.protein_g for row in rows), start=Decimal("0")), fat_g=sum((row.totals.fat_g for row in rows), start=Decimal("0")), carbohydrate_g=sum((row.totals.carbohydrate_g for row in rows), start=Decimal("0")))
         return WeeklyReviewFacts(week_start=week_start, coverage_days=len(rows), meal_count=sum(row.meal_count for row in rows), totals=totals, approved_patterns=tuple(f"MEALS_LOGGED_{row.consumed_local_date.isoformat()}" for row in rows if row.meal_count > 0))
 
+    def _review_window(self, *, user_id: uuid.UUID, week_start: date | None) -> tuple[date, date]:
+        today = _local_dashboard_today(repository=self._repository, user_id=user_id, now=self._now)
+        current_start = today - timedelta(days=today.weekday())
+        start = week_start or current_start
+        if start.weekday() != 0 or start > current_start:
+            raise WeeklyReviewWeekStartInvalid("weekly review must use a current or completed Monday")
+        return today, start
+
     def _get_cached(self, key: WeeklyReviewCacheKey) -> str | None:
         getter = getattr(self._cache_repository, "get_completed", None) or getattr(self._cache_repository, "get_completed_weekly_review", None)
         if getter is None:
@@ -254,6 +270,22 @@ class WeeklyReviewService:
 
 def _days(start: date, end: date) -> tuple[date, ...]:
     return tuple(start + timedelta(days=index) for index in range((end - start).days + 1))
+
+
+def _local_dashboard_today(
+    *, repository: DashboardRepository, user_id: uuid.UUID, now: Callable[[], datetime]
+) -> date:
+    preference = repository.get_dashboard_timezone_for_user(user_id=user_id)
+    if preference is None:
+        raise DashboardTimezonePreconditionError("dashboard timezone confirmation is required")
+    try:
+        zone = ZoneInfo(preference.time_zone)
+    except (TypeError, ZoneInfoNotFoundError) as error:
+        raise DashboardTimezonePreconditionError("dashboard timezone confirmation is required") from error
+    instant = now()
+    if instant.tzinfo is None:
+        raise RuntimeError("dashboard clock must return an aware instant")
+    return instant.astimezone(zone).date()
 
 
 def _b64encode(value: bytes) -> str:
