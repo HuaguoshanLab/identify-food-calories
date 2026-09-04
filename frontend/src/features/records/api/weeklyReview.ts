@@ -13,7 +13,7 @@ export const weeklyReviewResponseSchema = z.object({
 })
 export type WeeklyReviewResponse = z.infer<typeof weeklyReviewResponseSchema>
 
-export const weeklyReviewQueryKeys = { detail: (timeZone: string, weekStart: string) => ['dashboard', 'weekly-review', timeZone, weekStart] as const }
+export const weeklyReviewQueryKeys = { detail: (weekStart: string) => ['dashboard', 'weekly-review', weekStart] as const }
 
 async function read(response: Response): Promise<WeeklyReviewResponse> { if (!response.ok) throw new Error('weekly review unavailable'); return weeklyReviewResponseSchema.parse(await response.json()) }
 export async function getWeeklyReview(request: AuthenticatedRequest, weekStart: string): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review?week_start=${encodeURIComponent(weekStart)}`)) }

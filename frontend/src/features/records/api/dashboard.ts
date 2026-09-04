@@ -19,8 +19,8 @@ export type DashboardOverview = z.infer<typeof dashboardOverviewSchema>
 export type DashboardHistoryPage = z.infer<typeof dashboardHistoryPageSchema>
 
 export const dashboardQueryKeys = {
-  overview: (timeZone: string, weekStart: string) => ['dashboard', 'overview', timeZone, weekStart] as const,
-  history: (timeZone: string, cursor: string | null) => ['dashboard', 'history', timeZone, cursor] as const,
+  overview: (weekStart: string) => ['dashboard', 'overview', weekStart] as const,
+  history: (cursor: string | null) => ['dashboard', 'history', cursor] as const,
 }
 
 async function readJson(response: Response): Promise<unknown> { if (!response.ok) throw new Error('dashboard unavailable'); return response.json() }

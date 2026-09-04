@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { confirmMealRecord } from './client'
+import { confirmDashboardTimeZone, confirmMealRecord } from './client'
 
 const record = {
   id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2',
@@ -34,5 +34,35 @@ describe('confirmMealRecord', () => {
       time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     })
     expect(saved.consumed_local_date).toBe('2026-09-04')
+  })
+})
+
+describe('confirmDashboardTimeZone', () => {
+  it('只向 records confirmation command 提交浏览器 IANA zone，并严格解析安全响应', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      dashboard_time_zone: 'Asia/Shanghai',
+      confirmed_at: '2026-09-04T02:00:00Z',
+    }), { status: 200 }))
+
+    await expect(confirmDashboardTimeZone(request, 'Asia/Shanghai')).resolves.toEqual({
+      dashboardTimeZone: 'Asia/Shanghai',
+      confirmedAt: '2026-09-04T02:00:00Z',
+    })
+    expect(request).toHaveBeenCalledWith('/meal-records/dashboard-time-zone-confirmations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ time_zone: 'Asia/Shanghai' }),
+    })
+  })
+
+  it('把已确认的 409 当作可继续读取的幂等成功，但其他失败保持可恢复', async () => {
+    const alreadyConfirmed = vi.fn().mockResolvedValue(new Response(null, { status: 409 }))
+    await expect(confirmDashboardTimeZone(alreadyConfirmed, 'Asia/Shanghai')).resolves.toBeNull()
+
+    const invalid = vi.fn().mockResolvedValue(new Response(null, { status: 400 }))
+    await expect(confirmDashboardTimeZone(invalid, 'Not/AZone')).rejects.toThrow('dashboard time zone confirmation failed')
+
+    const malformed = vi.fn().mockResolvedValue(new Response(JSON.stringify({ dashboard_time_zone: 'Asia/Shanghai' }), { status: 200 }))
+    await expect(confirmDashboardTimeZone(malformed, 'Asia/Shanghai')).rejects.toThrow()
   })
 })
