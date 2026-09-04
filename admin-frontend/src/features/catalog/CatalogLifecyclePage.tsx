@@ -1,8 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useParams } from 'react-router-dom'
 
 import { AuditTimeline } from '@/features/audit/AuditTimeline'
+import { useAdminAuth } from '@/auth/AdminAuthProvider'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/AlertDialog'
 
 import {
@@ -123,4 +125,14 @@ export function CatalogLifecyclePage({ accessToken, draftId, onSessionExpired }:
     {preview ? <><FieldDiffPreview preview={preview} /><section aria-label="目录生命周期操作" className="flex flex-wrap gap-3"><button className="h-10 rounded-md border px-4 disabled:opacity-50" onClick={() => setDialogAction('review')} type="button">{actionCopy.review.button}</button><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" onClick={() => setDialogAction('publish')} type="button">{actionCopy.publish.button}</button><button className="h-10 rounded-md border px-4 disabled:opacity-50" disabled={!canDisqualify} onClick={() => setDialogAction('disqualify')} type="button">{actionCopy.disqualify.button}</button></section><AuditTimeline events={events} /></> : <p aria-live="polite" className="rounded-md border p-4 text-sm">正在读取服务端目录生命周期投影…</p>}
     <AlertDialog.Root onOpenChange={(open) => { if (!open && !submitting) setDialogAction(undefined) }} open={Boolean(dialogAction)}><AlertDialogContent aria-labelledby="catalog-lifecycle-dialog-title" className="max-w-4xl" initialFocus={cancelRef}>{selectedCopy ? <><AlertDialog.Title className="text-xl font-semibold" id="catalog-lifecycle-dialog-title">{selectedCopy.title}</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">{selectedCopy.consequence}</AlertDialog.Description>{preview ? <div className="mt-4"><FieldDiffPreview preview={preview} /></div> : null}<form className="mt-4 grid gap-2" onSubmit={form.handleSubmit(() => dialogAction && void submit(dialogAction))}><label className="text-sm" htmlFor="catalog-lifecycle-reason">变更原因</label><textarea aria-describedby={form.formState.errors.reason ? 'catalog-lifecycle-reason-error' : undefined} aria-invalid={Boolean(form.formState.errors.reason)} className="min-h-24 rounded-md border bg-background p-3" id="catalog-lifecycle-reason" {...form.register('reason')} />{form.formState.errors.reason ? <p id="catalog-lifecycle-reason-error" role="alert">{form.formState.errors.reason.message}</p> : null}<div className="mt-4 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" disabled={submitting} ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} type="submit">{submitting ? '正在提交…' : selectedCopy.confirm}</button></div></form></> : null}</AlertDialogContent></AlertDialog.Root>
   </main>
+}
+
+/** Route assembly keeps the lifecycle page on the same runtime-only admin session boundary. */
+export function AdminCatalogLifecyclePage() {
+  const { draftId } = useParams()
+  const { accessToken, clearSession } = useAdminAuth()
+  if (!draftId || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(draftId)) {
+    return <main className="mx-auto max-w-2xl p-8"><h1 className="text-[28px] font-semibold leading-9">目录草稿不存在</h1><p className="mt-4 text-base">请从已保存草稿进入审核与发布页面。</p></main>
+  }
+  return <CatalogLifecyclePage accessToken={accessToken} draftId={draftId} onSessionExpired={clearSession} />
 }

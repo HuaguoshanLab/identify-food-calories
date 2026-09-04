@@ -4,6 +4,7 @@ import { AdminLoginPage } from './auth/AdminLoginPage'
 import { AdminRouteGuard } from './auth/AdminRouteGuard'
 import { AdminAuditPage } from './features/audit/AuditPage'
 import { AdminCatalogDraftPage } from './features/catalog/CatalogDraftPage'
+import { AdminCatalogLifecyclePage } from './features/catalog/CatalogLifecyclePage'
 import { AdminRuntimeConfigSummaryPage } from './features/config/ConfigSummaryPage'
 import { AdminOverviewRoute } from './features/overview/AdminOverviewPage'
 import { AdminRunsPage } from './features/runs/RunsPage'
@@ -23,6 +24,7 @@ export function App() {
       <Route element={<AdminRouteGuard><AdminShell /></AdminRouteGuard>}>
         <Route path="/admin/overview" element={<AdminOverviewRoute />} />
         <Route path="/admin/catalog" element={<AdminCatalogDraftPage />} />
+        <Route path="/admin/catalog/:draftId/lifecycle" element={<AdminCatalogLifecyclePage />} />
         <Route path="/admin/runs" element={<AdminRunsPage />} />
         <Route path="/admin/model-configs" element={<AdminRuntimeConfigSummaryPage />} />
         <Route path="/admin/audit" element={<AdminAuditPage />} />

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRef, useState } from 'react'
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
+import { Link } from 'react-router-dom'
 
 import { useAdminAuth } from '@/auth/AdminAuthProvider'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/AlertDialog'
@@ -152,7 +153,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
 
   return <main className="mx-auto max-w-5xl space-y-6 p-8"><header><h1 className="text-[28px] font-semibold leading-9">营养目录草稿</h1><p className="mt-2 text-base text-muted-foreground">创建或编辑草稿前先核对字段；后端仍是唯一授权与审计真相。</p></header>
     {error ? <p aria-live="polite" className="rounded-md border p-4 text-sm" role="alert">{error}</p> : null}
-    {draft ? <><p aria-live="polite">草稿已保存，当前 revision 为 {draft.revision}。</p><ServerConfirmedDraft draft={draft} /></> : null}
+    {draft ? <><p aria-live="polite">草稿已保存，当前 revision 为 {draft.revision}。</p><Link className="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium" to={`/admin/catalog/${draft.id}/lifecycle`}>审核与发布目录</Link><ServerConfirmedDraft draft={draft} /></> : null}
     <form className="grid gap-4 rounded-lg border bg-card p-6 md:grid-cols-2" onSubmit={form.handleSubmit(() => void openPreview(), () => setError('请检查表单中标记的字段。'))}>
       <FormField error={form.formState.errors.canonical_name?.message} label="菜品名称" registration={form.register('canonical_name')} />
       <FormField error={form.formState.errors.aliases?.message} label="别名" registration={form.register('aliases')} />

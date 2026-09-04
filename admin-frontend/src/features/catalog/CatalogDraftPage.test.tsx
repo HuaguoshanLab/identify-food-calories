@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { CatalogDraftPage } from './CatalogDraftPage'
@@ -34,7 +35,11 @@ const serverPreview = {
 
 function renderPage() {
   const onSessionExpired = vi.fn()
-  render(<CatalogDraftPage accessToken="runtime-only-token" onSessionExpired={onSessionExpired} />)
+  render(
+    <MemoryRouter>
+      <CatalogDraftPage accessToken="runtime-only-token" onSessionExpired={onSessionExpired} />
+    </MemoryRouter>,
+  )
   return { onSessionExpired }
 }
 
@@ -93,6 +98,7 @@ describe('CatalogDraftPage', () => {
 
     await waitFor(() => expect(idempotencyKey).toHaveLength(36))
     expect(await screen.findByText('草稿已保存，当前 revision 为 1。')).toBeVisible()
+    expect(screen.getByRole('link', { name: '审核与发布目录' })).toHaveAttribute('href', `/admin/catalog/${createdDraft.id}/lifecycle`)
   })
 
   it('PATCH 409 后读取当前草稿并重新展示服务器计算的最新差异，不自动覆盖编辑', async () => {
