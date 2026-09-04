@@ -106,21 +106,41 @@ def test_catalog_preview_and_read_are_rbac_protected_safe_projections() -> None:
     assert "command_key" not in lifecycle.json()
 
 
-def test_catalog_write_maps_database_rbac_denial_to_forbidden() -> None:
+def test_all_catalog_commands_map_database_rbac_denial_to_forbidden() -> None:
     class DeniedCatalogService(StubCatalogService):
         def create_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+        def patch_catalog_draft(self, **_kwargs: object) -> CatalogDraftResponse:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+        def publish_catalog_draft(self, **_kwargs: object) -> object:
+            raise AdminPermissionDenied("database role does not permit this operation")
+
+        def disqualify_catalog_publication(self, **_kwargs: object) -> object:
             raise AdminPermissionDenied("database role does not permit this operation")
 
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
     app.dependency_overrides[get_admin_service] = DeniedCatalogService
+    draft_id = uuid.uuid4()
+    publication_id = uuid.uuid4()
     with TestClient(app) as client:
-        response = client.post(
+        responses = [client.post(
             "/api/v1/admin/catalog-drafts", json=_payload(),
             headers={"Idempotency-Key": "catalog-create-00000002"},
-        )
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
+        ), client.patch(
+            f"/api/v1/admin/catalog-drafts/{draft_id}", json={"canonical_name": "Oats", "reason": "label correction"},
+            headers={"If-Match": "1", "Idempotency-Key": "catalog-patch-00000002"},
+        ), client.post(
+            f"/api/v1/admin/catalog-drafts/{draft_id}/publish", json={"reason": "approved publication", "confirm": True},
+            headers={"If-Match": "1", "Idempotency-Key": "catalog-publish-00000002"},
+        ), client.post(
+            f"/api/v1/admin/catalog-publications/{publication_id}/disqualifications", json={"reason": "authorization revoked", "confirm": True},
+            headers={"Idempotency-Key": "catalog-disqualify-00000002"},
+        )]
+    assert [response.status_code for response in responses] == [403, 403, 403, 403]
+    assert [response.json()["error"]["code"] for response in responses] == ["ADMIN_PERMISSION_REQUIRED"] * 4
 
 
 def test_catalog_read_and_preview_map_database_rbac_denial_to_forbidden() -> None:

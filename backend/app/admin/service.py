@@ -368,11 +368,11 @@ class AdminService:
     ) -> CatalogDraftResponse:
         """Create a mutable draft and its evidence in one service-owned transaction."""
 
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         payload = self._catalog_payload(command)
         replay = self._catalog_replay(command_key, self._request_hash("create", payload))
         if replay is not None:
             return self._catalog_response(replay)
-        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         now = self._now()
         draft = CatalogDraft(id=uuid.uuid4(), **payload, revision=1, created_at=now, updated_at=now)
         self._repository.add_catalog_draft(draft)
@@ -395,11 +395,11 @@ class AdminService:
     ) -> CatalogDraftResponse:
         """Apply an optimistic, server-diffed patch; no client diff is accepted."""
 
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         patch = self._catalog_payload(command, partial=True)
         replay = self._catalog_replay(command_key, self._request_hash("patch", {"draft_id": str(draft_id), "expected_revision": expected_revision, **patch}))
         if replay is not None:
             return self._catalog_response(replay)
-        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         draft = self._repository.get_catalog_draft(draft_id)
         if draft is None:
             raise KeyError("catalog draft not found")
@@ -567,11 +567,11 @@ class AdminService:
     ) -> CatalogPublicationResponse:
         """Atomically advance one pointer to a reviewed immutable publication."""
 
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         self._repository.acquire_catalog_publication_lock(draft_id)
         replay = self._repository.get_catalog_publication_command(command_key.strip())
         if replay is not None:
             return self._publication_response(replay, eligibility="eligible")
-        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         draft = self._repository.get_catalog_draft(draft_id, for_update=True)
         if draft is None:
             raise KeyError("catalog draft not found")
@@ -610,6 +610,7 @@ class AdminService:
     ) -> CatalogPublicationResponse:
         """Append a blocking future-use overlay; historical meal snapshots are untouched."""
 
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         publication = self._repository.get_catalog_publication(publication_id)
         if publication is None:
             raise KeyError("catalog publication not found")
@@ -617,7 +618,6 @@ class AdminService:
         replay = self._repository.get_catalog_eligibility_command(command_key.strip())
         if replay is not None:
             return self._publication_response(publication, eligibility=cast(Literal["eligible", "disqualified"], replay.status))
-        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
         self._repository.add_catalog_eligibility(CatalogPublicationEligibility(
             id=uuid.uuid4(), publication_id=publication.id, status="disqualified", actor_identifier=str(actor.id),
             reason=command.reason, command_key=command_key.strip(), occurred_at=self._lifecycle_now(),

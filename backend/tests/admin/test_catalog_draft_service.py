@@ -28,13 +28,14 @@ def _admin(role: str = UserRole.ADMIN.value) -> User:
 class FakeCatalogDraftRepository:
     def __init__(self, user: User) -> None:
         self.user = user
+        self.users: dict[uuid.UUID, User] = {}
         self.drafts: dict[uuid.UUID, CatalogDraft] = {}
         self.events: list[AdminAuditEvent] = []
         self.commands: dict[str, CatalogDraftChangeSet] = {}
         self.revisions: list[CatalogDraftRevision] = []
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
-        return self.user if self.user.id == user_id else None
+        return self.user if self.user.id == user_id else self.users.get(user_id)
 
     def get_catalog_draft(self, draft_id: uuid.UUID) -> CatalogDraft | None:
         return self.drafts.get(draft_id)
@@ -143,6 +144,46 @@ def test_patch_rejects_stale_revision_and_non_admin() -> None:
     repository.user = _admin(UserRole.USER.value)
     with pytest.raises(AdminPermissionDenied):
         service.create_catalog_draft(actor_user_id=repository.user.id, command=_create(), command_key="create-00000003")
+
+
+def test_create_and_patch_replays_require_current_active_database_admin() -> None:
+    actor = _admin()
+    normal_user = _admin(UserRole.USER.value)
+    repository = FakeCatalogDraftRepository(actor)
+    repository.users[normal_user.id] = normal_user
+    service = AdminService(repository=repository, now=lambda: NOW)
+
+    created = service.create_catalog_draft(
+        actor_user_id=actor.id, command=_create(), command_key="create-replay-rbac-0001",
+    )
+    with pytest.raises(AdminPermissionDenied):
+        service.create_catalog_draft(
+            actor_user_id=normal_user.id, command=_create(), command_key="create-replay-rbac-0001",
+        )
+
+    patched = service.patch_catalog_draft(
+        actor_user_id=actor.id, draft_id=created.id, expected_revision=1,
+        command=CatalogDraftPatchCommand(canonical_name="Organic oats", reason="clarified label"),
+        command_key="patch-replay-rbac-0001",
+    )
+    patch = CatalogDraftPatchCommand(canonical_name="Organic oats", reason="clarified label")
+    with pytest.raises(AdminPermissionDenied):
+        service.patch_catalog_draft(
+            actor_user_id=normal_user.id, draft_id=created.id, expected_revision=1,
+            command=patch, command_key="patch-replay-rbac-0001",
+        )
+
+    actor.role = UserRole.USER.value
+    with pytest.raises(AdminPermissionDenied):
+        service.create_catalog_draft(
+            actor_user_id=actor.id, command=_create(), command_key="create-replay-rbac-0001",
+        )
+    with pytest.raises(AdminPermissionDenied):
+        service.patch_catalog_draft(
+            actor_user_id=actor.id, draft_id=created.id, expected_revision=1,
+            command=patch, command_key="patch-replay-rbac-0001",
+        )
+    assert patched.revision == 2
 
 
 def test_catalog_mutation_rolls_back_when_audit_transaction_fails() -> None:

@@ -40,6 +40,7 @@ class FakeLifecycleRepository:
 
     def __init__(self, actor: User) -> None:
         self.actor = actor
+        self.users: dict[uuid.UUID, User] = {}
         self.drafts: dict[uuid.UUID, CatalogDraft] = {}
         self.publications: dict[uuid.UUID, CatalogPublication] = {}
         self.eligibilities: dict[uuid.UUID, list[CatalogPublicationEligibility]] = {}
@@ -47,7 +48,7 @@ class FakeLifecycleRepository:
         self.events: list[AdminAuditEvent] = []
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
-        return self.actor if user_id == self.actor.id else None
+        return self.actor if user_id == self.actor.id else self.users.get(user_id)
 
     def get_catalog_draft(self, draft_id: uuid.UUID, *, for_update: bool = False) -> CatalogDraft | None:
         del for_update
@@ -184,3 +185,58 @@ def test_lifecycle_preview_is_server_derived_and_requires_current_database_admin
     repository.actor.role = UserRole.USER.value
     with pytest.raises(AdminPermissionDenied):
         service.preview_catalog_lifecycle(actor_user_id=actor.id, draft_id=draft.id)
+
+
+def test_publish_and_disqualify_replays_require_current_active_database_admin() -> None:
+    actor = _admin()
+    normal_user = User(
+        id=uuid.uuid4(), email="normal-user@example.test", password_hash="hash",
+        role=UserRole.USER.value, is_active=True, email_verified_at=NOW,
+        created_at=NOW, updated_at=NOW,
+    )
+    repository = FakeLifecycleRepository(actor)
+    repository.users[normal_user.id] = normal_user
+    service = AdminService(repository=repository, now=lambda: NOW)
+    draft = service.create_catalog_draft(
+        actor_user_id=actor.id, command=_command(), command_key="create-replay-rbac-0001",
+    )
+    lifecycle = CatalogLifecycleCommand(reason="checked evidence", confirm=True)
+    service.review_catalog_draft(
+        actor_user_id=actor.id, draft_id=draft.id, expected_revision=1,
+        command=lifecycle, command_key="review-replay-rbac-0001",
+    )
+    publication = service.publish_catalog_draft(
+        actor_user_id=actor.id, draft_id=draft.id, expected_revision=1,
+        command=lifecycle, command_key="publish-replay-rbac-0001",
+    )
+    service.disqualify_catalog_publication(
+        actor_user_id=actor.id, publication_id=publication.id,
+        command=lifecycle, command_key="disqualify-replay-rbac-0001",
+    )
+
+    for command_name, action in (
+        ("publish", lambda user_id: service.publish_catalog_draft(
+            actor_user_id=user_id, draft_id=draft.id, expected_revision=1,
+            command=lifecycle, command_key="publish-replay-rbac-0001",
+        )),
+        ("disqualify", lambda user_id: service.disqualify_catalog_publication(
+            actor_user_id=user_id, publication_id=publication.id,
+            command=lifecycle, command_key="disqualify-replay-rbac-0001",
+        )),
+    ):
+        with pytest.raises(AdminPermissionDenied, match="database role"):
+            action(normal_user.id)
+
+    actor.is_active = False
+    for command_name, action in (
+        ("publish", lambda user_id: service.publish_catalog_draft(
+            actor_user_id=user_id, draft_id=draft.id, expected_revision=1,
+            command=lifecycle, command_key="publish-replay-rbac-0001",
+        )),
+        ("disqualify", lambda user_id: service.disqualify_catalog_publication(
+            actor_user_id=user_id, publication_id=publication.id,
+            command=lifecycle, command_key="disqualify-replay-rbac-0001",
+        )),
+    ):
+        with pytest.raises(AdminPermissionDenied, match="database role"):
+            action(actor.id)
