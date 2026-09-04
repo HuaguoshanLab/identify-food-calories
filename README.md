@@ -1,6 +1,6 @@
 # 基于 LangGraph 的多模态饮食健康智能 Agent
 
-本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据与未完成 E2E 门禁见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
+本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
 
 ## 职责
 
@@ -69,7 +69,19 @@ cd ../admin-frontend
 npm run typecheck && npm test && npm run build
 ```
 
-`frontend` 固定在 `http://127.0.0.1:5178`，后台固定在 `http://127.0.0.1:5179`，FastAPI 默认在 `http://127.0.0.1:8000`。`admin-frontend` 的 `npm run test:e2e` 当前**不是通过门禁**：尚无 Playwright 配置；用户端亦缺少 records dashboard spec。不要把该命令、Vitest 或截图写成已经通过的跨栈 E2E，详见验收记录。
+`frontend` 固定在 `http://127.0.0.1:5178`，后台固定在 `http://127.0.0.1:5179`，FastAPI 默认在 `http://127.0.0.1:8000`。Records 与独立后台均已有 guarded Playwright 配置：runner 启动专属 FastAPI/Vite/Mailpit/测试库栈，走真实页面与公开 API，且不接受数据库 seed、token/Cookie 注入、mock endpoint 或内部调用作为证据。可分别运行：
+
+```bash
+cd frontend
+E2E_FRONTEND_PORT=5182 E2E_BACKEND_PORT=8002 E2E_RECORDS_ADMIN_FRONTEND_PORT=5185 \
+  npm run test:e2e -- --grep 'records-dashboard|真实登录后的记录页显示低覆盖周复盘'
+
+cd ../admin-frontend
+E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND_PORT=5184 \
+  npm run test:e2e -- --grep admin-management
+```
+
+`records-dashboard.spec.ts` 在 Shanghai 和 Los Angeles Chromium 时区上下文中观察 records-owned 统计时区确认先于看板读取；`records-weekly-review.spec.ts` 覆盖同一公开前置后的低覆盖安全投影；`admin-management.spec.ts` 覆盖管理员管理路径。它们是跨栈自动化证据，不替代 Codex 内置浏览器验收，也不宣称 UTC/DST/周一起点的精确数学；后者由确定性单元/API 测试负责，详见验收记录。
 
 ## Phase 6 架构与边界
 
@@ -114,7 +126,8 @@ sequenceDiagram
   A->>R: 仅接受 completed_validated 报告
   R->>R: 固化 consumed_local_date
   R-->>U: 餐食详情与快照版本
-  U->>D: overview / history(cursor) / weekly-review
+  U->>R: 一次确认统计 IANA 时区
+  U->>D: overview / history(cursor) / weekly-review（不携带客户端时区权威）
   D-->>U: 聚合事实、签名 cursor、闭合安全状态
 ```
 

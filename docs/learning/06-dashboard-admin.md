@@ -4,15 +4,23 @@
 
 Phase 6 不是“再加几个统计卡片”。它把**已确认餐食快照**、**受控周复盘**和**可审计后台命令**连成一条可追溯链。用户端只读事实与安全投影；后台只通过公开 API 发出有理由、可审计的命令；数据库仍是权限、目录版本和历史快照的权威。
 
-入口代码：[`backend/app/dashboard/api.py`](../../backend/app/dashboard/api.py)、[`backend/app/admin/api.py`](../../backend/app/admin/api.py)。端到端实际浏览器证据与缺口：[`docs/verification/phase-06-browser-acceptance.md`](../verification/phase-06-browser-acceptance.md)。
+入口代码：[`backend/app/dashboard/api.py`](../../backend/app/dashboard/api.py)、[`backend/app/admin/api.py`](../../backend/app/admin/api.py)。端到端实际浏览器证据、自动化门禁与仍待复验边界：[`docs/verification/phase-06-browser-acceptance.md`](../verification/phase-06-browser-acceptance.md)。
 
-## 1. 保存时固定时区，查询时不猜历史地点
+## 1. 保存时固定时区，统计时确认当前口径
 
 餐食确认保存时，客户端提交 IANA `time_zone`；Records Service 校验它，并把 `consumed_at` 投影为持久化的 `consumed_local_date`。用户确认的统计时区只是一种当前统计口径，**不是**“恢复用户当时所在地点”。因此 overview、趋势和 history 都按保存的 local date 聚合，之后浏览器时区变化不会改写历史统计。
 
 链路：`frontend/src/features/records/api/client.ts` → [`backend/app/records/api.py`](../../backend/app/records/api.py) → [`backend/app/records/service.py`](../../backend/app/records/service.py) → `MealRecord`。迁移顺序从 Phase 5 的 `0012` 接到 `0013_dashboard_time_attribution.py`，后续 Phase 6 迁移连续到 `0019`（runtime config）；只能用 Alembic head，不允许手改表。
 
 验证：[`backend/tests/integration/test_record_local_time_attribution.py`](../../backend/tests/integration/test_record_local_time_attribution.py)、[`backend/tests/records/test_record_service.py`](../../backend/tests/records/test_record_service.py)。
+
+### 看板的统计时区为什么要再确认一次
+
+RecordsPage 首次打开时，浏览器只能把 IANA 名称作为 **records-owned command** 提交给 [`backend/app/records/api.py`](../../backend/app/records/api.py) 的 `dashboard-time-zone-confirmations`。Records 持久化一次确认的 preference；[`backend/app/dashboard/repository.py`](../../backend/app/dashboard/repository.py) 仅通过 `DashboardTimezonePort` 为当前用户读取它，绝不猜测 UTC 默认值。随后 [`backend/app/dashboard/service.py`](../../backend/app/dashboard/service.py) 用 `ZoneInfo` 复验该名称，再把注入的 aware UTC instant 转为用户本地 today/Monday；[`backend/app/dashboard/api.py`](../../backend/app/dashboard/api.py) 只把缺失/损坏 preference 映射为安全的 409，把非本地周一或未来周起点映射为 422。
+
+前端链路是 [`frontend/src/features/records/components/RecordsPage.tsx`](../../frontend/src/features/records/components/RecordsPage.tsx) → [`frontend/src/features/records/api/client.ts`](../../frontend/src/features/records/api/client.ts) → records confirmation → dashboard public read。`RecordsPage` 只有 confirmation 成功才启用 overview/history/weekly-review；它用 `Intl.DateTimeFormat().formatToParts()` 从 IANA calendar parts 推导周一，不能用 `toISOString()`、浏览器宿主时区 getter 或固定 offset。D-04 的原因很简单：客户端时区是可变输入，若让它随每次 dashboard read 充当权威，同一用户可得到互相矛盾的统计窗口和缓存；读模型必须只信后端已验证、按用户隔离的 preference。
+
+确定性测试分别覆盖 Shanghai 周一凌晨、Los Angeles DST 与 UTC 跨日、缺失或损坏 preference 的 fail-closed 409、非周一/未来 week start 的 422，以及 refresh 不能用客户端 `time_zone` 绕过口径。对应证据在 [`backend/tests/dashboard`](../../backend/tests/dashboard)、[`backend/tests/unit/test_dashboard_api.py`](../../backend/tests/unit/test_dashboard_api.py)、[`backend/tests/integration/test_dashboard_repository.py`](../../backend/tests/integration/test_dashboard_repository.py) 与 [`frontend/src/features/records/components/RecordsPage.test.tsx`](../../frontend/src/features/records/components/RecordsPage.test.tsx)。这些是日历数学证据，不是营养或医疗准确性指标。
 
 ## 2. SQL 聚合、history cursor 与 completion projection
 
@@ -59,9 +67,18 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
 # 用户端与后台严格 DTO / 组件行为
 cd ../frontend && npm test -- --run src/features/records/api/dashboard.test.ts src/features/records/api/client.test.ts
 cd ../admin-frontend && npm test -- --run src/features/catalog/CatalogLifecyclePage.test.tsx src/features/runs/RunsPage.test.tsx src/features/audit/AuditPage.test.tsx
+
+# guarded 全栈：每个 runner 自己管理测试库、FastAPI、Vite 与 Mailpit
+cd ../frontend
+E2E_FRONTEND_PORT=5182 E2E_BACKEND_PORT=8002 E2E_RECORDS_ADMIN_FRONTEND_PORT=5185 \
+  npm run test:e2e -- --grep 'records-dashboard|真实登录后的记录页显示低覆盖周复盘'
+
+cd ../admin-frontend
+E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND_PORT=5184 \
+  npm run test:e2e -- --grep admin-management
 ```
 
-真实浏览器已验证：普通用户“白米饭 100 克”分析为 130 kcal 后确认保存，records 显示今日/趋势/history/低覆盖周复盘；管理员在独立 SPA 完成 authorized 草稿→审核→发布，并查看 runs 最小详情与 audit。没有把这些事实夸大为完整 Phase 6 页面验收：records/admin 的 Playwright assets 仍缺失，overview、失格、runtime disable、拒绝矩阵与其他周复盘状态尚需隔离环境验证。
+Records E2E 不是 mock：`records-dashboard.spec.ts` 在 Shanghai 与 Los Angeles Chromium contexts 中先观察公开 confirmation，再验证 dashboard/review 读取不带 `time_zone` authority；`records-weekly-review.spec.ts` 在同一真实前置后只断言低覆盖闭合响应和安全 DOM。`admin-management.spec.ts` 是独立后台的 guarded runner。它们都不能替代内置浏览器；本轮真实浏览器的普通用户确认范围是 analyze → save → Records 的四个 Tab 与低覆盖安全文案，具体路径及未复验项目见验收记录。浏览器和 E2E 都不覆盖所有跨日/history cursor 组合、全部周复盘 terminal 状态、管理员 overview/disable 或会话失效；这些不能被夸大为已完成。
 
 ## 常见错误
 
@@ -71,4 +88,4 @@ cd ../admin-frontend && npm test -- --run src/features/catalog/CatalogLifecycleP
 - 让 SSE 透传模型文本：会把内部技术信息变成用户界面和安全面。
 - 仅在后台菜单隐藏功能：普通用户仍可直接请求 API；必须由后端 DB RBAC 拒绝。
 - 让客户端拼 diff 或发布历史可修改对象：这会破坏并发基线、审计与历史快照的证据链。
-- 将缺少的 Playwright spec 写为通过：这是假绿。浏览器观察、Vitest、HTTPX、真实 PostgreSQL 和冻结 eval 是不同层级的证据。
+- 将 Playwright、浏览器观察、Vitest、HTTPX、真实 PostgreSQL 或冻结 eval 互相冒充：这是另一种假绿。各层只能声明自己实际覆盖的边界。
