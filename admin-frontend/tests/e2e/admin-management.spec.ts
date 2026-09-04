@@ -127,7 +127,10 @@ async function createAndDisqualifyCatalogEntry(page: Page, suffix: string) {
     await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused()
     await dialog.getByLabel('变更原因').fill(reason)
     const mutation = page.waitForResponse((response) => response.url().includes(`/api/v1/admin/catalog-${responsePath === '/disqualifications' ? 'publications' : 'drafts'}`) && response.url().endsWith(responsePath) && response.request().method() === 'POST' && response.status() === 200)
-    await dialog.getByRole('button', { name: confirm }).click()
+    const confirmation = dialog.getByRole('button', { name: confirm })
+    await confirmation.scrollIntoViewIfNeeded()
+    await expect(confirmation).toBeInViewport()
+    await confirmation.click()
     await mutation
   }
   await expect(page.getByText('已立即失格，操作已记录。')).toBeVisible()

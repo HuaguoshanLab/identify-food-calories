@@ -27,7 +27,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
     viewport: { width: 1280, height: 900 },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Keep the management workflow at its declared desktop viewport. The device
+  // preset otherwise overwrites the shared 1280x900 viewport with 1280x720,
+  // leaving lifecycle confirmation actions below the fixed dialog viewport.
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } } }],
   webServer: [
     {
       name: 'FastAPI isolated test backend',
