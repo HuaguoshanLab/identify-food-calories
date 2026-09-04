@@ -10,13 +10,15 @@ function localPort(variableName: string, fallback: string) {
 
 const frontendPort = localPort('E2E_FRONTEND_PORT', '5178')
 const backendPort = localPort('E2E_BACKEND_PORT', '8000')
+const recordsAdminFrontendPort = localPort('E2E_RECORDS_ADMIN_FRONTEND_PORT', '5185')
 const frontendUrl = `http://127.0.0.1:${frontendPort}`
 const backendOrigin = `http://127.0.0.1:${backendPort}`
 const backendUrl = `${backendOrigin}/api/v1/health`
+const recordsAdminFrontendUrl = `http://127.0.0.1:${recordsAdminFrontendPort}`
 
 const backendEnvironment = {
   ...process.env,
-  CORS_ORIGINS: JSON.stringify([frontendUrl]),
+  CORS_ORIGINS: JSON.stringify([frontendUrl, recordsAdminFrontendUrl]),
   SMTP_HOST: '127.0.0.1',
   SMTP_PORT: '1025',
 }
@@ -69,6 +71,18 @@ export default defineConfig({
       command: `npm run build && npm run preview:e2e -- --port ${frontendPort}`,
       env: frontendEnvironment,
       url: frontendUrl,
+      reuseExistingServer: false,
+      timeout: 120_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
+    },
+    {
+      name: 'Records admin Vite preview',
+      cwd: '../admin-frontend',
+      command: `VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run preview -- --port ${recordsAdminFrontendPort}`,
+      env: { ...process.env, VITE_ADMIN_API_PROXY_TARGET: backendOrigin },
+      url: recordsAdminFrontendUrl,
       reuseExistingServer: false,
       timeout: 120_000,
       stdout: 'pipe',

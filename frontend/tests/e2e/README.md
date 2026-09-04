@@ -22,5 +22,8 @@
 | `agent.spec.ts` | 真实注册登录后的文字 Agent 纵向报告、SSE 公开路径、刷新同线程恢复、图片 multipart 估算，以及“我不吃辣”自动记忆的查看、编辑、确认删除和 320px 空态回归。 |
 | `safe-stream-progress.spec.ts` | 真实认证用户的分析/规划安全阶段、无内部泄露和键盘焦点路径。 |
 | `records-weekly-review.spec.ts` | 真实注册登录后记录页的低覆盖周复盘、公开 API 最小安全响应与无重试操作。 |
+| `records-dashboard.spec.ts` | 专属空库 runner 中：页面注册/邮箱验证、受审计首位管理员 CLI、admin Guard 200 与 RuntimeConfig POST 201，随后另一用户的分析安全 SSE、确认保存和 Records 四项投影。 |
 
 E2E 的前端与 CORS origin 固定为 `http://127.0.0.1:5178`；账号只可经过页面注册、Mailpit 公开 HTTP 读取验证码和页面登录获得身份，禁止 seed 数据库或注入 token。
+
+Records runner 可用 `E2E_FRONTEND_PORT`、`E2E_BACKEND_PORT` 和 `E2E_RECORDS_ADMIN_FRONTEND_PORT`（默认 5178/8000/5185）覆盖端口。每次运行只经 `run_pg.py` 允许的 `food_agent_test` 清库、迁移及受控种子重建；它不复用 06-28 的进程、账号、数据库或 RuntimeConfig。首位管理员 CLI 只写审计角色提升，运行配置必须由 admin SPA 的公开 `POST /api/v1/admin/runtime-config` 创建；禁止 DB 直写、token/cookie 注入、内部调用、固定 sleep 与真实模型。
