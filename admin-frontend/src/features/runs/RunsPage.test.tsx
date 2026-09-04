@@ -16,6 +16,8 @@ const metrics = {
   p50_elapsed_ms: 210,
   p95_elapsed_ms: 890,
   total_cost_usd: '0.032',
+  from: '2026-09-02T08:20:00Z',
+  to: '2026-09-03T08:20:00Z',
 }
 
 const runsPage = {

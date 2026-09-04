@@ -35,6 +35,10 @@ export const runMetricsSchema = z.object({
   p50_elapsed_ms: z.number().int().nonnegative().nullable(),
   p95_elapsed_ms: z.number().int().nonnegative().nullable(),
   total_cost_usd: decimalTextSchema,
+  // The server owns this UTC window. Keeping it in the strict DTO prevents the runs
+  // screen from rejecting the same metrics projection already consumed by overview.
+  from: isoDateTimeSchema,
+  to: isoDateTimeSchema,
 }).strict()
 
 export const runPageSchema = z.object({
