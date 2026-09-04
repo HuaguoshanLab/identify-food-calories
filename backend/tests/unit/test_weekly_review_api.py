@@ -29,7 +29,7 @@ class StubWeeklyReviewService:
             raise DashboardTimezonePreconditionError("missing preference")
         try:
             local_today = self.instant.astimezone(ZoneInfo(self.timezone)).date()
-        except (TypeError, ZoneInfoNotFoundError) as error:
+        except (TypeError, ValueError, ZoneInfoNotFoundError) as error:
             raise DashboardTimezonePreconditionError("invalid preference") from error
         current_start = local_today - timedelta(days=local_today.weekday())
         if week_start is not None and (week_start.weekday() != 0 or week_start > current_start):
@@ -96,7 +96,7 @@ def test_weekly_review_openapi_rejects_extra_or_technical_outcome_fields() -> No
 
 
 def test_weekly_review_get_and_refresh_map_missing_or_corrupt_timezone_without_invocation() -> None:
-    for timezone in (None, "Mars/Olympus"):
+    for timezone in (None, "Mars/Olympus", "/invalid-timezone"):
         service = StubWeeklyReviewService(timezone=timezone)
         with _client(service) as client:
             get_response = client.get("/api/v1/dashboard/weekly-review")

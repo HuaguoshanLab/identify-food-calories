@@ -91,7 +91,7 @@ def test_dashboard_rejects_tampered_cursor_and_invalid_page_range() -> None:
 
 
 def test_dashboard_overview_maps_missing_or_corrupt_timezone_without_aggregate_or_leaks() -> None:
-    for timezone in (None, "Mars/Olympus"):
+    for timezone in (None, "Mars/Olympus", "/invalid-timezone"):
         repository = CountingDashboardRepository(timezone)
         service = DashboardService(
             repository=repository,

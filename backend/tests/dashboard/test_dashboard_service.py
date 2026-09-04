@@ -119,7 +119,7 @@ def test_overview_uses_each_confirmed_iana_zone_at_one_utc_instant() -> None:
     assert los_angeles.week[0].consumed_local_date == date(2026, 3, 2)
 
 
-@pytest.mark.parametrize("timezone", [None, "Mars/Olympus"])
+@pytest.mark.parametrize("timezone", [None, "Mars/Olympus", "/invalid-timezone"])
 def test_overview_fails_closed_before_queries_for_missing_or_invalid_timezone(timezone: str | None) -> None:
     repository = FakeDashboardRepository([], timezone)
     target_port = FakeTargetPort(PlanningTargetEligibility.unavailable())

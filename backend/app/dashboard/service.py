@@ -280,7 +280,7 @@ def _local_dashboard_today(
         raise DashboardTimezonePreconditionError("dashboard timezone confirmation is required")
     try:
         zone = ZoneInfo(preference.time_zone)
-    except (TypeError, ZoneInfoNotFoundError) as error:
+    except (TypeError, ValueError, ZoneInfoNotFoundError) as error:
         raise DashboardTimezonePreconditionError("dashboard timezone confirmation is required") from error
     instant = now()
     if instant.tzinfo is None:

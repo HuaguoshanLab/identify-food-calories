@@ -70,7 +70,7 @@ def test_weekly_facts_use_local_monday_across_dst_and_fail_closed_before_provide
     assert shanghai.facts.week_start == date(2026, 3, 9)
     assert los_angeles.facts.week_start == date(2026, 3, 2)
 
-    for timezone in (None, "Mars/Olympus"):
+    for timezone in (None, "Mars/Olympus", "/invalid-timezone"):
         invalid = FactsRepository([], timezone)
         with pytest.raises(DashboardTimezonePreconditionError):
             WeeklyReviewService(repository=invalid, cache_repository=object(), provider=lambda _: "unused", now=lambda: instant).get_public_weekly_review(user_id=uuid.uuid4())
