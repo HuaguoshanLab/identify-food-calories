@@ -117,7 +117,7 @@ export function PlanPage() {
       setReport(undefined); setInputChoices(undefined); setLimitReached(false); setStatusKind('refusal'); setStatusMessage(undefined)
       return
     }
-    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(needsInput.success ? needsInput.data.message : undefined); setProgressStage('retryable')
+    setInputChoices(undefined); setStatusKind('error'); setStatusMessage(needsInput.success ? needsInput.data.message : undefined); setProgressStage(snapshot.status === 'terminal' ? 'terminal' : 'retryable')
   }, [report])
 
   useAgentEventStream({ threadId, request, onEvent: (event) => {
@@ -152,10 +152,12 @@ export function PlanPage() {
   }
 
   const relaxation = report?.adjustment?.relaxation
+  const isTerminalCandidateExhausted = statusKind === 'error' && progressStage === 'terminal'
   return <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
     <div className="space-y-2"><h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold leading-9 tracking-tight">计划</h1><p className="text-[15px] leading-6 text-muted-foreground">根据已确认的资料和偏好生成一日三餐参考。</p></div>
     <Alert><AlertTitle>普通饮食参考，不替代医疗建议。</AlertTitle></Alert>
-    {statusMessage ? <Alert variant="destructive"><AlertTitle>{statusMessage}</AlertTitle></Alert> : null}
+    {isTerminalCandidateExhausted ? <FocusedPlanningAlert title="暂时无法生成计划">{statusMessage ?? '当前受控餐单暂时无法满足已确认约束；请稍后重试或修改饮食偏好。'}</FocusedPlanningAlert> : null}
+    {statusMessage && !isTerminalCandidateExhausted ? <Alert variant="destructive"><AlertTitle>{statusMessage}</AlertTitle></Alert> : null}
     {statusKind !== 'refusal' ? <SafePlanningProgress onRetry={startNewPlan} stage={progressStage} /> : null}
     {profileQuery.isError ? <Alert variant="destructive"><AlertTitle>无法读取个人资料</AlertTitle><AlertDescription>你仍可填写本次资料；系统不会自动保存。</AlertDescription></Alert> : null}
     <ProfileGoalForm initialValues={profileQuery.data ?? null} isLoading={profileQuery.isLoading || memoriesQuery.isLoading} preferenceLoadError={memoriesQuery.isError} preferenceSummaries={preferenceSummaries} onStarted={onStarted} />

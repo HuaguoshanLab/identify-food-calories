@@ -148,9 +148,11 @@ describe('PlanPage', () => {
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
-    expect(await screen.findByText('暂时无法生成计划')).toBeInTheDocument()
+    const exhaustionTitle = await screen.findByText('暂时无法生成计划')
+    expect(exhaustionTitle.closest('[role="alert"]')).toHaveTextContent('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')
     expect(screen.getByText('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')).toBeInTheDocument()
     expect(screen.queryByText('暂不能生成个性化餐单')).not.toBeInTheDocument()
+    expect(screen.queryByText(/provider|node|stack|reasoning|raw payload/i)).not.toBeInTheDocument()
   })
 
   it('submits one labelled adjustment on the owned thread without moving focus to the polite replacement summary', async () => {
