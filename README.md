@@ -1,12 +1,12 @@
 # 基于 LangGraph 的多模态饮食健康智能 Agent
 
-本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、文字餐食分析和图片餐食分析闭环；长期记忆、饮食规划和后台管理仍在后续阶段。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标。
+本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据与未完成 E2E 门禁见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
 
 ## 职责
 
 - `frontend/`：独立运行和构建的 React、TypeScript 与 Vite 用户端。
 - `backend/`：FastAPI 模块化单体，依赖方向为 API → Application/Service → Repository → Model。
-- `admin-frontend/`：Phase 6 才创建的独立后台前端，不能塞进用户 H5。
+- `admin-frontend/`：独立后台前端，不能塞进用户 H5；只访问公开 `/api/v1/admin/*`。
 - PostgreSQL 保存权威业务数据；模型不得成为营养数值真相来源。
 - v1 不引入微服务、Kafka、Kubernetes 或互相自由对话的多 Agent 网络。
 
@@ -31,7 +31,7 @@ docker compose ps
 
 ## 启动、迁移与验收
 
-先启动本地依赖，再分别启动后端和用户端。不要把测试库当成开发库；`postgres-test` 是自动化测试唯一允许清空的数据源。
+先启动本地依赖，再分别启动后端、用户端和独立后台。不要把测试库当成开发库；`postgres-test` 是自动化测试唯一允许清空的数据源。
 
 ```bash
 docker compose up -d --wait postgres postgres-test mailpit
@@ -43,6 +43,10 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 
 cd ../frontend
+npm ci
+npm run dev
+
+cd ../admin-frontend
 npm ci
 npm run dev
 ```
@@ -60,7 +64,89 @@ uv run pytest -q
 
 cd ../frontend
 npm run lint && npm run typecheck && npm run test && npm run test:e2e
+
+cd ../admin-frontend
+npm run typecheck && npm test && npm run build
 ```
+
+`frontend` 固定在 `http://127.0.0.1:5178`，后台固定在 `http://127.0.0.1:5179`，FastAPI 默认在 `http://127.0.0.1:8000`。`admin-frontend` 的 `npm run test:e2e` 当前**不是通过门禁**：尚无 Playwright 配置；用户端亦缺少 records dashboard spec。不要把该命令、Vitest 或截图写成已经通过的跨栈 E2E，详见验收记录。
+
+## Phase 6 架构与边界
+
+```mermaid
+flowchart LR
+  H5[frontend: 用户 H5 SPA] -->|公开 /api/v1| API[FastAPI API]
+  ADM[admin-frontend: 独立管理 SPA] -->|公开 /api/v1/admin/*| API
+  API --> SVC[领域 Service / Application]
+  SVC --> REPO[Repository]
+  REPO --> PG[(PostgreSQL)]
+  API --> AGENT[Agent API / LangGraph]
+  AGENT --> TOOLS[受控 Tools]
+  TOOLS --> SVC
+  AGENT -. 只能读取确定性 facts .-> DASH[Dashboard weekly-review graph]
+  DASH --> CACHE[(版本化 review cache)]
+```
+
+两份 SPA 都只能经公开 HTTP 合约访问后端；前端 route guard 不构成授权。管理员请求由 `app.admin.service.AdminService` 重新读取 PostgreSQL 当前角色，餐食和看板聚合只读取已确认快照。LangGraph 不直接访问数据库：Agent 只通过受控 tools 调用领域服务；周复盘 graph 只接收去标识、确定性的聚合 facts，Provider 不是营养数字或权限真相。
+
+```mermaid
+stateDiagram-v2
+  [*] --> no_records
+  no_records --> recorded: completed_validated 报告\n确认保存 + IANA 时区
+  recorded --> overview: Service 固化 local_date\n并写入餐食快照
+  overview --> history: 签名 keyset cursor
+  overview --> insufficient: 覆盖不足
+  overview --> reviewing: 覆盖合格且 cache miss
+  reviewing --> reviewed: facts-only graph 通过语义阀
+  reviewing --> safe_abstention: 安全/预算/停用/未知结果
+  reviewed --> [*]
+  insufficient --> [*]
+  safe_abstention --> [*]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as 用户 H5
+  participant A as FastAPI / Agent
+  participant R as Records Service
+  participant D as Dashboard Service
+  U->>A: 分析并确认保存（IANA time_zone）
+  A->>R: 仅接受 completed_validated 报告
+  R->>R: 固化 consumed_local_date
+  R-->>U: 餐食详情与快照版本
+  U->>D: overview / history(cursor) / weekly-review
+  D-->>U: 聚合事实、签名 cursor、闭合安全状态
+```
+
+```mermaid
+sequenceDiagram
+  participant M as 管理员 SPA
+  participant A as Admin API
+  participant S as Admin Service
+  participant P as PostgreSQL
+  M->>A: 草稿预览 / If-Match / 理由
+  A->>S: DB-RBAC + 服务端 diff
+  S->>P: 草稿、不可变 publication、eligibility history
+  S->>P: append-only audit
+  S-->>M: revision、影响范围和审计结果
+  M->>A: runtime config 命令
+  A->>S: 非密钥快照 + optimistic version
+  S-->>M: 后续运行使用的新版本
+```
+
+## 调试与可追溯验收
+
+- 后端读模型、cursor、facts-first cache：[`backend/app/dashboard/service.py`](backend/app/dashboard/service.py)、[`backend/tests/dashboard/test_dashboard_service.py`](backend/tests/dashboard/test_dashboard_service.py)。
+- SSE 安全阶段：[`backend/app/agent/api.py`](backend/app/agent/api.py)、[`backend/tests/agent/test_safe_stream_stage_mapping.py`](backend/tests/agent/test_safe_stream_stage_mapping.py)。
+- 管理员 DB RBAC、不可变目录和运行配置快照：[`backend/app/admin/service.py`](backend/app/admin/service.py)、[`backend/tests/admin/test_catalog_lifecycle_service.py`](backend/tests/admin/test_catalog_lifecycle_service.py)、[`backend/tests/admin/test_runtime_config_service.py`](backend/tests/admin/test_runtime_config_service.py)。
+- 真实浏览器成功路径、边界和未完成项：[`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
+
+### 可验证的面试深挖题
+
+1. 为什么保存请求必须提交 IANA 时区而不是由浏览器展示时再换算？从 [`backend/app/records/service.py`](backend/app/records/service.py) 和 [`backend/tests/integration/test_record_local_time_attribution.py`](backend/tests/integration/test_record_local_time_attribution.py) 追踪。
+2. 为什么 dashboard history 使用签名 keyset cursor，而不是 offset？从 [`backend/app/dashboard/schemas.py`](backend/app/dashboard/schemas.py) 与 [`backend/tests/dashboard/test_dashboard_service.py`](backend/tests/dashboard/test_dashboard_service.py) 验证。
+3. 为什么周复盘不把 Profile 或 Agent State 交给模型？对照 [`backend/app/dashboard/weekly_review_graph.py`](backend/app/dashboard/weekly_review_graph.py) 和冻结 [`backend/tests/evals/test_weekly_review_eval.py`](backend/tests/evals/test_weekly_review_eval.py)。
+4. 为什么后台 UI 隐藏菜单不能替代 RBAC？从 [`backend/app/admin/api.py`](backend/app/admin/api.py)、[`backend/app/admin/service.py`](backend/app/admin/service.py) 与 [`backend/tests/unit/test_admin_rbac_api.py`](backend/tests/unit/test_admin_rbac_api.py) 检查。
 
 管理员不通过用户 H5 创建。先注册、验证一个真实账号，然后按 [`backend/README.md`](backend/README.md#本地运行) 的 `app.admin.cli bootstrap` 或 `promote` 命令操作；两种操作都会留下可审计记录。
 

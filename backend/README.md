@@ -23,6 +23,8 @@ uv run python scripts/setup_local_checkpointer.py
 uv run uvicorn app.main:app --reload
 ```
 
+运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
+
 `.env.example` 现在是可直接运行的本地最小配置：复制后只需在 `DEEPSEEK_API_KEY=` 后粘贴自己的 Key。它已固定项目支持的 `deepseek-v4-flash` 和成本快照；本地邮件继续由 Mailpit 接收，图片识别与长期记忆默认使用离线 Fake Provider。真实 Qwen 图片识别、Mem0 与生产环境不是“一把 Key”就能安全开启的功能，必须按各自 Provider 的部署契约显式配置。
 
 `bootstrap_local_planning_data.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等导入受控食材与三餐种子；它不会 reset 数据库或写入用户资料。缺少这一步时，饮食规划没有合格候选，不能生成餐单。`setup_local_checkpointer.py` 只会在同一受保护的本地范围内幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
@@ -81,6 +83,22 @@ uv run python -m app.admin.cli promote \
 
 两条命令都只接受已存在的账号；角色变化和 `admin_role_audit` 记录在同一个数据库事务内提交。CLI 拒绝匿名、未验证/inactive/non-admin actor、自我提升和空 reason。
 
+## Phase 6 调试路径
+
+```bash
+# Dashboard / weekly-review 的 fake-repository 单测与冻结 eval
+uv run pytest tests/dashboard tests/evals/test_weekly_review_eval.py -q
+
+# 管理员 Service 与 HTTPX 合约
+uv run pytest tests/admin tests/unit/test_admin_rbac_api.py tests/unit/test_admin_catalog_api.py tests/unit/test_admin_run_api.py -q
+
+# 真实 PostgreSQL read model / publication / records（通过受保护 wrapper）
+uv run python tests/run_pg.py --env-file .env.test.example -- \
+  uv run pytest tests/integration/test_dashboard_repository.py tests/integration/test_dashboard_overview_projection.py tests/integration/test_catalog_publish_eligibility.py -q
+```
+
+Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit/runtime）、`0017`（catalog draft）与 `0018`（catalog lifecycle）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
+
 ## 文件索引
 
 | 路径 | 职责 |
@@ -102,3 +120,5 @@ uv run python -m app.admin.cli promote \
 | `evals/` | 无真实用户数据的 Phase 2 文字与 Phase 3 多模态冻结评测案例、Fake 回放和离线 hash/语义校验器 |
 | `scripts/` | 受保护的测试数据库初始化、开发规划种子与 Checkpointer 初始化、应用启动入口 |
 | `tests/` | 单元、集成和 API 合约测试 |
+| `app/dashboard/` | 用户看板读模型、签名 cursor、facts-first 周复盘 cache 与安全 graph |
+| `app/admin/` | DB-RBAC、审计、运行配置、目录草稿与 immutable publication 生命周期 |

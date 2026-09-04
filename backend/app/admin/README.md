@@ -16,9 +16,9 @@
 |---|---|
 | `__init__.py` | Python 包标识 |
 | `models.py` | 角色提升、通用 append-only 审计、草稿/review/immutable publication、active pointer 与 eligibility history ORM 映射 |
-| `schemas.py` | probe、最小审计 timeline、严格运行配置/草稿/生命周期命令、只读配置与 lifecycle diff、安全 publication projection 运行时契约 |
+| `schemas.py` | probe、最小审计 timeline、严格运行配置/草稿/生命周期命令、只读配置与 server-derived diff、安全 publication projection 运行时契约 |
 | `ports.py` | Service 所需 flush-only 草稿、review/publication、pointer 与最新 eligibility 持久化能力协议 |
 | `repository.py` | SQLAlchemy 查询、advisory lock、flush-only 审计、草稿与 publication lifecycle adapter |
-| `service.py` | 数据库权威 RBAC、原子角色提升、运行配置 optimistic version、命令审计、revision/幂等草稿变更、只读 projection 与 immutable publication lifecycle |
+| `service.py` | 数据库权威 RBAC、原子角色提升、运行配置 optimistic version、命令审计、revision/幂等草稿变更、只读 projection 与 immutable publication lifecycle；不信任客户端 diff。 |
 | `api.py` | `/api/v1/admin/probe`、`/runtime-config`、`/audit`、草稿 preview/read/lifecycle-preview/command，以及 review/publish/disqualification HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |

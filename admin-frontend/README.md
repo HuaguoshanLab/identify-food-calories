@@ -6,7 +6,7 @@
 
 它不是用户 H5 的扩展：不得导入 `frontend/src`、不得向用户 H5 注册后台路由，也不得读取数据库或服务端源码。所有数据只能通过公开的 `/api/v1/admin/*` HTTP 合约取得；最终授权始终由后端读取 PostgreSQL 当前角色决定。
 
-当前已具备独立的 Vite 供应链与构建边界；应用入口和业务页面仍按已批准的 Phase 6 计划分步创建。后台可独立部署，构建产物不包含用户 H5 的源码、路由或组件。
+当前已具备登录/probe shell、overview、catalog lifecycle、runs、runtime config 与 audit 页面。后台可独立部署，构建产物不包含用户 H5 的源码、路由或组件。
 
 ## 允许依赖
 
@@ -32,6 +32,22 @@ npm run test:e2e
 
 前端路由和可见性只改善体验。每一个真实请求仍由后端 `/api/v1/admin/*` 从 PostgreSQL 读取当前角色并执行 RBAC；前端不能保存、伪造或替代该授权判断。
 
+`npm run test:e2e` 当前不是可通过门禁：项目尚无 Playwright 配置或 `admin-management.spec.ts`，不能把 Vitest、构建成功或手工页面观察称为后台 Playwright PASS。真实后台浏览器证据仅覆盖 catalog 草稿→审核→发布、runs 最小详情和 audit；overview、UTC filter 深链、失格、runtime disable、普通用户/过期会话拒绝仍待隔离环境补验，见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
+
+### Phase 6 后台调试
+
+```bash
+# feature-owned strict DTO、页面与 RBAC 会话体验
+npm test -- --run \
+  src/auth/AdminLoginPage.test.tsx \
+  src/features/catalog/CatalogDraftPage.test.tsx \
+  src/features/catalog/CatalogLifecyclePage.test.tsx \
+  src/features/runs/RunsPage.test.tsx \
+  src/features/audit/AuditPage.test.tsx \
+  src/features/overview/AdminOverviewPage.test.tsx
+npm run typecheck && npm run build
+```
+
 ## 文件索引
 
 | 路径 | 职责 |
@@ -46,6 +62,9 @@ npm run test:e2e
 | `tsconfig*.json` / `vite-env.d.ts` | 应用与 Vite 配置的严格 TypeScript project references、初始环境类型锚点 |
 | `tailwind.config.ts` / `postcss.config.js` | 后台语义 token 与 Tailwind 构建适配 |
 | `components.json` | 官方 shadcn Base UI registry 的受限生成配置 |
+| `src/auth/` | 公开登录、只驻留内存的 access token、probe guard 与 Query cache 清理 |
+| `src/features/catalog/` | 严格预览、草稿、审核、发布与失格 UI；可信 diff 始终来自后端 |
+| `src/features/runs/` / `src/features/audit/` | 最小运行诊断和 append-only 审计读取 UI |
 
 ## 实施顺序
 

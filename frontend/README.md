@@ -2,7 +2,7 @@
 
 ## 职责
 
-`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供认证、餐食分析、显式保存的餐食记录以及长期偏好管理。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
+`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供认证、餐食分析、显式保存的餐食记录、records dashboard、周复盘和长期偏好管理。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
 
 ## 允许依赖
 
@@ -30,12 +30,31 @@ npm run build
 npm run verify:production-bundle
 ```
 
+records 页面位于 `/app/records`：overview、趋势、history 与周复盘仅使用后端确认的餐食快照和闭合安全状态。页面请求、严格 Zod DTO 与 tests 都归于 [`src/features/records/`](src/features/records/README.md)；它不计算营养、伪造目标，也不把模型/Provider 原文渲染到页面。
+
 Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Testing Library 验证用户可见行为。
 
 健康与认证 E2E 不要求手工启动服务：
 
 ```bash
 npm run test:e2e
+```
+
+该命令目前只覆盖现有认证等 E2E；`frontend/tests/e2e/records-dashboard.spec.ts` 尚未创建，Phase 6 records 真实浏览器闭环不能写成 Playwright PASS。已实测的公开页面路径、结果及仍需补齐的准备条件见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
+
+### Phase 6 前端调试
+
+```bash
+# records DTO、保存 IANA 时区、history cursor 与组件行为
+npm test -- --run \
+  src/features/records/api/client.test.ts \
+  src/features/records/api/dashboard.test.ts \
+  src/features/records/components/TodaySummaryCard.test.tsx \
+  src/features/records/components/WeeklyTrend.test.tsx \
+  src/features/records/components/WeeklyReview.test.tsx
+
+# SSE 只映射本地 allowlist 安全文案
+npm test -- --run src/features/agent/components/SafeProgressStages.test.tsx src/features/agent/stream/useAgentEventStream.test.ts
 ```
 
 Promptfoo 的真实 Provider 评测需要 Phase 02-17 单独的人类费用授权；授权后只允许使用已有 lockfile 的 CLI：`npx --no-install promptfoo`。不能运行 `npx promptfoo` 或 `npx -y`，因为它们会绕过锁定版本并下载未知依赖。
