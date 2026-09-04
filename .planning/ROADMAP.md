@@ -207,7 +207,7 @@ Plans:
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** UI-02, UI-03, ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ARC-08, EDU-02, EDU-03
-**Plans:** 25/25 plans complete
+**Plans:** 29/29 plans complete
 
 Plans:
 
@@ -310,5 +310,5 @@ Plans:
 | 3. 多模态餐食分析闭环 | 5/5 | Complete   | 2026-09-01 |
 | 4. 餐食记录与长期记忆 | 7/7 | Complete    | 2026-09-01 |
 | 5. 饮食规划子图 | 11/11 | Complete   | 2026-09-02 |
-| 6. 用户看板与后台管理 | 25/25 | Complete   | 2026-09-04 |
+| 6. 用户看板与后台管理 | 29/29 | Complete   | 2026-09-04 |
 | 7. 评测、安全与上线 | Pending | 0/TBD | - |
