@@ -180,6 +180,7 @@ Plans:
 **Plans:** 11/11 plans complete
 
 Plans:
+
 - [x] 05-01-PLAN.md — 冻结并测试 `target-policy.v1` 与首轮确认合同
 - [x] 05-07-PLAN.md — 最小化、显式保存的个人资料持久化
 - [x] 05-08-PLAN.md — 审核、许可明确且可重算的受控菜谱
@@ -191,6 +192,7 @@ Plans:
 - [x] 05-10-PLAN.md — H5 调整、放宽、上限和拒绝状态
 - [x] 05-06-PLAN.md — 跨层回归、浏览器验收与中文教学文档
 - [x] 05-11-PLAN.md — 修复单餐调整完成后的无障碍通知滚动劫持
+
 **Success Criteria:**
 
 1. 身体数据与目标经确定性公式生成每日能量和宏量营养约束。
@@ -209,31 +211,73 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [x] 06-01-PLAN.md — 冻结餐食统计时区事实
-- [x] 06-02-PLAN.md — Dashboard 读 API 与完成计划投影
-- [x] 06-03-PLAN.md — 可撤销的完成计划权威投影
-- [x] 06-04-PLAN.md — Records 页看板接入与四 Tab 约束
 - [x] 06-05-PLAN.md — Agent 流的安全业务阶段映射
-- [x] 06-06-PLAN.md — H5 流式安全进度呈现
-- [x] 06-07-PLAN.md — Facts-first 周复盘存储、缓存与复用
-- [x] 06-08-PLAN.md — 版本化、去标识化周复盘评测输入
-- [x] 06-09-PLAN.md — 周复盘 API 与 H5 呈现
 - [x] 06-10-PLAN.md — 独立管理员 SPA 供应链与构建边界
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 06-03-PLAN.md — 可撤销的完成计划权威投影
+- [x] 06-06-PLAN.md — H5 流式安全进度呈现
+- [x] 06-24-PLAN.md — 管理员后台运行时入口、Provider tree 与样式
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 06-02-PLAN.md — Dashboard 读 API 与完成计划投影
+- [x] 06-25-PLAN.md — 剩余后台目录 README 与父索引
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 06-04-PLAN.md — Records 页看板接入与四 Tab 约束
+- [x] 06-07-PLAN.md — Facts-first 周复盘存储、缓存与复用
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 06-08-PLAN.md — 版本化、去标识化周复盘评测输入
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [x] 06-11-PLAN.md — Admin DB-RBAC 与审计查询
+- [x] 06-23-PLAN.md — 受限周复盘 Graph、Provider adapter 与冻结评测
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 06-09-PLAN.md — 周复盘 API 与 H5 呈现
 - [x] 06-12-PLAN.md — 营养目录草稿后端工作流
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [x] 06-13-PLAN.md — 营养目录草稿后台 UI
 - [x] 06-14-PLAN.md — 目录审核、发布与失格事务协议
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [x] 06-15-PLAN.md — 目录审核、发布与失格后台 UI
 - [x] 06-16-PLAN.md — 非密钥运行配置与准入后端
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [x] 06-17-PLAN.md — 后台认证壳与模型配置 UI
 - [x] 06-18-PLAN.md — 运行指标与最小化查询 API
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [x] 06-19-PLAN.md — 后台 runs/audit UI
-- [x] 06-20-PLAN.md — 跨栈真实路径回归与内置浏览器验收
-- [x] 06-21-PLAN.md — Phase 6 文档与中文教学
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
 - [x] 06-22-PLAN.md — 后台登录、会话壳与 overview
-- [x] 06-23-PLAN.md — 受限周复盘 Graph、Provider adapter 与冻结评测
-- [x] 06-24-PLAN.md — 管理员后台运行时入口、Provider tree 与样式
-- [x] 06-25-PLAN.md — 剩余后台目录 README 与父索引
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [x] 06-20-PLAN.md — 跨栈真实路径回归与内置浏览器验收
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [x] 06-21-PLAN.md — Phase 6 文档与中文教学
+
 **Success Criteria:**
 
 1. 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。
