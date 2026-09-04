@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-18-PLAN.md
-last_updated: "2026-09-04T01:39:04.794Z"
-last_activity: 2026-09-03
+stopped_at: Completed 06-20-PLAN.md; missing Playwright assets are documented in its SUMMARY.
+last_updated: "2026-09-04T02:26:33.712Z"
+last_activity: 2026-09-04
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 90
-  completed_plans: 88
+  completed_plans: 89
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06 (user-dashboard-admin) — EXECUTING
-Plan: 22 of 25
+Plan: 23 of 25
 Status: Ready to execute
-Last activity: 2026-09-03
+Last activity: 2026-09-04
 
-Progress: [██████████] 98%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Progress: [██████████] 98%
 | Phase 06 P17 | 42min | 2 tasks | 15 files |
 | Phase 06 P18 | 24 min | 2 tasks | 10 files |
 | Phase 06 P19 | 10min | 2 tasks | 13 files |
+| Phase 06 P20 | 20 min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -210,6 +211,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 管理员 run detail 只映射白名单 run/invocation 字段。 — 阻止用户数据、Provider 原文、图像、Graph State、reasoning 或密钥越过后台响应边界。
 - [Phase 06]: runs metrics 与列表共用同一 UTC allowlist filter，筛选变化清除 opaque cursor。 — 防止 overview/list 口径漂移或旧分页位置穿越新的筛选集。
 - [Phase 06]: audit 页面只渲染服务端 audit DTO 中的固定安全 scalar diff 字段，不显示 command key 或未知字段。 — 保持通用审计可读，同时阻止未来敏感字段自动穿透到 DOM。
+- [Phase 06]: 已发布目录的 canonical_name 必须进入受控搜索候选，餐食保存只能读取 completed_validated 报告。 — 真实浏览器发布→分析→保存链发现 aliases-only 与 completed 事件名漂移会使公开链路失败。
+- [Phase 06]: 前端严格 DTO 对 FastAPI 末页省略字段必须给出安全默认值。 — response_model_exclude_none 省略 next_cursor 时恢复 null，仍拒绝未知字段，避免将成功 history 误报为失败。
 
 ### Pending Todos
 
@@ -220,6 +223,7 @@ None yet.
 - [Phase 02]: 当前 24-case code-eval（文件 SHA `85971eb9…`）已完成双角色真实复审和独立 36-call Judge（实际计费上限 `0.00451584 CNY`）；新发布报告仍为 `FAIL`，因为五个 Judge 分数均为 4、Spearman 未定义。此发布限制不阻止后续阶段规划，但不得改分、重试刷绿或对外宣称发布通过；认证成功/错误/空态的内置浏览器矩阵仍未完成。
 - [Phase 4]: Mem0 长期记忆必须验证用户隔离、可审计写入和删除链。
 - Phase 05 isolated planning E2E cannot reach the completed three-meal snapshot: the Agent generation path shows the generic retryable UI before Plan 11's scroll/focus assertions. See .planning/phases/05-diet-planning-subgraph/deferred-items.md.
+- Phase 06-20 的真实浏览器成功链已完成，但 frontend records-dashboard 与 admin-management Playwright 资产/配置仍缺失；详见 06-20-SUMMARY.md，不能将自动化 E2E 门禁视为通过。
 
 ## Deferred Items
 
@@ -230,6 +234,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T12:37:15.811Z
-Stopped at: Completed 06-18-PLAN.md
+Last session: 2026-09-04T02:25:51.811Z
+Stopped at: Completed 06-20-PLAN.md; missing Playwright assets are documented in its SUMMARY.
 Resume file: None
