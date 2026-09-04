@@ -328,10 +328,18 @@ class AdminService:
         )
 
     def get_run_metrics(self, *, actor_user_id: uuid.UUID, **filters: object) -> AdminRunMetricsResponse:
-        """Read aggregate evidence only after a current database role check."""
+        """Read aggregate evidence with an explicit server-owned UTC window."""
 
         self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
-        return cast(AdminRunMetricsResponse, self._repository.run_metrics(**filters))
+        upper = filters.get("occurred_before") or self._now()
+        lower = filters.get("occurred_after") or (upper - timedelta(hours=24))
+        if not isinstance(lower, datetime) or not isinstance(upper, datetime):
+            raise ValueError("run metric window must contain datetime values")
+        normalized_filters = {**filters, "occurred_after": lower, "occurred_before": upper}
+        return cast(
+            AdminRunMetricsResponse,
+            self._repository.run_metrics(**normalized_filters),
+        )
 
     def list_agent_runs(
         self, *, actor_user_id: uuid.UUID, limit: int, cursor: str | None, **filters: object

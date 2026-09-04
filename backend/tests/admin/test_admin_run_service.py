@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -36,7 +36,7 @@ class FakeRunRepository:
         self.metric_filters = filters
         return AdminRunMetricsResponse(
             terminal_count=4, failure_ratio=Decimal("0.25"), p50_elapsed_ms=120,
-            p95_elapsed_ms=250, total_cost_usd=Decimal("0.004200"),
+            p95_elapsed_ms=250, total_cost_usd=Decimal("0.004200"), from_=filters["occurred_after"], to=filters["occurred_before"],
         )
 
     def list_runs(self, **filters: object) -> list[AdminRunDetailResponse]:
@@ -68,6 +68,8 @@ def test_metrics_and_list_share_terminal_window_and_filters() -> None:
     )
 
     assert metrics.terminal_count == 4
+    assert metrics.from_ == NOW
+    assert metrics.to == NOW
     assert isinstance(page, AdminRunPageResponse)
     assert repository.metric_filters == {k: v for k, v in repository.list_filters.items() if k != "limit" and k != "cursor_position"}
 
@@ -78,3 +80,17 @@ def test_run_reads_require_current_database_admin_role() -> None:
 
     with pytest.raises(AdminPermissionDenied):
         service.get_run_metrics(actor_user_id=user.id)
+
+
+def test_metrics_default_window_is_server_owned_utc_24_hours() -> None:
+    admin = _user(role=UserRole.ADMIN.value)
+    repository = FakeRunRepository(admin)
+    service = AdminService(repository=repository, cursor_secret="test-secret", now=lambda: NOW)
+
+    metrics = service.get_run_metrics(actor_user_id=admin.id)
+
+    assert metrics.from_ == NOW - timedelta(hours=24)
+    assert metrics.to == NOW
+    assert repository.metric_filters is not None
+    assert repository.metric_filters["occurred_after"] == metrics.from_
+    assert repository.metric_filters["occurred_before"] == metrics.to

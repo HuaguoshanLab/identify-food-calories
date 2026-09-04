@@ -250,6 +250,8 @@ class SqlAlchemyAdminRepository:
             p50_elapsed_ms=round(p50) if p50 is not None else None,
             p95_elapsed_ms=round(p95) if p95 is not None else None,
             total_cost_usd=Decimal(str(cost)),
+            from_=filters["occurred_after"],
+            to=filters["occurred_before"],
         )
 
     def list_runs(self, *, limit: int, cursor_position: tuple[datetime, uuid.UUID] | None, **filters: object) -> list[AgentRun]:

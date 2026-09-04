@@ -20,6 +20,7 @@ class StubRunService:
         return AdminRunMetricsResponse(
             terminal_count=2, failure_ratio=Decimal("0.5"), p50_elapsed_ms=10,
             p95_elapsed_ms=20, total_cost_usd=Decimal("0.000200"),
+            from_=datetime(2026, 9, 2, tzinfo=UTC), to=datetime(2026, 9, 3, tzinfo=UTC),
         )
 
     def list_agent_runs(self, **_kwargs: object) -> AdminRunPageResponse:
@@ -51,6 +52,9 @@ def test_run_endpoints_return_only_allowlisted_ledger_fields() -> None:
         detail = client.get(f"/api/v1/admin/runs/{listing.json()['items'][0]['id']}")
 
     assert metrics.status_code == listing.status_code == detail.status_code == 200
+    assert set(metrics.json()) == {"terminal_count", "failure_ratio", "p50_elapsed_ms", "p95_elapsed_ms", "total_cost_usd", "from", "to"}
+    assert metrics.json()["from"] == "2026-09-02T00:00:00Z"
+    assert metrics.json()["to"] == "2026-09-03T00:00:00Z"
     payload = detail.json()
     assert set(payload) == {
         "id", "status", "graph_version", "model_provider", "model_version", "graph_steps",

@@ -9,6 +9,8 @@ export const overviewMetricsSchema = z.object({
   p50_elapsed_ms: z.number().int().nonnegative().nullable(),
   p95_elapsed_ms: z.number().int().nonnegative().nullable(),
   total_cost_usd: decimalTextSchema,
+  from: isoDateTimeSchema,
+  to: isoDateTimeSchema,
 }).strict()
 
 export type OverviewMetrics = z.infer<typeof overviewMetricsSchema>

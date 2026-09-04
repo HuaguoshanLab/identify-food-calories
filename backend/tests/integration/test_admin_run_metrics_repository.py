@@ -53,6 +53,8 @@ def test_postgres_metrics_and_keyset_use_the_same_terminal_finished_at_predicate
     assert metrics.terminal_count == 2
     assert metrics.failure_ratio == Decimal("0.500000")
     assert metrics.total_cost_usd == Decimal("0.004000")
+    assert metrics.from_ == filters["occurred_after"]
+    assert metrics.to == filters["occurred_before"]
     assert len(page) == 1 and page[0].finished_at == now - timedelta(hours=1)
     second = repository.list_runs(limit=1, cursor_position=(page[0].finished_at, page[0].id), **filters)
     assert [run.id for run in second] != [run.id for run in page]

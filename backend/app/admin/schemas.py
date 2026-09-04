@@ -356,13 +356,15 @@ class AdminRunQuery(BaseModel):
 class AdminRunMetricsResponse(BaseModel):
     """Shared server-side terminal-run metrics; browsers do not recalculate them."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
     terminal_count: int = Field(ge=0)
     failure_ratio: Decimal = Field(ge=0, le=1)
     p50_elapsed_ms: int | None = Field(default=None, ge=0)
     p95_elapsed_ms: int | None = Field(default=None, ge=0)
     total_cost_usd: Decimal = Field(ge=0)
+    from_: datetime = Field(serialization_alias="from", validation_alias="from")
+    to: datetime
 
 
 class AdminRunDetailResponse(BaseModel):
