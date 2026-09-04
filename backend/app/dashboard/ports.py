@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.planning.schemas import DailyTarget
+
+
+@dataclass(frozen=True)
+class DashboardTimezone:
+    """The records-owned, explicitly confirmed statistical basis for one user."""
+
+    time_zone: str
+
+
+class DashboardTimezoneReadPort(Protocol):
+    """Read only the confirmed statistical basis; dashboard never writes it."""
+
+    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None: ...
 
 
 class CompletionTargetProjection(Protocol):

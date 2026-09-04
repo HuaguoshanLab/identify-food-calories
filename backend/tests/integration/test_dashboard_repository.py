@@ -12,7 +12,7 @@ from app.agent.models import AgentRun, AgentThread
 from app.auth.models import User, UserRole
 from app.dashboard.repository import SqlAlchemyDashboardRepository
 from app.dashboard.schemas import DashboardHistoryCursor
-from app.records.models import MealRecord
+from app.records.models import DashboardTimezonePreference, MealRecord
 
 
 pytestmark = pytest.mark.skipif(
@@ -91,3 +91,24 @@ def test_history_keyset_uses_date_timestamp_and_id_without_leaks_or_duplicates(d
 
     assert {page_one[0].id, page_two[0].id} == {first.id, second.id}
     assert page_one[0].id != page_two[0].id
+
+
+def test_confirmed_dashboard_timezone_is_tenant_scoped_and_has_no_default(db_session) -> None:
+    now = datetime(2026, 9, 2, 12, tzinfo=UTC)
+    owner, _, _ = _identity(db_session, label="timezone-owner", now=now)
+    other, _, _ = _identity(db_session, label="timezone-other", now=now)
+    missing, _, _ = _identity(db_session, label="timezone-missing", now=now)
+    db_session.add_all([
+        DashboardTimezonePreference(user_id=owner.id, time_zone="Asia/Shanghai", confirmed_at=now),
+        DashboardTimezonePreference(user_id=other.id, time_zone="America/Los_Angeles", confirmed_at=now),
+    ])
+    db_session.flush()
+
+    repository = SqlAlchemyDashboardRepository(db_session)
+
+    owner_zone = repository.get_dashboard_timezone_for_user(user_id=owner.id)
+    other_zone = repository.get_dashboard_timezone_for_user(user_id=other.id)
+
+    assert owner_zone is not None and owner_zone.time_zone == "Asia/Shanghai"
+    assert other_zone is not None and other_zone.time_zone == "America/Los_Angeles"
+    assert repository.get_dashboard_timezone_for_user(user_id=missing.id) is None

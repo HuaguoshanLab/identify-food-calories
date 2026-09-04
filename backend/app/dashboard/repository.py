@@ -12,9 +12,10 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.dashboard.models import WeeklyReviewResult
+from app.dashboard.ports import DashboardTimezone
 from app.dashboard.schemas import DashboardHistoryCursor, DashboardHistoryRecord, DashboardNutritionTotals
 from app.dashboard.weekly_review_dto import WeeklyReviewCacheKey
-from app.records.models import MealRecord
+from app.records.models import DashboardTimezonePreference, MealRecord
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,15 @@ class SqlAlchemyDashboardRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None:
+        """Read the one-time records-owned preference without inferring a fallback."""
+        time_zone = self._session.scalar(
+            select(DashboardTimezonePreference.time_zone).where(
+                DashboardTimezonePreference.user_id == user_id
+            )
+        )
+        return DashboardTimezone(time_zone=time_zone) if time_zone is not None else None
 
     def get_daily_aggregates(
         self, *, user_id: uuid.UUID, start_date: date, end_date: date
