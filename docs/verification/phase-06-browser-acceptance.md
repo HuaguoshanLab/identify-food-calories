@@ -11,12 +11,27 @@
 | 已发布目录→保存纵向 PostgreSQL 回归 | `APP_ENV=test ... uv run pytest tests/integration/test_meal_records.py tests/records/test_record_service.py tests/unit/test_meal_record_api.py -q` | PASS，12 passed | 通过受审计的测试 RuntimeConfig 准入，覆盖 completed_validated 报告→保存→更新→隔离→删除；未访问验收库。 |
 | H5 records DTO 回归 | `cd frontend && npm test -- --run src/features/records/api/dashboard.test.ts src/features/records/api/client.test.ts src/features/records/components/HistoryMealList.test.tsx` | PASS，4 passed | 覆盖浏览器 IANA 时区、保存响应本地日期字段、FastAPI history 时间戳及末页省略 cursor。 |
 
-## 未通过的自动化门禁（不得视为通过）
+## 自动化门禁状态（不得以部分通过替代浏览器验收）
 
 | 门禁 | 实际结果 | 阻塞原因 |
 | --- | --- | --- |
-| H5 Playwright：`records-dashboard`、安全 SSE、周复盘 | BLOCKED | `frontend/tests/e2e/records-dashboard.spec.ts` 缺失；已有安全 SSE/周复盘 spec 的隔离运行环境没有可通过公开路径准备的 RuntimeConfig。不得通过 seed、直接数据库写入或伪造身份补齐。 |
-| 独立后台 Playwright：`admin-management` | BLOCKED | `admin-frontend/` 尚无 Playwright 配置和 `admin-management.spec.ts`；当前命令会把 Vitest 配置误作 runner 并在 `src/test/setup.ts` 失败。 |
+| H5 Playwright：`records-dashboard` | PASS | 2026-09-04 在 fresh guarded `food_agent_test`、8002/5182/5185 的专属 runner 通过。实际顺序为浏览器注册验证首位账户 → audited CLI bootstrap → admin Guard 200 → RuntimeConfig UI `POST 201` → 普通用户分析、安全 SSE、确认保存和 Records 四项公开投影；未使用 DB/token/internal shortcut 或真实模型。 |
+| 独立后台 Playwright：`admin-management` | FAIL（未闭合） | 2026-09-04 在同类隔离 runner 运行至目录“审核草稿”对话框后，等待预期公开 POST 超过 45 秒。该回归属于 06-28 资产；06-29 不修改该计划文件，也不把它标为 Green。 |
+
+## 06-29 本轮内置浏览器验收状态
+
+**执行日期：** 2026-09-04（Asia/Shanghai）
+
+**隔离环境：** guarded `food_agent_test`；FastAPI `http://127.0.0.1:8002`、用户 SPA `http://127.0.0.1:5182`、独立 admin SPA `http://127.0.0.1:5185`。
+**证据边界：** 本轮仅可把 Codex 内置浏览器的实际页面观察写为 PASS；Playwright、截图、数据库写入、seed、复制/伪造 token 或 Cookie、内部函数都不能替代它。
+
+| 要求路径 | 角色 | 结果 | 观察 / 阻塞 |
+| --- | --- | --- | --- |
+| admin Guard 200 → RuntimeConfig UI `POST 201` | 隔离首位管理员 | BLOCKED | 用户已在页面最终激活测试账号前确认，但执行恢复时 Codex 内置浏览器会话不可用，未能操作页面；没有改用 Chrome、Playwright、直接 API 或 CLI 配置来替代。 |
+| analyze → 安全 SSE → 保存 → Records | 普通用户 | BLOCKED | 未建立浏览器普通用户会话，因而没有页面提交用户原文、没有 SSE/DOM 观察，也没有保存。Records Playwright PASS 只能作为自动化证据。 |
+| admin probe 403 → forbidden → 无私有渲染 | 普通用户 | BLOCKED | 未建立浏览器普通用户后台会话，因而没有新的实际 Bearer 403/forbidden 页面观察；不以 06-27 mock、API 测试或 Playwright 替代。 |
+
+本轮没有记录凭据、验证码、Cookie、access/refresh token、用户原文、原图、Provider body、密钥或完整模型输出。内置浏览器恢复可用后，必须从上述三条路径重新进行实际公开页面验收，才能把本节改为 PASS。
 
 ## 已由 Codex 内置浏览器确认的公开页面
 

@@ -15,4 +15,4 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 验收证据目录边界与索引。 |
-| `phase-06-browser-acceptance.md` | Phase 06 用户 H5、后台、拒绝流和自动化门禁的实机验收记录。 |
+| `phase-06-browser-acceptance.md` | Phase 06 用户 H5、后台、拒绝流和自动化门禁记录；明确区分实际 Codex 内置浏览器观察、可重复 Playwright 与 blocked/failed 回归，后两者不能冒充实机验收。 |
