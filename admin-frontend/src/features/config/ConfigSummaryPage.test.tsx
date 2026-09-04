@@ -36,7 +36,7 @@ function renderConfigPage() {
 function EstablishAdminSession() {
   const { establishSession } = useAdminAuth()
   useEffect(() => {
-    establishSession({ accessToken: 'runtime-only-token', identity: { id: '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c', role: 'admin' } })
+    establishSession({ accessToken: 'runtime-only-token', identity: { id: '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c' } })
   }, [establishSession])
   return null
 }
