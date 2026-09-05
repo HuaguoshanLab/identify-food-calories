@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     test_database_url: str | None = None
     secret_key: SecretStr = SecretStr("local-development-secret-not-for-production")
     cookie_secure: bool = False
+    # Also used by the refresh/logout CSRF gate: configure both user and admin
+    # browser origins explicitly, even when their requests use a Vite proxy.
     cors_origins: list[str] = ["http://localhost:5173"]
     smtp_host: str = "mailpit"
     smtp_port: int = 1025

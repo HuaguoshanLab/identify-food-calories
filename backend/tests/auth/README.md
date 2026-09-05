@@ -19,5 +19,5 @@
 | `test_login_me_api.py` | login Cookie、Bearer 失败、真实 PostgreSQL `/users/me` 与 OpenAPI 证据 |
 | `test_login_rate_limit_service.py` | HMAC bucket、可控时钟、失败阈值与成功复位的 Service 合约证据 |
 | `test_refresh_service.py` | fake Repository 下 opaque refresh rotation、replay family revoke 与用户作用域会话协议 |
-| `test_refresh_api.py` | refresh/logout/session 的 Cookie、CSRF、稳定错误与 OpenAPI 非泄露合约 |
+| `test_refresh_api.py` | refresh/logout/session 的 Cookie、CSRF、稳定错误、OpenAPI 非泄露，以及示例配置包含5178/5179且拒绝伪造来源的回归合约 |
 | `test_phase1_security_contract.py` | Phase 1 路由公开面、OpenAPI 脱敏与敏感值日志防护总合同 |

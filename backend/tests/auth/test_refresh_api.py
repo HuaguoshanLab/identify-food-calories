@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import uuid
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -73,7 +75,7 @@ class StubRefreshService:
         return False
 
 
-def _client(service: object, *, cookie_secure: bool = False) -> TestClient:
+def _client(service: object, *, cookie_secure: bool = False, cors_origins: list[str] | None = None) -> TestClient:
     application = create_app(
         Settings(
             app_env="test",
@@ -81,7 +83,7 @@ def _client(service: object, *, cookie_secure: bool = False) -> TestClient:
             test_database_url="postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test",
             secret_key="refresh-api-test-secret-with-at-least-forty-eight-bytes",
             cookie_secure=cookie_secure,
-            cors_origins=["http://localhost:5173"],
+            cors_origins=cors_origins if cors_origins is not None else ["http://localhost:5173"],
             smtp_host="localhost",
             smtp_from_email="noreply@local.test",
             _env_file=None,
@@ -106,6 +108,26 @@ def test_refresh_rotates_httponly_cookie_without_exposing_refresh_secret() -> No
     cookie = response.headers["set-cookie"]
     assert f"{REFRESH_TOKEN_COOKIE}=new-opaque-refresh-value" in cookie
     assert "HttpOnly" in cookie and "Path=/api/v1/auth" in cookie and "SameSite=lax" in cookie
+
+
+def test_local_example_allows_both_spas_without_relaxing_origin_gate() -> None:
+    # Read only the public example's origin list, not local secrets or provider config.
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    line = next(line for line in example.read_text().splitlines() if line.startswith("CORS_ORIGINS="))
+    origins = json.loads(line.split("=", 1)[1])
+    for host in ("localhost", "127.0.0.1"):
+        for port in (5178, 5179):
+            origin = f"http://{host}:{port}"
+            assert origin in origins
+            response = _client(StubRefreshService(), cors_origins=origins).post(
+                "/api/v1/auth/refresh", cookies={REFRESH_TOKEN_COOKIE: "old-opaque-value"},
+                headers={"Origin": origin},
+            )
+            assert response.status_code == 200
+    rejected = _client(StubRefreshService(), cors_origins=origins).post(
+        "/api/v1/auth/refresh", headers={"Origin": "http://127.0.0.1:5179.attacker.example"},
+    )
+    assert rejected.status_code == 403
 
 
 def test_refresh_requires_origin_or_referer_that_matches_exact_cors_origin() -> None:
