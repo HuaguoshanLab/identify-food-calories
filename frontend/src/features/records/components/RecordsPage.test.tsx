@@ -50,8 +50,15 @@ describe('RecordsPage timezone confirmation gate', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/meal-records/dashboard-time-zone-confirmations', expect.anything()))
     await waitFor(() => expect(request).toHaveBeenCalledWith('/dashboard/overview'))
     expect(request).toHaveBeenCalledWith('/dashboard/weekly-review')
-    expect(request.mock.calls.filter(([path]) => /(?:week_start|time_zone)/.test(String(path)))).toHaveLength(1)
+    expect(request.mock.calls.filter(([path]) => String(path).startsWith('/dashboard/')).map(([path]) => String(path))).not.toContainEqual(expect.stringMatching(/(?:week_start|time_zone)/))
     expect(screen.getByRole('heading', { name: '记录' })).toBeInTheDocument()
+    const today = screen.getByText('今日已记录摄入')
+    const trend = screen.getByRole('heading', { name: '本周趋势' })
+    const history = screen.getByRole('heading', { name: '历史记录' })
+    const weeklyReview = screen.getByRole('heading', { name: '周复盘' })
+    expect(today.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(trend.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(history.compareDocumentPosition(weeklyReview) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('different-zone 409 显示安全冲突，并关闭所有 dashboard reads', async () => {
@@ -68,14 +75,14 @@ describe('RecordsPage timezone confirmation gate', () => {
   })
 
   it.each([
-    { browserZone: 'Asia/Shanghai', today: '2026-09-07', weekStart: '2026-09-07' },
-    { browserZone: 'America/Los_Angeles', today: '2026-09-06', weekStart: '2026-08-31' },
-  ])('同一 UTC instant 的 $browserZone fixture 只渲染 server today/week，不读取 host 时区', async ({ browserZone, today, weekStart }) => {
+    { browserZone: 'Asia/Shanghai', today: '2026-09-07', weekStart: '2026-09-07', week: ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13'] },
+    { browserZone: 'America/Los_Angeles', today: '2026-09-06', weekStart: '2026-08-31', week: ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06'] },
+  ])('同一 UTC instant 的 $browserZone fixture 只渲染 server today/week，不读取 host 时区', async ({ browserZone, today, weekStart, week }) => {
     vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: browserZone } as Intl.ResolvedDateTimeFormatOptions)
     const serverOverview = {
       ...overview,
       today: { ...overview.today, consumed_local_date: today },
-      week: Array.from({ length: 7 }, (_, index) => ({ ...overview.week[0], consumed_local_date: new Date(`${weekStart}T00:00:00Z`).setUTCDate(new Date(`${weekStart}T00:00:00Z`).getUTCDate() + index) && new Date(new Date(`${weekStart}T00:00:00Z`).setUTCDate(new Date(`${weekStart}T00:00:00Z`).getUTCDate() + index)).toISOString().slice(0, 10) })),
+      week: week.map((consumed_local_date) => ({ ...overview.week[0], consumed_local_date })),
     }
     const request = vi.fn<AuthenticatedRequest>((path: string) => {
       if (path === '/meal-records/dashboard-time-zone-confirmations') return Promise.resolve(new Response(JSON.stringify({ dashboard_time_zone: browserZone, confirmed_at: '2026-09-04T02:00:00Z' }), { status: 200 }))
