@@ -7,11 +7,13 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.agent.models import AgentEvent, AgentRun
-from app.records.models import MealRecord
+from app.records.models import DashboardTimezonePreference, MealRecord
 from app.records.service import (
     ConsumedAtInvalid,
+    DashboardTimeZoneAlreadyConfirmed,
     InvalidTimeZone,
     MealRecordConfirmationUnavailable,
     MealRecordService,
@@ -49,8 +51,10 @@ class FakeMealRecordRepository:
         self.report = report
         self.records: list[MealRecord] = []
         self.thread_deleted = False
-        self.dashboard_time_zones: dict[uuid.UUID, str] = {}
+        self.dashboard_time_zones: dict[uuid.UUID, DashboardTimezonePreference] = {}
         self.backfill_audits: list[object] = []
+        self.preference_add_calls = 0
+        self.integrity_error_preference: DashboardTimezonePreference | None = None
 
     def get_completed_run_for_thread_for_user(self, *, thread_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False) -> AgentRun | None:
         if self.run is None or self.run.status != "completed" or self.run.thread_id != thread_id or self.run.user_id != user_id:
@@ -78,13 +82,20 @@ class FakeMealRecordRepository:
     def list_records_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
         return sorted((record for record in self.records if record.user_id == user_id and record.deleted_at is None), key=lambda record: (record.consumed_at, record.id), reverse=True)
 
-    def get_dashboard_time_zone_preference_for_user(self, *, user_id: uuid.UUID, for_update: bool = False) -> object | None:
-        return object() if user_id in self.dashboard_time_zones else None
+    def get_dashboard_time_zone_preference_for_user(
+        self, *, user_id: uuid.UUID, for_update: bool = False
+    ) -> DashboardTimezonePreference | None:
+        return self.dashboard_time_zones.get(user_id)
 
-    def add_dashboard_time_zone_preference(self, preference: object) -> object:
-        user_id = getattr(preference, "user_id")
-        time_zone = getattr(preference, "time_zone")
-        self.dashboard_time_zones[user_id] = time_zone
+    def add_dashboard_time_zone_preference(
+        self, preference: DashboardTimezonePreference
+    ) -> DashboardTimezonePreference:
+        self.preference_add_calls += 1
+        if self.integrity_error_preference is not None:
+            self.dashboard_time_zones[preference.user_id] = self.integrity_error_preference
+            self.integrity_error_preference = None
+            raise IntegrityError("dashboard timezone preference conflict", {}, RuntimeError("unique"))
+        self.dashboard_time_zones[preference.user_id] = preference
         return preference
 
     def list_records_without_local_date_for_user(self, *, user_id: uuid.UUID) -> list[MealRecord]:
@@ -95,8 +106,17 @@ class FakeMealRecordRepository:
         return audit
 
 
-def _service(repository: FakeMealRecordRepository, commits: list[bool] | None = None) -> MealRecordService:
-    return MealRecordService(repository=repository, now=lambda: NOW, commit=(lambda: commits.append(True)) if commits is not None else None)
+def _service(
+    repository: FakeMealRecordRepository,
+    commits: list[bool] | None = None,
+    rollbacks: list[bool] | None = None,
+) -> MealRecordService:
+    return MealRecordService(
+        repository=repository,
+        now=lambda: NOW,
+        commit=(lambda: commits.append(True)) if commits is not None else None,
+        rollback=(lambda: rollbacks.append(True)) if rollbacks is not None else None,
+    )
 
 
 def test_confirm_requires_the_current_users_completed_complete_report() -> None:
@@ -214,5 +234,111 @@ def test_confirmed_dashboard_timezone_backfills_only_owned_legacy_rows_once() ->
     assert len(owner_repository.backfill_audits) == 1
     assert "historical location" not in confirmation.model_dump_json().lower()
 
-    with pytest.raises(ValueError):
-        service.confirm_dashboard_time_zone(user_id=owner, time_zone="Asia/Shanghai")
+    assert service.confirm_dashboard_time_zone(user_id=owner, time_zone="Asia/Shanghai") == confirmation
+
+
+def test_dashboard_timezone_confirmation_same_key_is_idempotent_without_extra_writes() -> None:
+    user_id = uuid.uuid4()
+    repository = FakeMealRecordRepository(run=None, report=None)
+    commits: list[bool] = []
+    service = _service(repository, commits)
+
+    first = service.confirm_dashboard_time_zone(user_id=user_id, time_zone="Asia/Shanghai")
+    second = service.confirm_dashboard_time_zone(user_id=user_id, time_zone="Asia/Shanghai")
+
+    assert second == first
+    assert second.confirmed_at == first.confirmed_at == NOW
+    assert repository.preference_add_calls == 1
+    assert len(repository.backfill_audits) == 1
+    assert commits == [True]
+
+
+def test_dashboard_timezone_confirmation_different_key_is_generic_conflict_without_writes() -> None:
+    user_id = uuid.uuid4()
+    repository = FakeMealRecordRepository(run=None, report=None)
+    commits: list[bool] = []
+    service = _service(repository, commits)
+    service.confirm_dashboard_time_zone(user_id=user_id, time_zone="Asia/Shanghai")
+
+    with pytest.raises(DashboardTimeZoneAlreadyConfirmed) as error:
+        service.confirm_dashboard_time_zone(user_id=user_id, time_zone="America/Los_Angeles")
+
+    assert "Asia/Shanghai" not in str(error.value)
+    assert "America/Los_Angeles" not in str(error.value)
+    assert repository.dashboard_time_zones[user_id].time_zone == "Asia/Shanghai"
+    assert repository.preference_add_calls == 1
+    assert len(repository.backfill_audits) == 1
+    assert commits == [True]
+
+
+@pytest.mark.parametrize(
+    ("candidate", "stored", "expected_exception"),
+    [
+        ("Asia/Shanghai", "Asia/Shanghai", None),
+        ("America/Los_Angeles", "Asia/Shanghai", DashboardTimeZoneAlreadyConfirmed),
+    ],
+)
+def test_dashboard_timezone_confirmation_recovers_concurrent_unique_conflict_by_rereading(
+    candidate: str, stored: str, expected_exception: type[Exception] | None
+) -> None:
+    user_id = uuid.uuid4()
+    repository = FakeMealRecordRepository(run=None, report=None)
+    repository.integrity_error_preference = DashboardTimezonePreference(
+        user_id=user_id, time_zone=stored, confirmed_at=NOW - timedelta(minutes=1)
+    )
+    commits: list[bool] = []
+    rollbacks: list[bool] = []
+    service = _service(repository, commits, rollbacks)
+
+    if expected_exception is None:
+        confirmation = service.confirm_dashboard_time_zone(user_id=user_id, time_zone=candidate)
+        assert confirmation.dashboard_time_zone == stored
+        assert confirmation.confirmed_at == NOW - timedelta(minutes=1)
+    else:
+        with pytest.raises(expected_exception) as error:
+            service.confirm_dashboard_time_zone(user_id=user_id, time_zone=candidate)
+        assert stored not in str(error.value)
+        assert candidate not in str(error.value)
+
+    assert rollbacks == [True]
+    assert commits == []
+    assert repository.preference_add_calls == 1
+    assert repository.backfill_audits == []
+
+
+@pytest.mark.parametrize("invalid_time_zone", ["/invalid-timezone", "../Etc/UTC"])
+def test_all_records_writes_reject_invalid_timezone_before_any_mutation(invalid_time_zone: str) -> None:
+    user_id, thread_id = uuid.uuid4(), uuid.uuid4()
+    repository = FakeMealRecordRepository(run=_run(user_id=user_id, thread_id=thread_id), report=_report())
+    commits: list[bool] = []
+    service = _service(repository, commits)
+    record = service.confirm_from_completed_run(
+        user_id=user_id,
+        thread_id=thread_id,
+        command_key="save-key-00000001",
+        consumed_at=NOW - timedelta(hours=1),
+        time_zone="UTC",
+    )
+    preference = service.confirm_dashboard_time_zone(user_id=user_id, time_zone="Asia/Shanghai")
+    before = (len(repository.records), repository.preference_add_calls, len(repository.backfill_audits), list(commits))
+
+    with pytest.raises(InvalidTimeZone):
+        service.confirm_from_completed_run(
+            user_id=user_id,
+            thread_id=thread_id,
+            command_key="save-key-00000002",
+            consumed_at=NOW - timedelta(hours=1),
+            time_zone=invalid_time_zone,
+        )
+    with pytest.raises(InvalidTimeZone):
+        service.update_record(
+            record_id=record.id,
+            user_id=user_id,
+            consumed_at=NOW - timedelta(days=1),
+            time_zone=invalid_time_zone,
+        )
+    with pytest.raises(InvalidTimeZone):
+        service.confirm_dashboard_time_zone(user_id=user_id, time_zone=invalid_time_zone)
+
+    assert (len(repository.records), repository.preference_add_calls, len(repository.backfill_audits), commits) == before
+    assert repository.dashboard_time_zones[user_id].time_zone == preference.dashboard_time_zone
