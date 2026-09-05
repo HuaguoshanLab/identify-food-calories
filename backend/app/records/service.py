@@ -147,8 +147,13 @@ class MealRecordService:
 
         now = self._now()
         zone = self._validated_time_zone(time_zone)
-        if self._repository.get_dashboard_time_zone_preference_for_user(user_id=user_id, for_update=True):
-            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed")
+        existing_preference = self._repository.get_dashboard_time_zone_preference_for_user(
+            user_id=user_id, for_update=True
+        )
+        if existing_preference is not None:
+            return self._confirmed_dashboard_time_zone_or_conflict(
+                preference=existing_preference, candidate_time_zone=zone
+            )
         legacy_records = self._repository.list_records_without_local_date_for_user(user_id=user_id)
         try:
             self._repository.add_dashboard_time_zone_preference(
@@ -171,6 +176,13 @@ class MealRecordService:
             # The unique preference/audit constraints are the final one-time-confirmation guard
             # when concurrent requests both observed no row before acquiring their transaction locks.
             self._rollback()
+            existing_preference = self._repository.get_dashboard_time_zone_preference_for_user(
+                user_id=user_id, for_update=True
+            )
+            if existing_preference is not None:
+                return self._confirmed_dashboard_time_zone_or_conflict(
+                    preference=existing_preference, candidate_time_zone=zone
+                )
             raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed") from error
         except Exception:
             self._rollback()
@@ -201,8 +213,20 @@ class MealRecordService:
     def _validated_time_zone(time_zone: str) -> ZoneInfo:
         try:
             return ZoneInfo(time_zone)
-        except (TypeError, ZoneInfoNotFoundError) as error:
+        except (TypeError, ValueError, ZoneInfoNotFoundError) as error:
             raise InvalidTimeZone("time_zone must be a valid IANA timezone") from error
+
+    @staticmethod
+    def _confirmed_dashboard_time_zone_or_conflict(
+        *, preference: DashboardTimezonePreference, candidate_time_zone: ZoneInfo
+    ) -> DashboardTimezoneConfirmationResponse:
+        """Only the identical persisted statistical basis may safely replay a confirmation."""
+
+        if preference.time_zone != candidate_time_zone.key:
+            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed")
+        return DashboardTimezoneConfirmationResponse(
+            dashboard_time_zone=preference.time_zone, confirmed_at=preference.confirmed_at
+        )
 
     @staticmethod
     def _local_date(consumed_at: datetime, zone: ZoneInfo) -> date:

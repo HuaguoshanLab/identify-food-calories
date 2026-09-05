@@ -23,7 +23,7 @@
 | `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |
 | `test_image_safety.py` | 锁定图片真实解码、metadata 剥离、私有临时存储与到期删除边界。 |
 | `test_vision_provider.py` | 锁定 Vision DTO、Fake trace、失败类别与 test/production Provider 选择。 |
-| `test_meal_record_api.py` | 餐食记录认证、IANA 时区确认、OpenAPI 与安全 DTO 的 HTTP 契约。 |
+| `test_meal_record_api.py` | 餐食记录认证、三条写命令的安全 IANA 400、统计时区确认、OpenAPI 与安全 DTO 的 HTTP 契约。 |
 | `test_weekly_review_api.py` | 周复盘公开 HTTP 的周边界、闭合安全 outcome 与无技术字段契约。 |
 | `test_memory_api.py` | 长期记忆认证、DTO 脱敏与跨用户访问 HTTP 契约。 |
 | `test_agent_memory_context.py` | 安全上下文提示进入 Graph 但不改变确定性营养总计的契约。 |
