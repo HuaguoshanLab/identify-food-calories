@@ -17,6 +17,14 @@ const dashboardTimezoneConfirmationSchema = z.object({
 
 export type DashboardTimezoneConfirmation = z.infer<typeof dashboardTimezoneConfirmationSchema>
 
+/** A changed browser zone cannot replace the persisted statistical basis. */
+export class DashboardTimezoneConflictError extends Error {
+  constructor() {
+    super('dashboard time zone conflicts with the confirmed statistical basis')
+    this.name = 'DashboardTimezoneConflictError'
+  }
+}
+
 async function parsed(response: Response): Promise<MealRecord> { return mealRecordSchema.parse(await response.json()) }
 export async function listMealRecords(request: ApiRequest): Promise<MealRecord[]> { const response = await request('/meal-records'); if (!response.ok) throw new Error('records unavailable'); return mealRecordSchema.array().parse(await response.json()) }
 export async function getMealRecord(request: ApiRequest, id: string): Promise<MealRecord> { const response = await request(`/meal-records/${id}`); if (!response.ok) throw new Error('record unavailable'); return parsed(response) }
@@ -41,14 +49,14 @@ export async function confirmMealRecord(request: ApiRequest, threadId: string, c
 export async function confirmDashboardTimeZone(
   request: ApiRequest,
   timeZone: string,
-): Promise<DashboardTimezoneConfirmation | null> {
+): Promise<DashboardTimezoneConfirmation> {
   const response = await request('/meal-records/dashboard-time-zone-confirmations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ time_zone: timeZone }),
   })
-  if (response.status === 409) return null
-  if (!response.ok) throw new Error('dashboard time zone confirmation failed')
+  if (response.status === 409) throw new DashboardTimezoneConflictError()
+  if (response.status !== 200) throw new Error('dashboard time zone confirmation failed')
   return dashboardTimezoneConfirmationSchema.parse(await response.json())
 }
 export async function updateMealRecord(request: ApiRequest, id: string, consumedAt: string): Promise<MealRecord> { const response = await request(`/meal-records/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consumed_at: consumedAt }) }); if (!response.ok) throw new Error('record update failed'); return parsed(response) }

@@ -14,7 +14,7 @@
 |---|---|
 | `schemas.ts` | 餐食记录安全响应 DTO |
 | `client.ts` | 保存、列表、详情、修改和删除请求；浏览器 IANA zone 只能通过 records confirmation command 提交 |
-| `client.test.ts` | 保存请求必须提交浏览器 IANA 时区；confirmation 严格解析 200，并把既有 preference 的 409 作为读取 gate 成功 |
-| `dashboard.test.ts` | history 严格 DTO 接受后端 RFC 3339 时间戳、将被 `response_model_exclude_none` 省略的 cursor 恢复为 null，并验证 cache key 只含真实请求变量 |
-| `dashboard.ts` | strict dashboard overview/history DTO、只反映 `weekStart`/cursor 的 query key 与公开读取请求；不接收浏览器 timezone |
-| `weeklyReview.ts` | strict weekly-review safe-outcome DTO、只按 `weekStart` 缓存的公开读取请求；服务端已确认 preference 是统计权威 |
+| `client.test.ts` | 保存请求必须提交浏览器 IANA 时区；confirmation 仅严格 200 成功，different-zone 409 是可分类安全冲突 |
+| `dashboard.test.ts` | history 严格 DTO 接受后端 RFC 3339 时间戳、将被 `response_model_exclude_none` 省略的 cursor 恢复为 null，并验证 current cache key/URL 不含浏览器范围 |
+| `dashboard.ts` | strict dashboard overview/history DTO；overview current key 固定且无范围，history 只使用 opaque cursor |
+| `weeklyReview.ts` | strict weekly-review safe-outcome DTO；无参数 current 与显式 completed history 使用独立 typed 调用/key，服务端 preference 是统计权威 |

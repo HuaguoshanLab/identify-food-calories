@@ -12,9 +12,17 @@ export const weeklyReviewResponseSchema = z.object({
   if (value.status !== 'success' && value.suggestions.length > 0) context.addIssue({ code: 'custom', message: 'only success may include suggestions' })
 })
 export type WeeklyReviewResponse = z.infer<typeof weeklyReviewResponseSchema>
+const completedWeekStartSchema = z.string().date()
+export type CompletedWeekStart = z.infer<typeof completedWeekStartSchema>
 
-export const weeklyReviewQueryKeys = { detail: (weekStart: string) => ['dashboard', 'weekly-review', weekStart] as const }
+export const weeklyReviewQueryKeys = {
+  current: () => ['dashboard', 'weekly-review', 'current'] as const,
+  completed: (weekStart: CompletedWeekStart) => ['dashboard', 'weekly-review', 'completed', weekStart] as const,
+}
 
 async function read(response: Response): Promise<WeeklyReviewResponse> { if (!response.ok) throw new Error('weekly review unavailable'); return weeklyReviewResponseSchema.parse(await response.json()) }
-export async function getWeeklyReview(request: AuthenticatedRequest, weekStart: string): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review?week_start=${encodeURIComponent(weekStart)}`)) }
-export async function refreshWeeklyReview(request: AuthenticatedRequest, weekStart: string): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review/refresh?week_start=${encodeURIComponent(weekStart)}`, { method: 'POST' })) }
+/** Omitted week_start is the server-owned current week. */
+export async function getWeeklyReview(request: AuthenticatedRequest): Promise<WeeklyReviewResponse> { return read(await request('/dashboard/weekly-review')) }
+export async function refreshWeeklyReview(request: AuthenticatedRequest): Promise<WeeklyReviewResponse> { return read(await request('/dashboard/weekly-review/refresh', { method: 'POST' })) }
+/** Historical review is explicit and remains separate from the current-window request/key. */
+export async function getCompletedWeeklyReview(request: AuthenticatedRequest, weekStart: CompletedWeekStart): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review?week_start=${encodeURIComponent(weekStart)}`)) }

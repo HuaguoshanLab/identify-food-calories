@@ -19,10 +19,11 @@ export type DashboardOverview = z.infer<typeof dashboardOverviewSchema>
 export type DashboardHistoryPage = z.infer<typeof dashboardHistoryPageSchema>
 
 export const dashboardQueryKeys = {
-  overview: (weekStart: string) => ['dashboard', 'overview', weekStart] as const,
+  overview: () => ['dashboard', 'overview', 'current'] as const,
   history: (cursor: string | null) => ['dashboard', 'history', cursor] as const,
 }
 
 async function readJson(response: Response): Promise<unknown> { if (!response.ok) throw new Error('dashboard unavailable'); return response.json() }
-export async function getDashboardOverview(request: AuthenticatedRequest, weekStart: string): Promise<DashboardOverview> { return dashboardOverviewSchema.parse(await readJson(await request(`/dashboard/overview?week_start=${encodeURIComponent(weekStart)}`))) }
+/** The API owns the current local week from the confirmed dashboard preference. */
+export async function getDashboardOverview(request: AuthenticatedRequest): Promise<DashboardOverview> { return dashboardOverviewSchema.parse(await readJson(await request('/dashboard/overview'))) }
 export async function getDashboardHistory(request: AuthenticatedRequest, cursor: string | null): Promise<DashboardHistoryPage> { return dashboardHistoryPageSchema.parse(await readJson(await request(cursor === null ? '/dashboard/history' : `/dashboard/history?cursor=${encodeURIComponent(cursor)}`))) }
