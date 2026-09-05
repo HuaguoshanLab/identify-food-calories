@@ -1,26 +1,13 @@
 import { z } from 'zod'
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAdminAuth } from './AdminAuthProvider'
+import { accessTokenSchema, currentUserSchema } from './session'
 
 const credentialsSchema = z.object({
   email: z.string().trim().email('请输入有效邮箱地址。').max(320),
   password: z.string().min(12, '密码至少需要 12 个字符。').max(128),
-}).strict()
-
-const accessTokenSchema = z.object({
-  access_token: z.string().min(1),
-  token_type: z.literal('bearer'),
-  expires_in: z.number().int().positive(),
-}).strict()
-
-const currentUserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  email_verified_at: z.string().datetime({ offset: true }).nullable(),
-  is_active: z.boolean(),
-  role: z.string(),
 }).strict()
 
 function safeReturnTo(value: string | null) {
@@ -42,7 +29,7 @@ async function requestJson(path: string, init: RequestInit) {
  * probes DB-RBAC before rendering any administrative navigation or data.
  */
 export function AdminLoginPage() {
-  const { establishSession } = useAdminAuth()
+  const { establishSession, isRestoring, isAuthenticated } = useAdminAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [errors, setErrors] = useState<Partial<Record<'email' | 'password', string>>>({})
@@ -79,6 +66,9 @@ export function AdminLoginPage() {
       setSubmitting(false)
     }
   }
+
+  if (isRestoring) return <main aria-busy="true" className="admin-runtime-root">正在恢复登录…</main>
+  if (isAuthenticated) return <Navigate replace to={safeReturnTo(searchParams.get('returnTo'))} />
 
   return <main className="admin-runtime-root mx-auto grid max-w-md content-center gap-6" aria-labelledby="admin-login-title">
     <header><p className="text-sm text-muted-foreground">饮食健康智能 Agent</p><h1 className="mt-2 text-[28px] font-semibold leading-9" id="admin-login-title">后台登录</h1><p className="mt-2 text-sm text-muted-foreground">请使用已获授权的管理员账号。后台授权始终由服务器确认。</p></header>

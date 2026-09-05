@@ -27,12 +27,14 @@ async function probeAdminAccess(accessToken: string) {
  */
 export function AdminRouteGuard({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
-  const { accessToken, clearSession } = useAdminAuth()
+  const { accessToken, clearSession, isRestoring } = useAdminAuth()
   const location = useLocation()
-  const [state, setState] = useState<ProbeState>(accessToken ? 'checking' : 'unauthenticated')
+  const [state, setState] = useState<ProbeState>('checking')
+  const [checkedToken, setCheckedToken] = useState<string>()
 
   useEffect(() => {
     let active = true
+    if (isRestoring) return
     if (!accessToken) {
       // A guard with no memory token must not expose cache left by a prior identity.
       queryClient.clear()
@@ -43,6 +45,7 @@ export function AdminRouteGuard({ children }: PropsWithChildren) {
     setState('checking')
     void probeAdminAccess(accessToken).then((nextState) => {
       if (!active) return
+      setCheckedToken(accessToken)
       if (nextState !== 'granted') clearSession()
       setState(nextState)
     }).catch(() => {
@@ -51,11 +54,11 @@ export function AdminRouteGuard({ children }: PropsWithChildren) {
       setState('unauthenticated')
     })
     return () => { active = false }
-  }, [accessToken, clearSession, queryClient])
+  }, [accessToken, clearSession, queryClient, isRestoring])
 
-  if (state === 'checking') return <main aria-busy="true" aria-live="polite" className="admin-runtime-root">正在验证后台访问权限…</main>
+  if (isRestoring || state === 'checking' || (accessToken && accessToken !== checkedToken)) return <main aria-busy="true" aria-live="polite" className="admin-runtime-root">正在恢复登录并验证后台访问权限…</main>
   if (state === 'forbidden') return <Navigate replace to="/admin/forbidden" />
-  if (state === 'unauthenticated') {
+  if (!accessToken || state === 'unauthenticated') {
     const returnTo = `${location.pathname}${location.search}`
     const login = returnTo.startsWith('/admin/') ? `/admin/login?returnTo=${encodeURIComponent(returnTo)}` : '/admin/login'
     return <Navigate replace to={login} />

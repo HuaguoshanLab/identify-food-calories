@@ -199,6 +199,12 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   await createRuntimeConfig(page)
   await createAndDisqualifyCatalogEntry(page, suffix)
   await verifyCatalogCsvAndFilters(page, suffix)
+  // A real reload loses React memory: only the HttpOnly cookie may restore access.
+  const restored = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/refresh') && response.status() === 200)
+  await page.reload()
+  await restored
+  await expect(page).toHaveURL(/\/admin\/catalog$/)
+  await expect(page.getByRole('table')).toBeVisible()
 
   const adminRequests: string[] = []
   page.on('request', (requestEvent) => {
@@ -234,4 +240,11 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   } finally {
     await ordinaryContext.close()
   }
+  await page.getByRole('button', { name: '打开会话菜单' }).click()
+  const revoked = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/logout') && response.ok())
+  await page.getByRole('menuitem', { name: '退出登录' }).click()
+  await revoked
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '后台登录' })).toBeVisible()
+  await expect(page.getByTestId('admin-shell')).toHaveCount(0)
 })

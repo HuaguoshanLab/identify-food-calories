@@ -47,6 +47,7 @@ describe('AdminLoginPage', () => {
       }),
     )
     renderLogin()
+    await screen.findByRole('button', { name: '登录后台' })
     await user.click(screen.getByRole('button', { name: '登录后台' }))
     expect(await screen.findByText('请输入有效邮箱地址。')).toBeVisible()
 
@@ -68,6 +69,7 @@ describe('AdminLoginPage', () => {
       http.get(`${apiBase}/users/me`, () => HttpResponse.json({ id: '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c', email: 'member@example.com', email_verified_at: '2026-09-03T00:00:00Z', is_active: true, role: 'user' })),
     )
     renderLogin('/admin/login?returnTo=%2Fadmin%2Fcatalog')
+    await screen.findByLabelText('邮箱')
     await user.type(screen.getByLabelText('邮箱'), 'member@example.com')
     await user.type(screen.getByLabelText('密码'), 'correct-horse-battery')
     await user.click(screen.getByRole('button', { name: '登录后台' }))
@@ -87,6 +89,7 @@ describe('AdminLoginPage', () => {
       http.get(`${apiBase}/users/me`, () => HttpResponse.json({ id: '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c', email: 'member@example.com', email_verified_at: '2026-09-03T00:00:00Z', is_active: false, role: 'user' })),
     )
     renderLogin('/admin/login?returnTo=https://attacker.invalid')
+    await screen.findByLabelText('邮箱')
     await user.type(screen.getByLabelText('邮箱'), 'member@example.com')
     await user.type(screen.getByLabelText('密码'), 'correct-horse-battery')
     await user.click(screen.getByRole('button', { name: '登录后台' }))
