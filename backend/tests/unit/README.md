@@ -18,6 +18,7 @@
 | `test_supply_chain.py` | 验证 Phase 2 新增依赖的版本化、fail-closed 供应链证据门 |
 | `test_test_database_guards.py` | 证明测试数据库配置拒绝危险回退 |
 | `test_runtime_foundation.py` | 验证版本化健康端点、Agent ledger/State、Graph→tool 边界、集中追问与 dirty-item 局部重算 |
+| `test_weight_input.py` | 独立重量解析、受支持单位/精度/范围，以及纯文本与 JSON 补充输入使用同一换算合同 |
 | `test_nutrition.py` | 用内存 fake repository 锁定受控营养查询、Decimal 计算和确定性校验动作 |
 | `test_eval_dataset.py` | 验证 24 个 Phase 2 冻结语义案例、分类门与 append-only hash 链 |
 | `test_phase2_eval_contract.py` | 验证机器评测证据拒绝静态期望冒充，以及发布失败夹具覆盖 |

@@ -20,7 +20,7 @@
 | `unit/` | 不依赖外部服务的快速单元测试，包括 Records 公开 IANA 400/409 与 Dashboard current/history HTTP 安全契约。 |
 | `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试 |
 | `auth/` | 注册、验证码、登录与会话的 Service/API 安全协议测试 |
-| `agent/` | Agent 安全流式阶段映射的契约测试。 |
+| `agent/` | Agent 安全流式阶段映射的契约测试；重量命令测试位于 `unit/test_weight_input.py`。 |
 | `accounts/` | 密码恢复 Service/API、Mailpit 与 PostgreSQL 事务证据 |
 | `records/` | 餐食快照 Service 的 fake repository 协议测试，包括统计时区确认的幂等、泛化冲突、竞争恢复与无写入拒绝。 |
 | `memory/` | 长期偏好 ledger、Provider fake 与删除 outbox Service 测试 |

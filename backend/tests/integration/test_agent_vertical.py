@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import sys
 import uuid
@@ -14,6 +15,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.agent.models import AgentDeletionIntent, AgentEvent, AgentRun, AgentThread
+from app.admin.repository import SqlAlchemyAdminRepository
+from app.admin.schemas import RuntimeConfigCommand
+from app.admin.service import AdminService
 from app.auth.api import get_authentication_service
 from app.auth.models import AuthSession, User, UserRole
 from app.auth.repository import SqlAlchemyAuthRepository
@@ -157,6 +161,17 @@ def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> N
     try:
         with Session(engine) as session:
             user, _auth_session, token = _create_user(session, label="clarification")
+            # This older vertical test predates mandatory runtime admission. Configure
+            # the isolated Fake-provider app explicitly, without bypassing admission.
+            admin, _, _ = _create_user(session, label="weight-test-admin")
+            admin.role = UserRole.ADMIN.value
+            session.commit()
+            AdminService(repository=SqlAlchemyAdminRepository(session), commit=session.commit, rollback=session.rollback).configure_runtime(
+                actor_user_id=admin.id, command_key=f"weight-test-{uuid.uuid4()}",
+                command=RuntimeConfigCommand(provider="deepseek", model_alias="deepseek-v4-flash", enabled=True,
+                    single_call_cap_usd="0.03", period_cap_usd="3", input_usd_per_m="0.2", output_usd_per_m="0.8",
+                    reason="isolated fake-provider weight recovery test", confirm=True),
+            )
             authentication = AuthenticationService(
                 repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
                 issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback,
@@ -172,11 +187,32 @@ def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> N
                 assert len(waiting["report"]["questions"]) == 1
                 thread_id = waiting["thread_id"]
                 first_run = session.query(AgentRun).filter_by(thread_id=uuid.UUID(thread_id)).one()
-                assert first_run.model_calls == 1 and first_run.tool_calls == 0
+                # Fresh text also passes the explicit-preference capture tool once.
+                assert first_run.model_calls == 1 and first_run.tool_calls == 1
+
+                item_id = waiting["report"]["questions"][0]["item_id"]
+                for bad_weight in ("100kg", "100斤", "100ml", "0", "-1", "NaN"):
+                    invalid = client.post(
+                        f"/api/v1/agent/threads/{thread_id}/input",
+                        json={"kind": "description", "text": json.dumps({"answers": {item_id: {"grams": bad_weight}}})}, headers=headers,
+                    )
+                    assert invalid.status_code == 422, invalid.text
+                    assert invalid.json()["error"]["code"] == "INVALID_WEIGHT"
+                    unchanged = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers).json()
+                    assert unchanged == waiting
+
+                # Other invalid answers can reach the graph: a no-op must remain waiting,
+                # not become ANALYSIS_NOT_COMPLETED after Service prepares a resume.
+                invalid_target = client.post(
+                    f"/api/v1/agent/threads/{thread_id}/input",
+                    json={"kind": "description", "text": '{"answers":{"unknown":{"grams":"100g"}}}'}, headers=headers,
+                )
+                assert invalid_target.status_code == 202
+                assert invalid_target.json()["status"] == "waiting"
 
                 resumed = client.post(
                     f"/api/v1/agent/threads/{thread_id}/input",
-                    json={"kind": "description", "text": "100 克"}, headers=headers,
+                    json={"kind": "description", "text": "0.1 kg"}, headers=headers,
                 )
                 assert resumed.status_code == 202, resumed.text
                 snapshot = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers).json()
@@ -187,7 +223,7 @@ def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> N
 
                 correction = client.post(
                     f"/api/v1/agent/threads/{thread_id}/input",
-                    json={"kind": "description", "text": '{"corrections":{"rice-1":{"grams":"150"}}}'}, headers=headers,
+                    json={"kind": "description", "text": '{"corrections":{"rice-1":{"grams":"3两"}}}'}, headers=headers,
                 )
                 assert correction.status_code == 202, correction.text
                 assert correction.json()["status"] == "completed", correction.text

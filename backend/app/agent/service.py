@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,6 +35,7 @@ from app.agent.state import (
 )
 from app.agent.graph import AgentGraph
 from app.agent.schemas import DietPlanningStartCommand
+from app.agent.weight import parse_weight_grams
 from app.planning.ports import PlanningCompletionProjectionWriter
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
@@ -273,7 +273,9 @@ class AgentService:
                 state = previous.model_copy(
                     update={
                         "run_id": run.id,
-                        "status": AgentRuntimeStatus.ACCEPTED,
+                        # Meal graph treats invalid answers as a no-op: preserve waiting
+                        # so an input mistake cannot fall through to a terminal failure.
+                        "status": previous.status if isinstance(previous, MealAgentState) else AgentRuntimeStatus.ACCEPTED,
                     }
                 )
                 finished = await graph.ainvoke(state, resume=command.resume)
@@ -536,13 +538,18 @@ class AgentService:
         except json.JSONDecodeError:
             candidate = None
         if isinstance(candidate, dict) and set(candidate) <= {"answers", "corrections"}:
+            # Reject bad weights before changing run/lease/checkpoint state. Both UI JSON
+            # and plain single-answer input share exactly one conversion contract.
+            for entries in candidate.values():
+                if isinstance(entries, dict):
+                    for answer in entries.values():
+                        if isinstance(answer, dict) and "grams" in answer and answer.get("exclude") is not True:
+                            answer["grams"] = format(parse_weight_grams(answer["grams"]), "f")
             return candidate
         if state.next_action is AgentNextAction.ASK_USER and len(state.clarification_questions) == 1:
             question = state.clarification_questions[0]
             if question.field == "grams":
-                matched = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*(?:g|克)?", text, re.IGNORECASE)
-                if matched is not None:
-                    return {"answers": {question.item_id: {"grams": matched.group(1)}}}
+                return {"answers": {question.item_id: {"grams": format(parse_weight_grams(text), "f")}}}
             if question.field == "food":
                 normalized = " ".join(text.casefold().split())
                 for index, food in enumerate(question.candidates, start=1):

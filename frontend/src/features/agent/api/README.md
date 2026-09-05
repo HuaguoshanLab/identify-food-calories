@@ -4,6 +4,8 @@
 
 本目录只接收由运行时 OpenAPI 合约生成的客户端、类型和校验器。生成产物是浏览器与公开 `/api/v1` 的唯一数据接口；手写 DTO 或把 Graph State 映射进页面都不允许。每次后端 Agent schema 变化后必须先运行 `node generate-contracts.mjs generate-all`，再运行 `check-all`；后者会从真实 `create_app().openapi()` 在临时目录逐字重建所有工件。
 
+重量补充的安全 422 使用现有 AgentErrorResponse；完整重量由后端解析。本次重新生成同时同步了此前未纳入生成物的既有 diet-planning operation，不新增规划业务行为。
+
 ## 允许依赖
 
 - 只能依赖运行时 OpenAPI 生成器产生的文件和公开认证请求边界。

@@ -1,6 +1,18 @@
 {
   "components": {
     "schemas": {
+      "ActivityLevel": {
+        "description": "The only five activity inputs accepted by target-policy.v1.",
+        "enum": [
+          "sedentary",
+          "light",
+          "moderate",
+          "high",
+          "very_high"
+        ],
+        "title": "ActivityLevel",
+        "type": "string"
+      },
       "AgentCommandAcceptedResponse": {
         "additionalProperties": false,
         "properties": {
@@ -230,6 +242,38 @@
         "title": "Body_uploadAgentMealImage",
         "type": "object"
       },
+      "DietPlanningStartCommand": {
+        "additionalProperties": false,
+        "description": "The complete transient input for a new plan; profiles are never inferred by a model.",
+        "properties": {
+          "preferences": {
+            "$ref": "#/components/schemas/PreferenceReview"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PlanningProfileInput"
+          },
+          "save_profile": {
+            "default": false,
+            "title": "Save Profile",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profile",
+          "preferences"
+        ],
+        "title": "DietPlanningStartCommand",
+        "type": "object"
+      },
+      "FormulaVariant": {
+        "description": "Explicit calculation variant; this field is never inferred from user data.",
+        "enum": [
+          "mifflin_st_jeor_male",
+          "mifflin_st_jeor_female"
+        ],
+        "title": "FormulaVariant",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -241,6 +285,169 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "PlanningGoal": {
+        "enum": [
+          "maintain",
+          "loss",
+          "gain"
+        ],
+        "title": "PlanningGoal",
+        "type": "string"
+      },
+      "PlanningProfileInput": {
+        "additionalProperties": false,
+        "description": "Transient profile data. Optional fields allow a safe NEEDS_INPUT response.",
+        "properties": {
+          "activity_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age_years": {
+            "anyOf": [
+              {
+                "maximum": 130,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Years"
+          },
+          "formula_variant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FormulaVariant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanningGoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goal_speed": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Speed"
+          },
+          "has_disease_or_treatment": {
+            "default": false,
+            "title": "Has Disease Or Treatment",
+            "type": "boolean"
+          },
+          "has_eating_disorder_or_self_harm_risk": {
+            "default": false,
+            "title": "Has Eating Disorder Or Self Harm Risk",
+            "type": "boolean"
+          },
+          "has_extreme_weight_control_goal": {
+            "default": false,
+            "title": "Has Extreme Weight Control Goal",
+            "type": "boolean"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "maximum": 250,
+                "minimum": 100,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "is_pregnant_or_breastfeeding": {
+            "default": false,
+            "title": "Is Pregnant Or Breastfeeding",
+            "type": "boolean"
+          },
+          "uses_medication": {
+            "default": false,
+            "title": "Uses Medication",
+            "type": "boolean"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "maximum": 350,
+                "minimum": 20,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "title": "PlanningProfileInput",
+        "type": "object"
+      },
+      "PreferenceReview": {
+        "additionalProperties": false,
+        "description": "Planning may only use preferences after the user has explicitly reviewed them.",
+        "properties": {
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "exclusions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "taste_preferences": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Taste Preferences",
+            "type": "array"
+          }
+        },
+        "required": [
+          "confirmed"
+        ],
+        "title": "PreferenceReview",
         "type": "object"
       },
       "ValidationError": {
@@ -368,6 +575,96 @@
           }
         ],
         "summary": "Create Agent Thread",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/threads/diet-planning": {
+      "post": {
+        "description": "Start one owned planning thread; the key deterministically reuses its ledger command.",
+        "operationId": "createDietPlanningThread",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DietPlanningStartCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentThreadSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer authentication failed."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Thread is unavailable."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentErrorResponse"
+                }
+              }
+            },
+            "description": "Command conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Diet Planning Thread",
         "tags": [
           "agent"
         ]
@@ -836,11 +1133,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AgentErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Invalid weight input; existing analysis remains unchanged."
           }
         },
         "security": [

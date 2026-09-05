@@ -38,6 +38,11 @@ export async function retryAgentRun(request: AgentApiRequest, thread_id: string)
 }
 export type retryAgentRunResponse = Contract.AgentCommandAcceptedResponse
 
+export async function createDietPlanningThread(request: AgentApiRequest, payload: Contract.DietPlanningStartCommand): Promise<Response> {
+  return request(`/agent/threads/diet-planning`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+}
+export type createDietPlanningThreadResponse = Contract.AgentThreadSnapshot
+
 export async function createAgentImageThread(request: AgentApiRequest): Promise<Response> {
   return request(`/agent/threads/image`, { method: 'POST' })
 }

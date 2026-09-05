@@ -699,11 +699,12 @@ def _monotonic_ms() -> int:
 
 
 def _decimal_answer(value: object) -> Decimal | None:
+    from app.agent.weight import InvalidWeightInput, parse_weight_grams
+
     try:
-        grams = Decimal(str(value))
-    except Exception:
+        return parse_weight_grams(value)
+    except InvalidWeightInput:
         return None
-    return grams if Decimal("0") < grams <= Decimal("2000") else None
 
 
 def _recover_single_explicit_grams(

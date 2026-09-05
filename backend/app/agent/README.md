@@ -21,6 +21,7 @@
 | `service.py` | 所有权、命令幂等、事件、调用、图片/视觉 invocation、validated planning completion projection 与 D-18 期限选择事务边界 |
 | `retention.py` | FastAPI lifespan 驱动的 PostgreSQL advisory-lease 保留 Worker；按最早图片过期、7d/30d/删除期限唤醒，并处理记忆删除 outbox 的安全计数 |
 | `state.py` | 版本化、受限、JSON-safe 的 MealAgentState 与独立 DietPlanningState；规划恢复只保存 opaque replay marker。 |
+| `weight.py` | 独立用户重量命令解析；完整识别受支持单位，Decimal 换算克数后校验范围，不推断营养或模糊份量。 |
 | `tools.py` | Graph 到确定性 Nutrition/Planning Service、显式偏好捕获及安全个人上下文检索的唯一工具适配器。 |
 | `graph.py` | 主图路由、受限餐食/规划子图、槽位局部替换和 FastAPI lifespan runtime 合同。 |
 | `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention Worker |

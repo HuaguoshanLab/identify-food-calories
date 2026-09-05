@@ -35,6 +35,7 @@ from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminService
 from app.agent.state import AgentGraphKind, StateImageReference
 from app.agent.supervisor import PostgresLeaseSupervisor
+from app.agent.weight import InvalidWeightInput
 from app.images.schemas import ImageValidationError, ValidatedImageReference
 from app.images.service import ImageSafetyService
 from app.auth.api import AuthenticatedPrincipal
@@ -335,7 +336,7 @@ async def upload_agent_meal_image(
     )
 
 
-@router.post("/threads/{thread_id}/input", operation_id="submitAgentInput", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)
+@router.post("/threads/{thread_id}/input", operation_id="submitAgentInput", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses={**_ERROR_RESPONSES, 422: {"model": AgentErrorResponse, "description": "Invalid weight input; existing analysis remains unchanged."}})
 async def submit_agent_input(
     thread_id: uuid.UUID,
     payload: AgentInputRequest,
@@ -349,12 +350,15 @@ async def submit_agent_input(
         raise _unavailable() from None
     runtime = _runtime(request)
     planning_thread = latest is not None and latest.graph_version == DIET_PLANNING_GRAPH_VERSION
-    resume_payload = await service.resume_payload_for_text(
-        checkpointer=runtime.checkpointer,
-        thread_id=thread_id,
-        text=payload.text,
-        graph_kind=AgentGraphKind.DIET_PLANNING if planning_thread else AgentGraphKind.MEAL_ANALYSIS,
-    )
+    try:
+        resume_payload = await service.resume_payload_for_text(
+            checkpointer=runtime.checkpointer,
+            thread_id=thread_id,
+            text=payload.text,
+            graph_kind=AgentGraphKind.DIET_PLANNING if planning_thread else AgentGraphKind.MEAL_ANALYSIS,
+        )
+    except InvalidWeightInput as error:
+        return _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "INVALID_WEIGHT", str(error))
     try:
         return await _submit_agent_input_after_admission(
             thread_id=thread_id, payload=payload, principal=principal, service=service,
