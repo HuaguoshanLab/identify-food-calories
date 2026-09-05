@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext } from '@/auth/AuthContext'
 import type { AuthenticatedRequest } from '@/auth/AuthContext'
-import { deriveLocalWeekStart, RecordsPage } from './RecordsPage'
+import { RecordsPage } from './RecordsPage'
 
 const totals = { energy_kcal: '0', protein_g: '0', fat_g: '0', carbohydrate_g: '0' }
 const overview = {
@@ -31,37 +31,65 @@ function renderPage(request: AuthenticatedRequest) {
   )
 }
 
-describe('deriveLocalWeekStart', () => {
-  it('以明确 IANA calendar parts 计算上海周一凌晨，而不是 UTC 周日', () => {
-    expect(deriveLocalWeekStart(new Date('2026-09-06T16:30:00Z'), 'Asia/Shanghai')).toBe('2026-09-07')
-  })
-
-  it('在 Los Angeles DST 和 UTC 跨日时保持正确的当地周一', () => {
-    expect(deriveLocalWeekStart(new Date('2026-03-09T06:30:00Z'), 'America/Los_Angeles')).toBe('2026-03-02')
-    expect(deriveLocalWeekStart(new Date('2026-03-09T07:30:00Z'), 'America/Los_Angeles')).toBe('2026-03-09')
-  })
-})
+afterEach(() => { vi.restoreAllMocks() })
 
 describe('RecordsPage timezone confirmation gate', () => {
-  it.each([200, 409])('确认返回 %s 后才读取公开 dashboard projection', async (status) => {
+  it('只有 same-zone 200 才读取服务端 current projection，且请求不含浏览器范围', async () => {
     const request = vi.fn<AuthenticatedRequest>((path: string) => {
       if (path === '/meal-records/dashboard-time-zone-confirmations') {
-        return Promise.resolve(status === 409
-          ? new Response(null, { status })
-          : new Response(JSON.stringify({ dashboard_time_zone: 'Asia/Shanghai', confirmed_at: '2026-09-04T02:00:00Z' }), { status }))
+        return Promise.resolve(new Response(JSON.stringify({ dashboard_time_zone: 'Asia/Shanghai', confirmed_at: '2026-09-04T02:00:00Z' }), { status: 200 }))
       }
-      if (path.startsWith('/dashboard/overview')) return Promise.resolve(new Response(JSON.stringify(overview), { status: 200 }))
+      if (path === '/dashboard/overview') return Promise.resolve(new Response(JSON.stringify(overview), { status: 200 }))
       if (path === '/dashboard/history') return Promise.resolve(new Response(JSON.stringify({ groups: [] }), { status: 200 }))
-      if (path.startsWith('/dashboard/weekly-review')) return Promise.resolve(new Response(JSON.stringify(review), { status: 200 }))
+      if (path === '/dashboard/weekly-review') return Promise.resolve(new Response(JSON.stringify(review), { status: 200 }))
       throw new Error(`Unexpected request: ${path}`)
     })
 
     renderPage(request)
 
     await waitFor(() => expect(request).toHaveBeenCalledWith('/meal-records/dashboard-time-zone-confirmations', expect.anything()))
-    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringMatching(/^\/dashboard\/overview\?week_start=/)))
-    expect(request.mock.calls.filter(([path]) => String(path).includes('time_zone'))).toHaveLength(0)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/dashboard/overview'))
+    expect(request).toHaveBeenCalledWith('/dashboard/weekly-review')
+    expect(request.mock.calls.filter(([path]) => /(?:week_start|time_zone)/.test(String(path)))).toHaveLength(1)
     expect(screen.getByRole('heading', { name: '记录' })).toBeInTheDocument()
+  })
+
+  it('different-zone 409 显示安全冲突，并关闭所有 dashboard reads', async () => {
+    const request = vi.fn<AuthenticatedRequest>((path: string) => {
+      if (path === '/meal-records/dashboard-time-zone-confirmations') return Promise.resolve(new Response(null, { status: 409 }))
+      throw new Error(`Unexpected dashboard read: ${path}`)
+    })
+
+    renderPage(request)
+
+    await waitFor(() => expect(screen.getByText('当前浏览器时区与已确认的统计时区不一致。请使用已确认的浏览器设置后重试。')).toBeInTheDocument())
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/HTTP|provider|stack|token|state/i)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { browserZone: 'Asia/Shanghai', today: '2026-09-07', weekStart: '2026-09-07' },
+    { browserZone: 'America/Los_Angeles', today: '2026-09-06', weekStart: '2026-08-31' },
+  ])('同一 UTC instant 的 $browserZone fixture 只渲染 server today/week，不读取 host 时区', async ({ browserZone, today, weekStart }) => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: browserZone } as Intl.ResolvedDateTimeFormatOptions)
+    const serverOverview = {
+      ...overview,
+      today: { ...overview.today, consumed_local_date: today },
+      week: Array.from({ length: 7 }, (_, index) => ({ ...overview.week[0], consumed_local_date: new Date(`${weekStart}T00:00:00Z`).setUTCDate(new Date(`${weekStart}T00:00:00Z`).getUTCDate() + index) && new Date(new Date(`${weekStart}T00:00:00Z`).setUTCDate(new Date(`${weekStart}T00:00:00Z`).getUTCDate() + index)).toISOString().slice(0, 10) })),
+    }
+    const request = vi.fn<AuthenticatedRequest>((path: string) => {
+      if (path === '/meal-records/dashboard-time-zone-confirmations') return Promise.resolve(new Response(JSON.stringify({ dashboard_time_zone: browserZone, confirmed_at: '2026-09-04T02:00:00Z' }), { status: 200 }))
+      if (path === '/dashboard/overview') return Promise.resolve(new Response(JSON.stringify(serverOverview), { status: 200 }))
+      if (path === '/dashboard/history') return Promise.resolve(new Response(JSON.stringify({ groups: [] }), { status: 200 }))
+      if (path === '/dashboard/weekly-review') return Promise.resolve(new Response(JSON.stringify({ ...review, week_start: weekStart }), { status: 200 }))
+      throw new Error(`Unexpected request: ${path}`)
+    })
+
+    renderPage(request)
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/dashboard/overview'))
+    expect(serverOverview.week.map((day) => day.consumed_local_date)).toContain(serverOverview.today.consumed_local_date)
+    expect(request.mock.calls.map(([path]) => String(path)).join(' ')).not.toMatch(/week_start|time_zone/)
   })
 
   it('确认失败时关闭 dashboard 请求，并提供安全的重试界面', async () => {
