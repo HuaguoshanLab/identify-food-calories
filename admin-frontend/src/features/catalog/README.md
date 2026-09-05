@@ -2,7 +2,7 @@
 
 ## 职责
 
-`catalog/` 以筛选栏和服务端分页表格作为入口；新增/编辑在侧边窗口填写，CSV 导入先校验后确认，导出遵循已应用的筛选条件。它只消费公开 admin 合约；确认前显示服务端字段差异，保留既有审核、发布、失格与审计流程。
+`catalog/` 以筛选栏和服务端分页表格作为入口；新增/编辑、审核/发布及 CSV 导入统一使用居中弹窗。草稿填写后直接保存，不再套二次预览弹窗；保存前仍读取服务端预览并保护打开编辑时的版本。每行审核、发布分别确认，字段差异默认折叠；原因和后端审计不可省略。详情入口保留旧生命周期页及失格操作。
 
 ## 允许依赖
 
@@ -16,11 +16,13 @@
 | --- | --- |
 | `README.md` | 目录草稿能力的边界、允许依赖和文件索引。 |
 | `CatalogDraftPage.test.tsx` | 目录草稿表单、确认、冲突和授权安全 UX 的组件契约。 |
-| `CatalogDraftPage.tsx` | 目录草稿表单、服务器预览/冲突刷新、确认状态和服务器确认字段的受限呈现。 |
+| `CatalogDraftPage.tsx` | 草稿表单、弹窗直接保存/版本保护与幂等重试；兼容旧页的服务器预览与确认。 |
 | `CatalogLifecyclePage.test.tsx` | 审核、发布、失格、冲突与只读审计的生命周期组件契约。 |
 | `CatalogLifecyclePage.tsx` | 严格生命周期投影、两列 diff、理由确认和审计组合页。 |
 | `api/` | 草稿严格 DTO 与公开 admin HTTP 命令；目录索引见 `api/README.md`。 |
-| `CatalogListPage.tsx` | 筛选、分页表格、按需编辑、模板/导出及授权错误处理。 |
-| `CatalogListPage.test.tsx` | 筛选/分页、编辑窗口、导入错误、重试去重和 403 零数据呈现。 |
-| `CatalogDialog.tsx` | 本 feature 的 Base UI 侧边对话框与焦点/关闭语义。 |
+| `CatalogListPage.tsx` | 筛选、分页、每行编辑/审核/发布的居中弹窗、模板/导出及授权错误处理。 |
+| `CatalogListPage.test.tsx` | 筛选/分页、居中编辑保存/冲突保护、导入错误、重试去重和 403 零数据呈现。 |
+| `CatalogDialog.tsx` | Base UI 居中弹窗、固定页脚、内容滚动、关闭优先焦点和提交期间关闭保护。 |
+| `CatalogRowLifecycle.tsx` | 表格行审核/发布弹窗内容，服务端版本、折叠差异、原因确认与原键重试。 |
+| `CatalogRowLifecycle.test.tsx` | 审核发布成功、原因必填、重复提交保护、冲突/权限及已发布/未授权阻止。 |
 | `CatalogImportDialog.tsx` | CSV 选择、服务端校验预览、错误行号、原因确认及幂等重试。 |

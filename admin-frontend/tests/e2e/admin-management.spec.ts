@@ -111,32 +111,36 @@ async function createAndDisqualifyCatalogEntry(page: Page, suffix: string) {
   await editor.getByLabel('来源链接').fill('https://fdc.nal.usda.gov/')
   await editor.getByLabel('授权状态').selectOption('authorized')
   await editor.getByLabel('变更原因').fill('E2E 验证目录治理的公开审计链')
-  await editor.getByRole('button', { name: '预览并确认' }).click()
-  const draftDialog = page.getByRole('alertdialog', { name: '确认创建营养目录草稿？' })
-  await expect(draftDialog.getByText('服务器字段差异')).toBeVisible()
-  await expect(draftDialog.getByText(/影响范围：/)).toBeVisible()
   const created = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/catalog-drafts') && response.request().method() === 'POST' && response.status() === 201)
-  await draftDialog.getByRole('button', { name: '确认创建草稿' }).click()
+  await editor.getByRole('button', { name: '保存草稿' }).click()
   await created
-  await page.getByRole('link', { name: '审核与发布', exact: true }).click()
-  await expect(page.getByRole('region', { name: '发布前字段差异' })).toBeVisible()
 
   for (const [button, confirm, reason, responsePath] of [
-    ['审核目录草稿', '确认审核草稿', 'E2E 已完成来源复核', '/review'],
-    ['发布营养目录版本', '确认发布版本', 'E2E 已确认发布范围', '/publish'],
-    ['立即失格', '确认立即失格', 'E2E 验证未来使用立即失格', '/disqualifications'],
+    ['审核', '确认审核草稿', 'E2E 已完成来源复核', '/review'],
+    ['发布', '确认发布版本', 'E2E 已确认发布范围', '/publish'],
   ] as const) {
-    await page.getByRole('button', { name: button }).click()
-    const dialog = page.getByRole('alertdialog')
-    await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused()
-    await dialog.getByLabel('变更原因').fill(reason)
-    const mutation = page.waitForResponse((response) => response.url().includes(`/api/v1/admin/catalog-${responsePath === '/disqualifications' ? 'publications' : 'drafts'}`) && response.url().endsWith(responsePath) && response.request().method() === 'POST' && response.status() === 200)
+    await page.getByRole('row').filter({ hasText: `E2E 燕麦 ${suffix}` }).getByRole('button', { name: button, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: '关闭窗口' })).toBeFocused()
+    const bounds = await dialog.boundingBox()
+    expect(bounds).toBeTruthy()
+    expect(Math.abs(bounds!.x + bounds!.width / 2 - 640)).toBeLessThan(2)
+    expect(Math.abs(bounds!.y + bounds!.height / 2 - 450)).toBeLessThan(2)
+    await expect(dialog.locator('details')).not.toHaveAttribute('open')
+    await dialog.getByLabel('操作原因').fill(reason)
+    const mutation = page.waitForResponse((response) => response.url().includes('/api/v1/admin/catalog-drafts') && response.url().endsWith(responsePath) && response.request().method() === 'POST' && response.status() === 200)
     const confirmation = dialog.getByRole('button', { name: confirm })
     await confirmation.scrollIntoViewIfNeeded()
     await expect(confirmation).toBeInViewport()
     await confirmation.click()
     await mutation
+    await expect(dialog).toBeHidden()
   }
+  await page.getByRole('link', { name: '详情', exact: true }).click()
+  await page.getByRole('button', { name: '立即失格', exact: true }).click()
+  const disqualify = page.getByRole('alertdialog')
+  await disqualify.getByLabel('变更原因').fill('E2E 验证未来使用立即失格')
+  await disqualify.getByRole('button', { name: '确认立即失格', exact: true }).click()
   await expect(page.getByText('已立即失格，操作已记录。')).toBeVisible()
   await expect(page.getByRole('heading', { name: '操作审计' })).toBeVisible()
 }
@@ -179,8 +183,7 @@ async function verifyCatalogCsvAndFilters(page: Page, suffix: string) {
   const editor = page.getByRole('dialog', { name: '编辑营养目录' })
   await editor.getByLabel('菜品名称').fill(`${filename} 更新`)
   await editor.getByLabel('变更原因').fill('CSV 导入后编辑验证')
-  await editor.getByRole('button', { name: '预览并确认' }).click()
-  await page.getByRole('button', { name: '确认更新草稿' }).click()
+  await editor.getByRole('button', { name: '保存草稿' }).click()
   await expect(page.getByRole('table').getByRole('button', { name: `${filename} 更新`, exact: true })).toBeVisible()
 }
 
@@ -189,7 +192,7 @@ test.describe.configure({ mode: 'serial' })
 test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordinary user is denied', async ({ browser, page, request }) => {
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
   const admin = { email: `e2e-admin-${suffix}@example.test`, password: 'E2E-admin-password-2026!' }
-  await request.delete(`${mailpitApi}/messages`)
+  // Verification reads are scoped to this run's unique email; leave other local mail intact.
   await registerAndVerify(page, request, admin)
   await bootstrapFirstAdmin(admin)
   await loginToAdmin(page, admin, '/admin/model-configs')

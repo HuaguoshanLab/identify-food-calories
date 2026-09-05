@@ -21,6 +21,49 @@ function setup() {
 }
 
 describe('CatalogListPage', () => {
+  it('编辑在居中弹窗直接保存，无二次预览弹窗；保存后保留审核发布入口', async () => {
+    const user = userEvent.setup()
+    let patchCalls = 0
+    mswServer.use(http.get(base, () => HttpResponse.json({ items: [item], total: 1, page: 1, page_size: 20 })),
+      http.get(`${base}/${draft.id}`, () => HttpResponse.json(draft)),
+      http.post(`${base}/preview`, () => HttpResponse.json({ draft_id: draft.id, base_revision: 1, field_diffs: [{ field: 'source_name', before: 'USDA', after: '新来源' }], impact_categories: ['source_evidence'] })),
+      http.patch(`${base}/${draft.id}`, async ({ request }) => {
+        patchCalls += 1
+        expect(request.headers.get('If-Match')).toBe('1')
+        expect(await request.json()).toMatchObject({ reason: '更新来源', source_name: '新来源' })
+        return HttpResponse.json({ ...draft, source_name: '新来源', revision: 2 })
+      }))
+    setup()
+    await user.click(await screen.findByRole('button', { name: '编辑' }))
+    const editor = await screen.findByRole('dialog', { name: '编辑营养目录' })
+    await user.clear(within(editor).getByLabelText('来源名称'))
+    await user.type(within(editor).getByLabelText('来源名称'), '新来源')
+    await user.type(within(editor).getByLabelText('变更原因'), '更新来源')
+    await user.click(screen.getByRole('button', { name: '保存草稿' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('已保存为草稿')
+    expect(patchCalls).toBe(1)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '编辑营养目录' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '审核' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '发布' })).toBeEnabled()
+  })
+
+  it('弹窗保存发现版本变化时保留输入，不静默覆盖新草稿', async () => {
+    const user = userEvent.setup()
+    let writes = 0
+    mswServer.use(http.get(base, () => HttpResponse.json({ items: [item], total: 1, page: 1, page_size: 20 })),
+      http.get(`${base}/${draft.id}`, () => HttpResponse.json(draft)),
+      http.post(`${base}/preview`, () => HttpResponse.json({ draft_id: draft.id, base_revision: 2, field_diffs: [{ field: 'source_name', before: '其他来源', after: 'USDA' }], impact_categories: ['source_evidence'] })),
+      http.patch(`${base}/${draft.id}`, () => { writes += 1; return HttpResponse.json(draft) }))
+    setup()
+    await user.click(await screen.findByRole('button', { name: '编辑' }))
+    await user.type(await screen.findByLabelText('变更原因'), '核对来源')
+    await user.click(screen.getByRole('button', { name: '保存草稿' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('草稿版本已变更')
+    expect(screen.getByLabelText('变更原因')).toHaveValue('核对来源')
+    expect(writes).toBe(0)
+  })
+
   it('默认表格，按查询应用筛选、服务端分页，重置条件并按需打开新增或编辑', async () => {
     const user = userEvent.setup()
     const seen: URL[] = []
@@ -45,10 +88,12 @@ describe('CatalogListPage', () => {
     await user.click(screen.getByRole('button', { name: '新增' }))
     const dialog = screen.getByRole('dialog', { name: '新增营养目录' })
     expect(within(dialog).getByLabelText('菜品名称')).toHaveValue('')
-    await user.click(within(dialog).getByRole('button', { name: '关闭窗口' }))
+    expect(dialog.parentElement).toHaveClass('place-items-center')
+    await user.click(within(dialog).getByRole('button', { name: '取消' }))
     await user.click(screen.getByRole('button', { name: '编辑' }))
     expect(await screen.findByRole('dialog', { name: '编辑营养目录' })).toBeVisible()
-    expect(within(screen.getByRole('dialog')).getByLabelText('菜品名称')).toHaveValue('燕麦')
+    expect(within(screen.getByRole('dialog', { name: '编辑营养目录' })).getByLabelText('菜品名称')).toHaveValue('燕麦')
+    expect(screen.getByRole('button', { name: '保存草稿' })).toBeVisible()
   })
 
   it('导入错误显示行号且禁止提交，通过后才导入；失败重试复用同一幂等键', async () => {
