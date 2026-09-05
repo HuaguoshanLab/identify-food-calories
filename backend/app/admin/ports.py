@@ -9,6 +9,7 @@ from typing import Protocol
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogActivePublication, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.auth.models import User
+from app.admin.schemas import CatalogListQuery
 
 
 class AdminRepository(Protocol):
@@ -37,6 +38,10 @@ class AdminRepository(Protocol):
     def add_runtime_config_version(self, version: AgentRuntimeConfigVersion) -> AgentRuntimeConfigVersion: ...
 
     def get_catalog_draft(self, draft_id: uuid.UUID, *, for_update: bool = False) -> CatalogDraft | None: ...
+
+    def list_catalog_drafts(self, *, query: CatalogListQuery, limit: int, offset: int) -> tuple[list[CatalogDraft], int]: ...
+
+    def acquire_catalog_import_lock(self, command_key: str) -> None: ...
 
     def get_catalog_draft_command(self, command_key: str) -> CatalogDraftChangeSet | None: ...
 

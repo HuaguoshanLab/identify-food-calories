@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
+from app.admin.catalog_csv import CatalogCsvInvalid
 from app.admin.schemas import (
     AdminAuditPageResponse,
     AdminAuditQuery,
@@ -22,6 +23,12 @@ from app.admin.schemas import (
     CatalogDraftPreviewCommand,
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
+    CatalogListQuery,
+    CatalogListResponse,
+    CatalogCsvInput,
+    CatalogCsvPreview,
+    CatalogCsvImportCommand,
+    CatalogCsvImportResponse,
     CatalogLifecycleCommand,
     CatalogLifecyclePreviewResponse,
     CatalogPublicationResponse,
@@ -156,6 +163,74 @@ def get_run(
         return _forbidden()
     except KeyError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="agent run not found") from error
+
+
+@router.get("/catalog-drafts", response_model=CatalogListResponse)
+def list_catalog_drafts(
+    principal: AuthenticatedPrincipal,
+    query: CatalogListQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogListResponse | JSONResponse:
+    try:
+        return admin_service.list_catalog_drafts(actor_user_id=principal, query=query)
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/catalog-drafts/export")
+def export_catalog_csv(
+    principal: AuthenticatedPrincipal, query: CatalogListQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> Response:
+    try:
+        content = admin_service.export_catalog_csv(actor_user_id=principal, query=query)
+        return Response(content, media_type="text/csv; charset=utf-8", headers={
+            "Content-Disposition": 'attachment; filename="nutrition-catalog.csv"', "Cache-Control": "no-store",
+        })
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/catalog-drafts/template")
+def catalog_csv_template(
+    principal: AuthenticatedPrincipal, admin_service: AdminService = Depends(get_admin_service),
+) -> Response:
+    try:
+        return Response(admin_service.catalog_csv_template(actor_user_id=principal), media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="nutrition-catalog-template.csv"', "Cache-Control": "no-store"})
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.post("/catalog-drafts/import-preview", response_model=CatalogCsvPreview)
+def preview_catalog_csv(
+    command: CatalogCsvInput, principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogCsvPreview | JSONResponse:
+    try:
+        return admin_service.preview_catalog_csv(actor_user_id=principal, csv_text=command.csv_text)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/catalog-drafts/import", response_model=CatalogCsvImportResponse, status_code=201)
+def import_catalog_csv(
+    command: CatalogCsvImportCommand, principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogCsvImportResponse | JSONResponse:
+    try:
+        return admin_service.import_catalog_csv(actor_user_id=principal, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except CatalogDraftConflict as error:
+        raise HTTPException(status_code=409, detail="catalog import conflict") from error
 
 
 @router.post("/catalog-drafts", response_model=CatalogDraftResponse, status_code=status.HTTP_201_CREATED)

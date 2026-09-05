@@ -15,3 +15,4 @@
 |---|---|
 | `test_admin_rbac_audit_service.py` | 当前 active role 读取和命令审计原子性契约。 |
 | `test_admin_audit_service.py` | 审计白名单、筛选和稳定 cursor 的 Service 契约。 |
+| `test_catalog_csv.py` | CSV 编码/列校验、错误行号、边界、防公式执行、导入幂等与逐行审计、授权拒绝。 |

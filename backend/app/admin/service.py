@@ -16,6 +16,7 @@ from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersio
 from app.agent.ports import RuntimeConfigAdmission
 from app.agent.service import AgentRuntimeAdmissionDenied
 from app.admin.ports import AdminRepository
+from app.admin.catalog_csv import MAX_EXPORT_ROWS, CatalogCsvInvalid, parse_catalog_csv, write_catalog_csv
 from app.admin.schemas import (
     AdminAuditEventResponse,
     AdminAuditPageResponse,
@@ -30,6 +31,12 @@ from app.admin.schemas import (
     CatalogDraftPreviewCommand,
     CatalogDraftPreviewResponse,
     CatalogDraftResponse,
+    CatalogListQuery,
+    CatalogListItem,
+    CatalogListResponse,
+    CatalogCsvPreview,
+    CatalogCsvImportCommand,
+    CatalogCsvImportResponse,
     CatalogLifecycleCommand,
     CatalogLifecycleFieldDiff,
     CatalogLifecycleImpact,
@@ -362,6 +369,63 @@ class AdminService:
         if run is None:
             raise KeyError("agent run not found")
         return self._run_response(run, include_invocations=True)
+
+    def list_catalog_drafts(self, *, actor_user_id: uuid.UUID, query: CatalogListQuery) -> CatalogListResponse:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        drafts, total = self._repository.list_catalog_drafts(
+            query=query, limit=query.page_size, offset=(query.page - 1) * query.page_size,
+        )
+        return CatalogListResponse(items=[CatalogListItem(
+            **self._catalog_response(draft).model_dump(), updated_at=draft.updated_at,
+        ) for draft in drafts], total=total, page=query.page, page_size=query.page_size)
+
+    def export_catalog_csv(self, *, actor_user_id: uuid.UUID, query: CatalogListQuery) -> bytes:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        drafts, total = self._repository.list_catalog_drafts(query=query, limit=MAX_EXPORT_ROWS + 1, offset=0)
+        if total > MAX_EXPORT_ROWS or len(drafts) > MAX_EXPORT_ROWS:
+            raise CatalogCsvInvalid("每次最多导出 10000 条，请缩小筛选范围。")
+        return write_catalog_csv([self._catalog_response(draft) for draft in drafts])
+
+    def catalog_csv_template(self, *, actor_user_id: uuid.UUID) -> bytes:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        return write_catalog_csv([])
+
+    def preview_catalog_csv(self, *, actor_user_id: uuid.UUID, csv_text: str) -> CatalogCsvPreview:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        return parse_catalog_csv(csv_text)
+
+    def import_catalog_csv(
+        self, *, actor_user_id: uuid.UUID, command: CatalogCsvImportCommand, command_key: str,
+    ) -> CatalogCsvImportResponse:
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        preview = parse_catalog_csv(command.csv_text)
+        if preview.errors:
+            raise CatalogCsvInvalid("文件存在错误，请修正全部错误后再导入。")
+        # Reuse append-only draft commands for atomic batch replay; no second ledger.
+        batch_key = hashlib.sha256(f"{actor.id}:{command_key}".encode()).hexdigest()
+        request_hash = self._request_hash("csv_import", command.model_dump())
+        self._repository.acquire_catalog_import_lock(batch_key)
+        ids: list[uuid.UUID] = []
+        try:
+            for index, candidate in enumerate(preview.rows):
+                row_key = f"csv:{batch_key}:{index}"
+                replay = self._catalog_replay(row_key, request_hash)
+                if replay is not None:
+                    ids.append(replay.id)
+                    continue
+                payload = self._catalog_payload(candidate)
+                now = self._now()
+                draft = CatalogDraft(id=uuid.uuid4(), **payload, revision=1, created_at=now, updated_at=now)
+                self._repository.add_catalog_draft(draft)
+                self._record_catalog_mutation(actor_identifier=str(actor.id), draft=draft, command_key=row_key,
+                    operation="create", reason=command.reason, before={"revision": 0}, after=self._audit_catalog_payload(draft),
+                    request_hash=request_hash, revision_before=0)
+                ids.append(draft.id)
+            self._commit_catalog_mutation()
+        except Exception:
+            self._rollback()
+            raise
+        return CatalogCsvImportResponse(imported_count=len(ids), draft_ids=ids)
 
     def create_catalog_draft(
         self, *, actor_user_id: uuid.UUID, command: CatalogDraftCreateCommand, command_key: str

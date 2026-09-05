@@ -11,6 +11,8 @@
 
 ## 文件索引
 
+- `test_admin_catalog_api.py`：目录草稿/预览/生命周期、筛选分页及 CSV 下载/预览/提交的公开 HTTP 契约和权限失败映射。
+
 | 文件 | 职责 |
 |---|---|
 | `test_supply_chain.py` | 验证 Phase 2 新增依赖的版本化、fail-closed 供应链证据门 |

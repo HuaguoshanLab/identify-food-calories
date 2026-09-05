@@ -12,6 +12,8 @@
 
 ## 文件索引
 
+- `test_catalog_draft_repository.py`：草稿审计持久化、LIKE 字面筛选、稳定分页与 CSV 第二行失败时整批回滚。
+
 | 文件 | 职责 |
 |---|---|
 | `test_auth_migration.py` | auth migration head 空库重建、约束与 Repository flush-only 合约 |

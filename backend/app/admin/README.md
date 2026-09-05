@@ -22,3 +22,12 @@
 | `service.py` | 数据库权威 RBAC、原子角色提升、运行配置 optimistic version、命令审计、revision/幂等草稿变更、只读 projection 与 immutable publication lifecycle；不信任客户端 diff。 |
 | `api.py` | `/api/v1/admin/probe`、`/runtime-config`、`/audit`、草稿 preview/read/lifecycle-preview/command，以及 review/publish/disqualification HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |
+| `catalog_csv.py` | UTF-8 CSV 模板、500 条/1 MB 导入校验、错误行号与防公式执行导出；无 HTTP/数据库依赖 |
+
+## 目录列表与 CSV
+
+`GET /catalog-drafts` 接受 `search`（名称或别名）、`source`、`authorization_status`、`page`、`page_size`，返回总数及创建时间/UUID 稳定排序分页。SQL 转义 LIKE 元字符，更新草稿不会改变创建顺序。
+
+`GET /catalog-drafts/export` 使用同一筛选忽略分页，最多 10000 条，超限明确拒绝；`GET /catalog-drafts/template` 下载中文表头空模板。CSV 是带 BOM 的 UTF-8，按每 100g 计，多个别名以 `|` 分隔。
+
+`POST /catalog-drafts/import-preview` 校验 `csv_text`；`POST /catalog-drafts/import` 要求同一内容、原因、`confirm: true` 和 `Idempotency-Key`。所有行通过才可创建，事务内逐行写草稿/版本/审计，任一失败整批回滚。批次键绑定管理员，advisory lock 串行同批请求，既有 append-only 草稿命令账本承担重试，不新增 schema。重试同一键与内容不会新增重复记录；重新选择文件视为新导入，不覆盖现有记录。所有读取、导出、模板、预览、导入均检查数据库管理员角色。

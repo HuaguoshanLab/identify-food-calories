@@ -18,7 +18,7 @@
 | `main.py` | FastAPI 应用工厂与健康端点 |
 | `core/` | 配置、数据库等跨模块基础设施 |
 | `auth/` | 认证 ORM、运行时 Schema、Service、Repository port 与 SQLAlchemy adapter |
-| `admin/` | 后端 RBAC probe、数据库权威角色提升、最小审计与 revisioned catalog draft 模块 |
+| `admin/` | 后端 RBAC、角色提升、最小审计、目录筛选分页、CSV 原子导入导出及 revisioned draft 模块 |
 | `accounts/` | 密码恢复 Service、Repository port 与 HTTP 契约 |
 | `notifications/` | 可替换邮件 Provider port 与本地 SMTP adapter |
 | `providers/` | 外部模型 Provider 的独立 Port、DTO、Adapter 与测试替身（文本与视觉分离）。 |

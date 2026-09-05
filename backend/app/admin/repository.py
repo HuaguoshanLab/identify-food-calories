@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.models import AdminAuditEvent, AdminRoleAudit, CatalogActivePublication, CatalogDraft, CatalogDraftChangeSet, CatalogDraftReview, CatalogDraftRevision, CatalogPublication, CatalogPublicationEligibility
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
-from app.admin.schemas import AdminRunMetricsResponse
+from app.admin.schemas import AdminRunMetricsResponse, CatalogListQuery
 from app.auth.models import User, UserRole
 
 
@@ -81,6 +81,29 @@ class SqlAlchemyAdminRepository:
         self._session.add(version)
         self._session.flush()
         return version
+
+    def list_catalog_drafts(self, *, query: CatalogListQuery, limit: int, offset: int) -> tuple[list[CatalogDraft], int]:
+        # Escape LIKE metacharacters: a user searching for '%' expects literal data.
+        predicates = []
+        if query.search:
+            # Decode JSON array elements before matching; serialized Unicode escapes
+            # would make a text cast silently miss Chinese aliases.
+            aliases = func.json_array_elements_text(CatalogDraft.aliases).table_valued("value").alias("catalog_alias")
+            predicates.append(or_(
+                CatalogDraft.canonical_name.icontains(query.search, autoescape=True),
+                exists(select(1).select_from(aliases).where(aliases.c.value.icontains(query.search, autoescape=True))),
+            ))
+        if query.source:
+            predicates.append(CatalogDraft.source_name.icontains(query.source, autoescape=True))
+        if query.authorization_status is not None:
+            predicates.append(CatalogDraft.authorization_status == query.authorization_status)
+        total = self._session.scalar(select(func.count()).select_from(CatalogDraft).where(*predicates)) or 0
+        items = self._session.scalars(select(CatalogDraft).where(*predicates)
+            .order_by(CatalogDraft.created_at.desc(), CatalogDraft.id.desc()).offset(offset).limit(limit)).all()
+        return list(items), int(total)
+
+    def acquire_catalog_import_lock(self, command_key: str) -> None:
+        self._session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"catalog-import:{command_key}"})
 
     def get_catalog_draft(self, draft_id: uuid.UUID, *, for_update: bool = False) -> CatalogDraft | None:
         statement = select(CatalogDraft).where(CatalogDraft.id == draft_id)

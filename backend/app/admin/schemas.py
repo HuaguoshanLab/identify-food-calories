@@ -214,6 +214,69 @@ class CatalogDraftResponse(BaseModel):
     revision: int
 
 
+class CatalogListQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    search: str = Field(default="", max_length=200)
+    source: str = Field(default="", max_length=120)
+    authorization_status: Literal["authorized", "pending", "revoked"] | None = None
+    page: int = Field(default=1, ge=1, le=100000)
+    page_size: int = Field(default=20, ge=1, le=100)
+
+
+class CatalogListItem(CatalogDraftResponse):
+    updated_at: datetime
+
+
+class CatalogListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: list[CatalogListItem]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
+class CatalogCsvInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    csv_text: str = Field(min_length=1, max_length=1_048_576)
+
+
+class CatalogCsvImportCommand(CatalogCsvInput):
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        return CatalogDraftCreateCommand.normalize_reason(value)
+
+
+class CatalogCsvError(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    row: int
+    field: str
+    message: str
+
+
+class CatalogCsvPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    total_rows: int
+    valid_rows: int
+    rows: list[CatalogDraftCreateCommand]
+    errors: list[CatalogCsvError]
+
+
+class CatalogCsvImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    imported_count: int
+    draft_ids: list[uuid.UUID]
+
+
 class CatalogDraftPreviewCommand(_CatalogDraftFields):
     """A full candidate evaluated against the database's current draft state.
 

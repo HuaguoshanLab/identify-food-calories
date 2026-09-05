@@ -168,3 +168,67 @@ def test_catalog_read_and_preview_map_database_rbac_denial_to_forbidden() -> Non
     assert read.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
     assert lifecycle.status_code == 403
     assert lifecycle.json()["error"]["code"] == "ADMIN_PERMISSION_REQUIRED"
+
+
+def test_catalog_list_csv_http_routes_and_validation() -> None:
+    from app.admin.catalog_csv import CatalogCsvInvalid, write_catalog_csv
+    from app.admin.schemas import CatalogCsvImportResponse, CatalogCsvPreview, CatalogListResponse
+
+    class ExchangeService(StubCatalogService):
+        def list_catalog_drafts(self, *, query, **_kwargs):
+            assert query.search == '燕麦' and query.page == 2
+            return CatalogListResponse(items=[], total=0, page=query.page, page_size=query.page_size)
+
+        def catalog_csv_template(self, **_kwargs):
+            return write_catalog_csv([])
+
+        def export_catalog_csv(self, **_kwargs):
+            return write_catalog_csv([self.create_catalog_draft()])
+
+        def preview_catalog_csv(self, *, csv_text, **_kwargs):
+            if csv_text == 'invalid':
+                raise CatalogCsvInvalid('表头不匹配。')
+            return CatalogCsvPreview(total_rows=1, valid_rows=0, rows=[], errors=[{'row': 2, 'field': '来源链接', 'message': '请核对来源。'}])
+
+        def import_catalog_csv(self, **_kwargs):
+            return CatalogCsvImportResponse(imported_count=1, draft_ids=[uuid.uuid4()])
+
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = ExchangeService
+    with TestClient(app) as client:
+        assert client.get('/api/v1/admin/catalog-drafts', params={'search': '燕麦', 'page': 2}).json()['page'] == 2
+        assert client.get('/api/v1/admin/catalog-drafts?page_size=101').status_code == 422
+        assert client.get('/api/v1/admin/catalog-drafts?authorization_status=unknown').status_code == 422
+        for endpoint in ['template', 'export']:
+            response = client.get(f'/api/v1/admin/catalog-drafts/{endpoint}')
+            assert response.status_code == 200
+            assert response.headers['content-type'].startswith('text/csv')
+            assert response.headers['cache-control'] == 'no-store'
+            assert response.content.startswith(b'\xef\xbb\xbf')
+        assert client.post('/api/v1/admin/catalog-drafts/import-preview', json={'csv_text': 'invalid'}).status_code == 422
+        preview = client.post('/api/v1/admin/catalog-drafts/import-preview', json={'csv_text': 'example'})
+        assert preview.json()['errors'][0]['row'] == 2
+        command = {'csv_text': 'example', 'reason': 'test', 'confirm': True}
+        assert client.post('/api/v1/admin/catalog-drafts/import', json=command).status_code == 422
+        response = client.post('/api/v1/admin/catalog-drafts/import', json=command, headers={'Idempotency-Key': 'csv-import-00000001'})
+        assert response.status_code == 201 and response.json()['imported_count'] == 1
+
+
+def test_csv_list_export_preview_import_deny_non_admin_over_http():
+    class DeniedService(StubCatalogService):
+        def list_catalog_drafts(self, **_kwargs):
+            raise AdminPermissionDenied()
+        export_catalog_csv = list_catalog_drafts
+        catalog_csv_template = list_catalog_drafts
+        preview_catalog_csv = list_catalog_drafts
+        import_catalog_csv = list_catalog_drafts
+
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = DeniedService
+    with TestClient(app) as client:
+        for path in ['', '/export', '/template']:
+            assert client.get('/api/v1/admin/catalog-drafts' + path).status_code == 403
+        assert client.post('/api/v1/admin/catalog-drafts/import-preview', json={'csv_text': 'test'}).status_code == 403
+        assert client.post('/api/v1/admin/catalog-drafts/import', json={'csv_text': 'test', 'reason': 'test', 'confirm': True}, headers={'Idempotency-Key': 'csv-import-00000001'}).status_code == 403
