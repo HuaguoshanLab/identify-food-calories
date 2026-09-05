@@ -5,7 +5,7 @@ milestone_name: milestone
 status: ready_to_plan
 stopped_at: Weight parsing and meal clarification recovery complete; Phase 7 deferred by user
 last_updated: 2026-09-05T07:39:51Z
-last_activity: 2026-09-05 -- Fixed missing local admin origin; actual browser reload verified
+last_activity: 2026-09-05 -- Completed catalog bulk review and publish
 progress:
   total_phases: 8
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 Phase: 7
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-09-05 — Quick 260905-niw follow-up: local5179 CSRF origin fixed; actual browser reload succeeded twice
+Last activity: 2026-09-05 — Quick 260905-o4f: catalog bulk review/publish verified through tests and current browser
 
 Progress: [██████████] 100%
 
@@ -238,6 +238,8 @@ None yet.
 | 260905-n05 | 目录表格审核发布入口与居中弹窗 | 2026-09-05 | 7668209 | 41项测试、隔离E2E及内置浏览器验证通过 | [居中弹窗](./quick/260905-n05-catalog-inline-draft-review-publish-acti/) |
 | 260905-niw | 后台刷新会话恢复与权限等待 | 2026-09-05 | 2dd5b69 + 本机来源配置修正 | 45项前端测试、隔离E2E、7项refresh API测试通过；本机连续完整加载成功 | [会话恢复](./quick/260905-niw-restore-admin-session-on-page-reload/) |
 
+| 260905-o4f | 营养目录批量审核发布 | 2026-09-05 | 535ec14 | 52项组件测试、类型检查、构建、隔离E2E与内置浏览器预览取消通过 | [批量操作](./quick/260905-o4f-catalog-bulk-review-and-publish/) |
+
 Phase 7 按用户要求暂不启动；本次目录改造已完成。
 
 ## Deferred Items
@@ -250,5 +252,5 @@ Phase 7 按用户要求暂不启动；本次目录改造已完成。
 ## Session Continuity
 
 Last session: 2026-09-05T07:39:51Z
-Stopped at: Completed quick task 260905-niw including local origin config; actual browser reload verified; Phase 7 deferred by user
+Stopped at: Completed quick task 260905-o4f bulk catalog actions; Phase 7 deferred by user
 Resume file: None
