@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { confirmDashboardTimeZone, confirmMealRecord } from './client'
+import { DashboardTimezoneConflictError, confirmDashboardTimeZone, confirmMealRecord } from './client'
 
 const record = {
   id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2',
@@ -55,14 +55,17 @@ describe('confirmDashboardTimeZone', () => {
     })
   })
 
-  it('把已确认的 409 当作可继续读取的幂等成功，但其他失败保持可恢复', async () => {
-    const alreadyConfirmed = vi.fn().mockResolvedValue(new Response(null, { status: 409 }))
-    await expect(confirmDashboardTimeZone(alreadyConfirmed, 'Asia/Shanghai')).resolves.toBeNull()
+  it('只把严格 200 视为确认成功；不同统计时区的 409 必须成为可分类冲突', async () => {
+    const differentZone = vi.fn().mockResolvedValue(new Response(null, { status: 409 }))
+    await expect(confirmDashboardTimeZone(differentZone, 'America/Los_Angeles')).rejects.toBeInstanceOf(DashboardTimezoneConflictError)
 
     const invalid = vi.fn().mockResolvedValue(new Response(null, { status: 400 }))
     await expect(confirmDashboardTimeZone(invalid, 'Not/AZone')).rejects.toThrow('dashboard time zone confirmation failed')
 
     const malformed = vi.fn().mockResolvedValue(new Response(JSON.stringify({ dashboard_time_zone: 'Asia/Shanghai' }), { status: 200 }))
     await expect(confirmDashboardTimeZone(malformed, 'Asia/Shanghai')).rejects.toThrow()
+
+    const networkFailure = vi.fn().mockRejectedValue(new Error('network unavailable'))
+    await expect(confirmDashboardTimeZone(networkFailure, 'Asia/Shanghai')).rejects.toThrow('network unavailable')
   })
 })

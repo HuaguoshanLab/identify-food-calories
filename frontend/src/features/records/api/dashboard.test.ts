@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { dashboardQueryKeys, getDashboardHistory, getDashboardOverview } from './dashboard'
-import { weeklyReviewQueryKeys } from './weeklyReview'
+import { getCompletedWeeklyReview, getWeeklyReview, weeklyReviewQueryKeys } from './weeklyReview'
 
 describe('getDashboardHistory', () => {
   it('接受 FastAPI history 的 RFC 3339 时间戳和省略的末页 cursor', async () => {
@@ -25,20 +25,40 @@ describe('getDashboardHistory', () => {
 })
 
 describe('dashboard requests and cache keys', () => {
-  it('只携带真实 request variables，不把浏览器 timezone 当成 dashboard authority', async () => {
-    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+  it('current overview/default review 是服务端范围，cache key 不含浏览器日期或时区', async () => {
+    const request = vi.fn((path: string) => Promise.resolve(new Response(JSON.stringify(path.startsWith('/dashboard/overview') ? {
       today: { consumed_local_date: '2026-09-07', totals: { energy_kcal: '0', protein_g: '0', fat_g: '0', carbohydrate_g: '0' }, meal_count: 0 },
       week: Array.from({ length: 7 }, (_, index) => ({
         consumed_local_date: `2026-09-${String(index + 7).padStart(2, '0')}`,
         totals: { energy_kcal: '0', protein_g: '0', fat_g: '0', carbohydrate_g: '0' }, meal_count: 0,
       })),
+    } : {
+      status: 'insufficient_coverage', week_start: '2026-09-07', week_end: '2026-09-13',
+      coverage_days: 0, meal_count: 0,
+      totals: { energy_kcal: '0', protein_g: '0', fat_g: '0', carbohydrate_g: '0' }, suggestions: [],
+    }), { status: 200 })))
+
+    await getDashboardOverview(request)
+    await getWeeklyReview(request)
+
+    expect(request).toHaveBeenCalledWith('/dashboard/overview')
+    expect(request).toHaveBeenCalledWith('/dashboard/weekly-review')
+    expect(dashboardQueryKeys.overview()).toEqual(['dashboard', 'overview', 'current'])
+    expect(dashboardQueryKeys.history(null)).toEqual(['dashboard', 'history', null])
+    expect(weeklyReviewQueryKeys.current()).toEqual(['dashboard', 'weekly-review', 'current'])
+    expect(request.mock.calls.flatMap(([path]) => String(path).match(/(?:week_start|time_zone)/g) ?? [])).toEqual([])
+  })
+
+  it('已结束周只能通过独立 typed history 调用，不会改写 current request', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'insufficient_coverage', week_start: '2026-09-07', week_end: '2026-09-13',
+      coverage_days: 0, meal_count: 0,
+      totals: { energy_kcal: '0', protein_g: '0', fat_g: '0', carbohydrate_g: '0' }, suggestions: [],
     }), { status: 200 }))
 
-    await getDashboardOverview(request, '2026-09-07')
+    await getCompletedWeeklyReview(request, '2026-08-31')
 
-    expect(request).toHaveBeenCalledWith('/dashboard/overview?week_start=2026-09-07')
-    expect(dashboardQueryKeys.overview('2026-09-07')).toEqual(['dashboard', 'overview', '2026-09-07'])
-    expect(dashboardQueryKeys.history(null)).toEqual(['dashboard', 'history', null])
-    expect(weeklyReviewQueryKeys.detail('2026-09-07')).toEqual(['dashboard', 'weekly-review', '2026-09-07'])
+    expect(request).toHaveBeenCalledWith('/dashboard/weekly-review?week_start=2026-08-31')
+    expect(weeklyReviewQueryKeys.completed('2026-08-31')).toEqual(['dashboard', 'weekly-review', 'completed', '2026-08-31'])
   })
 })
