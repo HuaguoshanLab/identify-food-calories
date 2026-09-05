@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.dashboard.ports import DashboardTimezone, PlanningCompletionTargetPort
+from app.dashboard.ports import DashboardTimezoneReadPort, PlanningCompletionTargetPort
 from app.dashboard.schemas import (
     DashboardDaySummary,
     DashboardHistoryCursor,
@@ -40,8 +40,7 @@ class DashboardAggregate(Protocol):
     def meal_count(self) -> int: ...
 
 
-class DashboardRepository(Protocol):
-    def get_dashboard_timezone_for_user(self, *, user_id: uuid.UUID) -> DashboardTimezone | None: ...
+class DashboardRepository(DashboardTimezoneReadPort, Protocol):
     def get_daily_aggregates(self, *, user_id: uuid.UUID, start_date: date, end_date: date) -> Sequence[DashboardAggregate]: ...
     def get_history_page(self, *, user_id: uuid.UUID, cursor: DashboardHistoryCursor | None, limit: int) -> Sequence[DashboardHistoryRecord]: ...
 
@@ -55,7 +54,7 @@ class DashboardTimezonePreconditionError(ValueError):
 
 
 class WeeklyReviewWeekStartInvalid(ValueError):
-    """A weekly-review window is neither a Monday nor a completed/current local week."""
+    """A weekly-review request names something other than a completed local Monday."""
 
 
 class DashboardCursorCodec:
@@ -95,9 +94,9 @@ class DashboardService:
         self._now = now or (lambda: datetime.now(UTC))
         self._cursor_codec = DashboardCursorCodec(cursor_secret)
 
-    def get_overview(self, *, user_id: uuid.UUID, week_start: date | None = None) -> DashboardOverview:
+    def get_overview(self, *, user_id: uuid.UUID) -> DashboardOverview:
         today = _local_dashboard_today(repository=self._repository, user_id=user_id, now=self._now)
-        start = week_start or today - timedelta(days=today.weekday())
+        start = today - timedelta(days=today.weekday())
         end = start + timedelta(days=6)
         aggregates = {
             aggregate.consumed_local_date: aggregate
@@ -248,8 +247,8 @@ class WeeklyReviewService:
         today = _local_dashboard_today(repository=self._repository, user_id=user_id, now=self._now)
         current_start = today - timedelta(days=today.weekday())
         start = week_start or current_start
-        if start.weekday() != 0 or start > current_start:
-            raise WeeklyReviewWeekStartInvalid("weekly review must use a current or completed Monday")
+        if week_start is not None and (start.weekday() != 0 or start >= current_start):
+            raise WeeklyReviewWeekStartInvalid("weekly review must use a completed local Monday")
         return today, start
 
     def _get_cached(self, key: WeeklyReviewCacheKey) -> str | None:

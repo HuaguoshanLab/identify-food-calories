@@ -2,7 +2,7 @@
 
 ## 职责
 
-`tests/dashboard/` 验证看板只能消费可撤销的完成计划资格，不得从个人资料推测目标。
+`tests/dashboard/` 验证看板只能消费可撤销的完成计划资格，不得从个人资料推测目标；当前窗口只能由 `DashboardTimezoneReadPort` 的已确认时区派生，历史周必须已结束。
 
 ## 允许依赖
 
@@ -15,6 +15,6 @@
 |---|---|
 | `__init__.py` | Python 测试包标识。 |
 | `test_dashboard_target_port.py` | 窄目标资格 Port 的 unavailable、撤销和租户隔离契约。 |
-| `test_dashboard_service.py` | fake repository 下 overview 七日槽位、目标 Port 和 history cursor 契约。 |
-| `test_weekly_review_facts.py` | 周复盘 facts、覆盖阈值和零 Provider 调用契约。 |
+| `test_dashboard_service.py` | fake repository 下 preference-local overview 七日槽位、目标 Port 和 history cursor 契约。 |
+| `test_weekly_review_facts.py` | 周复盘 facts、已结束周边界、覆盖阈值和零 Provider 调用契约。 |
 | `test_weekly_review_cache_service.py` | 周复盘 cache key、命中与版本失效服务契约。 |

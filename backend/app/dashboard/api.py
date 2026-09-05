@@ -83,10 +83,10 @@ WeeklyReviewServiceDependency = Annotated[WeeklyReviewService, Depends(get_weekl
     response_model_exclude_none=True,
 )
 def get_overview(
-    principal: AuthenticatedPrincipal, service: ServiceDependency, week_start: date | None = None
+    principal: AuthenticatedPrincipal, service: ServiceDependency
 ) -> DashboardOverview:
     try:
-        return service.get_overview(user_id=principal, week_start=week_start)
+        return service.get_overview(user_id=principal)
     except DashboardTimezonePreconditionError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -147,7 +147,7 @@ def _public_weekly_review(
     except WeeklyReviewWeekStartInvalid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="week_start must be a current or completed Monday.",
+            detail="week_start must be a completed local Monday.",
         ) from None
 
 

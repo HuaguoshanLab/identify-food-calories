@@ -25,7 +25,7 @@
 | `images/` | 上传图片的安全解码、metadata 剥离与私有临时引用边界。 |
 | `nutrition/` | 受控营养目录、确定性计算/校验 Service 与 SQLAlchemy adapter |
 | `planning/` | 版本化目标政策、健康边界、受控菜谱合同、最小化 owner profile CRUD 与确定性餐单校验 Service |
-| `dashboard/` | 从已确认餐食快照提供 tenant-filtered overview/history；只读 records 所有、一次确认的统计时区，由 Service 经 ZoneInfo 计算用户本地窗口，并只消费完成计划资格的窄 Port；不得读取规划 profile 或健康详情。 |
+| `dashboard/` | 从已确认餐食快照提供 tenant-filtered overview/history；只读 records 所有、一次确认的统计时区，由 Service 经 ZoneInfo 计算用户本地窗口。当前 overview/default weekly 不接受浏览器范围，显式 weekly 仅可读取已结束本地周；并只消费完成计划资格的窄 Port；不得读取规划 profile 或健康详情。 |
 | `agent/` | Agent 权威运行账本、JSON-safe State、工具适配器与图编排合同 |
 | `records/` | 用户确认的餐食快照、同统计时区确认可幂等重放且异时区保持泛化冲突的回填账本、记忆本地授权账本，以及 provision/delete outbox |
 | `memory/` | 长期偏好 Provider、tenant-bound ledger CRUD、直接写入与删除重试服务 |
