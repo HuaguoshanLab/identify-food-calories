@@ -75,7 +75,7 @@ def test_overview_has_seven_local_days_and_reads_targets_only_from_the_narrow_pr
 
     overview = DashboardService(
         repository=repository, target_port=target_port, now=lambda: NOW
-    ).get_overview(user_id=user_id, week_start=date(2026, 8, 31))
+    ).get_overview(user_id=user_id)
 
     assert overview.today.totals.energy_kcal == Decimal("456.50")
     assert overview.today.meal_count == 2
@@ -83,6 +83,24 @@ def test_overview_has_seven_local_days_and_reads_targets_only_from_the_narrow_pr
     assert overview.target_eligibility.eligible is False
     assert overview.target_eligibility.target is None
     assert target_port.calls == [user_id]
+
+
+def test_overview_has_no_caller_selected_week_and_uses_the_confirmed_local_current_week() -> None:
+    user_id = uuid.uuid4()
+    repository = FakeDashboardRepository([], "America/Los_Angeles")
+    service = DashboardService(
+        repository=repository,
+        target_port=FakeTargetPort(PlanningTargetEligibility.unavailable()),
+        now=lambda: datetime(2026, 3, 9, 0, 30, tzinfo=UTC),
+    )
+
+    overview = service.get_overview(user_id=user_id)
+
+    assert overview.today.consumed_local_date == date(2026, 3, 8)
+    assert [day.consumed_local_date for day in overview.week] == [
+        date(2026, 3, 2) + timedelta(days=index) for index in range(7)
+    ]
+    assert repository.aggregate_calls == [(user_id, date(2026, 3, 2), date(2026, 3, 8))]
 
 
 def test_history_keeps_server_cursor_opaque_and_groups_only_persisted_local_days() -> None:

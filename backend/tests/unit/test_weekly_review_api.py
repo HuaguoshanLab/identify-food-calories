@@ -32,7 +32,7 @@ class StubWeeklyReviewService:
         except (TypeError, ValueError, ZoneInfoNotFoundError) as error:
             raise DashboardTimezonePreconditionError("invalid preference") from error
         current_start = local_today - timedelta(days=local_today.weekday())
-        if week_start is not None and (week_start.weekday() != 0 or week_start > current_start):
+        if week_start is not None and (week_start.weekday() != 0 or week_start >= current_start):
             raise WeeklyReviewWeekStartInvalid("invalid local week")
         self.calls.append((user_id, week_start, refresh))
         return WeeklyReviewPublicResponse(
@@ -77,12 +77,16 @@ def test_weekly_review_allows_only_monday_completed_weeks_and_never_refreshes_lo
         accepted = client.get("/api/v1/dashboard/weekly-review", params={"week_start": "2026-08-24"})
         non_monday = client.get("/api/v1/dashboard/weekly-review", params={"week_start": "2026-08-25"})
         future = client.get("/api/v1/dashboard/weekly-review", params={"week_start": "2026-09-07"})
+        current = client.get("/api/v1/dashboard/weekly-review", params={"week_start": "2026-08-31"})
         refresh = client.post("/api/v1/dashboard/weekly-review/refresh", params={"week_start": "2026-08-24"})
+        current_refresh = client.post("/api/v1/dashboard/weekly-review/refresh", params={"week_start": "2026-08-31"})
 
     assert accepted.status_code == 200
     assert non_monday.status_code == 422
     assert future.status_code == 422
+    assert current.status_code == 422
     assert refresh.status_code == 200
+    assert current_refresh.status_code == 422
     assert service.calls[-1][2] is True
     # A low-coverage outcome itself is deterministic evidence that no Provider retry was attempted.
     assert all(call[2] is False or call[1] == date(2026, 8, 24) for call in service.calls)

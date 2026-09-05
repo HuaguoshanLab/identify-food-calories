@@ -29,8 +29,11 @@ def _day(day: date) -> DashboardDaySummary:
 
 
 class StubDashboardService:
-    def get_overview(self, *, user_id: uuid.UUID, week_start: date | None = None) -> DashboardOverview:
-        del user_id, week_start
+    def __init__(self) -> None:
+        self.overview_calls: list[uuid.UUID] = []
+
+    def get_overview(self, *, user_id: uuid.UUID) -> DashboardOverview:
+        self.overview_calls.append(user_id)
         return DashboardOverview(today=_day(date(2026, 9, 2)), week=tuple(_day(date(2026, 8, 27) + timedelta(days=index)) for index in range(7)), target_eligibility=PlanningTargetEligibility.unavailable())
 
     def get_history(self, *, user_id: uuid.UUID, cursor: str | None, limit: int) -> DashboardHistoryPage:
@@ -65,10 +68,11 @@ class UnavailableTargetPort:
         return PlanningTargetEligibility.unavailable()
 
 
-def _client() -> TestClient:
+def _client(service: StubDashboardService | None = None) -> TestClient:
     app = create_app(runtime_factory=NoopAgentRuntimeFactory())
     app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
-    app.dependency_overrides[get_dashboard_service] = StubDashboardService
+    dashboard_service = service or StubDashboardService()
+    app.dependency_overrides[get_dashboard_service] = lambda: dashboard_service
     return TestClient(app)
 
 
@@ -80,6 +84,15 @@ def test_dashboard_openapi_exposes_only_overview_and_history_and_omits_unavailab
     assert response.json()["target_eligibility"] == {"eligible": False}
     assert set(openapi["paths"]["/api/v1/dashboard/overview"]) == {"get"}
     assert set(openapi["paths"]["/api/v1/dashboard/history"]) == {"get"}
+
+
+def test_dashboard_overview_ignores_browser_selected_week_start() -> None:
+    service = StubDashboardService()
+    with _client(service) as client:
+        response = client.get("/api/v1/dashboard/overview", params={"week_start": "2026-08-24"})
+
+    assert response.status_code == 200
+    assert len(service.overview_calls) == 1
 
 
 def test_dashboard_rejects_tampered_cursor_and_invalid_page_range() -> None:

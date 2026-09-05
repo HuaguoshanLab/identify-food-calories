@@ -9,7 +9,11 @@ import pytest
 from app.dashboard.repository import DashboardDailyAggregate
 from app.dashboard.ports import DashboardTimezone
 from app.dashboard.schemas import DashboardNutritionTotals
-from app.dashboard.service import DashboardTimezonePreconditionError, WeeklyReviewService
+from app.dashboard.service import (
+    DashboardTimezonePreconditionError,
+    WeeklyReviewService,
+    WeeklyReviewWeekStartInvalid,
+)
 
 
 class FactsRepository:
@@ -75,3 +79,21 @@ def test_weekly_facts_use_local_monday_across_dst_and_fail_closed_before_provide
         with pytest.raises(DashboardTimezonePreconditionError):
             WeeklyReviewService(repository=invalid, cache_repository=object(), provider=lambda _: "unused", now=lambda: instant).get_public_weekly_review(user_id=uuid.uuid4())
         assert invalid.aggregate_calls == []
+
+
+def test_weekly_review_rejects_an_explicit_current_local_monday_but_allows_a_completed_week() -> None:
+    instant = datetime(2026, 3, 9, 0, 30, tzinfo=UTC)
+    repository = FactsRepository([], "Asia/Shanghai")
+    service = WeeklyReviewService(
+        repository=repository,
+        cache_repository=object(),
+        provider=lambda _: "unused",
+        now=lambda: instant,
+    )
+
+    with pytest.raises(WeeklyReviewWeekStartInvalid):
+        service.get_weekly_review(user_id=uuid.uuid4(), week_start=date(2026, 3, 9))
+
+    completed = service.get_weekly_review(user_id=uuid.uuid4(), week_start=date(2026, 3, 2))
+
+    assert completed.facts.week_start == date(2026, 3, 2)
