@@ -1,5 +1,7 @@
 # Phase 06 浏览器验收记录
 
+**Status: PASS**（2026-09-05，Asia/Shanghai）
+
 **执行日期：** 2026-09-04（Asia/Shanghai）  
 **证据边界：** 本记录的浏览器结论只来自 Codex 内置浏览器对真实产品页面和公开 API 的操作。没有使用 Playwright、截图、数据库直写、seed、token 或 Cookie 注入、内部函数作为替代；也不记录邮箱、密码、验证码、token、Cookie、记录标识符、用户原文、原图、密钥、Provider 请求体或完整模型输出。
 
@@ -30,6 +32,18 @@
 | `http://127.0.0.1:5178/app/analyze` → 保存 → `http://127.0.0.1:5178/app/records` | 普通用户 | 分析、确认保存后进入 Records；“今日摘要 → 本周趋势 → 历史记录 → 周复盘”顺序与四个 Tab 可见，周复盘保持低覆盖安全文案，页面未暴露 Provider、stack、reasoning 或密钥。 | 本次人工确认包含统计时区确认完成后才加载看板的用户路径；未保存网络请求体或精确时间边界，因此 UTC 跨日、周一与 DST 数学仍只由下方所列 deterministic 测试宣称。 |
 
 该人工路径证明真实页面能够在普通用户会话中完成统计口径前置与 Records 投影；它不证明跨日补记、cursor 翻页或所有周复盘状态。
+
+## 06-36 统计时区冲突续验（2026-09-05）
+
+**结果来源：** 用户已在 Codex 内置浏览器完成本计划列出的真实普通用户路径并回复 `approved`。以下仅记录该人工验收已确认的最小页面与公开网络结论；没有以 Playwright、截图、直接 API、数据库写入、seed、token/Cookie 注入或内部调用替代浏览器观察。
+
+| 路径 | 角色 | 已确认的可观察结果 | 结论 |
+| --- | --- | --- | --- |
+| 普通用户真实登录 → `/app/records` | 普通用户 | 今日摘要、本周趋势、历史记录、周复盘和四个 Tab 按产品顺序可见；页面未显示密钥、Provider、stack 或已确认统计设置的内容。 | PASS：正常 Records 投影可用且未见敏感/内部细节。 |
+| 相同已确认 IANA 下刷新或新会话登录 → `/app/records` | 同一普通用户 | current dashboard 可安全加载。 | PASS：同一统计口径的重新进入不会阻断当前读取。 |
+| 相反 IANA 下 fresh login → `/app/records` | 同一普通用户 | 统计确认显示安全的 409 冲突；overview、history、weekly 均未读取，页面只显示可恢复提示且未显示旧看板内容。 | PASS：浏览器时区切换不能混合或复用旧的当前窗口。 |
+
+本节不记录账号、邮箱、密码、验证码、Cookie、token、已确认 IANA 值、餐食/图片、Provider/State/reasoning、stack 或完整网络 body。精确 request URL/header/body 和本周日期不变量仍由同轮 guarded E2E 作为独立自动化证据，不被本段人工结论替代。
 
 ## 未在本轮内置浏览器复验的项目
 
