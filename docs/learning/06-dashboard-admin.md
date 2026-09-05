@@ -80,6 +80,20 @@ E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND
 
 Records E2E 不是 mock：`records-dashboard.spec.ts` 在 Shanghai 与 Los Angeles Chromium contexts 中先观察公开 confirmation，再验证 dashboard/review 读取不带 `time_zone` authority；`records-weekly-review.spec.ts` 在同一真实前置后只断言低覆盖闭合响应和安全 DOM。`admin-management.spec.ts` 是独立后台的 guarded runner。它们都不能替代内置浏览器；本轮真实浏览器的普通用户确认范围是 analyze → save → Records 的四个 Tab 与低覆盖安全文案，具体路径及未复验项目见验收记录。浏览器和 E2E 都不覆盖所有跨日/history cursor 组合、全部周复盘 terminal 状态、管理员 overview/disable 或会话失效；这些不能被夸大为已完成。
 
+## 7. 营养目录表格与 CSV 交换（独立快速任务）
+
+目录首页现在把查找和维护分开：上方查询条件提交后进入 TanStack Query key，FastAPI 验证筛选及页码，Service 检查当前管理员角色，Repository 使用相同 predicate 得到列表和总数。表格列统一按每 100g 展示。这里是可变的管理列表，用页码支持跳页和总数；按创建时间、UUID 排序使编辑不会改变顺序，但新增记录后分页可能变化，不能将它当成一致性快照或替代 dashboard 的签名 cursor。
+
+新增和编辑在侧边表单里复用草稿预览协议，仍由服务器计算变更差异。保存后失效目录 Query，使表格读取真实已提交状态。发布资格属于既有独立审核/发布协议，导入不会绕过它。
+
+CSV 请求链为：本地选择文件 → `import-preview` 服务端解析/逐字段校验 → 展示数量、前五行和错误行号 → 填写原因并确认 → `import` 重新校验 → 同一事务逐行创建草稿、revision 和审计 → 一次提交。不能循环调用每条都会提交的单条新增方法，否则第 N 行出错会留下前 N−1 行的部分导入。当前批量路径直接复用服务内审计原语，异常统一回滚；真实 PostgreSQL 测试注入第二行错误证明第一行及审计也被回滚。
+
+批量幂等由管理员与请求键派生批次键，并为各行派生稳定命令键，保存在既有草稿命令账本。事务级 advisory lock 防止同一批次并发写入。请求指纹包含文件、原因与确认状态；同键不同内容拒绝，同键相同内容返回同一组草稿 ID。前端对网络失败保留此键，避免用户点击重试时重复新增。重新选择文件属于新批次，界面明确说明不会覆盖现有目录。
+
+文件限制为 UTF-8 CSV、1 MB、500 条；表头与顺序必须匹配下载模板。多个别名以 `|` 分隔，导出复用同一格式。导出只包含公开目录字段，遵循查询条件而非当前分页，超过 10000 条要求缩小范围；带 BOM 方便 Excel 识别中文，文本单元格以公式符号开头时添加文本前缀，避免电子表格执行输入内容。没有将下载请求的令牌放进 URL。
+
+验证入口：`backend/tests/admin/test_catalog_csv.py`（校验、权限、幂等）、`backend/tests/integration/test_catalog_draft_repository.py`（SQL 筛选/分页和真实回滚）、`backend/tests/unit/test_admin_catalog_api.py`（HTTP）、`admin-frontend/src/features/catalog/CatalogListPage.test.tsx`（表格/表单/导入交互）及 `admin-management.spec.ts`（真实公开跨栈）。
+
 ## 常见错误
 
 - 在前端按浏览器时区重算历史日：会让同一条确认记录在不同设备改变统计归属。

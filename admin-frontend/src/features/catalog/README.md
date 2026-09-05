@@ -2,7 +2,7 @@
 
 ## 职责
 
-`catalog/` 承载营养目录草稿的严格 HTTP DTO、目录编辑工作台和生命周期治理界面。它只消费公开 `/api/v1/admin/catalog-drafts` 合约：确认前展示服务端计算的字段差异/影响范围，冲突后读取最新生命周期投影；审核、发布和失格命令均要求理由、确认、revision 与幂等键。
+`catalog/` 以筛选栏和服务端分页表格作为入口；新增/编辑在侧边窗口填写，CSV 导入先校验后确认，导出遵循已应用的筛选条件。它只消费公开 admin 合约；确认前显示服务端字段差异，保留既有审核、发布、失格与审计流程。
 
 ## 允许依赖
 
@@ -20,3 +20,7 @@
 | `CatalogLifecyclePage.test.tsx` | 审核、发布、失格、冲突与只读审计的生命周期组件契约。 |
 | `CatalogLifecyclePage.tsx` | 严格生命周期投影、两列 diff、理由确认和审计组合页。 |
 | `api/` | 草稿严格 DTO 与公开 admin HTTP 命令；目录索引见 `api/README.md`。 |
+| `CatalogListPage.tsx` | 筛选、分页表格、按需编辑、模板/导出及授权错误处理。 |
+| `CatalogListPage.test.tsx` | 筛选/分页、编辑窗口、导入错误、重试去重和 403 零数据呈现。 |
+| `CatalogDialog.tsx` | 本 feature 的 Base UI 侧边对话框与焦点/关闭语义。 |
+| `CatalogImportDialog.tsx` | CSV 选择、服务端校验预览、错误行号、原因确认及幂等重试。 |

@@ -21,11 +21,24 @@ import {
 type CatalogDraftPageProps = Readonly<{
   accessToken: string | undefined
   onSessionExpired: () => void
+  initialDraft?: CatalogDraft
+  embedded?: boolean
+  onSaved?: (draft: CatalogDraft) => void
+  onForbidden?: () => void
 }>
 
 const initialValues: CatalogDraftFormValues = {
   canonical_name: '', aliases: '', energy_kcal_per_100g: '', protein_g_per_100g: '', fat_g_per_100g: '', carbohydrate_g_per_100g: '',
   source_name: '', source_url: '', authorization_status: 'pending', reason: '',
+}
+
+function editableValues(draft: CatalogDraft): CatalogDraftFormValues {
+  return {
+    canonical_name: draft.canonical_name, aliases: draft.aliases.join(', '),
+    energy_kcal_per_100g: draft.energy_kcal_per_100g, protein_g_per_100g: draft.protein_g_per_100g,
+    fat_g_per_100g: draft.fat_g_per_100g, carbohydrate_g_per_100g: draft.carbohydrate_g_per_100g,
+    source_name: draft.source_name, source_url: draft.source_url, authorization_status: draft.authorization_status, reason: '',
+  }
 }
 
 function FieldPreview({ label, value }: Readonly<{ label: string, value: string | number }>) {
@@ -68,15 +81,15 @@ function UnauthorizedPage() {
   return <main className="mx-auto max-w-2xl p-8"><h1 className="text-[28px] font-semibold leading-9">无后台访问权限</h1><p className="mt-4 text-base">你的当前账号没有管理权限。请使用管理员账号登录。</p></main>
 }
 
-export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraftPageProps) {
+export function CatalogDraftPage({ accessToken, onSessionExpired, initialDraft, embedded = false, onSaved, onForbidden }: CatalogDraftPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [draft, setDraft] = useState<CatalogDraft>()
+  const [draft, setDraft] = useState<CatalogDraft | undefined>(initialDraft)
   const [preview, setPreview] = useState<CatalogDraftPreview>()
   const [error, setError] = useState('')
   const [securityState, setSecurityState] = useState<'expired' | 'forbidden'>()
   const [submitting, setSubmitting] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
-  const form = useForm<CatalogDraftFormValues>({ defaultValues: initialValues, resolver: zodResolver(catalogDraftFormSchema) })
+  const form = useForm<CatalogDraftFormValues>({ defaultValues: initialDraft ? editableValues(initialDraft) : initialValues, resolver: zodResolver(catalogDraftFormSchema) })
 
   if (securityState === 'forbidden') return <UnauthorizedPage />
   if (securityState === 'expired' || !accessToken) return <main className="mx-auto max-w-2xl p-8"><h1 className="text-[28px] font-semibold leading-9">登录已失效，请重新登录。</h1></main>
@@ -91,6 +104,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
     }
     if (requestError.status === 403) {
       setSecurityState('forbidden')
+      onForbidden?.()
       return true
     }
     return false
@@ -133,6 +147,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
       setDraft(next)
       setPreview(undefined)
       setDialogOpen(false)
+      onSaved?.(next)
     } catch (requestError) {
       if (handleSecurityError(requestError)) {
         setDialogOpen(false)
@@ -151,10 +166,10 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
     }
   }
 
-  return <main className="mx-auto max-w-5xl space-y-6 p-8"><header><h1 className="text-[28px] font-semibold leading-9">营养目录草稿</h1><p className="mt-2 text-base text-muted-foreground">创建或编辑草稿前先核对字段；后端仍是唯一授权与审计真相。</p></header>
+  return <section className={embedded ? 'space-y-4' : 'mx-auto max-w-5xl space-y-6 p-8'}>{!embedded && <header><h1 className="text-[28px] font-semibold leading-9">营养目录草稿</h1><p className="mt-2 text-base text-muted-foreground">填写营养信息与来源，保存后可继续审核与发布。</p></header>}
     {error ? <p aria-live="polite" className="rounded-md border p-4 text-sm" role="alert">{error}</p> : null}
-    {draft ? <><p aria-live="polite">草稿已保存，当前 revision 为 {draft.revision}。</p><Link className="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium" to={`/admin/catalog/${draft.id}/lifecycle`}>审核与发布目录</Link><ServerConfirmedDraft draft={draft} /></> : null}
-    <form className="grid gap-4 rounded-lg border bg-card p-6 md:grid-cols-2" onSubmit={form.handleSubmit(() => void openPreview(), () => setError('请检查表单中标记的字段。'))}>
+    {draft && !embedded ? <><p aria-live="polite">草稿已保存，当前 revision 为 {draft.revision}。</p><Link className="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium" to={`/admin/catalog/${draft.id}/lifecycle`}>审核与发布目录</Link><ServerConfirmedDraft draft={draft} /></> : null}
+    <form className={`grid gap-4 bg-card md:grid-cols-2 ${embedded ? '' : 'rounded-lg border p-6'}`} onSubmit={form.handleSubmit(() => void openPreview(), () => setError('请检查表单中标记的字段。'))}>
       <FormField error={form.formState.errors.canonical_name?.message} label="菜品名称" registration={form.register('canonical_name')} />
       <FormField error={form.formState.errors.aliases?.message} label="别名" registration={form.register('aliases')} />
       <FormField error={form.formState.errors.energy_kcal_per_100g?.message} label="每 100g 能量（kcal）" registration={form.register('energy_kcal_per_100g')} type="number" />
@@ -168,7 +183,7 @@ export function CatalogDraftPage({ accessToken, onSessionExpired }: CatalogDraft
       <div className="md:col-span-2"><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground" type="submit">预览并确认</button></div>
     </form>
     <AlertDialog.Root onOpenChange={setDialogOpen} open={dialogOpen}><AlertDialogContent aria-labelledby="catalog-dialog-title" initialFocus={cancelRef}><AlertDialog.Title className="text-xl font-semibold" id="catalog-dialog-title">确认{draft ? '更新' : '创建'}营养目录草稿？</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">请核对服务端计算的字段差异和变更原因。确认后会由后端执行 RBAC、revision 与审计校验。</AlertDialog.Description>{preview ? <ServerPreview preview={preview} /> : null}<p className="mt-4 text-sm"><span className="font-medium">变更原因：</span>{form.getValues('reason')}</p><div className="mt-6 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting || !preview} onClick={() => void confirm()} type="button">{submitting ? '正在提交…' : `确认${draft ? '更新' : '创建'}草稿`}</button></div></AlertDialogContent></AlertDialog.Root>
-  </main>
+  </section>
 }
 
 export function AdminCatalogDraftPage() {

@@ -124,7 +124,7 @@ export const lifecycleReasonSchema = z.object({
 export type CatalogLifecycleAction = 'review' | 'publish' | 'disqualify'
 
 export class CatalogApiError extends Error {
-  constructor(readonly status: 401 | 403 | 404 | 409 | 500) {
+  constructor(readonly status: 401 | 403 | 404 | 409 | 422 | 500) {
     super(`Catalog admin API request failed with ${status}`)
   }
 }
@@ -145,7 +145,7 @@ function toPreviewCommand(values: CatalogDraftFormValues, draftId?: string) {
 async function sendCatalogRequest(path: string, init: RequestInit): Promise<unknown> {
   const response = await fetch(`${__ADMIN_API_BASE_URL__}${path}`, init)
   if (!response.ok) {
-    const status = [401, 403, 404, 409].includes(response.status) ? response.status : 500
+    const status = [401, 403, 404, 409, 422].includes(response.status) ? response.status : 500
     throw new CatalogApiError(status as CatalogApiError['status'])
   }
   return response.json()
@@ -233,4 +233,66 @@ export function listCatalogAuditEvents(accessToken: string) {
     headers: requestHeaders(accessToken),
     method: 'GET',
   }).then(auditPageSchema.parse)
+}
+
+export const catalogFilterSchema = z.object({
+  search: z.string().trim().max(200), source: z.string().trim().max(120),
+  authorization_status: z.union([authorizationStatusSchema, z.literal('')]),
+})
+export type CatalogFilters = z.infer<typeof catalogFilterSchema>
+export const emptyCatalogFilters: CatalogFilters = { search: '', source: '', authorization_status: '' }
+
+const catalogListSchema = z.object({
+  items: z.array(catalogDraftSchema.extend({ updated_at: z.string().datetime({ offset: true }) }).strict()),
+  total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().positive().max(100),
+}).strict()
+
+function catalogQuery(filters: CatalogFilters, page = 1, pageSize = 20) {
+  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  Object.entries(catalogFilterSchema.parse(filters)).forEach(([key, value]) => { if (value) query.set(key, value) })
+  return query.toString()
+}
+
+export function listCatalogDrafts(accessToken: string, filters: CatalogFilters, page: number, pageSize: number) {
+  return sendCatalogRequest(`/catalog-drafts?${catalogQuery(filters, page, pageSize)}`, {
+    headers: requestHeaders(accessToken), method: 'GET',
+  }).then(catalogListSchema.parse)
+}
+
+const csvPreviewSchema = z.object({
+  total_rows: z.number().int().nonnegative(), valid_rows: z.number().int().nonnegative(),
+  rows: z.array(catalogDraftSchema.omit({ id: true, revision: true }).extend({ reason: z.string() }).strict()),
+  errors: z.array(z.object({ row: z.number().int().positive(), field: z.string(), message: z.string() }).strict()),
+}).strict()
+export type CatalogCsvPreview = z.infer<typeof csvPreviewSchema>
+
+export function previewCatalogCsv(accessToken: string, csvText: string) {
+  return sendCatalogRequest('/catalog-drafts/import-preview', {
+    method: 'POST', headers: requestHeaders(accessToken), body: JSON.stringify({ csv_text: csvText }),
+  }).then(csvPreviewSchema.parse)
+}
+
+export function importCatalogCsv(accessToken: string, csvText: string, reason: string, idempotencyKey: string) {
+  return sendCatalogRequest('/catalog-drafts/import', {
+    method: 'POST', headers: commandHeaders(accessToken, idempotencyKey),
+    body: JSON.stringify({ csv_text: csvText, ...lifecycleReasonSchema.parse({ reason }), confirm: true }),
+  }).then(z.object({ imported_count: z.number().int().nonnegative(), draft_ids: z.array(z.string().uuid()) }).strict().parse)
+}
+
+export async function downloadCatalogCsv(accessToken: string, filters: CatalogFilters, template = false) {
+  const path = template ? '/catalog-drafts/template' : `/catalog-drafts/export?${catalogQuery(filters)}`
+  const response = await fetch(`${__ADMIN_API_BASE_URL__}${path}`, { headers: requestHeaders(accessToken) })
+  if (!response.ok) {
+    throw new CatalogApiError(([401, 403, 422].includes(response.status) ? response.status : 500) as CatalogApiError['status'])
+  }
+  if (!response.headers.get('Content-Type')?.startsWith('text/csv')) throw new CatalogApiError(500)
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = template ? '营养目录导入模板.csv' : '营养目录.csv'
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  // Allow the browser to consume the blob before releasing its object URL.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

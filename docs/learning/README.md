@@ -22,4 +22,4 @@
 | `05-diet-planning-adjustments.md` | Phase 5 规划同线程局部替换、显式记忆捕获、safe SSE 投影、RELAX 边界和三次恢复上限。 |
 | `05-diet-planning-subgraph.md` | Phase 5 资料复核、确定性目标、受控三餐、独立 checkpoint、个人资料删除、Phase 4 偏好权威性、安全 SSE 与跨层测试教学。 |
 | `phase-06-dashboard-read-api.md` | Phase 6 以餐食快照、窄完成计划投影、签名 cursor 和真实 PostgreSQL 证据构建 dashboard 读 API 的教学说明。 |
-| `06-dashboard-admin.md` | Phase 6 用户统计时区、服务端当前/历史周边界、受控周复盘与独立后台的教学说明。 |
+| `06-dashboard-admin.md` | Phase 6 统计窗口、受控周复盘、独立后台，以及目录表格与 CSV 原子导入/幂等/导出的教学说明。 |

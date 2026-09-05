@@ -15,7 +15,7 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 端到端测试职责、允许依赖与文件索引。 |
-| `admin-management.spec.ts` | 空隔离库中的验证账户、审计首位管理员 bootstrap、Guard、RuntimeConfig、目录生命周期和普通用户拒绝。 |
+| `admin-management.spec.ts` | 空隔离库的管理员认证/配置、目录列表新增/编辑、CSV 校验导入/筛选导出、空态/重置、生命周期与普通用户拒绝。 |
 
 ## 隔离运行合同
 

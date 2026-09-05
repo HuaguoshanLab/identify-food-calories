@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
@@ -97,24 +98,27 @@ async function createAndDisqualifyCatalogEntry(page: Page, suffix: string) {
   // SPA shell rather than using a full browser load that would deliberately clear it.
   await page.getByRole('link', { name: '营养目录' }).click()
   await expect(page).toHaveURL(/\/admin\/catalog$/)
-  await page.getByLabel('菜品名称').fill(`E2E 燕麦 ${suffix}`)
-  await page.getByLabel('别名').fill(`E2E燕麦${suffix}, e2e-oats-${suffix}`)
-  await page.getByLabel('每 100g 能量（kcal）').fill('389')
-  await page.getByLabel('每 100g 蛋白质（g）').fill('16.9')
-  await page.getByLabel('每 100g 脂肪（g）').fill('6.9')
-  await page.getByLabel('每 100g 碳水（g）').fill('66.3')
-  await page.getByLabel('来源名称').fill('USDA FoodData Central')
-  await page.getByLabel('来源链接').fill('https://fdc.nal.usda.gov/')
-  await page.getByLabel('授权状态').selectOption('authorized')
-  await page.getByLabel('变更原因').fill('E2E 验证目录治理的公开审计链')
-  await page.getByRole('button', { name: '预览并确认' }).click()
+  await expect(page.getByRole('table')).toBeVisible()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: '新增营养目录' })
+  await editor.getByLabel('菜品名称').fill(`E2E 燕麦 ${suffix}`)
+  await editor.getByLabel('别名').fill(`E2E燕麦${suffix}, e2e-oats-${suffix}`)
+  await editor.getByLabel('每 100g 能量（kcal）').fill('389')
+  await editor.getByLabel('每 100g 蛋白质（g）').fill('16.9')
+  await editor.getByLabel('每 100g 脂肪（g）').fill('6.9')
+  await editor.getByLabel('每 100g 碳水（g）').fill('66.3')
+  await editor.getByLabel('来源名称').fill('USDA FoodData Central')
+  await editor.getByLabel('来源链接').fill('https://fdc.nal.usda.gov/')
+  await editor.getByLabel('授权状态').selectOption('authorized')
+  await editor.getByLabel('变更原因').fill('E2E 验证目录治理的公开审计链')
+  await editor.getByRole('button', { name: '预览并确认' }).click()
   const draftDialog = page.getByRole('alertdialog', { name: '确认创建营养目录草稿？' })
   await expect(draftDialog.getByText('服务器字段差异')).toBeVisible()
   await expect(draftDialog.getByText(/影响范围：/)).toBeVisible()
   const created = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/catalog-drafts') && response.request().method() === 'POST' && response.status() === 201)
   await draftDialog.getByRole('button', { name: '确认创建草稿' }).click()
   await created
-  await page.getByRole('link', { name: '审核与发布目录' }).click()
+  await page.getByRole('link', { name: '审核与发布', exact: true }).click()
   await expect(page.getByRole('region', { name: '发布前字段差异' })).toBeVisible()
 
   for (const [button, confirm, reason, responsePath] of [
@@ -137,6 +141,49 @@ async function createAndDisqualifyCatalogEntry(page: Page, suffix: string) {
   await expect(page.getByRole('heading', { name: '操作审计' })).toBeVisible()
 }
 
+async function verifyCatalogCsvAndFilters(page: Page, suffix: string) {
+  await page.getByRole('link', { name: '营养目录', exact: true }).click()
+  const filename = `CSV 燕麦 ${suffix}`
+  const csvText = '\ufeff菜品名称,别名,能量(kcal/100g),蛋白质(g/100g),脂肪(g/100g),碳水(g/100g),来源名称,来源链接,授权状态\r\n'
+    + `${filename},csv-oats,389,16.9,6.9,66.3,CSV fixture,https://example.test/,待确认\r\n`
+  await page.getByRole('button', { name: '导入', exact: true }).click()
+  await page.getByLabel('选择 CSV 文件').setInputFiles({ name: 'catalog.csv', mimeType: 'text/csv', buffer: Buffer.from(csvText) })
+  await expect(page.getByText('共 1 条，1 条校验通过。')).toBeVisible()
+  await page.getByLabel('导入原因').fill('CSV 表格管理隔离验收')
+  const imported = page.waitForResponse((response) => response.url().endsWith('/catalog-drafts/import') && response.status() === 201)
+  await page.getByRole('button', { name: '确认导入 1 条' }).click()
+  expect((await (await imported).json()).imported_count).toBe(1)
+  await expect(page.getByText(/成功导入 1 条草稿/)).toBeVisible()
+  await page.getByPlaceholder('搜索名称或别名').fill('csv-oats')
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.getByRole('table').getByRole('button', { name: filename, exact: true })).toBeVisible()
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(2)
+  const exporting = page.waitForResponse((response) => response.url().includes('/catalog-drafts/export?') && response.status() === 200)
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出', exact: true }).click()
+  const downloaded = await download
+  expect(downloaded.suggestedFilename()).toBe('营养目录.csv')
+  const response = await exporting
+  expect(new URL(response.url()).searchParams.get('search')).toBe('csv-oats')
+  const path = await downloaded.path()
+  expect(path).toBeTruthy()
+  const csv = await readFile(path!, 'utf-8')
+  expect(csv).toContain(filename)
+  expect(csv).not.toContain(`E2E 燕麦 ${suffix}`)
+  await page.getByPlaceholder('搜索名称或别名').fill('no matching nutrition item')
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.getByText('没有符合条件的目录')).toBeVisible()
+  await page.getByRole('button', { name: '重置', exact: true }).click()
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(3)
+  await page.getByRole('row').filter({ hasText: filename }).getByRole('button', { name: '编辑', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: '编辑营养目录' })
+  await editor.getByLabel('菜品名称').fill(`${filename} 更新`)
+  await editor.getByLabel('变更原因').fill('CSV 导入后编辑验证')
+  await editor.getByRole('button', { name: '预览并确认' }).click()
+  await page.getByRole('button', { name: '确认更新草稿' }).click()
+  await expect(page.getByRole('table').getByRole('button', { name: `${filename} 更新`, exact: true })).toBeVisible()
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordinary user is denied', async ({ browser, page, request }) => {
@@ -148,6 +195,7 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   await loginToAdmin(page, admin, '/admin/model-configs')
   await createRuntimeConfig(page)
   await createAndDisqualifyCatalogEntry(page, suffix)
+  await verifyCatalogCsvAndFilters(page, suffix)
 
   const adminRequests: string[] = []
   page.on('request', (requestEvent) => {
