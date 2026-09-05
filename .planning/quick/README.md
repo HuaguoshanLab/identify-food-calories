@@ -11,3 +11,4 @@
 ## 文件索引
 
 - `260905-jr2-catalog-table-filters-import-export/`：营养目录筛选表格、新增编辑及导入导出。
+- `260905-lfe-extract-weight-parser-and-fix-meal-clari/`：独立重量换算方法及补充信息错误恢复。

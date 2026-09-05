@@ -13,3 +13,4 @@
 | 文件 | 职责 |
 |---|---|
 | `phase-04-direct-memory-write.md` | Phase 4 用户直接表达未写入长期记忆的根因诊断 |
+| `meal-grams-resume-failure.md` | 克重补充输入、等待状态丢失与文字分析误报图片失败的诊断 |
