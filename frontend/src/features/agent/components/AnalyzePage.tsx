@@ -67,7 +67,8 @@ async function safeErrorMessage(response: Response, fallback: string): Promise<s
 function recoveryContent(code: string | null | undefined) {
   if (code === 'OUTCOME_UNKNOWN') return { title: '正在确认本次请求状态', body: '为避免重复收费，系统不会自动再次提交。', action: '发起新的分析' }
   if (code === 'LIMIT_REACHED') return { title: '本次分析达到运行上限', body: '请开始新的分析，或改为文字描述。', action: '开始新的分析' }
-  return { title: '图片未能识别', body: '你可以改用文字描述这餐。', action: '改为文字描述这餐' }
+  if (code === 'VISION_ANALYSIS_FAILED') return { title: '图片未能识别', body: '你可以改用文字描述这餐。', action: '改为文字描述这餐' }
+  return { title: '本次餐食分析未完成', body: '请检查餐食描述后重新尝试。', action: '检查餐食描述' }
 }
 
 export function AnalyzePage() {
@@ -93,6 +94,8 @@ export function AnalyzePage() {
   const [savedRecordId, setSavedRecordId] = useState<string>()
   const [savingRecord, setSavingRecord] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [followupError, setFollowupError] = useState('')
+  const activeThreadRef = useRef<string | undefined>(undefined)
 
   const applySnapshot = useCallback(async (response: Response) => {
     const body = await response.json().catch(() => undefined)
@@ -102,8 +105,13 @@ export function AnalyzePage() {
     setStatus(next.status === 'completed' ? 'completed' : next.status === 'retryable' || next.status === 'terminal' ? 'error' : 'idle')
     if (next.status === 'completed') { setProgress('分析报告已生成。'); setProgressStage('completed') }
     if (next.status === 'retryable' || next.status === 'terminal') { setProgress('分析未能完成。'); setProgressStage(next.status) }
-    setSelectedCandidates({})
-    setGramAnswers({})
+    // A replayed waiting snapshot must not erase an answer the user is correcting.
+    if (activeThreadRef.current !== next.thread_id || next.status !== 'waiting') {
+      setSelectedCandidates({})
+      setGramAnswers({})
+      setFollowupError('')
+    }
+    activeThreadRef.current = next.thread_id
     const url = new URL(window.location.href)
     url.searchParams.set('thread', next.thread_id)
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
@@ -199,12 +207,17 @@ export function AnalyzePage() {
 
   async function submitFollowup(payload: Record<string, unknown>) {
     if (!snapshot) return
+    setFollowupError('')
     setStatus('submitting')
     try {
       const response = await submitAgentInput(request, snapshot.thread_id, { kind: 'description', text: JSON.stringify(payload) })
-      if (!response.ok) throw new Error('agent followup request failed')
+      if (!response.ok) {
+        setFollowupError(await safeErrorMessage(response, '这次补充没有生效，请检查后重试。'))
+        setStatus(snapshot.status === 'completed' ? 'completed' : 'idle')
+        return
+      }
       await refreshSnapshot(snapshot.thread_id)
-    } catch { setStatus('error'); setProgress('这次补充没有生效，请检查后重试。') }
+    } catch { setStatus(snapshot.status === 'completed' ? 'completed' : 'idle'); setFollowupError('这次补充没有生效，请检查后重试。') }
   }
 
   function submitClarification() {
@@ -213,15 +226,18 @@ export function AnalyzePage() {
       if (question.field === 'food' && selectedCandidates[question.item_id]) answers[question.item_id] = { candidate_id: selectedCandidates[question.item_id] }
       if (question.field === 'grams' && gramAnswers[question.item_id]?.trim()) answers[question.item_id] = { grams: gramAnswers[question.item_id].trim() }
     }
-    if (Object.keys(answers).length !== (report?.questions?.length ?? 0)) { setProgress('请完成所有补充项；系统不会替你自动选择候选。'); return }
+    if (Object.keys(answers).length !== (report?.questions?.length ?? 0)) { setFollowupError('请完成所有补充项；系统不会替你自动选择候选。'); return }
     void submitFollowup({ answers })
   }
 
   function submitCorrection() {
     const normalized = correction.trim()
     const target = report?.items?.find((item) => item.item_id && (normalized.includes(item.name) || normalized.includes(displayFoodName(item.name))))
-    const grams = normalized.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:g|克)?/i)?.[1]
-    if (!target?.item_id || (!grams && !normalized.includes('排除'))) { setProgress('请写明要修改的食物和克数，或明确写“排除”。'); return }
+    if (!target?.item_id) { setFollowupError('请写明要修改的食物和重量，或明确写“排除”。'); return }
+    const label = normalized.includes(target.name) ? target.name : displayFoodName(target.name)
+    // Preserve the entire weight suffix: digit extraction would turn 100kg into 100g.
+    const grams = normalized.slice(normalized.indexOf(label) + label.length).trim().replace(/^(?:改为|改成|调整为)\s*/, '')
+    if (!grams && !normalized.includes('排除')) { setFollowupError('请写明要修改的食物和重量，或明确写“排除”。'); return }
     void submitFollowup({ corrections: { [target.item_id]: normalized.includes('排除') ? { exclude: true } : { grams } } })
   }
 
@@ -272,9 +288,9 @@ export function AnalyzePage() {
       <form className="space-y-3" noValidate onSubmit={handleSubmit}><div className="space-y-2"><Label htmlFor="meal-description">餐食描述</Label><textarea aria-describedby={fieldError ? 'meal-description-error' : undefined} aria-invalid={Boolean(fieldError)} className="min-h-28 w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" disabled={isBusy} id="meal-description" onChange={(event) => setDescription(event.target.value)} placeholder="例如：米饭 100 克" ref={textInputRef} value={description} />{fieldError ? <p id="meal-description-error" className="text-[13px] leading-5 text-destructive">{fieldError}</p> : null}</div><Button className="h-11 w-full" disabled={isBusy} ref={submitButtonRef} type="submit">{status === 'submitting' ? '正在分析…' : '开始分析'}</Button></form>
       {progressStage ? <SafeProgressStages onRetry={retryAnalysis} stage={progressStage} /> : <Alert aria-live="polite" role="status"><RefreshCw aria-hidden="true" className={isBusy ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} /><AlertTitle>{progress || '等待分析'}</AlertTitle><AlertDescription>阶段状态只显示安全摘要，最终结果以报告卡片为准。</AlertDescription></Alert>}
       {recovery ? <Alert variant={recoveryCode === 'OUTCOME_UNKNOWN' ? 'default' : 'destructive'}><CircleAlert aria-hidden="true" /><AlertTitle>{recovery.title}</AlertTitle><AlertDescription className="space-y-3"><p>{recovery.body}</p>{recoveryCode === 'OUTCOME_UNKNOWN' ? <Button className="h-11 w-full" onClick={startNewImageAnalysis} type="button" variant="outline">{recovery.action}</Button> : <Button className="h-11 w-full" onClick={focusTextFallback} type="button" variant="outline">{recovery.action}</Button>}</AlertDescription></Alert> : null}
-      {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} inputMode="decimal" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
+      {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} aria-describedby="meal-weight-help" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<p className="text-[13px] text-muted-foreground" id="meal-weight-help">数字默认克；支持 g、kg、克、公斤、千克、公克、斤、市斤、两、市两。1 市斤＝500 克，1 市两＝50 克；每项最多 2000 克。</p>{followupError ? <p className="text-sm text-destructive" role="alert">{followupError}</p> : null}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
       {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{report.unaccounted_items?.join('、') || '请查看待补充项'}。</> : <>未匹配菜品：{report.unaccounted_items?.join('、') || '请补充菜品和份量'}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}
-      {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <Card aria-label="营养分析报告" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleCheck aria-hidden="true" className="size-5" />{report.is_partial ? '部分营养报告' : '营养分析报告'}</h2><CardDescription className="tabular-nums text-base font-semibold">{report.is_partial ? '已计入项目合计' : '合计'} {report.totals.energy_kcal} kcal</CardDescription></CardHeader><CardContent className="space-y-3">{report.items?.map((item) => <article className="space-y-1 rounded-lg border border-border p-3" key={item.item_id ?? `${item.name}-${item.grams}`}><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{displayFoodName(item.name)}</h3>{item.is_estimated ? <Badge variant="outline">估算重量</Badge> : null}</div><p className="tabular-nums text-sm">{item.grams}g · {item.energy_kcal} kcal</p>{item.is_estimated ? <p className="text-[13px] leading-5 text-muted-foreground">估算重量，可能与实际份量存在偏差。</p> : null}<p className="tabular-nums text-[13px] leading-5 text-muted-foreground">蛋白质 {item.protein_g}g · 脂肪 {item.fat_g}g · 碳水 {item.carbohydrate_g}g</p></article>)}<p className="tabular-nums text-sm text-muted-foreground">蛋白质 {report.totals.protein_g}g · 脂肪 {report.totals.fat_g}g · 碳水 {report.totals.carbohydrate_g}g</p>{report.context_references?.map((reference) => <p className="text-[13px] text-muted-foreground" key={reference}>{reference}</p>)}<p className="text-[13px] leading-5 text-muted-foreground">{report.disclaimer || '本结果仅供一般饮食参考，不替代医疗建议。'}</p>{!report.is_partial ? <div className="border-t pt-3">{savedRecordId ? <div className="space-y-2"><p className="text-sm font-medium text-primary">已保存</p><Link className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-input text-sm font-medium" to={`/app/records/${savedRecordId}`}>查看记录</Link></div> : <><Button className="h-11 w-full" disabled={savingRecord} onClick={() => void confirmSave()} type="button">{savingRecord ? '正在保存…' : '确认并保存'}</Button>{saveError ? <p className="mt-2 text-sm text-destructive">{saveError}</p> : null}</>}</div> : null}<div className="space-y-2 border-t pt-3"><Label htmlFor="meal-correction">修正或排除项目</Label><Input className="h-11" id="meal-correction" onChange={(event) => setCorrection(event.target.value)} placeholder="例如：米饭改为 150 克，或排除米饭" value={correction} /><Button className="h-11 w-full" disabled={isBusy} onClick={submitCorrection} type="button">应用修正</Button></div><div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">删除这次分析</p><p className="text-[13px] leading-5 text-muted-foreground">提交后立即关闭此会话的分析、事件流和本地缓存；数据将在 24 小时内删除。</p><Button className="min-h-11 w-full" disabled={status === 'deleting'} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} type="button" variant="destructive">删除这次分析</Button></div></CardContent></Card> : null}
+      {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <Card aria-label="营养分析报告" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleCheck aria-hidden="true" className="size-5" />{report.is_partial ? '部分营养报告' : '营养分析报告'}</h2><CardDescription className="tabular-nums text-base font-semibold">{report.is_partial ? '已计入项目合计' : '合计'} {report.totals.energy_kcal} kcal</CardDescription></CardHeader><CardContent className="space-y-3">{report.items?.map((item) => <article className="space-y-1 rounded-lg border border-border p-3" key={item.item_id ?? `${item.name}-${item.grams}`}><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{displayFoodName(item.name)}</h3>{item.is_estimated ? <Badge variant="outline">估算重量</Badge> : null}</div><p className="tabular-nums text-sm">{item.grams}g · {item.energy_kcal} kcal</p>{item.is_estimated ? <p className="text-[13px] leading-5 text-muted-foreground">估算重量，可能与实际份量存在偏差。</p> : null}<p className="tabular-nums text-[13px] leading-5 text-muted-foreground">蛋白质 {item.protein_g}g · 脂肪 {item.fat_g}g · 碳水 {item.carbohydrate_g}g</p></article>)}<p className="tabular-nums text-sm text-muted-foreground">蛋白质 {report.totals.protein_g}g · 脂肪 {report.totals.fat_g}g · 碳水 {report.totals.carbohydrate_g}g</p>{report.context_references?.map((reference) => <p className="text-[13px] text-muted-foreground" key={reference}>{reference}</p>)}<p className="text-[13px] leading-5 text-muted-foreground">{report.disclaimer || '本结果仅供一般饮食参考，不替代医疗建议。'}</p>{!report.is_partial ? <div className="border-t pt-3">{savedRecordId ? <div className="space-y-2"><p className="text-sm font-medium text-primary">已保存</p><Link className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-input text-sm font-medium" to={`/app/records/${savedRecordId}`}>查看记录</Link></div> : <><Button className="h-11 w-full" disabled={savingRecord} onClick={() => void confirmSave()} type="button">{savingRecord ? '正在保存…' : '确认并保存'}</Button>{saveError ? <p className="mt-2 text-sm text-destructive">{saveError}</p> : null}</>}</div> : null}<div className="space-y-2 border-t pt-3">{followupError ? <p className="text-sm text-destructive" role="alert">{followupError}</p> : null}<Label htmlFor="meal-correction">修正或排除项目</Label><Input className="h-11" id="meal-correction" onChange={(event) => setCorrection(event.target.value)} placeholder="例如：米饭改为 150 克，或排除米饭" value={correction} /><Button className="h-11 w-full" disabled={isBusy} onClick={submitCorrection} type="button">应用修正</Button></div><div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">删除这次分析</p><p className="text-[13px] leading-5 text-muted-foreground">提交后立即关闭此会话的分析、事件流和本地缓存；数据将在 24 小时内删除。</p><Button className="min-h-11 w-full" disabled={status === 'deleting'} onClick={() => { setDeleteError(''); setDeleteOpen(true) }} type="button" variant="destructive">删除这次分析</Button></div></CardContent></Card> : null}
       <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (status !== 'deleting') setDeleteOpen(open) }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除这次分析？</AlertDialogTitle><AlertDialogDescription>这会停止当前分析和事件流，并在 24 小时内删除这次会话的数据。此操作无法撤销。</AlertDialogDescription></AlertDialogHeader>{deleteError ? <p className="text-sm text-destructive" role="alert">{deleteError}</p> : null}<AlertDialogFooter><AlertDialogCancel disabled={status === 'deleting'}>保留这次分析</AlertDialogCancel><AlertDialogAction disabled={status === 'deleting'} onClick={() => void confirmDeletion()} variant="destructive">{status === 'deleting' ? '正在提交删除…' : '确认删除'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </section>
   )

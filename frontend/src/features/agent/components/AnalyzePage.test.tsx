@@ -11,6 +11,58 @@ function renderPage(request: AuthContextValue['request'] = vi.fn(async () => new
 
 describe('AnalyzePage', () => {
   afterEach(() => window.history.replaceState({}, '', '/'))
+  it('keeps a rejected weight editable and sends complete units for clarification and correction', async () => {
+    const user = userEvent.setup()
+    const threadId = '11111111-1111-4111-8111-111111111111'
+    const waiting = { thread_id: threadId, status: 'waiting', revision: 1, report: {
+      questions: [{ item_id: 'rice-1', field: 'grams', message: '请补充米饭重量。', candidates: [] }],
+      understood_items: [{ item_id: 'rice-1', name: '米饭', grams: null }],
+    } }
+    const completed = { thread_id: threadId, status: 'completed', revision: 2, report: {
+      items: [{ item_id: 'rice-1', name: '米饭', grams: '100', energy_kcal: '130.0' }],
+      totals: { energy_kcal: '130.0' },
+    } }
+    let accepted = false
+    const payloads: Array<Record<string, Record<string, { grams: string }>>> = []
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/events')) return new Response('')
+      if (path.endsWith('/input')) {
+        const payload = JSON.parse(JSON.parse(String(init?.body)).text)
+        payloads.push(payload)
+        if (payload.answers?.['rice-1']?.grams === '100kg') return new Response(JSON.stringify({ error: {
+          code: 'INVALID_WEIGHT', message: '换算后的单项重量必须大于 0 且不超过 2000 克，请更正后提交。', request_id: '22222222-2222-4222-8222-222222222222',
+        } }), { status: 422 })
+        accepted = true
+        return new Response(JSON.stringify({ thread_id: threadId, status: 'completed' }), { status: 202 })
+      }
+      return new Response(JSON.stringify(accepted ? completed : waiting))
+    })
+    renderPage(request)
+    await user.type(screen.getByLabelText('餐食描述'), '米饭')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await user.type(await screen.findByLabelText('克数'), '100kg')
+    await user.click(screen.getByRole('button', { name: '提交补充信息' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('不超过 2000 克')
+    expect(screen.getByLabelText('克数')).toHaveValue('100kg')
+    expect(screen.queryByText('图片未能识别')).not.toBeInTheDocument()
+    await user.clear(screen.getByLabelText('克数'))
+    await user.type(screen.getByLabelText('克数'), '0.1kg')
+    await user.click(screen.getByRole('button', { name: '提交补充信息' }))
+    expect(await screen.findByText('合计 130.0 kcal')).toBeInTheDocument()
+    expect(payloads[1].answers['rice-1'].grams).toBe('0.1kg')
+    await user.type(screen.getByLabelText('修正或排除项目'), '米饭改为1斤')
+    await user.click(screen.getByRole('button', { name: '应用修正' }))
+    await waitFor(() => expect(payloads[2].corrections['rice-1'].grams).toBe('1斤'))
+  })
+
+  it('does not label a text analysis failure as an image recognition failure', async () => {
+    window.history.replaceState({}, '', '/app/analyze?thread=11111111-1111-4111-8111-111111111111')
+    renderPage(vi.fn(async (path: string) => path.endsWith('/events') ? new Response('') : new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'retryable', revision: 2, recovery_code: 'ANALYSIS_NOT_COMPLETED',
+    }))))
+    expect(await screen.findByRole('alert')).toHaveTextContent('本次餐食分析未完成')
+    expect(screen.queryByText('图片未能识别')).not.toBeInTheDocument()
+  })
   it('uses a labelled text input and does not invent a report before an API response', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
