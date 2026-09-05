@@ -39,7 +39,8 @@ test('真实登录后的记录页显示低覆盖周复盘且公开 API 不泄露
   const confirmation = observedRequests[confirmationIndex]
   if (!confirmation) throw new Error('statistics timezone confirmation was not observed')
   expect(JSON.parse(confirmation.postData ?? '{}')).toEqual({ time_zone: expect.any(String) })
-  expect(confirmationStatuses.some((status) => status === 200 || status === 409)).toBeTruthy()
+  // A fresh account has no stored preference; a conflict belongs only to the opposite-IANA test path.
+  expect(confirmationStatuses).toEqual([200])
   const reviewRequest = observedRequests[reviewIndex]
   if (!reviewRequest) throw new Error('weekly review request was not observed')
   const reviewUrl = new URL(reviewRequest.url)

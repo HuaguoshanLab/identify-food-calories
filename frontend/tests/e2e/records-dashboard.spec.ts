@@ -52,7 +52,8 @@ function assertConfirmedDashboardReadContract(observation: StatisticsObservation
   const confirmation = requests[confirmationIndex]
   if (!confirmation) throw new Error('statistics timezone confirmation was not observed')
   expect(JSON.parse(confirmation.postData ?? '{}')).toEqual({ time_zone: timeZone })
-  expect(confirmationStatuses.some((status) => status === 200 || status === 409)).toBeTruthy()
+  // A fresh account has no stored preference; accepting 409 here would hide a broken confirmation flow.
+  expect(confirmationStatuses).toEqual([200])
 
   const dashboardRequests = requests.filter((request) => new URL(request.url).pathname.startsWith(dashboardPath) && request.method === 'GET')
   expect(dashboardRequests.length).toBeGreaterThanOrEqual(3)
