@@ -5,7 +5,7 @@ milestone_name: milestone
 status: ready_to_plan
 stopped_at: Weight parsing and meal clarification recovery complete; Phase 7 deferred by user
 last_updated: 2026-09-05T07:39:51Z
-last_activity: 2026-09-05 -- Completed quick 260905-lfe weight parsing and clarification recovery
+last_activity: 2026-09-05 -- Completed quick 260905-n05 centered catalog action dialogs
 progress:
   total_phases: 8
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 Phase: 7
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-09-05 — Completed quick 260905-lfe; weight units and error recovery verified by tests and actual browser
+Last activity: 2026-09-05 — Completed quick 260905-n05; centered catalog dialogs verified by tests, E2E and actual browser
 
 Progress: [██████████] 100%
 
@@ -235,6 +235,7 @@ None yet.
 |---|-------------|------|--------|--------|-----------|
 | 260905-jr2 | 营养目录筛选表格、侧边编辑与 CSV 导入导出 | 2026-09-05 | e4aafc8 | 完成；浏览器交互已验证，下载观测限制见总结 | [目录改造](./quick/260905-jr2-catalog-table-filters-import-export/) |
 | 260905-lfe | 独立重量换算、补充恢复与错误提示 | 2026-09-05 | 4709532 | 定向测试及内置浏览器验证通过 | [重量修复](./quick/260905-lfe-extract-weight-parser-and-fix-meal-clari/) |
+| 260905-n05 | 目录表格审核发布入口与居中弹窗 | 2026-09-05 | 7668209 | 41项测试、隔离E2E及内置浏览器验证通过 | [居中弹窗](./quick/260905-n05-catalog-inline-draft-review-publish-acti/) |
 
 Phase 7 按用户要求暂不启动；本次目录改造已完成。
 
@@ -248,5 +249,5 @@ Phase 7 按用户要求暂不启动；本次目录改造已完成。
 ## Session Continuity
 
 Last session: 2026-09-05T07:39:51Z
-Stopped at: Completed quick task 260905-lfe; Phase 7 deferred by user
+Stopped at: Completed quick task 260905-n05; Phase 7 deferred by user
 Resume file: None
