@@ -23,6 +23,11 @@ type StatisticsObservation = {
   confirmationStatuses: number[]
 }
 
+type DashboardOverviewPayload = {
+  today: { consumed_local_date: string }
+  week: Array<{ consumed_local_date: string }>
+}
+
 function observeStatisticsRequests(page: Page): StatisticsObservation {
   const requests: ObservedRequest[] = []
   const confirmationStatuses: number[] = []
@@ -62,7 +67,15 @@ function assertConfirmedDashboardReadContract(observation: StatisticsObservation
     expect(request.headers.time_zone).toBeUndefined()
     expect(request.headers['x-time-zone']).toBeUndefined()
     expect(request.postData).toBeNull()
+
+    const isCurrentWindow = url.pathname.endsWith('/overview') || url.pathname.endsWith('/weekly-review')
+    if (isCurrentWindow) expect(url.searchParams.has('week_start')).toBeFalsy()
   }
+}
+
+function assertOverviewTodayIsInItsServerOwnedWeek(payload: DashboardOverviewPayload) {
+  expect(payload.week).toHaveLength(7)
+  expect(payload.week.map((day) => day.consumed_local_date)).toContain(payload.today.consumed_local_date)
 }
 
 async function bootstrapFirstAdmin(account: E2eAccount) {
@@ -109,7 +122,7 @@ async function createEnabledRuntimeConfig(page: Page) {
 test.describe.configure({ mode: 'serial' })
 
 test('admin RuntimeConfig preflight enables a normal user analyze, safe SSE, save, and Records dashboard', async ({ browser, page, request }) => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
   const admin: E2eAccount = { email: `records-admin-${suffix}@example.test`, password: 'Records-admin-password-2026!' }
 
@@ -127,6 +140,7 @@ test('admin RuntimeConfig preflight enables a normal user analyze, safe SSE, sav
     await adminContext.close()
   }
 
+  let crossZoneAccount: E2eAccount | undefined
   for (const timeZone of timezoneContexts) {
     const user: E2eAccount = { email: `records-user-${timeZone.replace('/', '-').toLowerCase()}-${suffix}@example.test`, password: 'Records-user-password-2026!' }
     const userContext = await browser.newContext({ timezoneId: timeZone })
@@ -154,6 +168,10 @@ test('admin RuntimeConfig preflight enables a normal user analyze, safe SSE, sav
       await expect(userPage).toHaveURL(/\/app\/records\/[0-9a-f-]+$/)
       await userPage.getByRole('button', { name: '返回上一页' }).click()
       await expect(userPage).toHaveURL(/\/app\/analyze\?thread=/)
+      const overviewResponse = userPage.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return url.pathname === '/api/v1/dashboard/overview' && response.request().method() === 'GET' && response.status() === 200
+      })
       await userPage.getByRole('link', { name: '记录', exact: true }).click()
       await expect(userPage).toHaveURL(/\/app\/records$/)
       await expect(userPage.getByText('今日已记录摄入')).toBeVisible()
@@ -169,8 +187,31 @@ test('admin RuntimeConfig preflight enables a normal user analyze, safe SSE, sav
       await expect(userPage.locator('body')).not.toContainText(forbiddenTerms)
       await expect.poll(() => statisticsObservation.requests.filter((request) => new URL(request.url).pathname.startsWith(dashboardPath)).length).toBeGreaterThanOrEqual(3)
       assertConfirmedDashboardReadContract(statisticsObservation, timeZone)
+      assertOverviewTodayIsInItsServerOwnedWeek(await (await overviewResponse).json() as DashboardOverviewPayload)
+      if (timeZone === 'Asia/Shanghai') crossZoneAccount = user
     } finally {
       await userContext.close()
     }
+  }
+
+  if (!crossZoneAccount) throw new Error('cross-zone account was not created')
+  const oppositeZoneContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' })
+  const oppositeZonePage = await oppositeZoneContext.newPage()
+  const oppositeZoneObservation = observeStatisticsRequests(oppositeZonePage)
+  try {
+    const conflict = oppositeZonePage.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/meal-records/dashboard-time-zone-confirmations'
+      && response.request().method() === 'POST' && response.status() === 409)
+    await login(oppositeZonePage, crossZoneAccount, '/app/records')
+    await conflict
+    await expect(oppositeZonePage.getByRole('alert')).toContainText('统计时区不一致')
+    await expect(oppositeZonePage.getByText('当前浏览器时区与已确认的统计时区不一致。请使用已确认的浏览器设置后重试。')).toBeVisible()
+    await expect.poll(() => oppositeZoneObservation.requests.filter((request) => new URL(request.url).pathname.startsWith(dashboardPath)).length).toBe(0)
+    expect(oppositeZoneObservation.confirmationStatuses).toEqual([409])
+    await expect(oppositeZonePage.getByText('今日已记录摄入')).toHaveCount(0)
+    await expect(oppositeZonePage.getByRole('heading', { name: '历史记录' })).toHaveCount(0)
+    await expect(oppositeZonePage.getByRole('heading', { name: '周复盘' })).toHaveCount(0)
+    await expect(oppositeZonePage.locator('body')).not.toContainText(forbiddenTerms)
+  } finally {
+    await oppositeZoneContext.close()
   }
 })

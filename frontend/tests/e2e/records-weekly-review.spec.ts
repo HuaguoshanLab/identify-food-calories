@@ -19,7 +19,7 @@ test('真实登录后的记录页显示低覆盖周复盘且公开 API 不泄露
   await clearMailbox(request)
   await page.goto('/register')
   await registerAndActivate(page, request, account)
-  const weeklyReviewResponse = page.waitForResponse((response) => response.url().includes('/api/v1/dashboard/weekly-review?week_start=') && response.request().method() === 'GET')
+  const weeklyReviewResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/dashboard/weekly-review' && response.request().method() === 'GET' && response.status() === 200)
   await login(page, account, '/app/records')
 
   const response = await weeklyReviewResponse
@@ -43,6 +43,7 @@ test('真实登录后的记录页显示低覆盖周复盘且公开 API 不泄露
   const reviewRequest = observedRequests[reviewIndex]
   if (!reviewRequest) throw new Error('weekly review request was not observed')
   const reviewUrl = new URL(reviewRequest.url)
+  expect(reviewUrl.searchParams.has('week_start')).toBeFalsy()
   expect(reviewUrl.searchParams.has('time_zone')).toBeFalsy()
   expect(reviewRequest.headers.time_zone).toBeUndefined()
   expect(reviewRequest.headers['x-time-zone']).toBeUndefined()
