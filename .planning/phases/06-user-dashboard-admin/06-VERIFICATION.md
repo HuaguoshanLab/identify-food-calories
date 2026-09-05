@@ -1,151 +1,139 @@
 ---
 phase: 06-user-dashboard-admin
-verified: 2026-09-04T10:05:00Z
-status: gaps_found
-score: 4/5 roadmap must-haves verified
+verified: 2026-09-05T02:57:34Z
+status: passed
+score: 5/5 roadmap must-haves verified
 overrides_applied: 0
 re_verification:
-  previous_status: gaps_found
+  previous_status: remediation_required
   previous_score: 4/5 roadmap must-haves verified
-  gaps_closed:
-    - "服务端以 records-owned、ZoneInfo 验证的 preference 计算本地 today 和 weekly-review 的本地 Monday。"
-    - "上海周一凌晨 UTC 序列化错误已由 formatToParts 的本地日历算法覆盖。"
-    - "README 和教学文档不再错误声称 Records/admin Playwright 资产缺失；真实浏览器验收已记录。"
-  gaps_remaining:
-    - "已有 preference 的 409 路径仍让当前浏览器推导的 week_start 定义 overview/review 窗口，破坏服务端统计时区唯一真相。"
-    - "Records 的 absolute-path ZoneInfo key 未映射为受控 400，而会泄露为 500。"
+  remediations_closed:
+    - "同一已保存 IANA confirmation 重试返回原 DTO 的 200；不同 IANA 409 不再开启当前读取。"
+    - "ZoneInfo 的 ValueError（绝对路径、traversal）在三个公开 Records 写命令中统一为安全 400、无写入。"
+    - "overview/default weekly current window 已移除客户端范围权威；显式 weekly 只允许已结束本地周。"
+    - "上海/洛杉矶真实 E2E 与已批准的内置浏览器跨 IANA 观察均覆盖冲突后零 dashboard read。"
+  remediation_items_remaining: []
   regressions: []
-gaps:
-  - truth: "用户可按已确认的统计时区一致地查看今日、本周摄入、趋势和周复盘。"
-    status: failed
-    reason: "RecordsPage 将确认接口的 409 作为读取成功后，仍从当前浏览器时区生成 week_start；DashboardService.get_overview 直接信任该参数，不验证它是否是持久 preference 下的当前本地周。跨时区/跨周打开会使 today 与趋势/复盘窗口不一致。"
-    artifacts:
-      - path: "frontend/src/features/records/api/client.ts"
-        issue: "confirmDashboardTimeZone 对任何 409 返回 null，未获得或比对已确认的服务端统计时区。"
-      - path: "frontend/src/features/records/components/RecordsPage.tsx"
-        issue: "确认成功或 409 后以 browserTimeZone() 生成 weekStart，并把它传给 overview、weekly review 和 refresh。"
-      - path: "backend/app/dashboard/service.py"
-        issue: "get_overview 的 week_start 参数未限制为 preference 下的 current Monday；可被客户端任意 Monday 改写本周趋势。"
-      - path: "backend/app/dashboard/api.py"
-        issue: "公开 overview 合约保留了未受本地当前周约束的 week_start 输入。"
-    missing:
-      - "将当前 overview/current weekly-review 的窗口完全收归服务端持久 preference；移除客户端 current-week week_start authority，或为历史周提供显式、受域规则验证的独立合约。"
-      - "确认 API 必须让前端可靠得到同一已确认 preference（同值幂等成功或受认证只读投影），不同 browser zone 必须显式冲突且不得放行覆盖。"
-      - "增加 stored Asia/Shanghai + browser America/Los_Angeles 及反向组合的组件/API/E2E 回归，断言 today 一定落在 overview week 中，且当前窗口请求不携带浏览器派生范围。"
-  - truth: "无效的 IANA 时区输入经公开 Records API 安全失败，不暴露异常或留下部分写入。"
-    status: partial
-    reason: "records service 的 _validated_time_zone 未捕获 ZoneInfo 的 ValueError。'/invalid-timezone' 和 '../etc/passwd' 会从服务层逃逸，三个 API handler 不能转换为既定 400。"
-    artifacts:
-      - path: "backend/app/records/service.py"
-        issue: "仅捕获 TypeError 和 ZoneInfoNotFoundError，漏掉 ZoneInfo 对 absolute/非规范相对路径抛出的 ValueError。"
-    missing:
-      - "捕获 ValueError 并统一抛出 InvalidTimeZone；为 meal confirm、edit 与 dashboard timezone confirmation 的绝对路径 key 增加 400、无写入、无异常详情 API 回归。"
 ---
 
 # Phase 06：用户看板与后台管理验证报告
 
 **阶段目标：** 用户看懂历史摄入趋势，管理员可以安全维护 Agent 所依赖的数据和配置。
 
-**验证时间：** 2026-09-04T10:05:00Z
+**验证时间：** 2026-09-05T02:57:34Z
+**状态：** `passed`
+**复验：** 是——在此前统计时区与输入安全缺口关闭后复验。
 
-**状态：** `gaps_found`
-**复验：** 是——复核 06-30、06-31、06-32 后的最终实现。
+## 验证方法与边界
 
-## 验证范围与方法
+不采信 36 份 SUMMARY 的完成自述。复核了根、`backend/`、`frontend/`、`admin-frontend/` 的约束，Phase 06 的 PLAN/SUMMARY、CONTEXT、最终 REVIEW、需求/路线图/状态、浏览器证据和关键生产/测试实现。
 
-读取了根、backend、frontend、admin-frontend 的 `AGENTS.md`，Phase 06 的 PLAN/SUMMARY 元数据和关键任务、`06-CONTEXT.md`、`REQUIREMENTS.md`、`ROADMAP.md`、前一份验证报告及新增 `06-REVIEW.md`。不采信 SUMMARY 自述，直接审查 dashboard/records/API/React/E2E 源码和测试。
-
-本阶段 ROADMAP 虽标为 MVP，但目标不是有效的用户故事格式；因此按五条 ROADMAP Success Criteria 做目标倒推，而不伪造 User Flow Coverage。
+路线图历史上把本阶段标为 MVP，但其目标不是有效的用户故事；因此采用路线图列出的五条 Success Criteria 作为不可降级的验收合同，而非伪造 MVP 用户故事覆盖表。所有计划认领的需求均能映射到该合同，未发现孤儿需求。`verify.schema-drift 6` 返回 `drift_detected: false`、`blocking: false`。
 
 ## Goal Achievement
 
 ### Observable Truths
 
-| # | Truth | Status | 直接证据 |
+| # | 路线图真相 | 状态 | 代码与运行证据 |
 | --- | --- | --- | --- |
-| 1 | 用户可在其已确认统计时区下查看一致的今日、本周、历史、趋势与周复盘。 | ✗ FAILED | `DashboardService` 现在正确用 preference + `ZoneInfo` 得到 local today，但 `get_overview(..., week_start)` 直接使用客户端 week_start。`RecordsPage` 在确认 409 后仍以当前 browser zone 推导并传入该参数；跨时区跨周时 today 可不在 week 内。 |
-| 2 | 独立后台仅调用 `/api/v1/admin/*`；普通用户无法读取/修改后台数据，用户 H5 不含后台页面。 | ✓ VERIFIED | 独立 `admin-frontend/`、受限 API base、memory-only token 与 `AdminRouteGuard` 存在；guarded `admin-management` E2E 观察 RuntimeConfig `201`、目录命令 `200`、普通用户 probe `403`。catalog 四个 replay 命令在返回 replay/resource 前重新读取 DB active-admin role。 |
-| 3 | 管理员可维护菜品、营养、来源、授权、版本并查看审计差异。 | ✓ VERIFIED | catalog draft → review → immutable publish → eligibility/disqualify 具备版本、If-Match、幂等及 allowlisted before/after audit diff；独立后台 E2E 覆盖生命周期。 |
-| 4 | 管理员可查看运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。 | ✓ VERIFIED | admin run DTO/UI 均为最小 allowlist，仅允许状态、版本、计数、耗时、费用、失败码和安全摘要；未发现 raw body、image、secret、full state 或 reasoning 进入该链路。 |
-| 5 | README 具备架构图、状态图、时序图、调试与面试线索。 | ✓ VERIFIED | 根 README、三 SPA README 与中文教学文档都存在相关图、命令和链接的问答线索。网络端口说明与实际 Playwright 配置一致；另见教学 Port 命名 warning。 |
+| 1 | 用户可查看今日、本周摄入、历史餐食、趋势图与周复盘。 | ✓ VERIFIED | `DashboardService.get_overview(user_id)` 先用 records-owned preference、`ZoneInfo` 与 aware clock 推导本地 today/current Monday；`RecordsPage` 仅在 confirmation 的严格 200 后读取 range-free overview/history/default weekly。真实 guarded E2E 在 Shanghai/Los Angeles contexts 中断言 `today` 属于七日 week；相反 IANA fresh login 取得 409 后 dashboard GET 为零。 |
+| 2 | 独立 `admin-frontend/` 只调用 `/api/v1/admin/*`；普通用户无法读取或修改后台数据，用户 H5 不含后台页面。 | ✓ VERIFIED | 独立 Vite 配置生产时 fail-closed 校验 admin API base；`AdminRouteGuard` 只作 UX，`AdminService.require_role()` 每次从 PostgreSQL 读取 active admin role；用户 H5 路由/导航未注册 admin 页面。后台与用户 H5 测试、类型检查和构建均通过。 |
+| 3 | 管理员可维护菜品、营养、来源、授权、版本，并查看审计差异。 | ✓ VERIFIED | catalog service 提供 draft、preview、If-Match、review、不可变 publish、eligibility/disqualify 和同事务审计；生命周期 UI 只渲染 allowlisted 字段差异。服务端 admin 回归 63 项通过，既有 isolated admin-management E2E 记录真实审核/发布/失格与普通用户 403。 |
+| 4 | 管理员可查看模型运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。 | ✓ VERIFIED | `AdminRunDetailResponse`/Zod DTO 是 strict allowlist；`RunDetailDrawer` 仅映射状态、版本、调用数、耗时、费用、失败码与安全摘要。RuntimeConfig 只接受非密钥策略字段，实际 provider resolver 保持环境边界；扫描未发现 token/browser storage 或 H5→admin 导入。 |
+| 5 | README 包含最终架构图、状态图、时序图、调试方式和面试深挖题。 | ✓ VERIFIED | 根 README 含三类图、启动/隔离 E2E/调试命令及可验证面试问题；backend/frontend/admin README 与中文 `docs/learning/06-dashboard-admin.md` 说明边界、请求链和测试。 |
 
-**Score:** 4/5 roadmap truths verified
+**Score:** 5/5 roadmap truths verified
 
-### 06-30/31/32 专项复核
+### 以前阻断点的三层复核
 
-| 项目 | Status | Evidence |
-| --- | --- | --- |
-| records-owned preference → dashboard read Port | ✓ VERIFIED | `SqlAlchemyDashboardRepository.get_dashboard_timezone_for_user()` 以 `DashboardTimezonePreference.user_id == user_id` 读取，缺失时返回 `None`；service 的 `_local_dashboard_today()` 在 aggregate/provider 前以 `ZoneInfo` 验证。 |
-| 用户本地日、DST 与周一数学 | ✓ VERIFIED | backend fake/service tests 覆盖 Shanghai/Los Angeles；`deriveLocalWeekStart()` 以指定 IANA `formatToParts`，不再用 `toISOString()` 截取 UTC 日期。 |
-| confirmation gate | ⚠️ PARTIAL | 200 前阻断 dashboard reads 正确；但已有 preference 的 409 被无条件放行，随后把当前 browser zone 变为 range authority。 |
-| 双 Records guarded E2E 与人工浏览器路径 | ✓ VERIFIED（证据范围内） | 两 E2E 均为 fresh guarded stack，观察 confirmation 在 read 之前且不传 `time_zone` header/query；浏览器证据记录普通用户 analyze → save → Records。它们没有测试“已确认 zone 与当前 browser zone 不同”的状态迁移。 |
-| absolute-path IANA 输入 fail-closed | ✗ FAILED | 直接运行 `MealRecordService._validated_time_zone('/invalid-timezone')` 得到 `ValueError`，不是 `InvalidTimeZone`；API 映射未覆盖。 |
+| 先前失败项 | L1 存在 | L2 实质 | L3/L4 接线与数据流 | 结论 |
+| --- | --- | --- | --- | --- |
+| confirmation 同/异 IANA 与非法 ZoneInfo 输入 | `records/service.py`、`records/api.py` 和回归测试存在 | `_validated_time_zone` 捕获 TypeError、ValueError、ZoneInfoNotFoundError；同 key 返回原 confirmation，异 key 仅 generic conflict，IntegrityError rollback/re-read | API 将 `InvalidTimeZone` 映射 400、conflict 映射 409；写入前校验，fake-repository/API tests 证明无额外/部分写入 | ✓ VERIFIED |
+| preference-owned current window | dashboard service/API、records feature 客户端/页面存在 | overview 签名没有 `week_start`；default weekly 缺省才表示 current，显式 current/future/non-Monday 422 | 读取链为 Records confirmation → persisted preference → `DashboardTimezoneReadPort` → `ZoneInfo` local day/week → tenant aggregates/cache/public DTO → TanStack Query render；当前 URL/query key 无 browser range | ✓ VERIFIED |
+| changed-zone 安全阻断 | E2E specs、组件测试、浏览器 evidence 存在 | E2E 对首次两个账号精确要求 `[200]`，同一账号 opposite zone 仅允许 `[409]`，并断言无旧 DOM | fresh Chromium context 真实注册/激活/登录/分析/保存；观察实际公开 HTTP，409 后 overview/history/weekly GET=0。用户已批准内置浏览器的对应页面观察，证据文件明确与 E2E 分层 | ✓ VERIFIED |
 
-## Required Artifacts & Key Links
+## Required Artifacts
 
-| Artifact/link | Status | Details |
-| --- | --- | --- |
-| `records/service.py` → persisted `consumed_local_date` | ✓ VERIFIED | 写入/编辑按 ZoneInfo 与 consumed_at 固化日期；历史 SQL 基于该列并保留 tenant/deleted filters。 |
-| preference → dashboard `ZoneInfo` local today | ✓ VERIFIED | 最小 read Port 和 repository projection 已接入 overview/weekly service，缺失或损坏 preference 的 dashboard contract 为安全 409。 |
-| Records confirmation → current overview/review range | ✗ NOT WIRED | 不同 browser zone 的 409 路径仍影响 `week_start`，服务端 overview 不校验 current-week relation。 |
-| Dashboard/current weekly API → persisted preference only | ✗ NOT WIRED | API 允许客户端 `week_start` 改写 overview current window；weekly review 虽验证 Monday/future，仍没有阻止 current browser Monday 替代 preference current Monday。 |
-| catalog commands → current DB RBAC | ✓ WIRED | active role 验证在 replay/query/return 前；normal/demoted replay regression 存在。 |
-| Admin UI → public admin API → audited DB commands | ✓ WIRED | strict Zod feature client、probe guard 和 audited command response 形成真实链路。 |
+| Artifact | 期望 | 状态 | 直接证据 |
+| --- | --- | --- | --- |
+| `backend/app/records/service.py` | records-owned IANA 确认及输入安全 | ✓ VERIFIED | 143–203 行为单次写入/同 key replay/竞态 re-read；213–217 行先于 mutation 统一 IANA 异常。 |
+| `backend/app/dashboard/service.py` | preference-owned overview/default weekly 与历史周边界 | ✓ VERIFIED | 97–108 行服务端 current overview；246–251 行仅接受 completed Monday；274–285 行 preference/ZoneInfo fail-closed。 |
+| `frontend/src/features/records/components/RecordsPage.tsx` | confirmation-gated、server-current Records 渲染 | ✓ VERIFIED | 25–45 行严格 confirmation 200 才 `enabled`；overview/history/default weekly 分别调用无 range 的公开 client；冲突分支不渲染旧投影。 |
+| `admin-frontend/src/auth/AdminRouteGuard.tsx` | 独立后台的非授权 UX 防线 | ✓ VERIFIED | probe 结果清空内存会话和 Query cache；受保护路由在授权前不渲染；授权真相仍在 API service。 |
+| `backend/app/admin/service.py` 与 `schemas.py` | DB-RBAC、审计、catalog/runtime/run 最小化 DTO | ✓ VERIFIED | `require_role()` 重读 active role；配置/目录变更写审计；Run/Runtime DTO strict 且不含原图、原文、State、reasoning、secret。 |
+| `frontend/tests/e2e/records-dashboard.spec.ts` | 公共跨时区、零读取回归 | ✓ VERIFIED | fresh contexts 观察 confirmation 与 dashboard URL/headers/body；asserts `today ∈ week`，opposite IANA 409 后零 dashboard GET/无旧 UI。 |
+| `docs/verification/phase-06-browser-acceptance.md` | 脱敏真实浏览器证据 | ✓ VERIFIED | 顶部与 06-36 section 为 PASS；记录普通 Records、同区重入、相反 IANA 409/zero-read，明确未以 Playwright 冒充浏览器。 |
+
+`verify.artifacts 06-34` 对 `test_dashboard_api.py` 报告缺少字面字符串 `America/Los_Angeles`，但这不是实现空洞：该 HTTP 层测试验证浏览器 `week_start` 被忽略，Shanghai/Los Angeles calendar 数学位于 service/facts tests 和真实 Chromium E2E。人工审阅该文件确认它的 HTTP 断言有真实 service 调用与 response；不将工具的关键词启发式误报为缺失 artifact。`verify.key-links` 对 06-34/36 的两个相对路径/regex 也有 false negative；实际调用为 `service.get_overview(user_id=principal)`，E2E 文件路径是完整的 `frontend/tests/e2e/...`，均已在源码中复核。
+
+## Key Link Verification
+
+| From | To | Via | 状态 | Evidence |
+| --- | --- | --- | --- | --- |
+| Records confirmation | persisted preference | `MealRecordService` transaction | ✓ WIRED | 同 IANA 复用 stored DTO；不同 IANA/非法值不能改变 preference、audit 或 records。 |
+| Dashboard API | Dashboard service | `get_overview(user_id=principal)` / shared weekly helper | ✓ WIRED | overview 不接收有效客户端 range；weekly current/history 域规则由 service 单点执行。 |
+| Dashboard service | tenant PostgreSQL aggregate/cache | repository by `user_id` and local dates | ✓ WIRED | preference 在 aggregate/facts/cache/provider 之前验证；缺失/损坏时安全 409。 |
+| RecordsPage | public Records/dashboard APIs | strict Zod + TanStack Query | ✓ WIRED | 200 confirmation 打开三个 query；409 error class 关闭全部 dashboard reads；response data 直接驱动 summary/trend/history/review。 |
+| Admin UI | `/api/v1/admin/*` | feature API strict DTO + memory token | ✓ WIRED | routes only compose features; API service performs fresh DB role check for each admin command/read. |
+| Admin command | audit evidence | service transaction | ✓ WIRED | runtime/catalog commands create allowlisted before/after/actor/time/reason evidence before commit. |
 
 ## Data-Flow Trace
 
-| Rendered data | Source | Real data | Status |
-| --- | --- | --- | --- |
-| Records overview/history/review | Authenticated dashboard API → tenant-filtered PostgreSQL aggregates/cache | 是 | ⚠️ HOLLOW at current-window boundary: data real, selected window can be browser-controlled. |
-| Admin catalog/config/runs | Authenticated `/api/v1/admin/*` → DB RBAC/repository | 是 | ✓ FLOWING |
+| Rendered artifact | Data variable | Upstream source | Real data proof | 状态 |
+| --- | --- | --- | --- | --- |
+| Records summary/trend/history/review | Query `overview`/`history`/`weeklyReview` | authenticated public API → service → tenant-filtered aggregate/history/cache tables | guarded E2E actually registered/login/analyzed/saved then observed 200 overview/history/weekly; 409 path observed zero reads | ✓ FLOWING |
+| Admin catalog lifecycle/audit | strict feature DTO state | public admin API → DB-role service → catalog/audit models | isolated admin E2E records UI-issued RuntimeConfig/review/publish/disqualify, not mock state; admin frontend tests passed | ✓ FLOWING |
+| Admin run metrics/detail | strict run DTO | public runs endpoints → terminal-run SQL projection | schemas/UI allowlist fields only; server admin regression tests passed | ✓ FLOWING |
 
 ## Behavioral Spot-Checks
 
-| Behavior | Command/result | Status |
+| Behavior | Command/result | 状态 |
 | --- | --- | --- |
-| Records client/date helper/type safety | `cd frontend && npm test -- --run src/features/records/api/client.test.ts src/features/records/api/dashboard.test.ts src/features/records/components/RecordsPage.test.tsx && npm run typecheck` → 3 files, 10 tests passed; typecheck passed | ✓ PASS, but tests encode the unsafe 409 continuation rather than cross-zone invariant |
-| Dashboard timezone/weekly HTTP tests | `cd backend && uv run pytest tests/dashboard/test_dashboard_service.py tests/dashboard/test_weekly_review_facts.py tests/unit/test_dashboard_api.py tests/unit/test_weekly_review_api.py -q` → 15 passed | ✓ PASS, but no stored-zone/browser-zone mismatch coverage |
-| Existing records service/API tests | `uv run pytest tests/unit/test_meal_record_api.py tests/records/test_record_service.py -q` → 11 passed | ✓ PASS, but no absolute-path ZoneInfo regression |
-| Absolute ZoneInfo key | `MealRecordService._validated_time_zone('/invalid-timezone')` → `ValueError: ZoneInfo keys may not be absolute paths` | ✗ FAIL |
+| Records IANA safety, dashboard windows, weekly boundary, admin service/API | `cd backend && uv run pytest … -q` covering records/dashboard/admin sets | ✓ 63 passed；Ruff 覆盖 `app/records app/dashboard app/admin` 与相关 tests 全通过。 |
+| Records H5 client/component behavior | `cd frontend && npm test -- --run src/features/records` | ✓ 8 files / 25 tests passed。 |
+| Records type/build | `cd frontend && npm run typecheck && npm run build` | ✓ passed；仅 Vite 既有 >500 kB chunk warning，非正确性失败。 |
+| Real guarded Records flows | `E2E_FRONTEND_PORT=5182 E2E_BACKEND_PORT=8002 E2E_RECORDS_ADMIN_FRONTEND_PORT=5185 npm run test:e2e -- --grep 'records-dashboard|真实登录后的记录页显示低覆盖周复盘'` | ✓ 2 passed / 13.8s；实际日志显示 first confirmation 200、current dashboard reads 200，以及 opposite fresh login 的 409 后无 dashboard GET。 |
+| Admin SPA quality/build boundary | `cd admin-frontend && npm test -- --run && npm run typecheck && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build` | ✓ 9 files / 29 tests、typecheck、validated production build 全通过；无 env 的 build 正确 fail-closed。 |
+
+## Probe Execution
+
+未发现 Phase 06 明示或约定的 `scripts/**/tests/probe-*.sh`。本阶段是 API/UI/E2E 交付，不适用独立 shell probe；以以上不修改业务数据的测试和真实公开浏览器/E2E 路径替代。
 
 ## Requirements Coverage
 
-| Requirement | Status | Evidence |
+| Requirement | 状态 | Evidence |
 | --- | --- | --- |
-| UI-02 | ✗ BLOCKED | 页面、aggregates、history、trend、review 均存在，但核心“当前周/今日一致性”可被当前 browser range 改写。 |
-| UI-03 | ✓ SATISFIED | versioned safe stage mapping、strict parser 与安全 DOM/E2E assertions 存在。 |
-| ADM-01 | ✓ SATISFIED | independent SPA + backend DB-RBAC + normal-user rejection/read guards。 |
-| ADM-02 | ✓ SATISFIED | catalog lifecycle、publication/eligibility、version/source/license/audit artifacts。 |
-| ADM-03 | ✓ SATISFIED | 最小运行指标和 fail code UI/API；敏感字段未流出。 |
-| ADM-04 | ✓ SATISFIED | versioned non-secret RuntimeConfig、budget validation、admission snapshot 与 admin UI。 |
-| ADM-05 | ✓ SATISFIED | actor/time/reason/allowlisted before-after diff 的审计链。 |
-| ARC-08 | ✓ SATISFIED | sibling admin SPA、独立 build/lock/E2E config、无 frontend/src import、后端 RBAC。 |
-| EDU-02 | ✓ SATISFIED | README 图、启动/调试命令存在。网络端口陈述准确：开发 `5178/5179/8000`；Records E2E `5182/8002/5185`；Admin E2E `5183/8003/5184`，均与两个 Playwright config 一致。 |
-| EDU-03 | ⚠️ PARTIAL | 面试线索存在，但 `docs/learning/06-dashboard-admin.md` 将真实接口错称为 `DashboardTimezonePort`；源码定义是 `DashboardTimezoneReadPort`，并且文档把 browser-derived week_start 描述得比实际更安全。修复术语和当前窗口边界后即可完整满足。 |
+| UI-02 | ✓ SATISFIED | preference-owned Records overview/history/trend/weekly、current/history boundary、real E2E 和批准的浏览器 evidence。 |
+| UI-03 | ✓ SATISFIED | canonical safe stages、strict parser/render 与 E2E；敏感 graph/provider content 不进入 DOM。 |
+| ADM-01 | ✓ SATISFIED | independent SPA、frontend route separation、guard UX 和 per-request DB-RBAC。 |
+| ADM-02 | ✓ SATISFIED | catalog draft/review/publish/disqualify、immutable snapshot 和 future eligibility。 |
+| ADM-03 | ✓ SATISFIED | terminal run metrics/detail safe DTO、filters/cursor、minimal drawer UI。 |
+| ADM-04 | ✓ SATISFIED | non-secret versioned runtime config、admission snapshot、disable guard、admin config UI。 |
+| ADM-05 | ✓ SATISFIED | actor/time/reason/server-computed scalar before/after audit evidence。 |
+| ARC-08 | ✓ SATISFIED | sibling `admin-frontend/`、independent lock/build、no H5 code import、public API boundary/RBAC。 |
+| EDU-02 | ✓ SATISFIED | root README architecture/state/sequence diagrams plus startup/debug instructions。 |
+| EDU-03 | ✓ SATISFIED | README 和 `docs/learning/06-dashboard-admin.md` 具备源码/测试可追溯的面试深挖线索。 |
 
-## Anti-Patterns / Documentation Accuracy
+## Anti-Patterns and Disconfirmation Pass
 
-| File | Line/area | Severity | Impact |
-| --- | --- | --- | --- |
-| `frontend/src/features/records/api/client.ts` | confirmation 409 path | 🛑 BLOCKER | Treats any already-confirmed preference as permission to use an unrelated browser zone for current range. |
-| `frontend/src/features/records/components/RecordsPage.tsx` | `weekStart` and three dashboard calls | 🛑 BLOCKER | Browser-derived value selects supposedly server-authoritative current dashboard/review window. |
-| `backend/app/dashboard/service.py` | `get_overview(... week_start)` | 🛑 BLOCKER | No domain constraint ties supplied overview week to preference-local current Monday. |
-| `backend/app/records/service.py` | `_validated_time_zone` | ⚠️ WARNING | Leaks `ValueError` for absolute/non-normalized ZoneInfo keys as 500. |
-| `docs/learning/06-dashboard-admin.md` | timezone Port section | ℹ️ INFO | `DashboardTimezonePort` does not exist; actual interface is `DashboardTimezoneReadPort`. Network port names/numbers in docs are otherwise accurate. |
-
-No unreferenced `TBD`/`FIXME`/`XXX` marker was found in the inspected Phase 06 production paths.
+| Check | Result | Classification |
+| --- | --- | --- |
+| Modified Phase 06 production paths | 无未引用 `TBD`、`FIXME`、`XXX`；无客户端 token persistence；无 admin→H5 filesystem import 或 H5→admin production route/import。 | ✓ clean |
+| 原先的 false-green 风险 | E2E 现在首次 confirmation 精确断言 `[200]`，changed-zone 仅断言 `[409]`，不再把冲突误读为首次成功。 | ✓ closed |
+| 原先未覆盖错误路径 | `/invalid-timezone`、`../Etc/UTC` 已在 create/edit/confirmation API 与 service 回归中验证为 400/no write/no detail。 | ✓ closed |
+| 文档准确性 | `frontend/README.md` 已同步 Records E2E 的存在、当前窗口/跨 IANA 合约及浏览器与 Playwright 的分层证据；根 README、E2E README、验收证据和教学文档一致。 | ✓ clean |
 
 ## Human Verification
 
-The user has already confirmed the normal real-browser analyze → save → Records flow. No additional ordinary visual-only check blocks the report. After the two functional gaps are fixed, rerun the existing public browser path plus a controlled browser-zone-change scenario; deterministic/API/E2E tests must prove exact cross-zone calendar semantics.
+无待处理项目。06-36 的唯一 blocking browser checkpoint 已由用户以 `approved` 确认；`docs/verification/phase-06-browser-acceptance.md` 以最小脱敏页面事实记录同区重入和相反 IANA 409/zero-read，并明确浏览器验收与可重复 Playwright 证据的边界。
 
-## Gaps Summary
+## Conclusion
 
-The previous server-UTC defect was genuinely fixed, but the closure is not sound: 06-31 retained a client-selected `week_start` and 06-30 lets overview trust it. That contradiction makes `UI-02` fail at ordinary cross-timezone/cross-week use. Separately, records input validation is inconsistent with dashboard validation and can expose a 500 for malformed but schema-valid ZoneInfo keys.
+此前的两个 blocker 已被代码、API/组件回归、实际 guarded E2E 和已批准的内置浏览器验收共同推翻。当前窗口不能由浏览器 range 改写；同/异时区 confirmation、非法 IANA、跨时区 fresh login 以及安全零读取都有可复查证据。Phase 06 的路线图目标已达成。
 
-These are not deferred to Phase 7: Phase 7 covers general quality/security gates, not the Phase 6 statistical-window contract. Plan a focused Phase 6 gap closure before marking this phase complete.
+验证期间发现的 `frontend/README.md` 陈旧 E2E 索引已同步修正；该文档现在与本阶段的实际自动化和浏览器证据一致。
 
 ---
 
-_Verified: 2026-09-04T10:05:00Z_
-_Verifier: gsd-verifier (codebase evidence; no product-code changes)_
+_Verified: 2026-09-05T02:57:34Z_
+_Verifier: gsd-verifier（独立代码、测试、E2E 与已批准浏览器证据复核；未提交）_

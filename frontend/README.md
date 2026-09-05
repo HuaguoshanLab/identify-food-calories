@@ -40,7 +40,7 @@ Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Tes
 npm run test:e2e
 ```
 
-该命令目前只覆盖现有认证等 E2E；`frontend/tests/e2e/records-dashboard.spec.ts` 尚未创建，Phase 6 records 真实浏览器闭环不能写成 Playwright PASS。已实测的公开页面路径、结果及仍需补齐的准备条件见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
+该命令覆盖认证与 Records 的隔离真实 E2E；Records 当前窗口、跨 IANA 冲突与零 dashboard-read 合约由 `frontend/tests/e2e/records-dashboard.spec.ts` 守护。已实测的公开页面路径、结果及浏览器与 Playwright 的分层证据见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
 
 ### Phase 6 前端调试
 
