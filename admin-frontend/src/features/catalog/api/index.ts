@@ -198,10 +198,10 @@ export function readCatalogDraft(accessToken: string, draftId: string) {
 }
 
 /** A server-derived projection is mandatory; this client never generates a trusted diff. */
-export function readCatalogLifecyclePreview(accessToken: string, draftId: string) {
+export function readCatalogLifecyclePreview(accessToken: string, draftId: string, signal?: AbortSignal) {
   return sendCatalogRequest(`/catalog-drafts/${draftId}/lifecycle-preview`, {
     headers: requestHeaders(accessToken),
-    method: 'GET',
+    method: 'GET', signal,
   }).then(lifecyclePreviewSchema.parse)
 }
 
@@ -211,6 +211,7 @@ export function submitCatalogLifecycleCommand(
   action: CatalogLifecycleAction,
   reason: string,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ) {
   const command = { ...lifecycleReasonSchema.parse({ reason }), confirm: true as const }
   const path = action === 'disqualify'
@@ -224,7 +225,7 @@ export function submitCatalogLifecycleCommand(
   return sendCatalogRequest(path, {
     body: JSON.stringify(command),
     headers: commandHeaders(accessToken, idempotencyKey, action === 'disqualify' ? undefined : preview.draft.revision),
-    method: 'POST',
+    method: 'POST', signal,
   }).then(catalogPublicationSchema.parse)
 }
 

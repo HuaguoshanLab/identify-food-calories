@@ -16,7 +16,7 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 功能模块职责、允许依赖与文件索引。 |
-| `catalog/` | 营养目录筛选分页表格、侧边新增/编辑、CSV 导入导出及审核发布；目录索引见 `catalog/README.md`。 |
+| `catalog/` | 营养目录筛选分页表格、居中新增/编辑、CSV 导入导出及单条/批量审核发布；目录索引见 `catalog/README.md`。 |
 | `audit/` | 后端白名单审计证据的只读语义时间线；目录索引见 `audit/README.md`。 |
 | `config/` | 未来 Agent 调用的非密钥运行配置审阅与确认；目录索引见 `config/README.md`。 |
 | `runs/` | 终态运行指标、签名游标列表与最小诊断详情；目录索引见 `runs/README.md`。 |

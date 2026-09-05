@@ -189,6 +189,37 @@ async function verifyCatalogCsvAndFilters(page: Page, suffix: string) {
 
 test.describe.configure({ mode: 'serial' })
 
+async function verifyBulkLifecycle(page: Page, suffix: string) {
+  const names = [`批量验收甲 ${suffix}`, `批量验收乙 ${suffix}`]
+  const csv = '菜品名称,别名,能量(kcal/100g),蛋白质(g/100g),脂肪(g/100g),碳水(g/100g),来源名称,来源链接,授权状态\r\n'
+    + names.map((name, i) => `${name},bulk-${suffix}-${i},100,3,2,18,隔离批量验收,https://example.test/,已授权\r\n`).join('')
+  await page.getByRole('button', { name: '导入', exact: true }).click()
+  await page.getByLabel('选择 CSV 文件').setInputFiles({ name: 'bulk.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  await expect(page.getByText('共 2 条，2 条校验通过。')).toBeVisible()
+  await page.getByLabel('导入原因').fill('隔离环境批量审核发布验收')
+  await page.getByRole('button', { name: '确认导入 2 条' }).click()
+  await expect(page.getByText(/成功导入 2 条草稿/)).toBeVisible()
+  await page.getByPlaceholder('搜索名称或别名').fill(`bulk-${suffix}`)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(3)
+  await page.getByRole('checkbox', { name: '全选当前页' }).check()
+  for (const action of ['审核', '发布']) {
+    await page.getByRole('button', { name: `批量${action}`, exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: `批量${action}` })
+    await expect(dialog.getByRole('button', { name: `确认批量${action}（2）` })).toBeEnabled()
+    await dialog.getByLabel('批量操作原因').fill(`批量${action}隔离验收`)
+    await dialog.getByRole('button', { name: `确认批量${action}（2）` }).click()
+    await expect(dialog.getByRole('status')).toHaveText('成功 2 条 · 跳过/失败 0 条 · 结果未确认 0 条 · 待处理 0 条')
+    await expect(dialog.getByText(new RegExp(`${action}成功 · v1 · 已记录审计`))).toHaveCount(2)
+    await dialog.getByRole('button', { name: '完成', exact: true }).click()
+  }
+  await page.getByRole('button', { name: '批量发布', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '批量发布' })
+  await expect(dialog.getByText('当前版本已发布，跳过。')).toHaveCount(2)
+  await expect(dialog.getByRole('button', { name: '确认批量发布（0）' })).toBeDisabled()
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+}
+
 test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordinary user is denied', async ({ browser, page, request }) => {
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
   const admin = { email: `e2e-admin-${suffix}@example.test`, password: 'E2E-admin-password-2026!' }
@@ -199,6 +230,7 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   await createRuntimeConfig(page)
   await createAndDisqualifyCatalogEntry(page, suffix)
   await verifyCatalogCsvAndFilters(page, suffix)
+  await verifyBulkLifecycle(page, suffix)
   // A real reload loses React memory: only the HttpOnly cookie may restore access.
   const restored = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/refresh') && response.status() === 200)
   await page.reload()

@@ -21,6 +21,30 @@ function setup() {
 }
 
 describe('CatalogListPage', () => {
+  it('当前页全选/半选、取消保留选择，翻页和筛选清空选择', async () => {
+    const user = userEvent.setup()
+    const second = { ...item, id: '170d36bc-28da-4eb7-9a6d-bdca560763c2', canonical_name: '米饭' }
+    mswServer.use(http.get(base, ({ request }) => HttpResponse.json({ items: [item, second], total: 40, page: Number(new URL(request.url).searchParams.get('page')), page_size: 20 })),
+      http.get(`${base}/:id/lifecycle-preview`, () => HttpResponse.json({}, { status: 500 })))
+    setup()
+    expect(screen.getByRole('button', { name: '批量审核' })).toBeDisabled()
+    await user.click(await screen.findByRole('checkbox', { name: '选择 燕麦' }))
+    expect(screen.getByRole('checkbox', { name: '全选当前页' })).toBePartiallyChecked()
+    await user.click(screen.getByRole('checkbox', { name: '全选当前页' }))
+    expect(screen.getByText('已选 2 条')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '批量审核' }))
+    expect(screen.getByRole('dialog', { name: '批量审核' }).parentElement).toHaveClass('place-items-center')
+    await user.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.getByText('已选 2 条')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(screen.getByText('已选 0 条')).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: '全选当前页' })).toBeEnabled())
+    await user.click(screen.getByRole('checkbox', { name: '全选当前页' }))
+    await user.type(screen.getByPlaceholderText('搜索名称或别名'), '米饭')
+    await user.click(screen.getByRole('button', { name: '查询' }))
+    expect(screen.getByText('已选 0 条')).toBeVisible()
+  })
+
   it('编辑在居中弹窗直接保存，无二次预览弹窗；保存后保留审核发布入口', async () => {
     const user = userEvent.setup()
     let patchCalls = 0

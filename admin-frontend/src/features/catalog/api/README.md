@@ -8,6 +8,7 @@
 
 - 可依赖 Zod、浏览器 `fetch` 和经构建验证的 `__ADMIN_API_BASE_URL__`。
 - 可接受调用方临时传入的内存 access token；不得保存、记录或返回 token。
+- 生命周期预览和命令支持可选 AbortSignal；批量调用设置单请求超时，超时不代表服务端未提交，必须原键重试。
 - 禁止依赖 React 组件、用户 H5、后端源码、数据库、Provider SDK 或密钥。
 
 ## 文件索引
