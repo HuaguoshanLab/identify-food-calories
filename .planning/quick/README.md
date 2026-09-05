@@ -13,3 +13,4 @@
 - `260905-jr2-catalog-table-filters-import-export/`：营养目录筛选表格、新增编辑及导入导出。
 - `260905-lfe-extract-weight-parser-and-fix-meal-clari/`：独立重量换算方法及补充信息错误恢复。
 - `260905-n05-catalog-inline-draft-review-publish-acti/`：表格操作入口与居中弹窗保存草稿、审核和发布。
+- `260905-niw-restore-admin-session-on-page-reload/`：后台页面刷新后恢复会话及权限校验。
