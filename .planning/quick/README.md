@@ -18,3 +18,4 @@
 - `260906-fn1-add-meal-slot-and-consumed-time-confirma/`：餐次确认保存、补录时间、记录展示和编辑。
 
 - `260906-jmo-persist-daily-diet-plans-with-version-hi/`：今日计划自动存档、恢复、历史版本与删除。
+- `260906-lmt-h5-step-2-global-visual-tokens/`：H5 第 2 项森林绿主题、字体、圆角、边框和阴影；完成后等待用户检查。
