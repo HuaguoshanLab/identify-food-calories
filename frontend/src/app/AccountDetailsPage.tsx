@@ -25,16 +25,16 @@ export function AccountDetailsPage() {
 
   return (
     <section aria-label="账号资料">
-      <dl className="grid gap-4 text-[15px] leading-6">
-        <div>
+      <dl className="divide-y divide-border/60 rounded-xl border border-border bg-card px-4 text-[15px] leading-6 shadow-sm">
+        <div className="space-y-1 py-4">
           <dt className="text-[13px] leading-5 text-muted-foreground">邮箱</dt>
           <dd className="break-all font-medium text-foreground">{user.email}</dd>
         </div>
-        <div>
+        <div className="space-y-1 py-4">
           <dt className="text-[13px] leading-5 text-muted-foreground">账号状态</dt>
           <dd className="font-medium text-foreground">{user.is_active ? '正常' : '已停用'}</dd>
         </div>
-        <div>
+        <div className="space-y-1 py-4">
           <dt className="text-[13px] leading-5 text-muted-foreground">角色</dt>
           <dd className="font-medium text-foreground">{roleLabels[user.role] ?? '普通用户'}</dd>
         </div>

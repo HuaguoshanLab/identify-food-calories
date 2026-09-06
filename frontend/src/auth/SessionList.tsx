@@ -53,7 +53,7 @@ export function SessionList() {
   const isLoading = !canLoadSessions || sessionsQuery.isLoading
   return (
     <section className="grid gap-4" aria-labelledby="sessions-heading">
-      <h2 ref={headingRef} tabIndex={-1} id="sessions-heading" className="text-xl font-semibold leading-7">登录会话</h2>
+      <h2 ref={headingRef} tabIndex={-1} id="sessions-heading" className="text-base font-semibold leading-6">登录会话</h2>
       {message ? <p role="status" aria-live="polite" className="text-base text-foreground">{message}</p> : null}
       {isLoading ? <div role="status" aria-label="正在加载登录会话" className="grid gap-4"><Skeleton className="h-36 w-full rounded-lg" /><Skeleton className="h-36 w-full rounded-lg" /></div> : null}
       {sessionsQuery.isError ? <InlineRetryState error onRetry={() => void sessionsQuery.refetch()} /> : null}
@@ -70,11 +70,11 @@ export function SessionList() {
 
 function SessionRow({ loggingOut = false, onCurrentLogout, onRevoke, session }: { loggingOut?: boolean; onCurrentLogout?: () => void; onRevoke?: () => void; session: AuthSessionSummary }) {
   return (
-    <article className="rounded-lg border bg-card p-4 text-card-foreground">
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm text-card-foreground">
       <div className="flex flex-col gap-4 min-[380px]:flex-row min-[380px]:items-start min-[380px]:justify-between">
         <div className="min-w-0">
           <h3 className="break-words text-base font-semibold leading-6">{session.device_label ?? '未知设备'}{session.is_current ? '（当前设备）' : ''}</h3>
-          <div data-testid="session-dates" className="mt-2 grid gap-1 text-xs leading-4 text-muted-foreground tabular-nums">
+          <div data-testid="session-dates" className="mt-2 grid gap-1 text-[13px] leading-5 text-muted-foreground tabular-nums">
             <p>最近活动：{formatDate(session.last_seen_at)}</p>
             <p>到期：{formatDate(session.expires_at)}</p>
           </div>
@@ -97,9 +97,9 @@ function InlineRetryState({ error = false, onRetry }: { error?: boolean; onRetry
 
 function NormalEmptyState() {
   return (
-    <section className="rounded-lg border bg-card p-4 text-card-foreground" aria-labelledby="other-sessions-heading">
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm text-card-foreground" aria-labelledby="other-sessions-heading">
       <h3 id="other-sessions-heading" className="text-base font-semibold leading-6">暂无其他登录会话</h3>
-      <p className="mt-2 text-base leading-6 text-muted-foreground">只有当前设备保持登录。新的设备登录后会显示在这里。</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">只有当前设备保持登录。新的设备登录后会显示在这里。</p>
     </section>
   )
 }

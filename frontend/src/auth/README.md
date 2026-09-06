@@ -36,3 +36,5 @@
 | `AuthSession.test.tsx` | refresh、数据库权威身份、独立 Provider bootstrap、并发 401 重试与 token 非持久化测试 |
 | `refreshCoordinator.test.ts` | 隔离标签页运行时的 refresh 锁串行化测试 |
 | `ProtectedRoutes.test.tsx` | 受保护深链、安全 returnTo 与无 admin 路由测试 |
+
+H5第5项：SessionList调整为12px圆角轻阴影卡片与13px日期文字；Query、退出及撤销交互保持原有所有权。

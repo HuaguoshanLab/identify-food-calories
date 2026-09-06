@@ -32,3 +32,5 @@ PlanPage 的主标题和路由聚焦统一由固定 TabHeader 管理，不在内
 | `SavedPlanPages.test.tsx` | 刷新恢复、时区确认、错误恢复、版本和删除确认。 |
 
 PlanPage 允许调用 records 公开 `confirmDashboardTimeZone`，确认今日计划与看板采用同一统计日期。
+
+H5第5项：PersonalProfilePage只读摘要为响应式浅绿网格，编辑表单使用白卡；全部字段与CRUD行为保留。

@@ -118,7 +118,7 @@ describe('my settings root page', () => {
     render(
       <MemoryRouter initialEntries={[routePaths.me]}>
         <TabHeader />
-        <MePage />
+        <AuthContext.Provider value={createAuthValue()}><MePage /></AuthContext.Provider>
       </MemoryRouter>,
     )
 
@@ -130,7 +130,7 @@ describe('my settings root page', () => {
     render(
       <MemoryRouter initialEntries={[routePaths.me]}>
         <TabHeader />
-        <MePage />
+        <AuthContext.Provider value={createAuthValue()}><MePage /></AuthContext.Provider>
       </MemoryRouter>,
     )
 
@@ -140,7 +140,9 @@ describe('my settings root page', () => {
     expect(screen.getByRole('link', { name: /个人资料/ })).toHaveAttribute('href', routePaths.profile)
     expect(screen.getByRole('link', { name: /账号资料/ })).toHaveAttribute('href', routePaths.account)
     expect(screen.getByRole('link', { name: /登录会话/ })).toHaveAttribute('href', routePaths.sessions)
-    expect(screen.queryByText(/@/)).not.toBeInTheDocument()
+    expect(screen.getByText('database@example.com')).toBeInTheDocument()
+    expect(screen.getByText('普通用户')).toBeInTheDocument()
+    expect(screen.getByText('账号正常')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /退出|保存|编辑/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /饮食偏好与记忆/ })).toHaveAttribute('href', '/app/me/memories')
 

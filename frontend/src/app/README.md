@@ -19,3 +19,5 @@
 | `AccountDetailsPage.tsx` | 从 AuthProvider 权威身份映射出的只读账号资料。 |
 | `SessionsDetailsPage.tsx` | 登录会话详情的组合入口，复用 `auth/SessionList` 的唯一 Query 所有权。 |
 | `AppPages.test.tsx` | 应用页面组件的可见行为、语义和键盘可达性测试。 |
+
+第5项视觉：MePage使用AuthProvider真实账号摘要与分组入口；AccountDetailsPage使用只读白卡，SettingsLinkRow保留原生链接。
