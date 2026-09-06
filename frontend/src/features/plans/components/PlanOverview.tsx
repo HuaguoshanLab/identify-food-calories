@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatPlanNumber, formatPlanRange, formatPlanValue, planMetricStateCopy } from '../format'
+import { formatPlanNumber } from '../format'
 import type { PlanReport } from './PlanPage'
 
 const macros = [
@@ -9,7 +9,7 @@ const macros = [
   { field: 'fat_g', label: '脂肪', factor: 9, color: 'var(--macro-fat)' },
   { field: 'carbohydrate_g', label: '碳水', factor: 4, color: 'var(--macro-carbs)' },
 ] as const
-const metrics = [['energy_kcal', '能量', 'kcal'], ['protein_g', '蛋白质', 'g'], ['fat_g', '脂肪', 'g'], ['carbohydrate_g', '碳水', 'g']] as const
+const metrics = [['energy_kcal', '能量'], ['protein_g', '蛋白质'], ['fat_g', '脂肪'], ['carbohydrate_g', '碳水']] as const
 
 export function PlanOverview({ report }: { report: PlanReport }) {
   const totals = Object.fromEntries(metrics.map(([field]) => [field, report.meals.reduce((sum, meal) => sum + Number(meal.nutrients[field]), 0)])) as Record<(typeof metrics)[number][0], number>
@@ -41,12 +41,10 @@ export function PlanOverview({ report }: { report: PlanReport }) {
           </svg>
           <div aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center gap-1"><span className="text-sm font-medium text-muted-foreground">总热量</span><span className="text-3xl font-bold tabular-nums">{energy}</span><span className="text-sm text-muted-foreground">kcal</span></div>
         </div>
-        <dl className="grid grid-cols-3 gap-2 text-center">{macros.map((macro) => <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd></div>)}</dl>
-        <details className="text-[13px] text-muted-foreground"><summary className="cursor-pointer py-2">查看目标范围与计划值</summary><p className="mb-2">环形图按营养素估算供能占比展示。</p><div className="space-y-2">{metrics.map(([field, label, unit]) => {
-          const target = report.target[field]
-          const state = totals[field] < Number(target.lower) ? 'low' : totals[field] > Number(target.upper) ? 'high' : 'in_range'
-          return <div key={field}><p className="font-medium text-foreground">{label}</p><p>{formatPlanRange(target.lower, target.upper, unit)} · {formatPlanValue(String(totals[field]), unit)} · {planMetricStateCopy(state).label}</p></div>
-        })}</div></details>
+        <dl className="grid grid-cols-3 gap-2 text-center">{macros.map((macro) => {
+          const target = report.target[macro.field]
+          return <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd><dd className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">（目标：{formatPlanNumber(target.lower)}–{formatPlanNumber(target.upper)}g）</dd></div>
+        })}</dl>
       </CardContent>
     </Card>
   </section>

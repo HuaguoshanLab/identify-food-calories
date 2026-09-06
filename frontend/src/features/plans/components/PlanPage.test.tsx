@@ -103,9 +103,11 @@ describe('PlanPage', () => {
     expect(screen.getByText('蒸煮')).toBeInTheDocument()
     expect(screen.getAllByText('清淡')).not.toHaveLength(0)
     expect(screen.queryByText(/已遵守：/)).not.toBeInTheDocument()
-    expect(screen.getByText('目标：1,800–2,000 kcal · 计划：1,920 kcal · 适中')).toBeInTheDocument()
     expect(screen.getByText('（目标 1,800–2,000 kcal）')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /计划总热量 1,920 kcal；营养素估算供能占比/ })).toBeInTheDocument()
+    expect(screen.getByText('100.0g')).toBeInTheDocument()
+    expect(screen.getByText('（目标：80–100g）')).toBeInTheDocument()
+    expect(screen.queryByText('查看目标范围与计划值')).not.toBeInTheDocument()
     expect(screen.getAllByText('普通饮食参考，不替代医疗建议。')).not.toHaveLength(0)
   })
 
