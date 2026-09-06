@@ -15,3 +15,4 @@
 - `260905-n05-catalog-inline-draft-review-publish-acti/`：表格操作入口与居中弹窗保存草稿、审核和发布。
 - `260905-niw-restore-admin-session-on-page-reload/`：后台页面刷新后恢复会话及权限校验。
 - `260905-o4f-catalog-bulk-review-and-publish/`：当前页勾选、居中批量审核发布、逐项结果与安全重试。
+- `260906-fn1-add-meal-slot-and-consumed-time-confirma/`：餐次确认保存、补录时间、记录展示和编辑。
