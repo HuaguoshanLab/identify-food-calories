@@ -78,7 +78,7 @@ export function PersonalProfilePage() {
       setEditing(false)
       setPageError('')
       setFieldErrors({})
-      setNotice('个人资料已保存。')
+      setNotice('')
     },
     onError: (error) => {
       if (error instanceof PlanningApiError && Object.keys(error.fieldErrors).length > 0) {
@@ -121,7 +121,6 @@ export function PersonalProfilePage() {
     <section className="space-y-4" aria-labelledby="personal-profile-content-title">
       <div>
         <h2 className="text-base font-semibold leading-6" id="personal-profile-content-title">身体资料与目标</h2>
-        <p className="mt-2 text-sm leading-5 text-muted-foreground">这些资料仅用于后续饮食计划的目标参考。</p>
       </div>
       {notice ? <p aria-live="polite" className="text-sm text-muted-foreground">{notice}</p> : null}
       {pageError ? <Alert variant="destructive"><AlertDescription>{pageError}</AlertDescription></Alert> : null}
@@ -154,7 +153,7 @@ function ProfileView({ onDelete, onEdit, profile }: { onDelete: () => void; onEd
     ['目标', goalLabels[profile.goal]],
     ['目标速度', speedLabels[profile.goal_speed]],
   ]
-  return <><dl className="grid grid-cols-2 gap-2 min-[375px]:grid-cols-4 rounded-xl border border-border bg-card p-4 shadow-sm">{entries.map(([label, value], index) => <div className={`min-w-0 space-y-1 rounded-md bg-muted/60 px-2 py-3 text-center ${index >= 4 ? 'col-span-2' : ''} ${index === 6 ? 'min-[375px]:col-span-4' : ''}`} key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="break-words text-base font-semibold tabular-nums">{value}</dd></div>)}</dl><a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><div className="space-y-3 border-t border-border pt-4"><Button className="h-11 w-full" onClick={onEdit} type="button">编辑个人资料</Button><Button className="h-11 w-full" onClick={onDelete} type="button" variant="destructive">删除个人资料</Button></div></>
+  return <><dl className="divide-y divide-border rounded-xl border border-border bg-card px-4 shadow-sm">{entries.map(([label, value]) => <div className="flex min-h-12 items-center justify-between gap-4 py-3" key={label}><dt className="shrink-0 text-sm text-muted-foreground">{label}</dt><dd className="min-w-0 break-words text-right text-base font-semibold tabular-nums">{value}</dd></div>)}</dl><a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><div className="space-y-3 border-t border-border pt-4"><Button className="h-11 w-full" onClick={onEdit} type="button">编辑个人资料</Button><Button className="h-11 w-full" onClick={onDelete} type="button" variant="destructive">删除个人资料</Button></div></>
 }
 
 function ProfileEmpty({ notice, onCreate }: { notice: string; onCreate: () => void }) {
