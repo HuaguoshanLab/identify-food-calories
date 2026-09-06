@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, ChevronRight, Info } from 'lucide-react'
+import { CalendarDays, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/auth/useAuth'
@@ -148,7 +148,6 @@ export function PlanPage() {
   const isTerminalCandidateExhausted = statusKind === 'error' && progressStage === 'terminal'
   return <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
     {report && !creating ? <Link className="flex min-h-14 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium shadow-sm transition-colors hover:bg-muted" to={routePaths.planHistory}><CalendarDays aria-hidden="true" className="size-5 text-primary" /><span className="flex-1">历史计划</span><ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" /></Link> : null}
-    <Alert className="border-0 bg-muted text-muted-foreground"><Info aria-hidden="true" /><AlertTitle>普通饮食参考，不替代医疗建议。</AlertTitle></Alert>
     {isTerminalCandidateExhausted ? <FocusedPlanningAlert title="暂时无法生成计划">{statusMessage ?? '当前受控餐单暂时无法满足已确认约束；请稍后重试或修改饮食偏好。'}</FocusedPlanningAlert> : null}
     {statusMessage && !isTerminalCandidateExhausted ? <Alert variant="destructive"><AlertTitle>{statusMessage}</AlertTitle></Alert> : null}
     {statusKind !== 'refusal' ? <SafePlanningProgress onRetry={startNewPlan} stage={progressStage} /> : null}
