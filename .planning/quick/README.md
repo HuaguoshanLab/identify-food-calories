@@ -21,3 +21,4 @@
 - `260906-lmt-h5-step-2-global-visual-tokens/`：H5 第 2 项森林绿主题、字体、圆角、边框和阴影；完成后等待用户检查。
 - `260906-lz0-h5-step-3-page-shell-headers-navigation-/`：H5 第 3 项固定页头、导航、安全区及唯一滚动区。
 - `260906-mp1-h5-step-4-shared-components/`：H5 第4项按钮、输入、卡片、标签、提示和确认弹窗。
+- `260906-mte-h5-step-5-my-and-detail-pages/`：H5第5项我的与相关详情页。
