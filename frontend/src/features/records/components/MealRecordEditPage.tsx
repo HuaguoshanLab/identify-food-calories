@@ -54,16 +54,16 @@ export function MealRecordEditPage() {
   return <section className="space-y-4">
     <div><p className="text-sm text-muted-foreground">修改餐次或用餐时间不会重算已保存的营养快照。</p></div>
     {!loaded && !error ? <p className="text-sm text-muted-foreground">正在加载记录…</p> : null}
-    <form className="space-y-4" onSubmit={handleSubmit(save)} noValidate>
+    <form className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm" onSubmit={handleSubmit(save)} noValidate>
       <fieldset className="space-y-4" disabled={saving || !loaded}>
-        <div className="space-y-2"><Label htmlFor="meal-slot">餐次</Label><select className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base" id="meal-slot" {...register('mealSlot')}><option value="">未分类</option>{Object.entries(mealSlotLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+        <div className="space-y-2"><Label htmlFor="meal-slot">餐次</Label><select className="h-11 w-full rounded-lg border border-input bg-card px-3 text-base" id="meal-slot" {...register('mealSlot')}><option value="">未分类</option>{Object.entries(mealSlotLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
         <div className="space-y-2"><Label htmlFor="consumed-at">用餐时间</Label><Input className="h-11" id="consumed-at" max={localMealTime()} type="datetime-local" {...register('consumedAt')} aria-invalid={Boolean(errors.consumedAt)} aria-describedby="edit-time-help" /><p className="text-[13px] text-muted-foreground" id="edit-time-help">按当前设备时区填写；修改时间不会自动改变餐次。</p></div>
         {errors.consumedAt ? <p className="text-sm text-destructive" role="alert">{errors.consumedAt.message}</p> : null}
         <Button className="h-11 w-full" disabled={saving || !loaded} type="submit">{saving ? '正在保存…' : '保存修改'}</Button>
       </fieldset>
     </form>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-    <div className="border-t border-border pt-4"><h2 className="font-semibold text-destructive">危险操作</h2><p className="mt-1 text-sm text-muted-foreground">删除后，这条餐食记录将无法恢复。</p><Button className="mt-3 h-11 w-full" disabled={saving || !loaded} onClick={() => setOpen(true)} type="button" variant="destructive">删除餐食记录</Button></div>
+    <div className="rounded-xl border border-destructive/20 bg-card p-4"><h2 className="font-semibold text-destructive">危险操作</h2><p className="mt-1 text-sm text-muted-foreground">删除后，这条餐食记录将无法恢复。</p><Button className="mt-3 h-11 w-full" disabled={saving || !loaded} onClick={() => setOpen(true)} type="button" variant="destructive">删除餐食记录</Button></div>
     <AlertDialog onOpenChange={setOpen} open={open}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除这条餐食记录？</AlertDialogTitle><AlertDialogDescription>删除后，这条记录将无法恢复。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={() => void remove()} variant="destructive">确认删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </section>
 }

@@ -3,6 +3,7 @@ import { CircleAlert, RotateCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatNutrition } from '../format'
 import type { WeeklyReviewResponse } from '../api/weeklyReview'
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
@@ -10,7 +11,7 @@ const disclaimer = '仅基于已记录数据，供一般饮食参考，不构成
 
 export function WeeklyReview({ review, onRefresh, isRefreshing }: { review: WeeklyReviewResponse; onRefresh: () => void; isRefreshing: boolean }) {
   const range = `${dateFormatter.format(new Date(`${review.week_start}T00:00:00`))}—${dateFormatter.format(new Date(`${review.week_end}T00:00:00`))}`
-  return <section aria-labelledby="weekly-review-title" className="space-y-3"><h2 className="text-xl font-semibold leading-7" id="weekly-review-title">周复盘</h2><Card><CardHeader><CardTitle className="text-base">{range}</CardTitle></CardHeader><CardContent className="space-y-4"><p className="tabular-nums text-sm text-muted-foreground">已记录 {review.coverage_days} 天 · {review.meal_count} 餐</p><p className="tabular-nums text-sm">{review.totals.energy_kcal} kcal</p><ReviewState review={review} onRefresh={onRefresh} isRefreshing={isRefreshing} /></CardContent></Card></section>
+  return <section aria-labelledby="weekly-review-title" className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm"><h2 className="text-base font-semibold leading-6" id="weekly-review-title">周复盘</h2><Card className="gap-2 border-0 py-0 shadow-none"><CardHeader className="px-0"><CardTitle className="text-base">{range}</CardTitle></CardHeader><CardContent className="space-y-3 px-0"><p className="tabular-nums text-sm text-muted-foreground">已记录 {review.coverage_days} 天 · {review.meal_count} 餐</p><p className="tabular-nums text-[22px] font-bold">{formatNutrition(review.totals.energy_kcal)} kcal</p><ReviewState review={review} onRefresh={onRefresh} isRefreshing={isRefreshing} /></CardContent></Card></section>
 }
 
 function ReviewState({ review, onRefresh, isRefreshing }: { review: WeeklyReviewResponse; onRefresh: () => void; isRefreshing: boolean }) {

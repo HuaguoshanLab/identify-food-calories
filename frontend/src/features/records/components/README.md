@@ -23,3 +23,9 @@
 | `MealRecordDetailPage.tsx` | 不会重算的营养快照详情 |
 | `MealRecordEditPage.tsx` | RHF/Zod 餐次与过去用餐时间修改、时区提交、dashboard 缓存刷新与删除确认 |
 | `MealRecordEditPage.test.tsx` | 旧记录补选餐次、时间独立编辑、未来时间拒绝及保存失败保留输入。 |
+
+## H5 第6项视觉
+
+今日摘要、趋势、历史与周复盘采用白卡和紧凑层次；历史继续跳转详情，图表继续提供键盘与同数据表格。详情按菜品分组，编辑表单与删除区域分卡。周复盘复用formatNutrition显示持久化Decimal，数据精度不变。
+
+补充测试索引：TodaySummaryCard.test.tsx验证事实与资格；WeeklyTrend.test.tsx验证SVG/表格与键盘；HistoryMealList.test.tsx验证分组分页/空态；WeeklyReview.test.tsx验证闭合安全状态。

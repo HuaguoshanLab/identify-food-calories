@@ -26,7 +26,7 @@ describe('TodaySummaryCard', () => {
     render(<TodaySummaryCard overview={eligibleOverview} />)
 
     expect(screen.getByText('今日已记录摄入')).toBeInTheDocument()
-    expect(screen.getByText('612 kcal')).toHaveClass('tabular-nums')
+    expect(screen.getByText('612').closest('p')).toHaveClass('tabular-nums')
     expect(screen.getByText('2 餐')).toHaveClass('tabular-nums')
     expect(screen.getByText('蛋白质')).toBeInTheDocument()
     expect(screen.queryByText('612.0 kcal')).not.toBeInTheDocument()
@@ -38,7 +38,7 @@ describe('TodaySummaryCard', () => {
   ])('资格缺失或为 false 时保留事实且不虚构目标', (overview) => {
     render(<TodaySummaryCard overview={overview} />)
 
-    expect(screen.getByText('612 kcal')).toBeInTheDocument()
+    expect(screen.getByText('612').closest('p')).toBeInTheDocument()
     expect(screen.getByText('2 餐')).toBeInTheDocument()
     expect(screen.queryByText('蛋白质')).not.toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
