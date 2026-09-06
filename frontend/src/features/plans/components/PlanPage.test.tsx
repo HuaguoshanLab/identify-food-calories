@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -74,7 +74,7 @@ describe('PlanPage', () => {
     const request = requestWithSnapshot()
     renderPage(request)
 
-    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveValue(170))
+    expect(await screen.findByText('170 cm')).toBeInTheDocument()
     expect(screen.getByText('忌口：已确认 花生')).toBeInTheDocument()
     expect(screen.getByText('口味：已确认 清淡')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '管理饮食偏好' })).toHaveAttribute('href', '/app/me/memories')
@@ -122,7 +122,7 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
-    await screen.findByLabelText('身高')
+    await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
@@ -147,7 +147,7 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
-    await screen.findByLabelText('身高')
+    await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
@@ -177,7 +177,7 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
-    await screen.findByLabelText('身高')
+    await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
     await screen.findByRole('heading', { name: '今日三餐计划' })
@@ -226,7 +226,7 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
-    await screen.findByLabelText('身高')
+    await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
     await screen.findByRole('heading', { name: '请确认要调整哪一餐' })
@@ -256,7 +256,7 @@ describe('PlanPage', () => {
     })
     renderPage(request)
 
-    await screen.findByLabelText('身高')
+    await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
     expect(await screen.findByText(/已完成 3 次自动调整，无法在当前约束内继续修改/)).toBeInTheDocument()

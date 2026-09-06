@@ -115,7 +115,7 @@ export function PersonalProfilePage() {
 
   if (profileQuery.isLoading) return <p className="text-sm text-muted-foreground">正在读取个人资料…</p>
   if (profileQuery.isError) return <ProfileError message="暂时无法读取个人资料，请稍后重试。" onRetry={() => void profileQuery.refetch()} />
-  if (!profile && !editing) return <ProfileEmpty notice={notice} />
+  if (!profile && !editing) return <ProfileEmpty notice={notice} onCreate={() => setEditing(true)} />
 
   return (
     <section className="space-y-4" aria-labelledby="personal-profile-content-title">
@@ -157,8 +157,8 @@ function ProfileView({ onDelete, onEdit, profile }: { onDelete: () => void; onEd
   return <><dl className="grid grid-cols-2 gap-2 min-[375px]:grid-cols-4 rounded-xl border border-border bg-card p-4 shadow-sm">{entries.map(([label, value], index) => <div className={`min-w-0 space-y-1 rounded-md bg-muted/60 px-2 py-3 text-center ${index >= 4 ? 'col-span-2' : ''} ${index === 6 ? 'min-[375px]:col-span-4' : ''}`} key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="break-words text-base font-semibold tabular-nums">{value}</dd></div>)}</dl><a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><div className="space-y-3 border-t border-border pt-4"><Button className="h-11 w-full" onClick={onEdit} type="button">编辑个人资料</Button><Button className="h-11 w-full" onClick={onDelete} type="button" variant="destructive">删除个人资料</Button></div></>
 }
 
-function ProfileEmpty({ notice }: { notice: string }) {
-  return <section className="space-y-4"><h2 className="text-base font-semibold leading-6">还没有保存个人资料</h2><p className="text-sm leading-5 text-muted-foreground">请先在计划页填写身体资料和目标，保存后会在这里显示。</p>{notice ? <p aria-live="polite" className="text-sm text-muted-foreground">{notice}</p> : null}<a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><a className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" href="/app/plans">去计划页填写</a></section>
+function ProfileEmpty({ notice, onCreate }: { notice: string; onCreate: () => void }) {
+  return <section className="space-y-4"><h2 className="text-base font-semibold leading-6">还没有保存个人资料</h2><p className="text-sm leading-5 text-muted-foreground">在这里填写身体资料和目标，保存后即可用于生成餐单。</p>{notice ? <p aria-live="polite" className="text-sm text-muted-foreground">{notice}</p> : null}<a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none" href="/app/me/memories">管理饮食偏好</a><Button className="h-11 w-full" onClick={onCreate}>填写身体资料与目标</Button></section>
 }
 
 function ProfileError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -176,5 +176,5 @@ function ProfileField({ children, error, id }: { children: React.ReactNode; erro
 }
 
 function SelectField({ error, id, label, options, registration }: { error?: string; id: string; label: string; options: Array<[string, string]>; registration: ReturnType<ReturnType<typeof useForm<PlanningProfileWrite>>['register']> }) {
-  return <ProfileField error={error} id={`${id}-error`}><Label htmlFor={id}>{label}</Label><select aria-describedby={`${id}-error`} className="h-11 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" id={id} {...registration}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></ProfileField>
+  return <ProfileField error={error} id={`${id}-error`}><Label htmlFor={id}>{label}</Label><select aria-describedby={`${id}-error`} className="h-11 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" id={id} {...registration}><option value="">请选择</option>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></ProfileField>
 }

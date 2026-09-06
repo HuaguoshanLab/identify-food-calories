@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -6,22 +6,15 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '@/auth/useAuth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { AlertTriangle, ChevronRight, History, Sparkles } from 'lucide-react'
+
 import { listMemories } from '@/features/memory/api/client'
 import { getPlanningProfile, PlanningApiError, startDietPlanning } from '../api/client'
 import { profileGoalFormSchema, type DietPlanningStartResponse, type PlanningProfile, type ProfileGoalFormValues } from '../api/schemas'
 
-const activityOptions = [
-  ['sedentary', '久坐', '大部分时间坐着，几乎不运动'],
-  ['light', '轻度', '每周有少量轻松活动'],
-  ['moderate', '中度', '每周规律中等强度活动'],
-  ['high', '高度', '大多数天有较高强度活动'],
-  ['very_high', '非常高', '高强度训练或体力工作为主'],
-] as const
-
-const goalOptions = [['maintain', '维持体重'], ['loss', '减重'], ['gain', '增重']] as const
-const speedOptions = [['maintain', '维持'], ['gradual_loss', '循序渐进减重'], ['gradual_gain', '循序渐进增重']] as const
+const activityLabels: Record<string, string> = { sedentary: '久坐', light: '轻度', moderate: '中度', high: '高度', very_high: '非常高' }
+const goalLabels: Record<string, string> = { maintain: '维持体重', loss: '减重', gain: '增重' }
+const speedLabels: Record<string, string> = { maintain: '维持', gradual_loss: '循序渐进减重', gradual_gain: '循序渐进增重' }
 
 const emptyValues: ProfileGoalFormValues = {
   height_cm: '', weight_kg: '', age_years: undefined as unknown as number, formula_variant: undefined as unknown as ProfileGoalFormValues['formula_variant'],
@@ -35,10 +28,11 @@ type ProfileGoalFormProps = {
   preferenceSummaries?: PreferenceSummaries
   isLoading?: boolean
   preferenceLoadError?: boolean
+  profileLoadError?: boolean
   onStarted?: (snapshot: DietPlanningStartResponse) => void
 }
 
-export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, onStarted }: ProfileGoalFormProps) {
+export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, profileLoadError = false, onStarted }: ProfileGoalFormProps) {
   const { request } = useAuth()
   const submitButtonRef = useRef<HTMLButtonElement>(null)
   const [pageError, setPageError] = useState('')
@@ -62,6 +56,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
   }, [form, profile])
 
   const submit = form.handleSubmit(async (values) => {
+    if (!profile || profileLoadError || profileQuery.isError) return
     setPageError('')
     setStatusMessage('')
     try {
@@ -87,7 +82,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
           const target = fieldMap[field]
           if (target) form.setError(target, { type: 'server', message })
         }
-        if (Object.keys(error.fieldErrors).length === 0) setPageError(error.message)
+        setPageError(error.message)
         return
       }
       setPageError('暂时无法生成计划。请检查资料和网络后重试；若问题持续，请稍后再试。')
@@ -98,28 +93,18 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
   const showPreferenceLoadError = preferenceLoadError || memoriesQuery.isError
 
   return <form className="space-y-4" noValidate onSubmit={submit}>
-    <section aria-labelledby="body-data-title" className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="text-base font-semibold leading-6" id="body-data-title">身体资料</h2>
-      <FieldError error={form.formState.errors.height_cm?.message} id="height-cm-error"><Label htmlFor="height-cm">身高</Label><div className="flex items-center gap-2"><Input aria-describedby="height-cm-error" className="h-11 tabular-nums" id="height-cm" inputMode="decimal" type="number" {...form.register('height_cm')} /><span className="text-sm text-muted-foreground">cm</span></div></FieldError>
-      <FieldError error={form.formState.errors.weight_kg?.message} id="weight-kg-error"><Label htmlFor="weight-kg">体重</Label><div className="flex items-center gap-2"><Input aria-describedby="weight-kg-error" className="h-11 tabular-nums" id="weight-kg" inputMode="decimal" type="number" {...form.register('weight_kg')} /><span className="text-sm text-muted-foreground">kg</span></div></FieldError>
-      <FieldError error={form.formState.errors.age_years?.message} id="age-years-error"><Label htmlFor="age-years">年龄</Label><div className="flex items-center gap-2"><Input aria-describedby="age-years-error" className="h-11 tabular-nums" id="age-years" inputMode="numeric" type="number" {...form.register('age_years', { valueAsNumber: true })} /><span className="text-sm text-muted-foreground">岁</span></div></FieldError>
-      <fieldset className="space-y-2"><legend className="text-sm font-medium">用于目标估算的身体参数</legend><p className="text-sm text-muted-foreground">目标估算结果是饮食参考，不是医疗诊断。</p><div className="grid gap-2"><Choice label="使用男性参数" value="mifflin_st_jeor_male" {...form.register('formula_variant')} /><Choice label="使用女性参数" value="mifflin_st_jeor_female" {...form.register('formula_variant')} /></div>{form.formState.errors.formula_variant?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.formula_variant.message}</p> : null}</fieldset>
-    </section>
-    <fieldset className="space-y-2 rounded-xl border border-border bg-card p-4 shadow-sm"><legend className="px-1 text-base font-semibold">日常活动水平</legend><div className="grid gap-2">{activityOptions.map(([value, label, detail]) => <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60" key={value}><input className="size-4" type="radio" value={value} {...form.register('activity_level')} /><span><strong>{label}</strong><span className="ml-1 text-muted-foreground">{detail}</span></span></label>)}</div>{form.formState.errors.activity_level?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.activity_level.message}</p> : null}</fieldset>
-    <section className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm" aria-labelledby="goal-title"><h2 className="text-base font-semibold leading-6" id="goal-title">目标与速度</h2><fieldset className="space-y-2"><legend className="text-sm font-medium">本次目标</legend><div className="grid gap-2">{goalOptions.map(([value, label]) => <Choice key={value} label={label} value={value} {...form.register('goal')} />)}</div>{form.formState.errors.goal?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.goal.message}</p> : null}</fieldset><FieldError error={form.formState.errors.goal_speed?.message} id="goal-speed-error"><Label htmlFor="goal-speed">目标速度</Label><select aria-describedby="goal-speed-error" className="h-11 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" id="goal-speed" {...form.register('goal_speed')}><option value="">请选择保守预设</option>{speedOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FieldError></section>
-    <section aria-labelledby="preference-title" className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm leading-6 shadow-sm"><h2 className="text-base font-semibold leading-6" id="preference-title">本次饮食偏好</h2>{showPreferenceLoadError ? <Alert variant="destructive"><AlertDescription>暂时无法读取饮食偏好，请稍后重试。</AlertDescription></Alert> : <><p>忌口：{preferences.exclusions.length ? `已确认 ${preferences.exclusions.join('、')}` : '本次确认无'}</p><p>口味：{preferences.tastePreferences.length ? `已确认 ${preferences.tastePreferences.join('、')}` : '本次确认无'}</p><a className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline" href="/app/me/memories">管理饮食偏好</a><label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="checkbox" {...form.register('preference_reviewed')} />我已复核以上饮食偏好</label>{form.formState.errors.preference_reviewed?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.preference_reviewed.message}</p> : null}</>}</section>
-    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="checkbox" {...form.register('save_profile')} />将本次身体资料和目标保存到个人资料</label>
-    <p className="text-sm text-muted-foreground">生成前会由系统计算目标区间，并校验餐单是否符合已确认约束。</p>
+    {loading ? <p role="status">正在读取身体资料…</p> : profileLoadError || profileQuery.isError ? <Alert variant="destructive"><AlertDescription>无法读取身体资料，请返回“我的”检查后重试。<a className="flex min-h-11 items-center text-primary underline" href="/app/me/profile">查看个人资料</a></AlertDescription></Alert> : profile ? <section className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm" aria-labelledby="body-data-title">
+      <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold" id="body-data-title">身体资料与目标</h2><a className="inline-flex min-h-11 items-center text-sm font-medium text-primary" href="/app/me/profile">修改</a></div>
+      <dl className="grid grid-cols-2 gap-2 min-[375px]:grid-cols-4">
+        {([['身高', `${Number(profile.height_cm)} cm`], ['体重', `${Number(profile.weight_kg)} kg`], ['年龄', `${profile.age_years} 岁`], ['估算参数', profile.formula_variant === 'mifflin_st_jeor_male' ? '男性参数' : '女性参数'], ['活动水平', activityLabels[profile.activity_level]], ['饮食目标', `${goalLabels[profile.goal]} · ${speedLabels[profile.goal_speed]}`]]).map(([label, value], index) => <div className={`min-w-0 rounded-md bg-muted p-2 text-center ${index >= 4 ? 'col-span-2' : ''}`} key={label}><dt className="text-[13px] text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-semibold tabular-nums">{value}</dd></div>)}
+      </dl>
+    </section> : <section className="flex gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"><span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"><AlertTriangle aria-hidden="true" className="size-5" /></span><div><h2 className="text-base font-semibold">尚未设置身体资料</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">请先完善身体资料与目标，再生成适合你的餐单参考。</p><a className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground" href="/app/me/profile">去填写<ChevronRight aria-hidden="true" className="size-4" /></a></div></section>}
+    <a className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm" href="/app/plans/history"><span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary"><History aria-hidden="true" className="size-5" /></span><span className="flex-1"><span className="block font-semibold">历史计划</span><span className="text-[13px] text-muted-foreground">查看以往生成的餐单</span></span><ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" /></a>
+    <section aria-labelledby="preference-title" className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm leading-6 shadow-sm"><h2 className="text-base font-semibold leading-6" id="preference-title">本次饮食偏好</h2>{showPreferenceLoadError ? <Alert variant="destructive"><AlertDescription>暂时无法读取饮食偏好，请稍后重试。</AlertDescription></Alert> : <><p>忌口：{preferences.exclusions.length ? `已确认 ${preferences.exclusions.join('、')}` : '本次确认无'}</p><p>口味：{preferences.tastePreferences.length ? `已确认 ${preferences.tastePreferences.join('、')}` : '本次确认无'}</p><a className="flex min-h-11 items-center justify-between text-sm font-medium text-primary" href="/app/me/memories">管理饮食偏好<ChevronRight aria-hidden="true" className="size-4" /></a>{form.formState.errors.preference_reviewed?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.preference_reviewed.message}</p> : null}</>}</section>
+    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="checkbox" {...form.register('preference_reviewed')} />我已复核以上饮食偏好</label>
     {pageError ? <Alert variant="destructive"><AlertDescription>{pageError}</AlertDescription></Alert> : null}
     {statusMessage ? <p aria-live="polite" className="text-sm text-muted-foreground">{statusMessage}</p> : null}
-    <Button className="h-11 w-full" disabled={loading || form.formState.isSubmitting || showPreferenceLoadError} ref={submitButtonRef} type="submit">{form.formState.isSubmitting ? '正在生成餐单…' : '生成今日餐单'}</Button>
+    <Button className="h-11 w-full" disabled={!profile || profileLoadError || profileQuery.isError || loading || form.formState.isSubmitting || showPreferenceLoadError} ref={submitButtonRef} type="submit"><Sparkles aria-hidden="true" className="size-5" />{form.formState.isSubmitting ? '正在生成餐单…' : '生成今日餐单'}</Button>
+    {!profile && !loading ? <p className="text-center text-sm text-muted-foreground">请先在「我的」页面设置身体资料</p> : null}
   </form>
-}
-
-function Choice({ label, value, ...inputProps }: { label: string; value: string } & ComponentProps<'input'>) {
-  return <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="radio" value={value} {...inputProps} />{label}</label>
-}
-
-function FieldError({ children, error, id }: { children: ReactNode; error?: string; id: string }) {
-  return <div className="space-y-2">{children}{error ? <p className="text-sm text-destructive" id={id} role="alert">{error}</p> : null}</div>
 }

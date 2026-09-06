@@ -1,5 +1,7 @@
 # Frontend E2E Tests
 
+`h5-visual.spec.ts`新增独立资料流程：缺资料禁用生成→我的首次保存→计划摘要与偏好复核；使用隔离账号与公开API，不调用模型。
+
 ## 职责
 
 `tests/e2e/` 通过真实浏览器验证 Vite 页面与 FastAPI API 的跨栈契约。Playwright 配置负责启动依赖、等待 readiness，并在测试结束时清理其拥有的应用进程。
