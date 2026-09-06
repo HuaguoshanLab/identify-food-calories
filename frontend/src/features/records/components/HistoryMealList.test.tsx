@@ -21,7 +21,7 @@ describe('HistoryMealList', () => {
     render(<MemoryRouter><HistoryMealList isLoadingMore={false} onLoadMore={loadMore} page={page} /></MemoryRouter>)
 
     expect(screen.getByRole('heading', { name: '历史记录' })).toBeInTheDocument()
-    expect(screen.getByText(/早餐 ·/)).toBeInTheDocument()
+    expect(screen.getByText('早餐')).toBeInTheDocument()
     expect(screen.getByText('2026年9月1日')).toBeInTheDocument()
     screen.getByRole('button', { name: '加载更多记录' }).click()
     expect(loadMore).toHaveBeenCalledWith('opaque-next-cursor')
