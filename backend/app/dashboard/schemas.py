@@ -40,6 +40,7 @@ class DashboardHistoryItem(BaseModel):
 
     id: uuid.UUID
     consumed_at: datetime
+    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"] | None = None
     totals: DashboardNutritionTotals
 
 
@@ -82,6 +83,9 @@ class WeeklyReviewPublicResponse(BaseModel):
 
 
 class DashboardHistoryRecord(Protocol):
+    @property
+    def meal_slot(self) -> Literal["breakfast", "lunch", "dinner", "snack"] | None: ...
+
     @property
     def consumed_local_date(self) -> date: ...
 

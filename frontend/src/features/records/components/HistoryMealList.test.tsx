@@ -10,7 +10,7 @@ const page: DashboardHistoryPage = {
     consumed_local_date: '2026-09-01',
     totals: { energy_kcal: '500', protein_g: '20', fat_g: '10', carbohydrate_g: '65' },
     meal_count: 1,
-    items: [{ id: '2f08b92e-4a88-4af3-ae0f-cc9f9251f201', consumed_at: '2026-09-01T12:00:00Z', totals: { energy_kcal: '500', protein_g: '20', fat_g: '10', carbohydrate_g: '65' } }],
+    items: [{ meal_slot: 'breakfast', id: '2f08b92e-4a88-4af3-ae0f-cc9f9251f201', consumed_at: '2026-09-01T12:00:00Z', totals: { energy_kcal: '500', protein_g: '20', fat_g: '10', carbohydrate_g: '65' } }],
   }],
   next_cursor: 'opaque-next-cursor',
 }
@@ -21,6 +21,7 @@ describe('HistoryMealList', () => {
     render(<MemoryRouter><HistoryMealList isLoadingMore={false} onLoadMore={loadMore} page={page} /></MemoryRouter>)
 
     expect(screen.getByRole('heading', { name: '历史记录' })).toBeInTheDocument()
+    expect(screen.getByText(/早餐 ·/)).toBeInTheDocument()
     expect(screen.getByText('2026年9月1日')).toBeInTheDocument()
     screen.getByRole('button', { name: '加载更多记录' }).click()
     expect(loadMore).toHaveBeenCalledWith('opaque-next-cursor')

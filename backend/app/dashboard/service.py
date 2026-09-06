@@ -138,6 +138,7 @@ class DashboardService:
             items=tuple(
                 DashboardHistoryItem(
                     id=record.id,
+                    meal_slot=record.meal_slot,
                     consumed_at=record.consumed_at,
                     totals=DashboardNutritionTotals(
                         energy_kcal=record.energy_kcal, protein_g=record.protein_g,

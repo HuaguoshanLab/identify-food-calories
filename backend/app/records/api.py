@@ -51,7 +51,7 @@ def confirm_meal_record(
         return MealRecordResponse.model_validate(
             service.confirm_from_completed_run(
                 user_id=principal, thread_id=payload.thread_id, command_key=payload.command_key,
-                consumed_at=payload.consumed_at, time_zone=payload.time_zone,
+                consumed_at=payload.consumed_at, time_zone=payload.time_zone, meal_slot=payload.meal_slot,
             )
         )
     except InvalidTimeZone:
@@ -101,7 +101,8 @@ def update_meal_record(
         return MealRecordResponse.model_validate(
             service.update_record(
                 record_id=record_id, user_id=principal, consumed_at=payload.consumed_at,
-                time_zone=payload.time_zone,
+                time_zone=payload.time_zone, meal_slot=payload.meal_slot,
+                update_meal_slot="meal_slot" in payload.model_fields_set,
             )
         )
     except InvalidTimeZone:

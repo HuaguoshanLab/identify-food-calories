@@ -18,6 +18,6 @@
 | `models.py` | 餐食快照、看板统计时区确认/回填审计、记忆授权账本和删除 outbox ORM |
 | `ports.py` | 记录 Service 所依赖的窄 Repository Protocol |
 | `repository.py` | tenant-filtered、flush-only SQLAlchemy adapter（含统计时区回填查询） |
-| `service.py` | 显式确认、修改、删除、IANA 本地日冻结，以及同 IANA 安全幂等/异 IANA 泛化冲突并可从唯一约束竞争恢复的一次性回填事务边界 |
+| `service.py` | 显式餐次确认、独立餐次/时间修改、删除、IANA 本地日冻结，以及同 IANA 安全幂等/异 IANA 泛化冲突并可从唯一约束竞争恢复的一次性回填事务边界 |
 | `schemas.py` | 独立 HTTP 请求/响应 DTO，不描述历史所在地 |
 | `api.py` | 认证保护的餐食记录与统计时区确认 REST 路由；无效 IANA 统一映射为不泄露实现细节的 400 |

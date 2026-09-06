@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +7,7 @@ import { AuthContext, type AuthContextValue } from '@/auth/AuthContext'
 import { AnalyzePage } from './AnalyzePage'
 
 function renderPage(request: AuthContextValue['request'] = vi.fn(async () => new Response('{}', { status: 500 }))) {
-  return render(<AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}><AnalyzePage /></AuthContext.Provider>)
+  return render(<MemoryRouter><AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}><AnalyzePage /></AuthContext.Provider></MemoryRouter>)
 }
 
 describe('AnalyzePage', () => {
@@ -244,4 +245,35 @@ describe('AnalyzePage', () => {
     expect(await screen.findByRole('button', { name: '米饭' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Custom pantry label' })).toHaveAttribute('aria-pressed', 'false')
   })
+})
+
+
+it('确认保存提交明确早餐与补录时间，重复点击不会重复提交', async () => {
+  const user = userEvent.setup()
+  const thread = '11111111-1111-4111-8111-111111111111'
+  const completed = { thread_id: thread, status: 'completed', revision: 1, report: { items: [{ item_id: 'rice-1', name: '米饭', grams: '100', energy_kcal: '130' }], totals: { energy_kcal: '130' } } }
+  let finish: (() => void) | undefined
+  const request = vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.endsWith('/events')) return new Response('')
+    if (path === '/meal-records') {
+      await new Promise<void>((resolve) => { finish = resolve })
+      return new Response('{}', { status: 500 })
+    }
+    void init
+    return new Response(JSON.stringify(completed), { status: 201 })
+  })
+  renderPage(request)
+  await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
+  await user.click(screen.getByRole('button', { name: '开始分析' }))
+  await screen.findByLabelText('餐次')
+  await user.selectOptions(screen.getByLabelText('餐次'), 'breakfast')
+  await user.clear(screen.getByLabelText('用餐时间'))
+  await user.type(screen.getByLabelText('用餐时间'), '2026-01-01T20:00')
+  await user.dblClick(screen.getByRole('button', { name: '确认并保存' }))
+  const calls = request.mock.calls.filter(([path]) => path === '/meal-records')
+  expect(calls).toHaveLength(1)
+  expect(JSON.parse(String(calls[0][1]?.body))).toMatchObject({ meal_slot: 'breakfast', consumed_at: new Date('2026-01-01T20:00').toISOString() })
+  finish?.()
+  expect(await screen.findByText('保存失败，请稍后重试。')).toBeInTheDocument()
+  expect(screen.getByLabelText('餐次')).toHaveValue('breakfast')
 })

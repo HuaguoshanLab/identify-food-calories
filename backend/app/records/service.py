@@ -58,8 +58,9 @@ class MealRecordService:
 
     def confirm_from_completed_run(
         self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None,
-        time_zone: str,
+        time_zone: str, meal_slot: str | None = None,
     ) -> MealRecord:
+        self._validate_meal_slot(meal_slot)
         now = self._now()
         when = consumed_at or now
         self._validate_consumed_at(when, now)
@@ -86,7 +87,7 @@ class MealRecordService:
         snapshot = self._validated_snapshot(report)
         record = MealRecord(
             id=uuid.uuid4(), user_id=user_id, source_run_id=run.id, agent_thread_id=thread_id, agent_run_id=run.id,
-            command_key=command_key, consumed_at=when, consumed_time_zone=zone.key,
+            command_key=command_key, meal_slot=meal_slot, consumed_at=when, consumed_time_zone=zone.key,
             consumed_local_date=self._local_date(when, zone), local_date_source="submitted_time_zone",
             nutrition_catalog_version=snapshot["catalog_version"],
             calculation_version=snapshot["calculation_version"], energy_kcal=snapshot["energy_kcal"],
@@ -119,9 +120,11 @@ class MealRecordService:
         return record
 
     def update_record(
-        self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str
+        self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str,
+        meal_slot: str | None = None, update_meal_slot: bool = False,
     ) -> MealRecord:
         now = self._now()
+        self._validate_meal_slot(meal_slot)
         self._validate_consumed_at(consumed_at, now)
         zone = self._validated_time_zone(time_zone)
         record = self._repository.get_record_for_user(record_id=record_id, user_id=user_id, for_update=True)
@@ -129,6 +132,8 @@ class MealRecordService:
             raise MealRecordUnavailable("meal record is unavailable")
         try:
             # Changing occurrence time must not silently recalculate an historical nutrition snapshot.
+            if update_meal_slot or meal_slot is not None:
+                record.meal_slot = meal_slot
             record.consumed_at = consumed_at
             record.consumed_time_zone = zone.key
             record.consumed_local_date = self._local_date(consumed_at, zone)
@@ -203,6 +208,11 @@ class MealRecordService:
         except Exception:
             self._rollback()
             raise
+
+    @staticmethod
+    def _validate_meal_slot(meal_slot: str | None) -> None:
+        if meal_slot not in (None, "breakfast", "lunch", "dinner", "snack"):
+            raise ValueError("invalid meal slot")
 
     @staticmethod
     def _validate_consumed_at(consumed_at: datetime, now: datetime) -> None:

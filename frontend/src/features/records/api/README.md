@@ -18,3 +18,4 @@
 | `dashboard.test.ts` | history 严格 DTO 接受后端 RFC 3339 时间戳、将被 `response_model_exclude_none` 省略的 cursor 恢复为 null，并验证 current cache key/URL 不含浏览器范围 |
 | `dashboard.ts` | strict dashboard overview/history DTO；overview current key 固定且无范围，history 只使用 opaque cursor |
 | `weeklyReview.ts` | strict weekly-review safe-outcome DTO；无参数 current 与显式 completed history 使用独立 typed 调用/key，服务端 preference 是统计权威 |
+| `mealMetadata.ts` | meal-slot.v1 餐次标签、初始建议、RHF/Zod 时间表单合同；由公开 client 导出供分析确认使用。 |

@@ -16,4 +16,4 @@
 |---|---|
 | `env.py` | 受 APP_ENV/TEST_DATABASE_URL 保护的在线迁移环境 |
 | `script.py.mako` | 新 revision 的标准脚本模板 |
-| `versions/` | 已审查的有序 schema revision（当前至 `0019` runtime configuration versions） |
+| `versions/` | 已审查的有序 schema revision（当前至 `0020` meal slot） |

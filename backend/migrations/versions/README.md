@@ -33,3 +33,4 @@
 | `0017_catalog_drafts.py` | mutable catalog draft、server-computed change-set 与 immutable revision evidence；唯一前驱是 `0016`。 |
 | `0018_catalog_publication_eligibility.py` | immutable review/publication snapshot、active pointer 与 append-only future-use eligibility history；唯一前驱是 `0017`。 |
 | `0019_runtime_config_versions.py` | immutable non-secret reasoning runtime policy、Agent run/invocation snapshot 与准入计价上限；唯一前驱是 `0018`。 |
+| `0020_meal_slot.py` | 新增可空四值餐次；历史数据保持未分类，不按时间猜测回填。 |

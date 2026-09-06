@@ -14,7 +14,7 @@
 
 | 路径 | 职责 |
 |---|---|
-| `learning/` | 从前端开发者视角解释后端认证与工程基础 |
+| `learning/` | 从前端开发者视角解释后端认证、餐次记录与工程基础 |
 | `learning/phase-02-agent-core.md` | 可追问文字餐食 Agent、确定性营养边界、Checkpoint/ledger、SSE、评测和调试的中文教学文档。 |
 | `learning/phase-03-multimodal-meal-analysis.md` | 多模态图片安全、Vision Provider、确定性营养、删除链、冻结评测与真实浏览器证据。 |
 | `learning/phase-06-dashboard-read-api.md` | 看板餐食快照、完成计划资格投影、签名 keyset cursor 与真实 PostgreSQL 测试证据。 |

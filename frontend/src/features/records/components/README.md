@@ -6,7 +6,7 @@
 
 ## 允许依赖
 
-- React、Router、records API、认证请求与现有 UI primitives。
+- React、Router、TanStack Query、React Hook Form、Zod、records API、认证请求与现有 UI primitives。
 
 ## 文件索引
 
@@ -19,4 +19,5 @@
 | `WeeklyReview.tsx` | 覆盖事实、闭合安全状态与受限一般饮食参考 |
 | `HistoryMealList.tsx` | 服务端 local-date 分组和 opaque cursor 历史列表 |
 | `MealRecordDetailPage.tsx` | 不会重算的营养快照详情 |
-| `MealRecordEditPage.tsx` | 过去用餐时间修改与删除确认 |
+| `MealRecordEditPage.tsx` | RHF/Zod 餐次与过去用餐时间修改、时区提交、dashboard 缓存刷新与删除确认 |
+| `MealRecordEditPage.test.tsx` | 旧记录补选餐次、时间独立编辑、未来时间拒绝及保存失败保留输入。 |

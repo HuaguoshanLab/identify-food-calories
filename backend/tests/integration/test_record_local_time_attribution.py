@@ -76,5 +76,6 @@ def test_confirmed_timezone_backfill_uses_consumed_at_and_never_crosses_tenants(
     assert result.dashboard_time_zone == "Asia/Shanghai"
     assert owner_row is not None and owner_row.consumed_local_date == date(2026, 8, 31)
     assert owner_row.local_date_source == "confirmed_timezone_backfill"
+    assert owner_row.meal_slot is None
     assert other_row is not None and other_row.consumed_local_date is None
     assert audit is not None and audit.confirmed_time_zone == "Asia/Shanghai"

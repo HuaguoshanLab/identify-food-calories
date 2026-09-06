@@ -18,6 +18,7 @@ class MealRecord(Base):
     __tablename__ = "meal_records"
     __table_args__ = (
         CheckConstraint("energy_kcal >= 0 AND protein_g >= 0 AND fat_g >= 0 AND carbohydrate_g >= 0", name="ck_meal_records_nonnegative_totals"),
+        CheckConstraint("meal_slot IS NULL OR meal_slot IN ('breakfast', 'lunch', 'dinner', 'snack')", name="ck_meal_records_meal_slot"),
         CheckConstraint("consumed_at <= updated_at", name="ck_meal_records_consumed_before_update"),
         UniqueConstraint("user_id", "source_run_id", name="uq_meal_records_user_source_run"),
         UniqueConstraint("user_id", "command_key", name="uq_meal_records_user_command_key"),
@@ -37,6 +38,7 @@ class MealRecord(Base):
     agent_thread_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_threads.id", ondelete="RESTRICT"), nullable=False)
     agent_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agent_runs.id", ondelete="RESTRICT"), nullable=False)
     command_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    meal_slot: Mapped[str | None] = mapped_column(String(16), nullable=True)
     consumed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_time_zone: Mapped[str | None] = mapped_column(String(64))
     consumed_local_date: Mapped[date | None] = mapped_column(nullable=True)

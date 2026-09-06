@@ -35,7 +35,7 @@ class StubMealRecordService:
         self.record = record
         self.confirm_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
 
-    def confirm_from_completed_run(self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None, time_zone: str) -> MealRecord:
+    def confirm_from_completed_run(self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None, time_zone: str, meal_slot: str | None = None, update_meal_slot: bool = False) -> MealRecord:
         if time_zone in {"/invalid-timezone", "../Etc/UTC"}:
             raise InvalidTimeZone()
         self.confirm_calls.append((user_id, thread_id, command_key))
@@ -49,7 +49,7 @@ class StubMealRecordService:
             raise MealRecordUnavailable()
         return self.record
 
-    def update_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str) -> MealRecord:
+    def update_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str, meal_slot: str | None = None, update_meal_slot: bool = False) -> MealRecord:
         if time_zone in {"/invalid-timezone", "../Etc/UTC"}:
             raise InvalidTimeZone()
         return self.get_record(record_id=record_id, user_id=user_id)
@@ -168,3 +168,16 @@ def test_foreign_record_uuid_has_the_same_not_found_result_for_get_patch_and_del
         assert client.get(f"/api/v1/meal-records/{record.id}").status_code == 404
         assert client.patch(f"/api/v1/meal-records/{record.id}", json={"consumed_at": NOW.isoformat(), "time_zone": "UTC"}).status_code == 404
         assert client.delete(f"/api/v1/meal-records/{record.id}").status_code == 404
+
+
+@pytest.mark.parametrize("slot", ["brunch", "早餐", "", 1, ["breakfast"]])
+def test_invalid_meal_slot_rejected_by_both_write_contracts(slot) -> None:
+    owner = uuid.uuid4()
+    record = _record(user_id=owner)
+    service = StubMealRecordService(record)
+    with _client(principal=owner, service=service) as client:
+        response = client.post("/api/v1/meal-records", json={"thread_id": str(uuid.uuid4()), "command_key": "meal-slot-save-key", "time_zone": "UTC", "meal_slot": slot})
+        assert response.status_code == 422
+        response = client.patch(f"/api/v1/meal-records/{record.id}", json={"consumed_at": NOW.isoformat(), "time_zone": "UTC", "meal_slot": slot})
+        assert response.status_code == 422
+    assert service.confirm_calls == []

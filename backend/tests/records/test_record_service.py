@@ -342,3 +342,28 @@ def test_all_records_writes_reject_invalid_timezone_before_any_mutation(invalid_
 
     assert (len(repository.records), repository.preference_add_calls, len(repository.backfill_audits), commits) == before
     assert repository.dashboard_time_zones[user_id].time_zone == preference.dashboard_time_zone
+
+
+@pytest.mark.parametrize("slot", ["breakfast", "lunch", "dinner", "snack", None])
+def test_meal_slot_saved_explicitly_and_preserved_when_only_time_changes(slot) -> None:
+    owner, thread = uuid.uuid4(), uuid.uuid4()
+    repo = FakeMealRecordRepository(run=_run(user_id=owner, thread_id=thread), report=_report())
+    service = _service(repo)
+    record = service.confirm_from_completed_run(user_id=owner, thread_id=thread, command_key="meal-slot-save-key", consumed_at=NOW - timedelta(hours=12), time_zone="Asia/Shanghai", meal_slot=slot)
+    assert record.meal_slot == slot
+    updated = service.update_record(record_id=record.id, user_id=owner, consumed_at=NOW - timedelta(hours=2), time_zone="Asia/Shanghai")
+    assert updated.meal_slot == slot and updated.energy_kcal == Decimal("130.0")
+    changed = service.update_record(record_id=record.id, user_id=owner, consumed_at=NOW, time_zone="UTC", meal_slot="snack")
+    assert changed.meal_slot == "snack"
+    cleared = service.update_record(record_id=record.id, user_id=owner, consumed_at=NOW, time_zone="UTC", meal_slot=None, update_meal_slot=True)
+    assert cleared.meal_slot is None
+    replay = service.confirm_from_completed_run(user_id=owner, thread_id=thread, command_key="meal-slot-save-key", consumed_at=NOW, time_zone="UTC", meal_slot="dinner")
+    assert replay.id == record.id and len(repo.records) == 1 and replay.meal_slot is None
+
+
+def test_invalid_slot_rejected_before_persistence() -> None:
+    owner, thread = uuid.uuid4(), uuid.uuid4()
+    repo = FakeMealRecordRepository(run=_run(user_id=owner, thread_id=thread), report=_report())
+    with pytest.raises(ValueError, match="invalid meal slot"):
+        _service(repo).confirm_from_completed_run(user_id=owner, thread_id=thread, command_key="meal-slot-save-key", consumed_at=NOW, time_zone="UTC", meal_slot="brunch")
+    assert repo.records == []

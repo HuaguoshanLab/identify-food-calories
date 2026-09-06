@@ -63,6 +63,7 @@ def _row(*, day: date, energy: str, count: int = 1) -> object:
             "carbohydrate_g": Decimal("30"),
             "meal_count": count,
             "consumed_at": NOW,
+            "meal_slot": "breakfast",
             "id": uuid.uuid4(),
         },
     )()
