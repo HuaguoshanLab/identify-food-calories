@@ -17,3 +17,6 @@
 | `api/` | 严格公开 DTO、资料预填读取与 Agent 启动请求。 |
 | `components/` | 资料、目标与已确认偏好的 H5 复核，以及安全三餐结果呈现。 |
 | `format.ts` | 规划目标范围、计划值与文本状态的安全展示格式化。 |
+
+- 正式餐单存档由 `api/archive.ts` 和 `api/report.ts` 校验，TanStack Query 管理今日与历史状态；`components/PlanHistoryPage.tsx` / `SavedPlanPage.tsx` 提供历史版本及删除。
+- 允许调用 `records/api/client.ts` 导出的 `confirmDashboardTimeZone`，用于用户显式确认统一统计时区；禁止导入 records 组件和内部状态。

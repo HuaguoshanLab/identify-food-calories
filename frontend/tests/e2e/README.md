@@ -27,3 +27,5 @@
 E2E 的前端与 CORS origin 固定为 `http://127.0.0.1:5178`；账号只可经过页面注册、Mailpit 公开 HTTP 读取验证码和页面登录获得身份，禁止 seed 数据库或注入 token。
 
 Records runner 可用 `E2E_FRONTEND_PORT`、`E2E_BACKEND_PORT` 和 `E2E_RECORDS_ADMIN_FRONTEND_PORT`（默认 5178/8000/5185）覆盖端口。每次运行只经 `run_pg.py` 允许的 `food_agent_test` 清库、迁移及受控种子重建；它不复用 06-28 的进程、账号、数据库或 RuntimeConfig。首位管理员 CLI 只写审计角色提升，运行配置必须由 admin SPA 的公开 `POST /api/v1/admin/runtime-config` 创建；禁止 DB 直写、token/cookie 注入、内部调用、固定 sleep 与真实模型。
+
+- `plans.spec.ts`：通过公开后台准备运行配置，并验证时区确认、生成存档、刷新恢复、调整版本、历史与删除；使用 runner 的独立端口，不复用本地开发服务。

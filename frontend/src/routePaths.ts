@@ -8,6 +8,8 @@ export const routePaths = {
   analyze: '/app/analyze',
   records: '/app/records',
   plans: '/app/plans',
+  planHistory: '/app/plans/history',
+  planDetail: '/app/plans/detail',
   me: '/app/me',
   profile: '/app/me/profile',
   account: '/app/me/account',

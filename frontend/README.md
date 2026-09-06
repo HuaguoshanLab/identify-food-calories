@@ -80,3 +80,7 @@ Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit�
 | `playwright.config.test.ts` | Playwright provisioning 的真实 wrapper child 与配置安全合同 |
 | `src/` | React 运行时代码与目录契约 |
 | `tests/` | 前端测试边界与 Playwright E2E 用例 |
+
+### 计划存档页面
+
+计划 Tab 自动读取今日存档；历史与只读版本详情位于 `/app/plans/history`、`/app/plans/detail?id=…`。新用户先确认统计时区，生成成功后自动保存餐单；删除需要确认。存档读取使用 TanStack Query，不把健康数据持久化到浏览器存储。

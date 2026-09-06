@@ -17,3 +17,6 @@
 | `profile.ts` | 个人资料 HTTP 契约和安全错误映射。 |
 | `schemas.ts` | 规划表单、快照和报告运行时 Schema。 |
 | `stream.ts` | 版本化安全 SSE 阶段的严格 Zod 边界。 |
+
+| `archive.ts` | 今日、分页历史、版本详情、删除请求与 Query keys。 |
+| `report.ts` | 首次/调整餐单、放宽目标与安全快照共用 Zod 合同。 |

@@ -56,6 +56,7 @@ function renderPage(request: AuthContextValue['request']) {
 function requestWithSnapshot() {
   return vi.fn(async (path: string, init?: RequestInit) => {
     void init
+    if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
     if (path === '/memories') return new Response(JSON.stringify([
       { id: '11111111-1111-4111-8111-111111111111', category: 'avoidance', source_kind: 'user_maintained', canonical_text: '花生', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
@@ -110,7 +111,8 @@ describe('PlanPage', () => {
     const user = userEvent.setup()
     const request = requestWithSnapshot()
     request.mockImplementation(async (path: string) => {
-      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+    if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
         thread_id: '33333333-3333-4333-8333-333333333333', status: 'retryable', revision: 1,
@@ -134,7 +136,8 @@ describe('PlanPage', () => {
     const user = userEvent.setup()
     const request = requestWithSnapshot()
     request.mockImplementation(async (path: string) => {
-      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+    if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
         thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3,
@@ -160,7 +163,8 @@ describe('PlanPage', () => {
     let adjusted = false
     const request = vi.fn(async (path: string, init?: RequestInit) => {
       void init
-      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+    if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
@@ -211,7 +215,8 @@ describe('PlanPage', () => {
     }
     let snapshot: object = ambiguous
     const request = vi.fn(async (path: string) => {
-      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+    if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'waiting', revision: 1, report: snapshot }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') { snapshot = relaxed; return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed' })) }
@@ -241,7 +246,8 @@ describe('PlanPage', () => {
     const user = userEvent.setup()
     const limit = { stage: 'needs_input', code: 'LIMIT_REACHED', message: '本次计划已达到三次调整上限；请新建计划或修改资料与目标。' }
     const request = vi.fn(async (path: string) => {
-      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+    if (path === '/planning/profile') return new Response(JSON.stringify(profile))
       if (path === '/memories') return new Response('[]')
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))

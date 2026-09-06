@@ -18,3 +18,5 @@
 | `components/` | 记录 dashboard、详情、编辑与删除交互；Records current reads 仅在 strict same-zone confirmation 后启用，冲突零读取 |
 | `format.ts` | 持久化营养 Decimal 的只读展示和本地用餐时间转换 |
 | `format.test.ts` | 精度展示与本地时间转换的回归测试 |
+
+- plans feature 可调用本模块公开 `api/client.ts` 的 `confirmDashboardTimeZone`，以统一今日计划与记录的统计时区；不共享组件或内部状态。

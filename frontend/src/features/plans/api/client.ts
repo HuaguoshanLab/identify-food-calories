@@ -41,3 +41,7 @@ export async function submitDietPlanningAdjustment(
   if (!response.ok) throw await getPlanningApiError(response, '暂时无法提交调整。请检查网络后重试。')
   return dietPlanningAdjustmentResponseSchema.parse(await response.json())
 }
+
+export async function getPlanningSnapshot(request: PlanningApiRequest, threadId: string): Promise<Response> {
+  return request(`/agent/threads/${encodeURIComponent(threadId)}`)
+}

@@ -21,6 +21,8 @@ import { MealRecordEditPage } from './features/records/components/MealRecordEdit
 import { MemoryManagementPage } from './features/memory/components/MemoryManagementPage'
 import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
 import { PersonalProfilePage } from './features/plans/components/PersonalProfilePage'
+import { PlanHistoryPage } from './features/plans/components/PlanHistoryPage'
+import { SavedPlanPage } from './features/plans/components/SavedPlanPage'
 import { PlanPage } from './features/plans/components/PlanPage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
@@ -58,6 +60,8 @@ export function App() {
           <Route element={<DetailLayout title="账号资料" />}>
             <Route path="me/account" element={<AccountDetailsPage />} />
           </Route>
+          <Route element={<DetailLayout title="历史计划" />}><Route path="plans/history" element={<PlanHistoryPage />} /></Route>
+          <Route element={<DetailLayout title="计划详情" />}><Route path="plans/detail" element={<SavedPlanPage />} /></Route>
           <Route element={<DetailLayout title="个人资料" />}>
             <Route path="me/profile" element={<PersonalProfilePage />} />
           </Route>

@@ -24,3 +24,9 @@
 | `SafePlanningProgress.test.tsx` | 规划阶段、受控重试与 SSE 边界安全测试。 |
 | `PersonalProfilePage.tsx` | DetailLayout 内的资料查看、编辑、删除和唯一 memory 偏好入口。 |
 | `PersonalProfilePage.test.tsx` | 资料 CRUD、不可逆删除和偏好职责分离合同。 |
+
+| `PlanHistoryPage.tsx` | 按日期分页展示正式存档。 |
+| `SavedPlanPage.tsx` | 只读版本详情、营养/三餐快照和整日删除确认。 |
+| `SavedPlanPages.test.tsx` | 刷新恢复、时区确认、错误恢复、版本和删除确认。 |
+
+PlanPage 允许调用 records 公开 `confirmDashboardTimeZone`，确认今日计划与看板采用同一统计日期。

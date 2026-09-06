@@ -25,3 +25,5 @@
 | `layouts/` | H5 设备容器、唯一主滚动区、公开/详情/Tab 外壳和底部导航；不承载业务数据或认证协议 |
 | `app/` | 登录后 Tab 根页与详情页的内容组件；不自行包裹页面壳或复制认证/Query 状态 |
 | `features/` | 按业务能力组织的用户功能模块；Agent 的页面、生成 API 合约与流式边界都位于此处，路由、认证和页面壳保持在既有边界。 |
+
+- `App.tsx` / `routePaths.ts` 同步登记 `/app/plans/history` 与 `/app/plans/detail?id=…`，详情使用 DetailLayout，登录返回仍为精确路径白名单。

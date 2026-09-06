@@ -1,3 +1,5 @@
+import { execFile as execFileCallback } from 'node:child_process'
+import { promisify } from 'node:util'
 import { expect, test, type Page } from '@playwright/test'
 
 import { clearMailbox, login, registerAndActivate, type E2eAccount } from './auth-helpers'
@@ -6,13 +8,39 @@ function mealCard(page: Page, mealName: '早餐' | '午餐' | '晚餐') {
   return page.getByRole('heading', { name: mealName, exact: true }).locator('xpath=ancestor::*[@data-slot="card"][1]')
 }
 
-test.describe('phase 5 daily planning H5', () => {
+test.describe('daily planning archive H5', () => {
+  test.describe.configure({ mode: 'serial' })
+  test.beforeAll(async ({ browser, request }) => {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    const account = { email: 'plans-runtime-admin@example.test', password: 'Plans-admin-password-2026!' }
+    await clearMailbox(request)
+    await page.goto('/register')
+    await registerAndActivate(page, request, account)
+    await promisify(execFileCallback)('../backend/.venv/bin/python', ['tests/run_pg.py', '--env-file', '.env.test.example', '--', '.venv/bin/python', '-m', 'app.admin.cli', 'bootstrap', '--email', account.email, '--reason', 'Planning E2E first-admin bootstrap'], { cwd: '../backend' })
+    await page.goto(`http://127.0.0.1:${process.env.E2E_RECORDS_ADMIN_FRONTEND_PORT ?? '5185'}/admin/login?returnTo=/admin/model-configs`)
+    await page.getByLabel('邮箱').fill(account.email)
+    await page.getByLabel('密码', { exact: true }).fill(account.password)
+    await page.getByRole('button', { name: '登录后台' }).click()
+    await page.getByRole('button', { name: '变更未来配置' }).click()
+    const dialog = page.getByRole('alertdialog', { name: '确认变更未来运行配置？' })
+    await dialog.getByRole('checkbox', { name: '启用新的运行配置' }).check()
+    await dialog.getByLabel('单次调用上限（USD）').fill('0.02')
+    await dialog.getByLabel('周期上限（USD）').fill('12')
+    await dialog.getByLabel('输入价格（USD / 百万 token）').fill('0.14')
+    await dialog.getByLabel('输出价格（USD / 百万 token）').fill('0.28')
+    await dialog.getByLabel('变更原因').fill('为计划存档测试启用 Fake Provider')
+    await dialog.getByRole('button', { name: '确认保存未来配置' }).click()
+    await expect(page.getByText('配置版本 v1')).toBeVisible()
+    await context.close()
+  })
   test('a real registered user generates the controlled breakfast, lunch, and dinner snapshot', async ({ page, request }) => {
     await clearMailbox(request)
     const account: E2eAccount = { email: 'daily-plans@example.test', password: 'correct-horse-battery-staple' }
     await page.goto('/register')
     await registerAndActivate(page, request, account)
     await login(page, account, '/app/plans')
+    await page.getByRole('button', { name: '确认时区' }).click()
 
     await page.getByLabel('身高').fill('170')
     await page.getByRole('spinbutton', { name: '体重' }).fill('65')
@@ -28,6 +56,16 @@ test.describe('phase 5 daily planning H5', () => {
     await expect(page.getByRole('heading', { name: '早餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '午餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '晚餐' })).toBeVisible()
+    await expect(page.getByText(/已自动保存/)).toBeVisible()
+    const savedBreakfast = await mealCard(page, '早餐').innerText()
+    await page.reload()
+    await expect(page.getByText(/已自动保存/)).toBeVisible()
+    expect(await mealCard(page, '早餐').innerText()).toBe(savedBreakfast)
+    await page.getByRole('link', { name: '历史计划', exact: true }).click()
+    await page.getByRole('link', { name: /三餐计划/ }).click()
+    await expect(page.getByRole('heading', { name: '计划详情', exact: true })).toBeVisible()
+    await expect(mealCard(page, '早餐')).toHaveText(savedBreakfast, { useInnerText: true })
+    await page.goto('/app/plans')
     const firstMeal = mealCard(page, '早餐')
     await expect(firstMeal).toContainText(/\d+g · /)
     await expect(firstMeal).toContainText(/ · /)
@@ -45,6 +83,7 @@ test.describe('phase 5 daily planning H5', () => {
     await page.goto('/register')
     await registerAndActivate(page, request, account)
     await login(page, account, '/app/plans')
+    await page.getByRole('button', { name: '确认时区' }).click()
 
     await page.getByLabel('身高').fill('170')
     await page.getByRole('spinbutton', { name: '体重' }).fill('65')
@@ -75,9 +114,27 @@ test.describe('phase 5 daily planning H5', () => {
     await expect(completionSummary).not.toHaveAttribute('tabindex')
     await expect(completionSummary).not.toBeFocused()
     await expect(submitButton).toBeFocused()
-    await expect.poll(() => scrollArea.evaluate((element) => element.scrollTop)).toBe(scrollTopBeforeAdjustment)
+    // Native layout/scroll anchoring may settle by one spacing unit after the saved-version badge updates.
+    // A focus jump to the result heading would move hundreds of pixels and still fails this guard.
+    await expect.poll(async () => Math.abs(await scrollArea.evaluate((element) => element.scrollTop) - scrollTopBeforeAdjustment)).toBeLessThanOrEqual(8)
     await expect(mealCard(page, '午餐')).toContainText('已调整')
     expect(await mealCard(page, '早餐').innerText()).toBe(breakfast)
     expect(await mealCard(page, '晚餐').innerText()).toBe(dinner)
+    await expect(page.getByText(/已自动保存.*第 2 版/)).toBeVisible()
+    await page.reload()
+    await expect(page.getByText(/已自动保存.*第 2 版/)).toBeVisible()
+    await page.getByRole('link', { name: '历史计划', exact: true }).click()
+    await page.getByRole('link', { name: /三餐计划/ }).click()
+    await page.getByRole('button', { name: '上一版' }).click()
+    await expect(page.getByText(/第 1 \/ 2 版/)).toBeVisible()
+    await page.getByRole('button', { name: '删除这天的计划' }).click()
+    await page.getByRole('button', { name: '取消', exact: true }).click()
+    await page.getByRole('button', { name: '删除这天的计划' }).click()
+    await page.getByRole('button', { name: '确认删除', exact: true }).click()
+    await expect(page.getByText(/还没有保存的计划/)).toBeVisible()
+    await page.getByRole('link', { name: '返回今日计划' }).click()
+    await expect(page.getByRole('button', { name: '生成今日餐单' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '今日三餐计划' })).toHaveCount(0)
+
   })
 })
