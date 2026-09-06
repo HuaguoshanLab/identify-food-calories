@@ -31,7 +31,7 @@ export function PlanOverview({ report }: { report: PlanReport }) {
 
   return (
     <section aria-labelledby="plan-overview-title" className="space-y-3">
-      <h2 className="text-xl font-semibold" id="plan-overview-title">每日目标概览</h2>
+      <h2 className="text-base font-semibold leading-6" id="plan-overview-title">每日目标概览</h2>
       <Card>
         <CardHeader><CardTitle>目标范围与计划值</CardTitle></CardHeader>
         <CardContent className="grid gap-3">
@@ -41,10 +41,10 @@ export function PlanOverview({ report }: { report: PlanReport }) {
             const state = metricState(totals[field], range.lower, range.upper)
             const copy = planMetricStateCopy(state)
             const Icon = metricIcon(state)
-            return <div className="border-b border-border pb-3 last:border-0" key={field}>
+            return <div className="space-y-1 rounded-md bg-muted/60 p-3" key={field}>
               <p className="text-sm font-semibold">{label}</p>
               <p className="mt-1 flex items-start gap-2 tabular-nums text-sm text-muted-foreground"><Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{formatPlanRange(range.lower, range.upper, unit)} · {formatPlanValue(value, unit)} · {copy.label}</span></p>
-              <p className="mt-1 text-[13px] text-muted-foreground">{copy.description}</p>
+              <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{copy.description}</p>
             </div>
           })}
         </CardContent>

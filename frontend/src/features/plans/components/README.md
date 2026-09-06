@@ -34,3 +34,5 @@ PlanPage 的主标题和路由聚焦统一由固定 TabHeader 管理，不在内
 PlanPage 允许调用 records 公开 `confirmDashboardTimeZone`，确认今日计划与看板采用同一统计日期。
 
 H5第5项：PersonalProfilePage只读摘要为响应式浅绿网格，编辑表单使用白卡；全部字段与CRUD行为保留。
+
+H5第7项：PlanPage历史入口日历/右箭头；ProfileGoalForm保留全部临时字段和可选保存，按身体资料、活动、目标、偏好白卡分组，选中使用浅绿。PlanOverview目标块、MealCard三餐分层、PlanHistoryPage图标列表、SavedPlanPage版本按钮和删除视觉统一；不改API与状态机。
