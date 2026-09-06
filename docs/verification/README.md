@@ -15,4 +15,5 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 验收证据目录边界与索引。 |
+| `h5-restyle-baseline.md` | H5 视觉改版前路由、交互、设计冲突、自动化检查和未验证项；第 1 项检查停止点。 |
 | `phase-06-browser-acceptance.md` | Phase 06 用户 H5、后台、拒绝流和自动化门禁记录；含 06-36 的 `Status: PASS` 真实 Records 同区重入与相反 IANA 安全 409/零读取观察。明确区分 Codex 内置浏览器、可重复 Playwright 及仍待复验项目，自动化不能冒充实机验收。 |
