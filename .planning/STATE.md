@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-stopped_at: Weight parsing and meal clarification recovery complete; Phase 7 deferred by user
-last_updated: 2026-09-06T03:32:00Z
-last_activity: 2026-09-06 -- Completed meal slot recording and consumed time editing
+stopped_at: Daily plan archive and history complete; Phase 7 deferred by user
+last_updated: 2026-09-06T06:42:17Z
+last_activity: 2026-09-06 -- Completed daily plan archive, restore, history and deletion
 progress:
   total_phases: 8
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 Phase: 7
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-09-06 — Quick 260906-fn1: meal slots and consumed time verified through tests and browser
+Last activity: 2026-09-06 — Quick 260906-jmo: daily plans saved and restored; history, versions and deletion verified
 
 Progress: [██████████] 100%
 
@@ -242,7 +242,9 @@ None yet.
 
 | 260906-fn1 | 餐次确认保存、补录与编辑 | 2026-09-06 | 60ce8d8 | 功能验证通过；61后端、41前端、5数据库、双时区E2E及内置浏览器；已有lint/mypy问题见总结 | [餐次记录](./quick/260906-fn1-add-meal-slot-and-consumed-time-confirma/) |
 
-Phase 7 按用户要求暂不启动；本次餐次增强已完成。
+| 260906-jmo | 今日计划自动存档、恢复、历史与删除 | 2026-09-06 | da56004 / 23ef609 | 80后端、22前端、2E2E及内置浏览器通过；全量静态检查既有问题见总结 | [计划存档](./quick/260906-jmo-persist-daily-diet-plans-with-version-hi/) |
+
+Phase 7 按用户要求暂不启动；本次计划存档已完成。
 
 ## Deferred Items
 
@@ -253,6 +255,6 @@ Phase 7 按用户要求暂不启动；本次餐次增强已完成。
 
 ## Session Continuity
 
-Last session: 2026-09-05T07:39:51Z
-Stopped at: Completed quick task 260906-fn1 meal slot recording; Phase 7 deferred by user
+Last session: 2026-09-06T06:42:17Z
+Stopped at: Completed quick task 260906-jmo daily plan archive; Phase 7 deferred by user
 Resume file: None

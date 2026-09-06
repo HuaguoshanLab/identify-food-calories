@@ -199,3 +199,7 @@ cd backend
 ## 文档维护
 
 任何新目录必须在同一提交中提供 `README.md`，至少包含“职责”“允许依赖”“文件索引”；目录内容变化时同步更新父级索引。
+
+### 今日计划存档
+
+成功生成的三餐自动保存到 PostgreSQL，计划页刷新后恢复今日餐单；历史入口可查看旧版本并删除整日计划。个人身体资料仍由用户显式选择保存，计划不会直接计入实际摄入。升级执行 `cd backend && .venv/bin/python -m alembic upgrade head`。设计与验证方法见 [中文教学](docs/learning/daily-plan-archive.md)。
