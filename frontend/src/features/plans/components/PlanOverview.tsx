@@ -43,7 +43,7 @@ export function PlanOverview({ report }: { report: PlanReport }) {
         </div>
         <dl className="grid grid-cols-3 gap-2 text-center">{macros.map((macro) => {
           const target = report.target[macro.field]
-          return <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd><dd className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">（目标：{formatPlanNumber(target.lower)}–{formatPlanNumber(target.upper)}g）</dd></div>
+          return <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd><dd className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">（{formatPlanNumber(target.lower)}–{formatPlanNumber(target.upper)}g）</dd></div>
         })}</dl>
       </CardContent>
     </Card>
