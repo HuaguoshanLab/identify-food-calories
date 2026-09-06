@@ -34,12 +34,12 @@ export function PlanOverview({ report }: { report: PlanReport }) {
           <p><span className="text-4xl font-bold tracking-tight">{energy}</span><span className="ml-1 text-base font-semibold text-muted-foreground">kcal</span></p>
           <p className="text-[13px] text-muted-foreground">（目标 {formatPlanNumber(range.lower)}–{formatPlanNumber(range.upper)} kcal）</p>
         </div>
-        <div className="relative mx-auto size-52" role="img" aria-label={`计划总热量 ${energy} kcal；营养素估算供能占比：${segments.map((s) => `${s.label} ${s.share.toFixed(1)}%`).join('，')}`}>
+        <div className="relative mx-auto size-48" role="img" aria-label={`计划总热量 ${energy} kcal；营养素估算供能占比：${segments.map((s) => `${s.label} ${s.share.toFixed(1)}%`).join('，')}`}>
           <svg aria-hidden="true" viewBox="0 0 200 200" className="size-full -rotate-90">
             <circle cx="100" cy="100" r="78" fill="none" stroke="var(--muted)" strokeWidth="28" />
             {segments.filter((s) => s.share > 0).map((s) => <circle key={s.field} cx="100" cy="100" r="78" fill="none" stroke={s.color} strokeWidth="28" pathLength="100" strokeDasharray={`${Math.max(0, s.share - Math.min(0.8, s.share / 2))} 100`} strokeDashoffset={-s.offset} />)}
           </svg>
-          <div aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center gap-1"><span className="text-sm font-medium text-muted-foreground">总热量</span><span className="text-3xl font-bold tabular-nums">{energy}</span><span className="text-sm text-muted-foreground">kcal</span></div>
+          <div aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center gap-1"><span className="text-sm font-medium text-muted-foreground">总热量</span><span className="text-2xl font-bold tabular-nums">{energy}</span><span className="text-sm text-muted-foreground">kcal</span></div>
         </div>
         <dl className="grid grid-cols-3 gap-2 text-center">{macros.map((macro) => {
           const target = report.target[macro.field]
