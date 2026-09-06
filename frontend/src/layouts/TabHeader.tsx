@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { History } from 'lucide-react'
+import { routePaths } from '@/routePaths'
 
 import { tabNavigation } from './tabNavigation'
 
@@ -23,6 +25,7 @@ export function TabHeader() {
         <h1 className="shell-heading min-w-0 truncate text-[20px] font-bold leading-6" ref={headingRef} tabIndex={-1}>
           {current.title}
         </h1>
+        {pathname === routePaths.plans ? <Link aria-label="历史计划" title="历史计划" className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" to={routePaths.planHistory}><History aria-hidden="true" className="size-5" /></Link> : null}
       </div>
     </header>
   )
