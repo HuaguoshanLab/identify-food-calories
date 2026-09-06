@@ -156,8 +156,7 @@ export function PlanPage() {
     {todayQuery.isPending ? <p role="status">正在读取今日计划…</p> : null}
     {todayQuery.isError ? <Alert variant="destructive"><AlertTitle>无法读取已保存的计划</AlertTitle><AlertDescription><Button className="h-11" onClick={() => void todayQuery.refetch()} variant="outline">重新读取</Button></AlertDescription></Alert> : null}
     {todayQuery.data && !todayQuery.data.time_zone ? <Alert><AlertTitle>确认计划日期使用的时区</AlertTitle><AlertDescription><p>计划与饮食记录统一使用 {timeZone} 划分“今天”。</p><Button className="h-11" disabled={confirmation.isPending || !timeZone} onClick={() => confirmation.mutate()}>确认时区</Button>{confirmation.isError ? <p role="alert">确认失败，请重试或刷新读取已确认的时区。</p> : null}</AlertDescription></Alert> : null}
-    {todayQuery.data?.time_zone && report && !creating ? <p className="text-[13px] text-muted-foreground">{todayQuery.data.today} · {todayQuery.data.time_zone} · 成功餐单自动保存，身体资料与目标在“我的”统一维护。</p> : null}
-    {report && !creating ? <Button className="h-11" disabled={statusKind === 'working' || adjusting} onClick={startNewPlan} variant="outline">重新生成今日计划</Button> : null}
+    {report && !creating ? <div className="border-x border-transparent px-4"><Button className="h-11 w-full" disabled={statusKind === 'working' || adjusting} onClick={startNewPlan} variant="outline">重新生成今日计划</Button></div> : null}
     {todayQuery.data?.time_zone && (!report || creating) ? <div className="space-y-3">
       <ProfileGoalForm initialValues={profileQuery.data ?? null} isLoading={profileQuery.isLoading || memoriesQuery.isLoading} profileLoadError={profileQuery.isError} preferenceLoadError={memoriesQuery.isError} preferenceSummaries={preferenceSummaries} onStarted={onStarted} />
     {savedPlan && creating ? <Button className="h-11" variant="ghost" onClick={() => setCreating(false)}>取消重新生成</Button> : null}
