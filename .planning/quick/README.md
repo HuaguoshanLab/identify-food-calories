@@ -1,5 +1,7 @@
 # Quick Tasks
 
+- `260906-npi-move-planning-profile-editing-to-my-and-/`：资料集中在我的维护，计划摘要与生成门禁。
+
 ## 职责
 
 记录阶段之外的独立改造计划、执行结果与验证证据。

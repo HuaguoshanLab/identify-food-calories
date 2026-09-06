@@ -231,6 +231,8 @@ None yet.
 
 ### Quick Tasks Completed
 
+最新修正：260906-npi，提交94f123b。资料集中在我的维护，计划仅摘要且缺失禁止生成；170测试、类型、构建、隔离E2E和内置浏览器验证完成，等待用户检查。
+
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 260905-jr2 | 营养目录筛选表格、侧边编辑与 CSV 导入导出 | 2026-09-05 | e4aafc8 | 完成；浏览器交互已验证，下载观测限制见总结 | [目录改造](./quick/260905-jr2-catalog-table-filters-import-export/) |
