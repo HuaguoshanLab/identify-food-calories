@@ -26,3 +26,15 @@
 | `api.py` | 认证的 `/api/v1/planning/profile` HTTP CRUD 与统一不可用响应 |
 | `importer.py` | 离线校验并幂等导入项目自有、已审核的受控菜谱 seed；仅启用 `controlled-recipes.v2`，旧版本保留审计记录但不能被组合 |
 | `data/` | 项目自有、无第三方正文的 R-03 受控菜谱短 seed；`v1` 为审计历史，`v2` 为当前可用版本 |
+
+## 正式餐单存档
+
+`archive_*` 管理独立于 Agent 保留策略的日期计划与完整版本。Archive Service 经 Port 访问存储，完成写入只 flush；AgentService 拥有同事务 commit。Repository 为统计日期读取 records 的 `DashboardTimezonePreference`，为写入串行化锁定 auth 的 User 主键，为可调整性只读取 AgentThread/AgentEvent；这些跨域 ORM 读取不返回原始用户资料。
+
+| 文件 | 职责 |
+|---|---|
+| `archive_schemas.py` | 独立于 State 的报告、存档命令、今日/历史/详情严格 DTO。 |
+| `archive_ports.py` | 存档读写与事务能力边界。 |
+| `archive_repository.py` | 用户隔离、日期分页、版本快照、删除墓碑及并发锁。 |
+| `archive_service.py` | 日期归属、去重、完成存档、读取及删除事务。 |
+| `archive_api.py` | 受保护的今日、历史、版本详情与删除 API。 |

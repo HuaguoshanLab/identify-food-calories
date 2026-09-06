@@ -21,3 +21,5 @@
 | `service.py` | 显式餐次确认、独立餐次/时间修改、删除、IANA 本地日冻结，以及同 IANA 安全幂等/异 IANA 泛化冲突并可从唯一约束竞争恢复的一次性回填事务边界 |
 | `schemas.py` | 独立 HTTP 请求/响应 DTO，不描述历史所在地 |
 | `api.py` | 认证保护的餐食记录与统计时区确认 REST 路由；无效 IANA 统一映射为不泄露实现细节的 400 |
+
+- planning 的 archive Repository 只读 `DashboardTimezonePreference` 作为计划日期归属；确认仍由 records API/Service 执行，不允许 planning 修改此事实。

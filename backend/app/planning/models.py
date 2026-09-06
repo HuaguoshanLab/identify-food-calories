@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.auth.models import Base
@@ -181,3 +182,46 @@ class ControlledRecipeIngredient(Base):
     portion_description: Mapped[str] = mapped_column(String(120), nullable=False)
 
     recipe: Mapped[ControlledRecipe] = relationship(back_populates="ingredients")
+
+
+class DietPlan(Base):
+    """Durable day identity. Deleted identities remain only to reject stale Agent writes."""
+
+    __tablename__ = "diet_plans"
+    __table_args__ = (
+        UniqueConstraint("user_id", "id", name="uq_diet_plans_user_id"),
+        CheckConstraint("current_version >= 1", name="ck_diet_plans_version"),
+        Index("uq_diet_plans_active_day", "user_id", "plan_date", unique=True, postgresql_where=text("deleted_at IS NULL")),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    plan_date: Mapped[date] = mapped_column(Date, nullable=False)
+    time_zone: Mapped[str] = mapped_column(String(100), nullable=False)
+    current_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DietPlanVersion(Base):
+    """Immutable snapshots are independent of runtime retention and mutable recipe rows."""
+
+    __tablename__ = "diet_plan_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(["user_id", "plan_id"], ["diet_plans.user_id", "diet_plans.id"], ondelete="CASCADE"),
+        UniqueConstraint("user_id", "source_run_id", name="uq_diet_plan_versions_run"),
+        UniqueConstraint("plan_id", "version", name="uq_diet_plan_versions_number"),
+        CheckConstraint("version >= 1", name="ck_diet_plan_versions_number"),
+        Index("ix_diet_plan_versions_thread", "user_id", "source_thread_id"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    plan_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # No FK to Agent: audit/checkpoint cleanup must never remove the user's saved plan.
+    source_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    source_thread_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    report: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
+    totals: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
+    provenance: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

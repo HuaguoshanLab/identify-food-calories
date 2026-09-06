@@ -37,6 +37,8 @@ from app.agent.graph import AgentGraph
 from app.agent.schemas import DietPlanningStartCommand
 from app.agent.weight import parse_weight_grams
 from app.planning.ports import PlanningCompletionProjectionWriter
+from app.planning.archive_ports import PlanArchiveWriter
+from app.planning.archive_schemas import PlanArchiveWrite, PlanReport
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
 
@@ -119,6 +121,7 @@ class AgentService:
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
         planning_completion_writer: PlanningCompletionProjectionWriter | None = None,
+        planning_archive_writer: PlanArchiveWriter | None = None,
         runtime_config_admitter: RuntimeConfigAdmitter | None = None,
     ) -> None:
         self._repository = repository
@@ -126,6 +129,7 @@ class AgentService:
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
         self._planning_completion_writer = planning_completion_writer
+        self._planning_archive_writer = planning_archive_writer
         self._runtime_config_admitter = runtime_config_admitter
 
     def create_thread(self, *, user_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> AgentThread:
@@ -181,6 +185,8 @@ class AgentService:
             if existing.command_hash != command_hash:
                 raise AgentCommandConflict("idempotency key payload mismatch")
             return existing
+        if graph_kind is AgentGraphKind.DIET_PLANNING and self._planning_archive_writer is not None:
+            self._planning_archive_writer.check_admission(user_id=user_id, thread_id=thread_id)
         if self._runtime_config_admitter is not None:
             if runtime_config_version_id is not None or runtime_config_snapshot is not None:
                 raise ValueError("runtime config is injected by the admission port")
@@ -418,6 +424,23 @@ class AgentService:
                     return await self._fail_run(
                         run=reloaded, user_id=user_id, code="PLANNING_PROJECTION_FAILED"
                     )
+            if isinstance(finished, DietPlanningState) and self._planning_archive_writer is not None:
+                try:
+                    if finished.target is None:
+                        raise ValueError("completed plan requires a target")
+                    thread = self.get_thread(thread_id=run.thread_id, user_id=user_id)
+                    self._planning_archive_writer.record_completion(PlanArchiveWrite(
+                        user_id=user_id, run_id=run.id, thread_id=run.thread_id,
+                        started_at=thread.created_at, report=PlanReport.model_validate(finished.report),
+                        recipe_ids=tuple(meal.recipe_id for meal in finished.meals),
+                        target_version=finished.target.policy_version, formula_version=finished.target.formula_version,
+                        graph_version=finished.graph_version, tool_version=finished.tool_version,
+                    ))
+                except Exception:
+                    self._rollback()
+                    reloaded = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
+                    assert reloaded is not None
+                    return await self._fail_run(run=reloaded, user_id=user_id, code="PLAN_ARCHIVE_FAILED")
             run.status = "completed"
             run.finished_at = run.updated_at
             self._commit_or_rollback()

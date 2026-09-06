@@ -21,7 +21,7 @@ from app.auth.security import issue_access_token
 from app.auth.service import AuthenticationService
 from app.core.config import Settings, validate_test_database_configuration
 from app.main import create_app
-from app.records.models import PreferenceMemoryLedger
+from app.records.models import PreferenceMemoryLedger, DashboardTimezonePreference
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
 from app.planning.schemas import HEALTH_REFUSAL_MESSAGE
 
@@ -58,7 +58,15 @@ def _test_env(settings: Settings) -> dict[str, str]:
 
 
 def _create_user(session: Session, *, label: str) -> tuple[User, str]:
+    from app.admin.repository import SqlAlchemyAdminRepository
+    from app.admin.service import AdminService
+    from app.admin.schemas import RuntimeConfigCommand
     now = datetime.now(UTC)
+    if SqlAlchemyAdminRepository(session).get_active_runtime_config() is None:
+        actor = User(id=uuid.uuid4(), email=f"planning-admin-{uuid.uuid4().hex}@example.test", password_hash="digest", role=UserRole.ADMIN.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
+        session.add(actor)
+        session.flush()
+        AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback).configure_runtime(actor_user_id=actor.id, command=RuntimeConfigCommand(provider="deepseek", model_alias="deepseek-v4-flash", enabled=True, single_call_cap_usd="0.03", period_cap_usd="3", input_usd_per_m="0.2", output_usd_per_m="0.8", reason="planning integration fake provider", confirm=True), command_key="planning-test-runtime")
     user = User(
         id=uuid.uuid4(),
         email=f"diet-planning-{label}-{uuid.uuid4().hex}@example.test",
@@ -74,6 +82,8 @@ def _create_user(session: Session, *, label: str) -> tuple[User, str]:
         last_seen_at=now, expires_at=now + timedelta(days=30),
     )
     session.add_all([user, auth_session])
+    session.commit()
+    session.add(DashboardTimezonePreference(user_id=user.id, time_zone="Asia/Shanghai", confirmed_at=now))
     session.commit()
     token, _ = issue_access_token(
         secret_key=SECRET, user_id=user.id, role=UserRole.USER.value,
@@ -344,5 +354,106 @@ def test_same_planning_thread_adjusts_only_the_named_slot_and_replays_safe_event
                 user_id=user.id, category="avoidance", deleted_at=None
             ).all()
             assert len(captured) == 1
+    finally:
+        engine.dispose()
+
+
+def test_saved_plan_api_preserves_versions_and_survives_runtime_cleanup(monkeypatch) -> None:
+    from sqlalchemy import delete, select
+    from app.core.database import get_session
+    from app.agent.models import AgentEvent
+    from app.planning.models import DietPlanVersion
+
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run([sys.executable, "scripts/run_initialized_app.py", "--prepare-only"], cwd=BACKEND_ROOT, env=_test_env(settings), check=True)
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            owner, token = _create_user(session, label="archive")
+            _, other_token = _create_user(session, label="archive-other")
+            authentication = AuthenticationService(repository=SqlAlchemyAuthRepository(session), secret_key=SECRET, issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback)
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            app.dependency_overrides[get_session] = lambda: session
+            headers = {"Authorization": f"Bearer {token}"}
+            other_headers = {"Authorization": f"Bearer {other_token}"}
+            path = "/api/v1/planning/plans"
+            with TestClient(app) as client:
+                assert client.get(path).status_code == 401
+                assert client.get(path + "/today", headers=headers).json()["plan"] is None
+                command = _command(save_profile=False)
+                first = client.post(PLANNING_PATH, json=command, headers=headers | {"Idempotency-Key": "archive-first"})
+                assert first.status_code == 201 and first.json()["status"] == "completed", first.text
+                today = client.get(path + "/today", headers=headers)
+                assert today.status_code == 200, today.text
+                plan = today.json()["plan"]
+                assert plan["current_version"] == 1 and plan["report"]["meals"]
+                plan_id = plan["id"]
+                assert client.get(path + f"/{plan_id}", headers=other_headers).status_code == 404
+                assert client.delete(path + f"/{plan_id}", headers=other_headers).status_code == 404
+                assert session.query(PlanningProfile).filter_by(user_id=owner.id).count() == 0
+                assert client.post(PLANNING_PATH, json=command, headers=headers | {"Idempotency-Key": "archive-first"}).status_code == 201
+                assert client.get(path + f"/{plan_id}", headers=headers).json()["current_version"] == 1
+                second = client.post(PLANNING_PATH, json=command, headers=headers | {"Idempotency-Key": "archive-second"})
+                assert second.json()["status"] == "completed", second.text
+                assert client.get(path + f"/{plan_id}", headers=headers).json()["current_version"] == 2
+                assert client.get(path + f"/{plan_id}?version=1", headers=headers).json()["report"] == plan["report"]
+                assert client.get(path + f"/{plan_id}?version=99", headers=headers).status_code == 404
+                refusal = client.post(PLANNING_PATH, json=_command(profile_overrides={"age_years": 15}), headers=headers | {"Idempotency-Key": "archive-refusal"})
+                assert refusal.json()["status"] != "completed"
+                assert client.get(path + f"/{plan_id}", headers=headers).json()["current_version"] == 2
+                from app.planning.archive_repository import SqlAlchemyPlanArchiveRepository
+                original_add = SqlAlchemyPlanArchiveRepository.add_version
+                def fail_after_flush(repo, version):
+                    original_add(repo, version)
+                    raise RuntimeError("synthetic archive failure")
+                with monkeypatch.context() as patch:
+                    patch.setattr(SqlAlchemyPlanArchiveRepository, "add_version", fail_after_flush)
+                    failed = client.post(PLANNING_PATH, json=command, headers=headers | {"Idempotency-Key": "archive-failed-transaction"})
+                    assert failed.json()["recovery_code"] == "PLAN_ARCHIVE_FAILED"
+                assert client.get(path + f"/{plan_id}", headers=headers).json()["current_version"] == 2
+                assert session.query(DietPlanVersion).filter_by(user_id=owner.id).count() == 2
+                session.execute(delete(AgentEvent).where(AgentEvent.user_id == owner.id))
+                session.commit()
+                archived = client.get(path + f"/{plan_id}", headers=headers).json()
+                assert archived["report"]["meals"] and archived["adjustment_thread_id"] is None
+                assert len(client.get(path, headers=headers).json()["items"]) == 1
+                assert client.delete(path + f"/{plan_id}", headers=headers).status_code == 204
+                assert client.get(path + f"/{plan_id}", headers=headers).status_code == 404
+                assert client.get(path + "/today", headers=headers).json()["plan"] is None
+                rows = session.scalars(select(DietPlanVersion).where(DietPlanVersion.user_id == owner.id)).all()
+                assert all(row.report is None and row.provenance is None for row in rows)
+    finally:
+        engine.dispose()
+
+
+def test_concurrent_archive_writes_have_one_day_and_unique_versions() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from app.planning.archive_repository import SqlAlchemyPlanArchiveRepository
+    from app.planning.archive_service import PlanArchiveService
+    from tests.planning.test_plan_archive import command
+    from app.planning.models import DietPlan, DietPlanVersion
+
+    settings = _settings()
+    engine = create_engine(validate_test_database_configuration(settings))
+    with Session(engine) as session:
+        owner, _ = _create_user(session, label="archive-concurrency")
+        owner_id = owner.id
+    gate = Barrier(2)
+    started = datetime.now(UTC)
+    def write(_):
+        with Session(engine) as session:
+            service = PlanArchiveService(repository=SqlAlchemyPlanArchiveRepository(session))
+            gate.wait(timeout=10)
+            service.record_completion(command(started_at=started).model_copy(update={"user_id": owner_id}))
+            session.commit()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(write, range(2)))
+        with Session(engine) as session:
+            assert session.query(DietPlan).filter_by(user_id=owner_id).one().current_version == 2
+            assert sorted(row.version for row in session.query(DietPlanVersion).filter_by(user_id=owner_id)) == [1, 2]
     finally:
         engine.dispose()

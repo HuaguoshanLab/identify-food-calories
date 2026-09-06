@@ -42,6 +42,8 @@ from app.auth.api import AuthenticatedPrincipal
 from app.planning.service import safe_planning_stream_stage
 from app.planning.repository import SqlAlchemyPlanningProfileRepository
 from app.planning.service import PlanningCompletionProjectionService
+from app.planning.archive_repository import SqlAlchemyPlanArchiveRepository
+from app.planning.archive_service import PlanArchiveService, PlanArchiveConflict
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -83,6 +85,7 @@ def get_agent_service(request: Request) -> Generator[AgentService, None, None]:
             repository=SqlAlchemyAgentRepository(session),
             commit=session.commit,
             rollback=session.rollback,
+            planning_archive_writer=PlanArchiveService(repository=SqlAlchemyPlanArchiveRepository(session)),
             planning_completion_writer=PlanningCompletionProjectionService(
                 repository=SqlAlchemyPlanningProfileRepository(session)
             ),
@@ -224,6 +227,8 @@ async def create_diet_planning_thread(
                 planning_command=payload,
                 graph_kind=AgentGraphKind.DIET_PLANNING,
             )
+    except PlanArchiveConflict as error:
+        return _error(status.HTTP_409_CONFLICT, "PLAN_ARCHIVE_CONFLICT", str(error))
     except AgentCommandConflict:
         return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同计划命令。")
     except AgentRuntimeAdmissionDenied:
@@ -315,6 +320,8 @@ async def upload_agent_meal_image(
             user_id=principal,
             image_reference=image_state,
         )
+    except PlanArchiveConflict as error:
+        return _error(status.HTTP_409_CONFLICT, "PLAN_ARCHIVE_CONFLICT", str(error))
     except AgentCommandConflict:
         safety.delete(reference)
         return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同图片。")

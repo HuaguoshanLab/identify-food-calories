@@ -20,3 +20,5 @@
 | `learning/phase-06-dashboard-read-api.md` | 看板餐食快照、完成计划资格投影、签名 keyset cursor 与真实 PostgreSQL 测试证据。 |
 | `ui/` | 用户 H5 的跨阶段 UI 基座与组件契约 |
 | `verification/` | 可复现实机与浏览器验收记录；只记录路径、角色与可观察结果，不记录账号、密码、令牌或用户数据。 |
+
+- `learning/daily-plan-archive.md`：正式餐单存档、版本与删除的中文教学。

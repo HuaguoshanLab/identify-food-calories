@@ -30,3 +30,5 @@
 | `records/` | 用户确认的餐食快照、同统计时区确认可幂等重放且异时区保持泛化冲突的回填账本、记忆本地授权账本，以及 provision/delete outbox |
 | `memory/` | 长期偏好 Provider、tenant-bound ledger CRUD、直接写入与删除重试服务 |
 | `retrieval/` | 三来源、SQL tenant-filtered 的上下文检索与 pgvector metadata |
+
+- `planning/archive_*`：正式日计划与版本快照，含今日/历史/详情/删除的 API → Service → Repository 边界。

@@ -19,6 +19,7 @@ from app.agent.api import router as agent_router
 from app.records.api import router as meal_records_router
 from app.dashboard.api import router as dashboard_router
 from app.planning.api import router as planning_profile_router
+from app.planning.archive_api import router as planning_archive_router
 from app.memory.api import router as memories_router
 from app.memory.providers import create_memory_provider
 from app.memory.repository import SqlAlchemyMemoryLedgerRepository
@@ -179,6 +180,7 @@ def create_app(
     application.include_router(meal_records_router)
     application.include_router(dashboard_router)
     application.include_router(planning_profile_router)
+    application.include_router(planning_archive_router)
     application.include_router(memories_router)
 
     @application.exception_handler(RequestValidationError)
