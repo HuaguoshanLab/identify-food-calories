@@ -24,3 +24,4 @@
 - `260906-mte-h5-step-5-my-and-detail-pages/`：H5第5项我的与相关详情页。
 - `260906-mye-h5-step-6-records-pages/`：H5第6项记录、趋势、历史、周复盘与餐食详情编辑。
 - `260906-n41-h5-history-meal-row-icon-and-chevron/`：历史条目按用户截图增加圆标和右箭头。
+- `260906-n81-h5-step-7-planning-and-history-pages/`：H5第7项计划表单、三餐、历史与版本详情。
