@@ -27,3 +27,7 @@
 | `badge.tsx` | 可渲染为语义元素的状态标签与官方 variants |
 | `skeleton.tsx` | 固定尺寸的加载占位原语，遵守全局 reduced-motion 样式 |
 | `components.test.tsx` | Alert、AlertDialog 焦点/Escape、focus ring 与 Skeleton 渲染行为测试 |
+
+## H5 视觉基线
+
+现有原语适配森林绿设计，默认按钮/输入44px，输入16px，卡片12px圆角与轻阴影，弹窗最大360px并保留窄屏边距。详见 `../../../../docs/ui/h5-shared-components.md`。显式紧凑尺寸与调用方覆盖仍由页面负责。
