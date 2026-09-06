@@ -158,7 +158,7 @@ export function PlanPage() {
     {report && !creating ? <div className="border-x border-transparent px-4"><Button className="h-11 w-full" disabled={statusKind === 'working' || adjusting} onClick={startNewPlan} variant="outline">重新生成今日计划</Button></div> : null}
     {todayQuery.data?.time_zone && (!report || creating) ? <div className="space-y-3">
       <ProfileGoalForm initialValues={profileQuery.data ?? null} isLoading={profileQuery.isLoading || memoriesQuery.isLoading} profileLoadError={profileQuery.isError} preferenceLoadError={memoriesQuery.isError} preferenceSummaries={preferenceSummaries} onStarted={onStarted} />
-    {savedPlan && creating ? <Button className="h-11" variant="ghost" onClick={() => setCreating(false)}>取消重新生成</Button> : null}
+    {savedPlan && creating ? <Button className="h-11 w-full" variant="ghost" onClick={() => setCreating(false)}>取消重新生成</Button> : null}
     </div> : null}
     {inputChoices ? <section aria-labelledby="adjustment-choice-title" className="space-y-3"><h2 className="text-base font-semibold leading-6" id="adjustment-choice-title">请确认要调整哪一餐</h2><p className="text-[15px] leading-6 text-muted-foreground">你的要求可能影响多餐，请选择要替换的餐次。</p><div className="grid grid-cols-3 gap-2">{inputChoices.map((slot) => <Button className="h-11" disabled={adjusting} key={slot} onClick={() => void submitAdjustment(slot)} type="button" variant="outline">{slotLabels[slot]}</Button>)}</div><Button className="h-11" disabled={adjusting} onClick={() => setInputChoices(undefined)} type="button" variant="ghost">返回修改描述</Button></section> : null}
     {statusKind === 'refusal' ? <FocusedPlanningAlert title="暂不能生成个性化餐单">{healthScopeCopy}</FocusedPlanningAlert> : null}

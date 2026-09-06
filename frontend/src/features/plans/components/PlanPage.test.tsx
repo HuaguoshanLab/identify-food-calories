@@ -102,7 +102,7 @@ describe('PlanPage', () => {
     expect(screen.getByText('320g · 一份')).toBeInTheDocument()
     expect(screen.getByText('蒸煮')).toBeInTheDocument()
     expect(screen.getAllByText('清淡')).not.toHaveLength(0)
-    expect(screen.getAllByText('已遵守：偏好：清淡 · 不吃花生')).toHaveLength(3)
+    expect(screen.queryByText(/已遵守：/)).not.toBeInTheDocument()
     expect(screen.getByText('目标：1,800–2,000 kcal · 计划：1,920 kcal · 适中')).toBeInTheDocument()
     expect(screen.getAllByText('普通饮食参考，不替代医疗建议。')).not.toHaveLength(0)
   })
