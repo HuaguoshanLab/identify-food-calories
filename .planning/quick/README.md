@@ -19,3 +19,4 @@
 
 - `260906-jmo-persist-daily-diet-plans-with-version-hi/`：今日计划自动存档、恢复、历史版本与删除。
 - `260906-lmt-h5-step-2-global-visual-tokens/`：H5 第 2 项森林绿主题、字体、圆角、边框和阴影；完成后等待用户检查。
+- `260906-lz0-h5-step-3-page-shell-headers-navigation-/`：H5 第 3 项固定页头、导航、安全区及唯一滚动区。
