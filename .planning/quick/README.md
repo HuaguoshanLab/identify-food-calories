@@ -22,3 +22,4 @@
 - `260906-lz0-h5-step-3-page-shell-headers-navigation-/`：H5 第 3 项固定页头、导航、安全区及唯一滚动区。
 - `260906-mp1-h5-step-4-shared-components/`：H5 第4项按钮、输入、卡片、标签、提示和确认弹窗。
 - `260906-mte-h5-step-5-my-and-detail-pages/`：H5第5项我的与相关详情页。
+- `260906-mye-h5-step-6-records-pages/`：H5第6项记录、趋势、历史、周复盘与餐食详情编辑。
