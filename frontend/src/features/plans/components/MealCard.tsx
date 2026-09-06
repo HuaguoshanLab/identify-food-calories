@@ -10,9 +10,9 @@ export function MealCard({ meal, adjustment }: { meal: PlanMeal; adjustment?: Pl
 
   return (
     <Card aria-labelledby={`meal-${meal.slot}-title`}>
-      <CardHeader className="space-y-1 border-b border-border/60 pb-3">
+      <CardHeader className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div className="flex items-center gap-2"><h3 className="text-base font-semibold leading-6 text-primary" id={`meal-${meal.slot}-title`}>{slotLabels[meal.slot]}</h3>{adjustment ? <Badge>已调整</Badge> : null}</div>
-        <p className="tabular-nums text-sm text-muted-foreground">合计 {formatPlanNumber(meal.nutrients.energy_kcal)} kcal</p>
+        <p className="shrink-0 text-right tabular-nums text-sm leading-6 text-muted-foreground">合计 {formatPlanNumber(meal.nutrients.energy_kcal)} kcal</p>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-start justify-between gap-3">
