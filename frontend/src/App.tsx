@@ -68,7 +68,7 @@ export function App() {
           <Route element={<DetailLayout title="登录会话" />}>
             <Route path="me/sessions" element={<SessionsDetailsPage />} />
           </Route>
-          <Route element={<DetailLayout title="餐食记录" />}>
+          <Route element={<DetailLayout title="餐食详情" />}>
             <Route path="records/:recordId" element={<MealRecordDetailPage />} />
           </Route>
           <Route element={<DetailLayout title="编辑餐食" />}>

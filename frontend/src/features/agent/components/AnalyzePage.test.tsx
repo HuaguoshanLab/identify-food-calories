@@ -66,7 +66,7 @@ describe('AnalyzePage', () => {
   })
   it('uses a labelled text input and does not invent a report before an API response', () => {
     renderPage()
-    expect(screen.getByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
+    expect(screen.getByText('图片用于本次估算；营养数值由受控目录计算。')).toBeInTheDocument()
     expect(screen.getByLabelText('餐食描述')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '营养分析报告' })).not.toBeInTheDocument()
   })

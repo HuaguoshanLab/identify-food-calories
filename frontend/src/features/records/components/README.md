@@ -4,6 +4,8 @@
 
 呈现记录列表、详情、用餐时间编辑和破坏性删除确认。
 
+根页、详情与编辑页的唯一h1由外层固定页头提供；页面只保留业务说明、状态及操作。
+
 ## 允许依赖
 
 - React、Router、TanStack Query、React Hook Form、Zod、records API、认证请求与现有 UI primitives。

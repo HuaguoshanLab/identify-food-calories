@@ -7,7 +7,7 @@ import type { PropsWithChildren } from 'react'
 export function MobileFrame({ children }: PropsWithChildren) {
   return (
     <div
-      className="flex h-dvh w-full flex-col overflow-hidden bg-background min-[768px]:mx-auto min-[768px]:my-4 min-[768px]:h-[min(932px,calc(100dvh-2rem))] min-[768px]:w-[min(430px,calc(100vw-2rem))] min-[768px]:rounded-[32px] min-[768px]:border min-[768px]:shadow-lg"
+      className="relative flex h-dvh w-full flex-col overflow-hidden bg-background min-[768px]:mx-auto min-[768px]:my-4 min-[768px]:h-[calc(100dvh-2rem)] min-[768px]:w-[min(430px,calc(100vw-2rem))] min-[768px]:rounded-[32px] min-[768px]:border min-[768px]:border-border/60 min-[768px]:shadow-xl"
       data-testid="mobile-frame"
     >
       {children}

@@ -4,6 +4,8 @@
 
 呈现符合 H5 单一滚动区合同的规划资料、目标和偏好复核，以及已验证安全快照的一日三餐结果；组件不计算营养目标、不管理长期偏好，也不伪造餐单结果。
 
+PlanPage 的主标题和路由聚焦统一由固定 TabHeader 管理，不在内容区重复；历史入口、临时资料与调整行为保持原有所有权。
+
 ## 允许依赖
 
 - React、React Hook Form、TanStack Query、plans API、memory 的公开只读 API、认证能力和现有 UI primitives。

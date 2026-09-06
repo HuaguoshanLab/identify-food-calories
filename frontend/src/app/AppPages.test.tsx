@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '@/auth/AuthContext'
+import { TabHeader } from '@/layouts/TabHeader'
 import { routePaths } from '@/routePaths'
 
 import { AccountDetailsPage } from './AccountDetailsPage'
@@ -113,9 +114,10 @@ describe('account and session detail content', () => {
 })
 
 describe('my settings root page', () => {
-  it('focuses the page heading when my is mounted directly', () => {
+  it('focuses the shell heading when my is mounted', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[routePaths.me]}>
+        <TabHeader />
         <MePage />
       </MemoryRouter>,
     )
@@ -126,7 +128,8 @@ describe('my settings root page', () => {
   it('adds exactly one profile settings link and keeps keyboard navigation native', async () => {
     const user = userEvent.setup()
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[routePaths.me]}>
+        <TabHeader />
         <MePage />
       </MemoryRouter>,
     )

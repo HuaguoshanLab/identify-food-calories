@@ -52,7 +52,7 @@ export function MealRecordEditPage() {
     } catch { setError('删除失败，请稍后重试。') } finally { setSaving(false); setOpen(false) }
   }
   return <section className="space-y-4">
-    <div><h1 className="text-[28px] font-bold leading-9 tracking-tight">编辑餐食</h1><p className="mt-2 text-sm text-muted-foreground">修改餐次或用餐时间不会重算已保存的营养快照。</p></div>
+    <div><p className="text-sm text-muted-foreground">修改餐次或用餐时间不会重算已保存的营养快照。</p></div>
     {!loaded && !error ? <p className="text-sm text-muted-foreground">正在加载记录…</p> : null}
     <form className="space-y-4" onSubmit={handleSubmit(save)} noValidate>
       <fieldset className="space-y-4" disabled={saving || !loaded}>

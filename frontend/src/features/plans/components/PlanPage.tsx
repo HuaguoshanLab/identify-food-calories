@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -47,7 +47,6 @@ function RelaxationAlert({ relaxation }: { relaxation: PlanRelaxation }) {
 
 export function PlanPage() {
   const { request } = useAuth()
-  const headingRef = useRef<HTMLHeadingElement>(null)
   const [activeThreadId, setThreadId] = useState<string>()
   const [liveReport, setReport] = useState<PlanReport>()
   const [creating, setCreating] = useState(false)
@@ -74,8 +73,6 @@ export function PlanPage() {
   const profileQuery = useQuery({ queryKey: planningProfileQueryKey, queryFn: () => getPlanningProfile(request) })
   const memoriesQuery = useQuery({ queryKey: ['planning-preference-summary'], queryFn: () => listMemories(request) })
   const preferenceSummaries = useMemo(() => preferencesFromMemory(memoriesQuery.data ?? []), [memoriesQuery.data])
-
-  useEffect(() => { headingRef.current?.focus() }, [])
 
   const applySnapshot = useCallback(async (response: Response) => {
     if (!response.ok) throw new Error('planning snapshot request failed')
@@ -149,7 +146,7 @@ export function PlanPage() {
   const relaxation = report?.adjustment?.relaxation ?? report?.relaxation
   const isTerminalCandidateExhausted = statusKind === 'error' && progressStage === 'terminal'
   return <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
-    <div className="flex items-start justify-between gap-3"><div className="space-y-2"><h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold leading-9 tracking-tight">计划</h1><p className="text-[15px] leading-6 text-muted-foreground">根据已确认的资料和偏好生成一日三餐参考。</p></div><Link className="flex min-h-11 shrink-0 items-center text-sm underline" to={routePaths.planHistory}>历史计划</Link></div>
+    <div className="flex items-start justify-between gap-3"><div className="space-y-2"><p className="text-[15px] leading-6 text-muted-foreground">根据已确认的资料和偏好生成一日三餐参考。</p></div><Link className="flex min-h-11 shrink-0 items-center text-sm underline" to={routePaths.planHistory}>历史计划</Link></div>
     <Alert><AlertTitle>普通饮食参考，不替代医疗建议。</AlertTitle></Alert>
     {isTerminalCandidateExhausted ? <FocusedPlanningAlert title="暂时无法生成计划">{statusMessage ?? '当前受控餐单暂时无法满足已确认约束；请稍后重试或修改饮食偏好。'}</FocusedPlanningAlert> : null}
     {statusMessage && !isTerminalCandidateExhausted ? <Alert variant="destructive"><AlertTitle>{statusMessage}</AlertTitle></Alert> : null}

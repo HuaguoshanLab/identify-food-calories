@@ -1,20 +1,6 @@
-import { CalendarDays, NotebookText, ScanLine, UserRound, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
-import { routePaths } from '@/routePaths'
-
-type NavigationItem = {
-  icon: LucideIcon
-  label: string
-  to: string
-}
-
-const navigationItems: readonly NavigationItem[] = [
-  { icon: ScanLine, label: '分析', to: routePaths.analyze },
-  { icon: NotebookText, label: '记录', to: routePaths.records },
-  { icon: CalendarDays, label: '计划', to: routePaths.plans },
-  { icon: UserRound, label: '我的', to: routePaths.me },
-]
+import { tabNavigation } from './tabNavigation'
 
 /**
  * Route state, rather than local click state, is the single source of truth for the active tab.
@@ -24,21 +10,23 @@ export function BottomNavigation() {
   return (
     <nav
       aria-label="主要导航"
-      className="shrink-0 border-t bg-background pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+      className="z-20 shrink-0 border-t border-border/70 bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
     >
       <div className="grid h-16 grid-cols-4">
-        {navigationItems.map(({ icon: Icon, label, to }) => (
+        {tabNavigation.map(({ icon: Icon, label, to }) => (
           <NavLink
             key={to}
             className={({ isActive }) => [
-              'inline-flex min-h-11 flex-col items-center justify-center gap-1 text-xs leading-4 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none',
-              isActive ? 'font-semibold text-primary' : 'font-normal',
+              'inline-flex min-h-11 flex-col items-center justify-center gap-1 text-[11px] leading-4 transition-colors hover:text-foreground',
+              isActive ? 'font-semibold text-primary' : 'font-normal text-muted-foreground',
             ].join(' ')}
             end
             to={to}
           >
-            <Icon aria-hidden="true" className="h-[22px] w-[22px]" strokeWidth={2} />
-            <span>{label}</span>
+            {({ isActive }) => <>
+              <Icon aria-hidden="true" className="h-[22px] w-[22px]" strokeWidth={isActive ? 2.2 : 1.8} />
+              <span>{label}</span>
+            </>}
           </NavLink>
         ))}
       </div>

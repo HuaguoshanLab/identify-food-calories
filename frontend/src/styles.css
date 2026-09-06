@@ -158,6 +158,11 @@ input[type="radio"] {
   outline-offset: 2px;
 }
 
+/* 页头接受路由播报焦点，但不是交互控件；按钮、链接与跳转入口仍保留焦点环。 */
+.shell-heading:focus {
+  outline: none;
+}
+
 @media (min-width: 768px) {
   html,
   body {

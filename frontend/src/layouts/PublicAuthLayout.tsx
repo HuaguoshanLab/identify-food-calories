@@ -39,7 +39,7 @@ export function PublicAuthLayout(props: PublicAuthLayoutProps) {
   return (
     <MobileFrame>
       {header}
-      <PageScrollArea contentId="main-content">
+      <PageScrollArea className="pt-6 pb-[calc(24px+env(safe-area-inset-bottom))]" contentId="main-content">
         <Outlet />
       </PageScrollArea>
     </MobileFrame>

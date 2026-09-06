@@ -75,7 +75,7 @@ describe('App', () => {
     expect(screen.getByTestId('pathname')).toHaveTextContent('/app/analyze')
 
     await user.click(screen.getByRole('link', { name: '记录' }))
-    expect(await screen.findByRole('heading', { name: '记录' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '饮食记录' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '测试返回' }))
     expect(await screen.findByRole('heading', { name: '分析这餐' })).toBeInTheDocument()
@@ -102,6 +102,21 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '个人资料' })).toHaveFocus()
     expect(screen.getByRole('button', { name: '返回上一页' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/app/analyze', '分析这餐'], ['/app/records', '饮食记录'],
+    ['/app/plans', '饮食计划'], ['/app/me', '我的'],
+    ['/app/me/memories', '饮食偏好与记忆'], ['/app/me/memories/example/edit', '编辑记忆'],
+    ['/app/records/example', '餐食详情'], ['/app/records/example/edit', '编辑餐食'],
+  ])('owns one fixed page heading and main landmark on %s', async (path, title) => {
+    stubAuthenticatedIdentity()
+    renderApp([path])
+    const heading = await screen.findByRole('heading', { level: 1, name: title })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+    expect(heading.closest('header')).not.toBeNull()
+    expect(screen.getByRole('main')).not.toContainElement(heading)
   })
 
   it('moves focus to my and detail page headings after route changes', async () => {

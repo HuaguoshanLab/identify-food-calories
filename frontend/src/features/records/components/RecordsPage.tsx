@@ -19,7 +19,6 @@ function browserTimeZone(): string | null {
 
 export function RecordsPage() {
   const { request } = useAuth()
-  const headingRef = useRef<HTMLHeadingElement>(null)
   const confirmationStarted = useRef(false)
   const timeZone = browserTimeZone()
   const queryClient = useQueryClient()
@@ -28,7 +27,6 @@ export function RecordsPage() {
     retry: false,
   })
 
-  useEffect(() => { headingRef.current?.focus() }, [])
   useEffect(() => {
     if (timeZone && !confirmationStarted.current) {
       confirmationStarted.current = true
@@ -46,7 +44,7 @@ export function RecordsPage() {
   const confirmationConflict = confirmation.error instanceof DashboardTimezoneConflictError
 
   return <section className="mx-auto w-full max-w-xl space-y-6 pb-4">
-    <div><h1 className="text-[28px] font-bold leading-9 tracking-tight" ref={headingRef} tabIndex={-1}>记录</h1><p className="mt-2 text-[15px] leading-6 text-muted-foreground">查看你已确认保存的餐食。</p></div>
+    <div><p className="text-[15px] leading-6 text-muted-foreground">查看你已确认保存的餐食。</p></div>
     {!confirmationFailed && !dashboardEnabled ? <p className="animate-pulse text-sm text-muted-foreground motion-reduce:animate-none">正在确认统计口径…</p> : null}
     {confirmationFailed ? <Alert variant="destructive"><AlertTitle>{confirmationConflict ? '统计时区不一致' : '暂时无法确认统计时区'}</AlertTitle><AlertDescription><p>{confirmationConflict ? '当前浏览器时区与已确认的统计时区不一致。请使用已确认的浏览器设置后重试。' : '暂时无法确认统计时区。请检查浏览器设置后重试。'}</p>{timeZone ? <Button className="mt-3" onClick={() => confirmation.mutate()} type="button" variant="outline">重新尝试</Button> : null}</AlertDescription></Alert> : null}
     {dashboardEnabled && overview.isLoading ? <p className="animate-pulse text-sm text-muted-foreground motion-reduce:animate-none">正在加载今日摘要…</p> : null}

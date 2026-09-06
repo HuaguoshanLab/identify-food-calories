@@ -17,7 +17,7 @@
 | `health.spec.ts` | Vite、FastAPI 与版本化健康端点的最小全栈证明 |
 | `auth-helpers.ts` | 仅通过页面与公开 Mailpit HTTP 创建、验证、登录和恢复隔离测试账号的复用夹具 |
 | `auth-skeleton.spec.ts` | 从 Mailpit 取真实验证码的注册、恢复、会话撤销与登出浏览器证据 |
-| `h5-visual.spec.ts` | 430px 八张视觉基线、Phase 2 文字分析与 Phase 3 图片估算 candidate，以及 320px/桌面、键盘、历史和滚动边界回归 |
+| `h5-visual.spec.ts` | 430px 八张历史视觉基线及图片/文字candidate；框架用例自行注册隔离账号，可单独回归320px/桌面、键盘、历史和滚动边界；改版未覆盖旧快照 |
 | `h5-visual.spec.ts-snapshots/` | Git 维护的八张 H5 视觉基线与其安全更新合同 |
 | `agent.spec.ts` | 真实注册登录后的文字 Agent 纵向报告、SSE 公开路径、刷新同线程恢复、图片 multipart 估算，以及“我不吃辣”自动记忆的查看、编辑、确认删除和 320px 空态回归。 |
 | `safe-stream-progress.spec.ts` | 真实认证用户的分析/规划安全阶段、无内部泄露和键盘焦点路径。 |

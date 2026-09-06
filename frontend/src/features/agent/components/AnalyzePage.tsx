@@ -74,7 +74,6 @@ function recoveryContent(code: string | null | undefined) {
 }
 
 export function AnalyzePage() {
-  const headingRef = useRef<HTMLHeadingElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
   const submitButtonRef = useRef<HTMLButtonElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -130,7 +129,6 @@ export function AnalyzePage() {
     await applySnapshot(await getAgentThread(request, threadId))
   }, [applySnapshot, request])
 
-  useEffect(() => { headingRef.current?.focus() }, [])
   useEffect(() => {
     if (authenticationStatus !== 'authenticated') return
     const threadId = new URL(window.location.href).searchParams.get('thread')
@@ -284,7 +282,7 @@ export function AnalyzePage() {
 
   return (
     <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
-      <div className="space-y-2"><h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-bold leading-9 tracking-tight">分析这餐</h1><p className="text-[15px] leading-6 text-muted-foreground">图片用于本次估算；营养数值由受控目录计算。</p></div>
+      <div className="space-y-2"><p className="text-[15px] leading-6 text-muted-foreground">图片用于本次估算；营养数值由受控目录计算。</p></div>
       <Card><CardHeader><CardTitle>上传餐食图片</CardTitle><CardDescription>选择一张餐食图片，系统会识别菜品并在需要时向你确认。</CardDescription></CardHeader><CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2"><Button className="h-11" disabled={isBusy} onClick={() => cameraInputRef.current?.click()} type="button"><Camera aria-hidden="true" className="size-5" />拍照</Button><Button className="h-11" disabled={isBusy} onClick={() => galleryInputRef.current?.click()} type="button" variant="outline"><ImagePlus aria-hidden="true" className="size-5" />从相册选择</Button></div>
         <input accept="image/jpeg,image/png,image/webp" aria-describedby={imageError ? 'meal-image-error' : 'meal-image-help'} aria-label="拍照上传" capture="environment" className="sr-only" disabled={isBusy} onChange={handleImageChange} ref={cameraInputRef} tabIndex={-1} type="file" />

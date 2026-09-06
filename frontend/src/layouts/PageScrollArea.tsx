@@ -1,4 +1,5 @@
 import { forwardRef, type HTMLAttributes, type PropsWithChildren } from 'react'
+import { cn } from '@/components/ui/utils'
 
 type PageScrollAreaProps = PropsWithChildren<
   Omit<HTMLAttributes<HTMLElement>, 'children'> & {
@@ -20,7 +21,7 @@ export const PageScrollArea = forwardRef<HTMLElement, PageScrollAreaProps>(funct
       ref={ref}
       id={contentId}
       tabIndex={-1}
-      className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 ${className}`.trim()}
+      className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4', className)}
       data-testid="page-scroll-area"
     >
       {children}

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   createMemoryRouter,
@@ -37,7 +37,7 @@ describe('layout foundations', () => {
   it('returns through browser history in the detail header', async () => {
     const user = userEvent.setup()
     const router = createMemoryRouter([
-      { element: <h1>记录</h1>, path: '/app/records' },
+      { element: <p>记录内容</p>, path: '/app/records' },
       { element: <AppHeader title="餐食记录" />, path: '/app/records/record-id' },
     ], { initialEntries: ['/app/records', '/app/records/record-id'], initialIndex: 1 })
 
@@ -115,10 +115,10 @@ describe('tab shell navigation', () => {
           element: <AppShell />,
           path: '/app',
           children: [
-            { element: <h1>分析</h1>, path: 'analyze' },
-            { element: <h1>记录</h1>, path: 'records' },
-            { element: <h1>计划</h1>, path: 'plans' },
-            { element: <h1>我的</h1>, path: 'me' },
+            { element: <p>分析内容</p>, path: 'analyze' },
+            { element: <p>记录内容</p>, path: 'records' },
+            { element: <p>计划内容</p>, path: 'plans' },
+            { element: <p>我的内容</p>, path: 'me' },
           ],
         },
       ],
@@ -144,7 +144,8 @@ describe('tab shell navigation', () => {
     expect(screen.getByRole('link', { name: '我的' })).toHaveClass('font-semibold', 'text-primary')
     expect(navigation).toHaveClass('shrink-0')
     expect(navigation).not.toHaveClass('fixed')
-    expect(container.querySelectorAll('svg')).toHaveLength(4)
+    expect(within(navigation).getAllByRole('link')).toHaveLength(4)
+    expect(container.querySelectorAll('h1')).toHaveLength(1)
   })
 
   it('keeps ordinary tab navigation in browser history and exposes a visible-focus skip link', async () => {
@@ -159,7 +160,7 @@ describe('tab shell navigation', () => {
     await user.click(screen.getByRole('link', { name: '计划' }))
     expect(router.state.location.pathname).toBe('/app/plans')
 
-    await router.navigate(-1)
+    await act(() => router.navigate(-1))
     expect(router.state.location.pathname).toBe('/app/me')
   })
 
@@ -173,5 +174,24 @@ describe('tab shell navigation', () => {
 
     expect(main.parentElement).toBe(frame)
     expect(navigation.parentElement).toBe(frame)
+    expect(screen.getByRole('banner').parentElement).toBe(frame)
+    expect(screen.getByRole('heading', { level: 1, name: '分析这餐' })).toHaveFocus()
+  })
+
+  it('resets scrolling and focuses the title on tab changes, but preserves same-page query updates', async () => {
+    const router = createTabRouter('/app/analyze')
+    render(<RouterProvider router={router} />)
+    const main = screen.getByRole('main')
+    main.scrollTop = 240
+    main.focus()
+
+    await act(() => router.navigate('/app/analyze?thread=existing'))
+    expect(main.scrollTop).toBe(240)
+    expect(main).toHaveFocus()
+
+    await act(() => router.navigate('/app/records'))
+    expect(main.scrollTop).toBe(0)
+    expect(screen.getByRole('heading', { level: 1, name: '饮食记录' })).toHaveFocus()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })

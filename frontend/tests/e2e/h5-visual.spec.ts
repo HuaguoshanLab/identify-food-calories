@@ -39,7 +39,7 @@ test.describe('H5 visual and interaction contract', () => {
     await registerAndActivate(page, request, visualAccount)
 
     await login(page, visualAccount, '/app/analyze')
-    await expect(page.getByRole('heading', { name: '分析' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '分析这餐' })).toBeVisible()
     await expect(page).toHaveScreenshot('analyze-430.png', screenshotOptions)
 
     await page.getByRole('link', { name: '我的' }).click()
@@ -50,7 +50,7 @@ test.describe('H5 visual and interaction contract', () => {
     await expect(page.locator('h1', { hasText: '账号资料' })).toBeVisible()
     await expect(page).toHaveScreenshot('account-430.png', screenshotOptions)
 
-    await page.getByRole('link', { name: '返回我的' }).click()
+    await page.getByRole('button', { name: '返回上一页' }).click()
     const secondDevice = await createSecondDeviceSession(browser, visualAccount)
     await page.getByRole('link', { name: '登录会话' }).click()
     await expect(page.locator('h1', { hasText: '登录会话' })).toBeVisible()
@@ -68,10 +68,14 @@ test.describe('H5 visual and interaction contract', () => {
     await secondDevice.context.close()
   })
 
-  test('keeps responsive geometry, one scrolling owner, keyboard operations, and tab history observable', async ({ browser, page }) => {
+  test('keeps responsive geometry, one scrolling owner, keyboard operations, and tab history observable', async ({ browser, page, request }) => {
+    const shellAccount: E2eAccount = { email: 'h5-shell@example.test', password: 'h5-shell-password' }
+    // 布局回归可单独执行，不依赖截图用例先创建账号。
+    await page.goto('/register')
+    await registerAndActivate(page, request, shellAccount)
     await page.setViewportSize({ width: 320, height: 800 })
-    await login(page, visualAccount, '/app/me/sessions')
-    await createSecondDeviceSession(browser, visualAccount)
+    await login(page, shellAccount, '/app/me/sessions')
+    const secondDevice = await createSecondDeviceSession(browser, shellAccount)
     await page.reload()
 
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
@@ -93,11 +97,11 @@ test.describe('H5 visual and interaction contract', () => {
     await page.keyboard.press('Enter')
     await expect(page.getByTestId('page-scroll-area')).toBeFocused()
 
-    const accountLink = page.getByRole('link', { name: '账号资料' })
+    const profileLink = page.getByRole('link', { name: /个人资料/ })
     await page.keyboard.press('Tab')
-    await expect(accountLink).toBeFocused()
+    await expect(profileLink).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(page).toHaveURL(/\/app\/me\/account$/)
+    await expect(page).toHaveURL(/\/app\/me\/profile$/)
     await page.goBack()
     await expect(page).toHaveURL(/\/app\/me(?:#main-content)?$/)
 
@@ -113,11 +117,12 @@ test.describe('H5 visual and interaction contract', () => {
       const box = await frame.boundingBox()
       expect(box?.width).toBe(430)
       expect(Math.abs((box?.x ?? 0) - (viewport - 430) / 2)).toBeLessThanOrEqual(1)
-      expect(box?.height).toBeLessThanOrEqual(932)
+      expect(box?.height).toBe(968)
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
       await expect(page.getByTestId('page-scroll-area')).toHaveCount(1)
       await expect(frame).toHaveCSS('overflow-y', 'hidden')
     }
+    await secondDevice.context.close()
   })
 
   test('phase 2 visual candidate captures the real completed analysis without changing official baseline', async ({ page, request }) => {
