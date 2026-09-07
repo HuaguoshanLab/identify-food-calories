@@ -115,6 +115,9 @@ describe('AnalyzePage', () => {
 
     expect(await screen.findByRole('img', { name: '已选择的餐食图片' })).toHaveAttribute('src', 'blob:meal-preview')
     expect(screen.queryByText(/已选择：/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '移除已选图片' }))
+    expect(screen.queryByRole('img', { name: '已选择的餐食图片' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '从相册选择' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
     expect(screen.getByText('估算重量')).toBeInTheDocument()
     expect(screen.getByText('估算重量，可能与实际份量存在偏差。')).toBeInTheDocument()
