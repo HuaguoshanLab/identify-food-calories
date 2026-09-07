@@ -23,6 +23,7 @@
 | `api.py` | `/api/v1/admin/probe`、`/runtime-config`、`/audit`、草稿 preview/read/lifecycle-preview/command，以及 review/publish/disqualification HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |
 | `catalog_csv.py` | UTF-8 CSV 模板、500 条/1 MB 导入校验、错误行号与防公式执行导出；无 HTTP/数据库依赖 |
+| `recipe_csv.py` | 管理成品菜候选的中文 CSV 模板、500 条/1 MB 行级校验和防公式导出；无 HTTP/数据库依赖 |
 
 ## 目录列表与 CSV
 
