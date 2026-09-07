@@ -15,6 +15,7 @@ from app.admin.models import CatalogActivePublication, CatalogPublication, Catal
 from app.planning.models import (
     ControlledRecipe as ControlledRecipeModel,
     ControlledRecipeIngredient as ControlledRecipeIngredientModel,
+    ManagedRecipeCandidate as ManagedRecipeCandidateModel,
     PlanningCompletionProjection,
     PlanningProfile,
 )
@@ -24,6 +25,8 @@ from app.planning.schemas import (
     ControlledRecipeIngredient,
     FormulaVariant,
     MealSlot,
+    ManagedRecipeCandidate,
+    ManagedRecipeCandidateStatus,
     PlanningGoal,
     PlanningProfileInput,
 )
@@ -144,6 +147,44 @@ class SqlAlchemyPlanningProfileRepository:
             )
         ).unique()
         return [self._to_controlled_recipe(row) for row in rows]
+
+    def list_managed_recipe_candidates(
+        self, *, catalog_version: str
+    ) -> list[ManagedRecipeCandidate]:
+        """Return only candidates whose referenced catalog row remains calculable now."""
+
+        rows = self._session.execute(
+            select(ManagedRecipeCandidateModel, FoodCatalogItem, NutritionCatalogVersion.version)
+            .join(FoodCatalogItem, FoodCatalogItem.id == ManagedRecipeCandidateModel.food_catalog_item_id)
+            .join(NutritionCatalogVersion, NutritionCatalogVersion.id == FoodCatalogItem.catalog_version_id)
+            .where(
+                ManagedRecipeCandidateModel.status == "enabled",
+                ManagedRecipeCandidateModel.deleted_at.is_(None),
+                NutritionCatalogVersion.version == catalog_version,
+                FoodCatalogItem.is_qualified.is_(True),
+                FoodCatalogItem.energy_kcal_per_100g.is_not(None),
+                FoodCatalogItem.protein_g_per_100g.is_not(None),
+                FoodCatalogItem.fat_g_per_100g.is_not(None),
+                FoodCatalogItem.carbohydrate_g_per_100g.is_not(None),
+            )
+            .order_by(ManagedRecipeCandidateModel.meal_slot, ManagedRecipeCandidateModel.updated_at, ManagedRecipeCandidateModel.id)
+        ).all()
+        return [
+            ManagedRecipeCandidate(
+                id=candidate.id,
+                food_catalog_item_id=candidate.food_catalog_item_id,
+                catalog_version=version,
+                display_name=food.canonical_name,
+                meal_slot=MealSlot(candidate.meal_slot),
+                portion_grams=candidate.portion_grams,
+                portion_description=candidate.portion_description,
+                method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),
+                flavour_tags=tuple(tag for tag in candidate.flavour_tags.split("|") if tag),
+                status=ManagedRecipeCandidateStatus(candidate.status),
+                revision=candidate.revision,
+            )
+            for candidate, food, version in rows
+        ]
 
     @staticmethod
     def _profile_statement(*, user_id: uuid.UUID):

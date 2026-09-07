@@ -63,11 +63,10 @@ def test_managed_candidate_rejects_unusable_lifecycle_or_content(changes: dict[s
 
 
 def test_main_meals_are_required_but_snack_is_optional() -> None:
-    result = MealCompositionResult(
-        action=PlanValidationAction.PASS,
-        meals=(),
-        safe_message="test",
-    )
-    assert result.meals == ()
+    with pytest.raises(ValidationError):
+        MealCompositionResult(
+            action=PlanValidationAction.PASS,
+            meals=(),
+            safe_message="test",
+        )
     assert MealSlot.SNACK.value == "snack"
-

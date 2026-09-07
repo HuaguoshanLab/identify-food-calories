@@ -76,11 +76,23 @@ class PlanValidationAction(str, Enum):
 
 
 class MealSlot(str, Enum):
-    """The only stable meal-card positions exposed by the planning MVP."""
+    """Stable meal-card positions; snack remains optional for a daily plan."""
 
     BREAKFAST = "breakfast"
     LUNCH = "lunch"
     DINNER = "dinner"
+    SNACK = "snack"
+
+
+REQUIRED_MEAL_SLOTS = (MealSlot.BREAKFAST, MealSlot.LUNCH, MealSlot.DINNER)
+
+
+class ManagedRecipeCandidateStatus(str, Enum):
+    """Lifecycle states for an administrator-maintained prepared-dish candidate."""
+
+    PENDING = "pending"
+    ENABLED = "enabled"
+    DISABLED = "disabled"
 
 
 class PlanningProfileInput(BaseModel):
@@ -237,9 +249,29 @@ class ControlledRecipe(BaseModel):
             raise ValueError("controlled recipes require the authorized audit role")
         if not self.is_active:
             raise ValueError("controlled recipes must be active")
+        if any(slot is MealSlot.SNACK for slot in self.meal_slots):
+            raise ValueError("project-authored controlled recipes do not support snack slots")
         if any(ingredient.catalog_version != self.catalog_version for ingredient in self.ingredients):
             raise ValueError("recipe ingredients must use the recipe catalog version")
         return self
+
+
+class ManagedRecipeCandidate(BaseModel):
+    """Prepared-dish candidate that references, rather than copies, catalog nutrition."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    food_catalog_item_id: uuid.UUID
+    catalog_version: str = Field(min_length=1, max_length=80)
+    display_name: str = Field(min_length=1, max_length=200)
+    meal_slot: MealSlot
+    portion_grams: Decimal = Field(gt=0, le=Decimal("2000"))
+    portion_description: str = Field(min_length=1, max_length=120)
+    method_tags: tuple[str, ...] = Field(min_length=1)
+    flavour_tags: tuple[str, ...] = Field(min_length=1)
+    status: ManagedRecipeCandidateStatus
+    revision: int = Field(ge=1)
 
 
 class PlannedMeal(BaseModel):
@@ -281,8 +313,11 @@ class MealCompositionResult(BaseModel):
 
     @model_validator(mode="after")
     def keeps_complete_meals_bound_to_pass(self) -> "MealCompositionResult":
-        if self.action is PlanValidationAction.PASS and len(self.meals) != len(MealSlot):
+        slots = {meal.slot for meal in self.meals}
+        if self.action is PlanValidationAction.PASS and not set(REQUIRED_MEAL_SLOTS).issubset(slots):
             raise ValueError("a passing composition requires breakfast, lunch, and dinner")
+        if len(slots) != len(self.meals):
+            raise ValueError("a passing composition cannot repeat a meal slot")
         if self.action is not PlanValidationAction.PASS and self.meals:
             raise ValueError("only a passing composition may expose meals")
         return self

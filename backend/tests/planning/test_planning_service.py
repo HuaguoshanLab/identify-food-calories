@@ -19,6 +19,7 @@ from app.planning.schemas import (
     ControlledRecipeIngredient,
     DailyTarget,
     MealSlot,
+    REQUIRED_MEAL_SLOTS,
     PlanValidationAction,
     PlannedMeal,
     PlanningNutritionValues,
@@ -323,7 +324,7 @@ def test_plan_validation_rejects_out_of_range_totals_and_only_relaxes_target_dim
             protein="20",
             fat="15",
         )
-        for slot in MealSlot
+            for slot in REQUIRED_MEAL_SLOTS
     )
 
     rejected = service.validate_plan(target=validation_target(), meals=too_low)

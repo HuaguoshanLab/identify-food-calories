@@ -8,7 +8,7 @@ from typing import Protocol
 
 from app.nutrition.schemas import NutritionCalculationInput, NutritionCalculationResult
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
-from app.planning.schemas import ControlledRecipe, DailyTarget, PlanningProfileInput
+from app.planning.schemas import ControlledRecipe, DailyTarget, ManagedRecipeCandidate, PlanningProfileInput
 
 
 class PlanningRepository(Protocol):
@@ -19,6 +19,10 @@ class PlanningRepository(Protocol):
     def list_controlled_recipes(
         self, *, catalog_version: str, recipe_version: str
     ) -> list[ControlledRecipe]: ...
+
+    def list_managed_recipe_candidates(
+        self, *, catalog_version: str
+    ) -> list[ManagedRecipeCandidate]: ...
 
 
 class PlanningProfileRepository(Protocol):

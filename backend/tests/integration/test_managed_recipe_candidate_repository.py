@@ -18,7 +18,7 @@ def _catalog_item(db_session, *, qualified: bool = True, complete_nutrients: boo
     source = NutritionSource(id=uuid.uuid4(), catalog_version_id=version.id, source_name="test", source_url=f"https://example.test/{uuid.uuid4()}", license_name="test")
     item = FoodCatalogItem(
         id=uuid.uuid4(), catalog_version_id=version.id, source_id=source.id, stable_id=f"food-{uuid.uuid4().hex}", canonical_name="候选菜",
-        prepared_state="cooked", is_qualified=qualified,
+        prepared_state="cooked", is_qualified=qualified and complete_nutrients,
         energy_kcal_per_100g=Decimal("100") if complete_nutrients else None,
         protein_g_per_100g=Decimal("10"), fat_g_per_100g=Decimal("5"), carbohydrate_g_per_100g=Decimal("10"),
     )

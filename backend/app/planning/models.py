@@ -184,6 +184,35 @@ class ControlledRecipeIngredient(Base):
     recipe: Mapped[ControlledRecipe] = relationship(back_populates="ingredients")
 
 
+class ManagedRecipeCandidate(Base):
+    """Admin-managed prepared dish linked to the catalog record that owns nutrients."""
+
+    __tablename__ = "managed_recipe_candidates"
+    __table_args__ = (
+        CheckConstraint("meal_slot IN ('breakfast', 'lunch', 'dinner', 'snack')", name="ck_managed_recipe_candidates_meal_slot"),
+        CheckConstraint("portion_grams > 0", name="ck_managed_recipe_candidates_portion_grams_positive"),
+        CheckConstraint("portion_description = btrim(portion_description) AND portion_description <> ''", name="ck_managed_recipe_candidates_portion_description"),
+        CheckConstraint("method_tags = btrim(method_tags) AND method_tags <> ''", name="ck_managed_recipe_candidates_method_tags"),
+        CheckConstraint("flavour_tags = btrim(flavour_tags) AND flavour_tags <> ''", name="ck_managed_recipe_candidates_flavour_tags"),
+        CheckConstraint("status IN ('pending', 'enabled', 'disabled')", name="ck_managed_recipe_candidates_status"),
+        CheckConstraint("revision >= 1", name="ck_managed_recipe_candidates_revision"),
+        Index("ix_managed_recipe_candidates_planning_eligibility", "meal_slot", "food_catalog_item_id", postgresql_where=text("status = 'enabled' AND deleted_at IS NULL")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    food_catalog_item_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("food_catalog_items.id", ondelete="RESTRICT"), nullable=False)
+    meal_slot: Mapped[str] = mapped_column(String(16), nullable=False)
+    portion_grams: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    portion_description: Mapped[str] = mapped_column(String(120), nullable=False)
+    method_tags: Mapped[str] = mapped_column(Text, nullable=False)
+    flavour_tags: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class DietPlan(Base):
     """Durable day identity. Deleted identities remain only to reject stale Agent writes."""
 

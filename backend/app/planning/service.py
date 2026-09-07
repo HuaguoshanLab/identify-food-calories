@@ -20,6 +20,7 @@ from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
     MealSlot,
+    REQUIRED_MEAL_SLOTS,
     FormulaVariant,
     PlanValidationAction,
     PlanValidationResult,
@@ -149,7 +150,7 @@ class PlanningService:
                 rule_id="minimum-energy-floor",
                 safe_message=HEALTH_REFUSAL_MESSAGE,
             )
-        if len(meals) != len(MealSlot) or {meal.slot for meal in meals} != set(MealSlot):
+        if not set(REQUIRED_MEAL_SLOTS).issubset({meal.slot for meal in meals}) or len({meal.slot for meal in meals}) != len(meals):
             return PlanValidationResult(
                 action=PlanValidationAction.REPLAN,
                 rule_id="incomplete-meal-slots",
@@ -223,7 +224,7 @@ class PlanningService:
             catalog_version=catalog_version, recipe_version=recipe_version
         )
         meals: list[PlannedMeal] = []
-        for slot in MealSlot:
+        for slot in REQUIRED_MEAL_SLOTS:
             meal = next(
                 (
                     built_meal
