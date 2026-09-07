@@ -329,13 +329,17 @@ Plans:
 
 ### Phase 06.1: 菜谱管理与餐单候选池 (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** 管理员可维护关联合格营养目录的成品菜候选池，并让用户计划以可复现轮换选择候选、按需显示加餐。
+**Requirements**: PLN-03, PLN-04, PLN-05, ADM-01, ADM-02, ADM-05, UI-03
 **Depends on:** Phase 6
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 06.1 to break down)
+- [ ] 06.1-01-PLAN.md — 候选持久化、目录资格与可选加餐领域合同
+- [ ] 06.1-02-PLAN.md — 后台候选 CSV、批量生命周期与审计 API
+- [ ] 06.1-03-PLAN.md — 候选轮换、规划图、计划归档和加餐调整
+- [ ] 06.1-04-PLAN.md — 后台菜谱管理与用户端可选加餐界面
+- [ ] 06.1-05-PLAN.md — 跨栈验收、教学文档和浏览器验证
 
 ### Phase 7: 评测、安全与上线
 
