@@ -54,7 +54,8 @@ describe('AnalyzePage', () => {
     await user.clear(screen.getByLabelText('克数'))
     await user.type(screen.getByLabelText('克数'), '0.1kg')
     await user.click(screen.getByRole('button', { name: '提交补充信息' }))
-    expect(await screen.findByText('合计 130.0 kcal')).toBeInTheDocument()
+    expect(await screen.findByText('估算总热量')).toBeInTheDocument()
+    expect(screen.getByText('130.0', { exact: true })).toBeInTheDocument()
     expect(payloads[1].answers['rice-1'].grams).toBe('0.1kg')
     await user.type(screen.getByLabelText('修正或排除项目'), '米饭改为1斤')
     await user.click(screen.getByRole('button', { name: '应用修正' }))
@@ -175,7 +176,8 @@ describe('AnalyzePage', () => {
     expect(screen.getByRole('heading', { name: '鸡胸肉' })).toBeInTheDocument()
     expect(screen.getByText('120g · 198.0 kcal')).toBeInTheDocument()
     expect(screen.queryByText(/Rice, white/)).not.toBeInTheDocument()
-    expect(screen.getByText('合计 328.0 kcal')).toBeInTheDocument()
+    expect(screen.getByText('估算总热量')).toBeInTheDocument()
+    expect(screen.getByText('328.0', { exact: true })).toBeInTheDocument()
   })
 
   it('does not present an all-unmatched meal as a complete zero-calorie report', async () => {
