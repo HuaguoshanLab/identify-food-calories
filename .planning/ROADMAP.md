@@ -327,6 +327,16 @@ Plans:
 4. 管理员可查看模型运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。
 5. README 包含最终架构图、状态图、时序图、调试方式和面试深挖题。
 
+### Phase 06.1: 菜谱管理与餐单候选池 (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 06.1 to break down)
+
 ### Phase 7: 评测、安全与上线
 
 **Goal:** 项目具备可重复的质量证据、安全边界、成本控制和一键演示环境。
