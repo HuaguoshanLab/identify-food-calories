@@ -10,6 +10,10 @@ function renderPage(request: AuthContextValue['request'] = vi.fn(async () => new
   return render(<MemoryRouter><AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}><AnalyzePage /></AuthContext.Provider></MemoryRouter>)
 }
 
+async function useTextInput(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: '改为文字描述这餐' }))
+}
+
 describe('AnalyzePage', () => {
   afterEach(() => window.history.replaceState({}, '', '/'))
   it('keeps a rejected weight editable and sends complete units for clarification and correction', async () => {
@@ -39,6 +43,7 @@ describe('AnalyzePage', () => {
       return new Response(JSON.stringify(accepted ? completed : waiting))
     })
     renderPage(request)
+    await useTextInput(user)
     await user.type(screen.getByLabelText('餐食描述'), '米饭')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     await user.type(await screen.findByLabelText('克数'), '100kg')
@@ -64,16 +69,20 @@ describe('AnalyzePage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('本次餐食分析未完成')
     expect(screen.queryByText('图片未能识别')).not.toBeInTheDocument()
   })
-  it('uses a labelled text input and does not invent a report before an API response', () => {
+  it('switches from image upload to a labelled text input without inventing a report', async () => {
     renderPage()
-    expect(screen.getByText('图片用于本次估算；营养数值由受控目录计算。')).toBeInTheDocument()
+    const user = userEvent.setup()
+    expect(screen.getByRole('button', { name: '改为文字描述这餐' })).toBeInTheDocument()
+    await useTextInput(user)
     expect(screen.getByLabelText('餐食描述')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '改为上传图片' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '营养分析报告' })).not.toBeInTheDocument()
   })
 
   it('explains empty and too-long descriptions next to the input', async () => {
     const user = userEvent.setup({ applyAccept: false })
     renderPage()
+    await useTextInput(user)
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(screen.getByText('请先描述这餐吃了什么。')).toBeInTheDocument()
     await user.type(screen.getByLabelText('餐食描述'), 'a'.repeat(1001))
@@ -142,6 +151,7 @@ describe('AnalyzePage', () => {
       ], totals: { energy_kcal: '328.0', protein_g: '39.9', fat_g: '4.6', carbohydrate_g: '28.2' }, disclaimer: '普通饮食参考，不替代医疗建议。' },
     }), { status: 201 }))
     renderPage(request)
+    await useTextInput(user)
     await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
@@ -163,6 +173,7 @@ describe('AnalyzePage', () => {
       },
     }), { status: 201 }))
     renderPage(request)
+    await useTextInput(user)
 
     await user.type(screen.getByLabelText('餐食描述'), '目录外菜品 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
@@ -184,6 +195,7 @@ describe('AnalyzePage', () => {
       return new Response(JSON.stringify(snapshotBody), { status: path === '/agent/threads' ? 201 : 200 })
     })
     renderPage(request)
+    await useTextInput(user)
     await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     await user.click(await screen.findByRole('button', { name: '删除这次分析' }))
@@ -212,6 +224,7 @@ describe('AnalyzePage', () => {
       },
     }), { status: 201 }))
     renderPage(request)
+    await useTextInput(user)
 
     await user.type(screen.getByLabelText('餐食描述'), '米饭')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
@@ -238,6 +251,7 @@ describe('AnalyzePage', () => {
       },
     }), { status: 201 }))
     renderPage(request)
+    await useTextInput(user)
 
     await user.type(screen.getByLabelText('餐食描述'), '米饭')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
@@ -263,6 +277,7 @@ it('确认保存提交明确早餐与补录时间，重复点击不会重复提�
     return new Response(JSON.stringify(completed), { status: 201 })
   })
   renderPage(request)
+  await useTextInput(user)
   await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
   await user.click(screen.getByRole('button', { name: '开始分析' }))
   await screen.findByLabelText('餐次')
