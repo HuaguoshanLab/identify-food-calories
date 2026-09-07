@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.auth.models import Base
+from app.nutrition.models import FoodCatalogItem
 
 
 class PlanningProfile(Base):
@@ -211,7 +212,7 @@ class ManagedRecipeCandidate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    food_catalog_item = relationship("FoodCatalogItem")
+    food_catalog_item: Mapped[FoodCatalogItem] = relationship(FoodCatalogItem)
 
 
 class DietPlan(Base):

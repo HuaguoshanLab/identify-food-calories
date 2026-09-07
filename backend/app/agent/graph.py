@@ -991,21 +991,21 @@ class DietPlanningGraph:
                         "report": {
                             "stage": "needs_input",
                             "message": "请选择要调整的餐次。",
-                            "input_choices": ["breakfast", "lunch", "dinner"],
+                            "input_choices": [meal.slot.value for meal in current.meals],
                         },
                     }
                 )
         elif (
             isinstance(selected_slot, str)
             and current.pending_adjustment_intent is not None
-            and selected_slot in {slot.value for slot in MealSlot}
+            and selected_slot in {meal.slot.value for meal in current.meals}
         ):
             intent = current.pending_adjustment_intent
             slot = MealSlot(selected_slot)
         else:
             return state
         target = current.target
-        if target is None or len(current.meals) != 3 or slot is None or intent is None:
+        if target is None or len(current.meals) not in (3, 4) or slot is None or intent is None:
             return state
         composition = self._tools.replace_planning_slot(
             target=target,
@@ -1194,6 +1194,7 @@ def _slot_from_feedback(feedback: str) -> MealSlot | None:
             (MealSlot.BREAKFAST, ("早餐", "breakfast")),
             (MealSlot.LUNCH, ("午餐", "lunch")),
             (MealSlot.DINNER, ("晚餐", "dinner")),
+            (MealSlot.SNACK, ("加餐", "snack")),
         )
         if any(label in feedback.casefold() for label in labels)
     ]

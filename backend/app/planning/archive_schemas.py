@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.planning.schemas import MealSlot, PlanningNutritionValues, TargetRange
+from app.planning.schemas import MealSlot, PlanningNutritionValues, REQUIRED_MEAL_SLOTS, TargetRange
 
 
 class ArchiveDTO(BaseModel):
@@ -59,14 +59,15 @@ class PlanAdjustment(ArchiveDTO):
 class PlanReport(ArchiveDTO):
     stage: Literal["complete"]
     target: PlanTarget
-    meals: tuple[PlanMealSnapshot, ...] = Field(min_length=3, max_length=3)
+    meals: tuple[PlanMealSnapshot, ...] = Field(min_length=3, max_length=4)
     disclaimer: Literal["普通饮食参考，不替代医疗建议。"]
     adjustment: PlanAdjustment | None = None
     relaxation: PlanRelaxation | None = None
 
     @model_validator(mode="after")
     def ordered_slots(self) -> PlanReport:
-        if [meal.slot for meal in self.meals] != list(MealSlot):
+        slots = [meal.slot for meal in self.meals]
+        if slots[:3] != list(REQUIRED_MEAL_SLOTS) or (len(slots) == 4 and slots[3] is not MealSlot.SNACK):
             raise ValueError("archive requires ordered breakfast, lunch and dinner")
         return self
 
@@ -79,7 +80,7 @@ class PlanArchiveWrite(ArchiveDTO):
     thread_id: uuid.UUID
     started_at: datetime
     report: PlanReport
-    recipe_ids: tuple[uuid.UUID, ...] = Field(min_length=3, max_length=3)
+    recipe_ids: tuple[uuid.UUID, ...] = Field(min_length=3, max_length=4)
     target_version: str = Field(min_length=1, max_length=80)
     formula_version: str = Field(min_length=1, max_length=80)
     graph_version: str = Field(min_length=1, max_length=80)

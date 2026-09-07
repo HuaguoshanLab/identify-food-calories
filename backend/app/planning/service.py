@@ -220,6 +220,9 @@ class PlanningService:
                 action=PlanValidationAction.NEEDS_INPUT,
                 safe_message="请先确认本次要使用的忌口和口味偏好。",
             )
+        candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
+        if candidates:
+            return self._compose_managed_candidates(candidates, preferences, exclude_recipe_ids)
         recipes = self._repository.list_controlled_recipes(
             catalog_version=catalog_version, recipe_version=recipe_version
         )
@@ -257,6 +260,24 @@ class PlanningService:
             meals=tuple(meals),
             safe_message="三餐营养值已由合格目录条目和受控克数重新计算。",
         )
+
+    def _compose_managed_candidates(self, candidates, preferences: PreferenceReview, exclude_recipe_ids: tuple[uuid.UUID, ...]) -> MealCompositionResult:
+        meals: list[PlannedMeal] = []
+        for slot in REQUIRED_MEAL_SLOTS:
+            options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals}), key=lambda candidate: str(candidate.id))
+            meal = next((built for candidate in options if (built := self._build_managed_meal(candidate, preferences)) is not None), None)
+            if meal is None:
+                return MealCompositionResult(action=PlanValidationAction.REPLAN, safe_message="没有满足目录资格和三餐槽位的已启用候选菜。")
+            meals.append(meal)
+        return MealCompositionResult(action=PlanValidationAction.PASS, meals=tuple(meals), safe_message="餐单营养值已按候选关联目录的每 100 克基准重算。")
+
+    def _build_managed_meal(self, candidate, preferences: PreferenceReview) -> PlannedMeal | None:
+        calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.food_catalog_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
+        if calculation.action is not NutritionAction.PASS or calculation.food is None or calculation.nutrients is None:
+            return None
+        if any(value.casefold() in calculation.food.canonical_name.casefold() for value in preferences.exclusions):
+            return None
+        return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=candidate.portion_description, portion_grams=candidate.portion_grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
 
     def _build_meal(self, *, recipe, slot: MealSlot, preferences: PreferenceReview) -> PlannedMeal | None:
         calculated: list[NutritionValues] = []
