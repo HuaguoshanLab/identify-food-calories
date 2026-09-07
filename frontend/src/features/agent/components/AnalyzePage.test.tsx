@@ -215,7 +215,7 @@ describe('AnalyzePage', () => {
     await useTextInput(user)
     await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
     await user.click(screen.getByRole('button', { name: '开始分析' }))
-    await user.click(await screen.findByRole('button', { name: '删除这次分析' }))
+    await user.click(await screen.findByRole('button', { name: '删除' }))
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     expect(screen.getByText('数据将在 24 小时内删除。', { exact: false })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '确认删除' }))
