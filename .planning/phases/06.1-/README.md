@@ -8,3 +8,4 @@ It contains no application code. Downstream planning and execution must read `06
 | --- | --- |
 | `06.1-CONTEXT.md` | Canonical scope, product decisions, constraints, and implementation touchpoints. |
 | `06.1-DISCUSSION-LOG.md` | Human-readable audit log of the product decision discussed with the user. |
+| `06.1-RESEARCH.md` | Codebase-grounded technical research and implementation risks for the phase plan. |
