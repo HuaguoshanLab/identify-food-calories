@@ -88,6 +88,7 @@ export function AnalyzePage() {
   const [progress, setProgress] = useState('')
   const [progressStage, setProgressStage] = useState<SafeStreamStage>()
   const [selectedImage, setSelectedImage] = useState<File>()
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>()
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({})
   const [gramAnswers, setGramAnswers] = useState<Record<string, string>>({})
   const [correction, setCorrection] = useState('')
@@ -140,6 +141,15 @@ export function AnalyzePage() {
       window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
     })
   }, [applySnapshot, authenticationStatus, request, snapshot?.thread_id])
+  useEffect(() => {
+    if (!selectedImage || !ACCEPTED_IMAGE_TYPES.has(selectedImage.type) || typeof URL.createObjectURL !== 'function') {
+      setImagePreviewUrl(undefined)
+      return
+    }
+    const previewUrl = URL.createObjectURL(selectedImage)
+    setImagePreviewUrl(previewUrl)
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [selectedImage])
   useAgentEventStream({ threadId: snapshot?.thread_id, request, onEvent: (event) => {
     if (snapshot?.status === 'retryable' || snapshot?.status === 'terminal' || snapshot?.status === 'completed') return
     setProgressStage(event.stage)
@@ -288,11 +298,10 @@ export function AnalyzePage() {
     <section className="mx-auto w-full max-w-xl space-y-4 pb-4">
       <Card><CardHeader><CardTitle>{inputMode === 'image' ? '上传餐食图片' : '文字描述餐食'}</CardTitle><CardDescription>{inputMode === 'image' ? '选择一张餐食图片，系统会识别菜品并在需要时向你确认。' : '用文字描述这一餐吃了什么，越详细估算越准确。'}</CardDescription></CardHeader><CardContent className="space-y-3">
         {inputMode === 'image' ? <>
-          <div className="grid grid-cols-2 gap-2"><Button className="h-11" disabled={isBusy} onClick={() => cameraInputRef.current?.click()} type="button"><Camera aria-hidden="true" className="size-5" />拍照</Button><Button className="h-11" disabled={isBusy} onClick={() => galleryInputRef.current?.click()} type="button" variant="outline"><ImagePlus aria-hidden="true" className="size-5" />从相册选择</Button></div>
+          {imagePreviewUrl ? <div className="overflow-hidden rounded-lg border border-border"><img alt="已选择的餐食图片" className="aspect-[4/3] w-full object-cover" src={imagePreviewUrl} /></div> : <div className="grid grid-cols-2 gap-2"><Button className="h-11" disabled={isBusy} onClick={() => cameraInputRef.current?.click()} type="button"><Camera aria-hidden="true" className="size-5" />拍照</Button><Button className="h-11" disabled={isBusy} onClick={() => galleryInputRef.current?.click()} type="button" variant="outline"><ImagePlus aria-hidden="true" className="size-5" />从相册选择</Button></div>}
           <input accept="image/jpeg,image/png,image/webp" aria-describedby={imageError ? 'meal-image-error' : 'meal-image-help'} aria-label="拍照上传" capture="environment" className="sr-only" disabled={isBusy} onChange={handleImageChange} ref={cameraInputRef} tabIndex={-1} type="file" />
           <input accept="image/jpeg,image/png,image/webp" aria-describedby={imageError ? 'meal-image-error' : 'meal-image-help'} aria-label="从相册选择上传" className="sr-only" disabled={isBusy} onChange={handleImageChange} ref={galleryInputRef} tabIndex={-1} type="file" />
-          <p id="meal-image-help" className="text-[13px] leading-5 text-muted-foreground">支持 JPG、PNG、WebP，最大 10 MB。相机不可用时仍可从相册选择。</p>
-          {selectedImage ? <p className="text-[13px] leading-5 text-muted-foreground">已选择：{selectedImage.name}（{Math.ceil(selectedImage.size / 1024)} KB）</p> : null}
+          {!imagePreviewUrl ? <p id="meal-image-help" className="text-[13px] leading-5 text-muted-foreground">支持 JPG、PNG、WebP，最大 10 MB。相机不可用时仍可从相册选择。</p> : null}
           {imageError ? <Alert id="meal-image-error" variant="destructive"><CircleAlert aria-hidden="true" /><AlertTitle>这张图片无法安全分析</AlertTitle><AlertDescription>{imageError}</AlertDescription></Alert> : null}
           <details className="rounded-lg border border-border p-3 text-[13px] leading-5 text-muted-foreground"><summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-foreground"><ShieldCheck aria-hidden="true" className="size-5" />仅用于本次分析；完成或超时后删除。</summary><p className="pt-2">图片会由第三方视觉模型处理；本服务会在本次分析完成或超时后删除临时副本。</p></details>
           <Button className="h-9 w-full" disabled={isBusy} onClick={focusTextFallback} type="button" variant="outline"><MessageSquareText aria-hidden="true" className="size-4" />改为文字描述这餐</Button>

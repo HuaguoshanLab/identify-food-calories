@@ -93,6 +93,12 @@ describe('AnalyzePage', () => {
   it('uploads an image through the generated multipart contract and discloses estimated weight', async () => {
     const user = userEvent.setup()
     const threadId = '11111111-1111-4111-8111-111111111111'
+    const originalCreateObjectUrl = URL.createObjectURL
+    const originalRevokeObjectUrl = URL.revokeObjectURL
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: vi.fn(() => 'blob:meal-preview') },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    })
     const request = vi.fn(async (path: string, init?: RequestInit) => {
       void init
       if (path === '/agent/threads/image') return new Response(JSON.stringify({ thread_id: threadId, status: 'partial', revision: 0 }), { status: 201 })
@@ -107,6 +113,8 @@ describe('AnalyzePage', () => {
 
     await user.upload(screen.getByLabelText('从相册选择上传'), new File(['meal'], 'meal.jpg', { type: 'image/jpeg' }))
 
+    expect(await screen.findByRole('img', { name: '已选择的餐食图片' })).toHaveAttribute('src', 'blob:meal-preview')
+    expect(screen.queryByText(/已选择：/)).not.toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: '营养分析报告' })).toBeInTheDocument()
     expect(screen.getByText('估算重量')).toBeInTheDocument()
     expect(screen.getByText('估算重量，可能与实际份量存在偏差。')).toBeInTheDocument()
@@ -114,6 +122,10 @@ describe('AnalyzePage', () => {
     expect(upload?.[0]).toBe(`/agent/threads/${threadId}/images`)
     expect(upload?.[1]?.body).toBeInstanceOf(FormData)
     expect(new Headers(upload?.[1]?.headers).get('Idempotency-Key')).toMatch(/^image-/)
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: originalCreateObjectUrl },
+      revokeObjectURL: { configurable: true, value: originalRevokeObjectUrl },
+    })
   })
 
   it('keeps unsupported files local and places the safe error beside upload controls', async () => {
