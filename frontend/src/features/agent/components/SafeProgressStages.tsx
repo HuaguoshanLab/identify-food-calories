@@ -28,28 +28,43 @@ function stageIcon(stage: BusinessStage) {
   return CircleStop
 }
 
+function stageState(index: number, currentIndex: number, stage: SafeStreamStage) {
+  if (stage === 'completed' || currentIndex > index) return 'completed'
+  if (currentIndex === index) return 'active'
+  return 'pending'
+}
+
 /** All visible wording is a local stage allowlist; server message text never becomes UI content. */
 export function SafeProgressStages({ stage, copy = analysisStageCopy, label = '分析进度', onRetry }: SafeProgressStagesProps) {
   if (!stage) return null
   const currentIndex = stageOrder.indexOf(stage as BusinessStage)
   const current = copy[stage]
   const retryable = stage === 'retryable' && onRetry
+  const summaryLabel = stage === 'completed' ? '已完成' : stage === 'retryable' ? '需要重试' : stage === 'terminal' ? '需要新输入' : '处理中'
 
   return (
-    <section aria-label={label} className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-      <ol className="grid grid-cols-5 gap-1 text-center text-[11px] leading-4 text-muted-foreground">
+    <section aria-label={label} className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-[0_4px_12px_rgb(25_72_53/0.06)]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-foreground">分析进度</h2>
+        <span className="text-[13px] font-medium text-primary">{summaryLabel}</span>
+      </div>
+      <ol className="grid grid-cols-5 gap-0 text-center">
         {stageOrder.map((businessStage, index) => {
           const Icon = stageIcon(businessStage)
-          const active = businessStage === stage
-          const completed = currentIndex > index || stage === 'completed'
-          return <li aria-current={active ? 'step' : undefined} className={active ? 'font-semibold text-foreground' : undefined} key={businessStage}>
-            <Icon aria-hidden="true" className={`mx-auto mb-1 size-4 ${completed ? 'text-primary' : ''}`} />
-            {copy[businessStage].label}
+          const state = stageState(index, currentIndex, stage)
+          const active = state === 'active'
+          const completed = state === 'completed'
+          return <li aria-current={active ? 'step' : undefined} className="relative min-w-0" key={businessStage}>
+            {index < stageOrder.length - 1 ? <span aria-hidden="true" className={`absolute left-1/2 right-0 top-3 h-px ${completed ? 'bg-primary' : 'bg-border'}`} /> : null}
+            <span className={`relative mx-auto mb-2 flex size-6 items-center justify-center rounded-full border ${completed ? 'border-primary bg-primary text-primary-foreground' : active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'}`}>
+              <Icon aria-hidden="true" className="size-3.5" />
+            </span>
+            <span className={`block px-0.5 text-[11px] leading-4 ${active || completed ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{copy[businessStage].label}</span>
           </li>
         })}
       </ol>
-      <p aria-live="polite" className="text-sm text-muted-foreground" role="status">{current.announcement}</p>
-      {retryable ? <div className="flex items-center justify-between gap-3 rounded-md bg-background p-2 text-sm"><span><CircleAlert aria-hidden="true" className="mr-1 inline size-4 text-destructive" />请确认信息后再发起一次。</span><Button className="h-9 shrink-0" onClick={onRetry} type="button" variant="outline">重新尝试</Button></div> : null}
+      <p aria-live="polite" className="rounded-lg bg-muted/60 px-3 py-2 text-sm leading-5 text-muted-foreground" role="status">{current.announcement}</p>
+      {retryable ? <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm"><span><CircleAlert aria-hidden="true" className="mr-1 inline size-4 text-destructive" />请确认信息后再发起一次。</span><Button className="h-9 shrink-0" onClick={onRetry} type="button" variant="outline">重新尝试</Button></div> : null}
     </section>
   )
 }
