@@ -55,6 +55,7 @@ class MealRecordItemResponse(BaseModel):
     id: uuid.UUID
     position: int
     display_name: str
+    nutrition_catalog_version: str
     grams: Decimal
     energy_kcal: Decimal
     protein_g: Decimal

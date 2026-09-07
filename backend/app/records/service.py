@@ -11,7 +11,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.exc import IntegrityError
 
-from app.records.models import DashboardTimezoneBackfillAudit, DashboardTimezonePreference, MealRecord, MealRecordItem
+from app.records.models import (
+    DashboardTimezoneBackfillAudit,
+    DashboardTimezonePreference,
+    MealRecord,
+    MealRecordItem,
+)
 from app.records.ports import MealRecordRepository
 from app.records.schemas import DashboardTimezoneConfirmationResponse
 
@@ -43,6 +48,8 @@ class DashboardTimeZoneAlreadyConfirmed(ValueError):
 class MealRecordService:
     """Builds snapshots only from persisted deterministic Agent reports, never client totals."""
 
+    _MIXED_CATALOG_SNAPSHOT_VERSION = "multiple-catalogs-v1"
+
     def __init__(
         self,
         *,
@@ -57,8 +64,14 @@ class MealRecordService:
         self._rollback = rollback or (lambda: None)
 
     def confirm_from_completed_run(
-        self, *, user_id: uuid.UUID, thread_id: uuid.UUID, command_key: str, consumed_at: datetime | None,
-        time_zone: str, meal_slot: str | None = None,
+        self,
+        *,
+        user_id: uuid.UUID,
+        thread_id: uuid.UUID,
+        command_key: str,
+        consumed_at: datetime | None,
+        time_zone: str,
+        meal_slot: str | None = None,
     ) -> MealRecord:
         self._validate_meal_slot(meal_slot)
         now = self._now()
@@ -82,22 +95,49 @@ class MealRecordService:
         )
         if existing is not None:
             return existing
-        event = self._repository.get_completed_report_for_run_for_user(run_id=run.id, user_id=user_id)
+        event = self._repository.get_completed_report_for_run_for_user(
+            run_id=run.id, user_id=user_id
+        )
         report = event.payload.get("report") if event is not None else None
         snapshot = self._validated_snapshot(report)
         record = MealRecord(
-            id=uuid.uuid4(), user_id=user_id, source_run_id=run.id, agent_thread_id=thread_id, agent_run_id=run.id,
-            command_key=command_key, meal_slot=meal_slot, consumed_at=when, consumed_time_zone=zone.key,
-            consumed_local_date=self._local_date(when, zone), local_date_source="submitted_time_zone",
+            id=uuid.uuid4(),
+            user_id=user_id,
+            source_run_id=run.id,
+            agent_thread_id=thread_id,
+            agent_run_id=run.id,
+            command_key=command_key,
+            meal_slot=meal_slot,
+            consumed_at=when,
+            consumed_time_zone=zone.key,
+            consumed_local_date=self._local_date(when, zone),
+            local_date_source="submitted_time_zone",
             nutrition_catalog_version=snapshot["catalog_version"],
-            calculation_version=snapshot["calculation_version"], energy_kcal=snapshot["energy_kcal"],
-            protein_g=snapshot["protein_g"], fat_g=snapshot["fat_g"], carbohydrate_g=snapshot["carbohydrate_g"],
-            created_at=now, updated_at=now, deleted_at=None,
+            calculation_version=snapshot["calculation_version"],
+            energy_kcal=snapshot["energy_kcal"],
+            protein_g=snapshot["protein_g"],
+            fat_g=snapshot["fat_g"],
+            carbohydrate_g=snapshot["carbohydrate_g"],
+            created_at=now,
+            updated_at=now,
+            deleted_at=None,
             items=[
                 MealRecordItem(
-                    id=uuid.uuid4(), user_id=user_id, position=index, display_name=item["name"], food_reference=item["food_reference"],
-                    grams=item["grams"], energy_kcal=item["energy_kcal"], protein_g=item["protein_g"], fat_g=item["fat_g"],
-                    carbohydrate_g=item["carbohydrate_g"], is_estimated=item["is_estimated"], created_at=now, updated_at=now, deleted_at=None,
+                    id=uuid.uuid4(),
+                    user_id=user_id,
+                    position=index,
+                    display_name=item["name"],
+                    food_reference=item["food_reference"],
+                    nutrition_catalog_version=item["catalog_version"],
+                    grams=item["grams"],
+                    energy_kcal=item["energy_kcal"],
+                    protein_g=item["protein_g"],
+                    fat_g=item["fat_g"],
+                    carbohydrate_g=item["carbohydrate_g"],
+                    is_estimated=item["is_estimated"],
+                    created_at=now,
+                    updated_at=now,
+                    deleted_at=None,
                 )
                 for index, item in enumerate(snapshot["items"])
             ],
@@ -114,20 +154,30 @@ class MealRecordService:
         return self._repository.list_records_for_user(user_id=user_id)
 
     def get_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID) -> MealRecord:
-        record = self._repository.get_record_for_user(record_id=record_id, user_id=user_id)
+        record = self._repository.get_record_for_user(
+            record_id=record_id, user_id=user_id
+        )
         if record is None:
             raise MealRecordUnavailable("meal record is unavailable")
         return record
 
     def update_record(
-        self, *, record_id: uuid.UUID, user_id: uuid.UUID, consumed_at: datetime, time_zone: str,
-        meal_slot: str | None = None, update_meal_slot: bool = False,
+        self,
+        *,
+        record_id: uuid.UUID,
+        user_id: uuid.UUID,
+        consumed_at: datetime,
+        time_zone: str,
+        meal_slot: str | None = None,
+        update_meal_slot: bool = False,
     ) -> MealRecord:
         now = self._now()
         self._validate_meal_slot(meal_slot)
         self._validate_consumed_at(consumed_at, now)
         zone = self._validated_time_zone(time_zone)
-        record = self._repository.get_record_for_user(record_id=record_id, user_id=user_id, for_update=True)
+        record = self._repository.get_record_for_user(
+            record_id=record_id, user_id=user_id, for_update=True
+        )
         if record is None:
             raise MealRecordUnavailable("meal record is unavailable")
         try:
@@ -152,17 +202,23 @@ class MealRecordService:
 
         now = self._now()
         zone = self._validated_time_zone(time_zone)
-        existing_preference = self._repository.get_dashboard_time_zone_preference_for_user(
-            user_id=user_id, for_update=True
+        existing_preference = (
+            self._repository.get_dashboard_time_zone_preference_for_user(
+                user_id=user_id, for_update=True
+            )
         )
         if existing_preference is not None:
             return self._confirmed_dashboard_time_zone_or_conflict(
                 preference=existing_preference, candidate_time_zone=zone
             )
-        legacy_records = self._repository.list_records_without_local_date_for_user(user_id=user_id)
+        legacy_records = self._repository.list_records_without_local_date_for_user(
+            user_id=user_id
+        )
         try:
             self._repository.add_dashboard_time_zone_preference(
-                DashboardTimezonePreference(user_id=user_id, time_zone=zone.key, confirmed_at=now)
+                DashboardTimezonePreference(
+                    user_id=user_id, time_zone=zone.key, confirmed_at=now
+                )
             )
             for record in legacy_records:
                 record.consumed_time_zone = zone.key
@@ -171,30 +227,41 @@ class MealRecordService:
                 record.updated_at = now
             self._repository.add_timezone_backfill_audit(
                 DashboardTimezoneBackfillAudit(
-                    id=uuid.uuid4(), user_id=user_id, confirmed_time_zone=zone.key,
-                    records_backfilled=len(legacy_records), confirmed_at=now,
+                    id=uuid.uuid4(),
+                    user_id=user_id,
+                    confirmed_time_zone=zone.key,
+                    records_backfilled=len(legacy_records),
+                    confirmed_at=now,
                 )
             )
             self._commit()
-            return DashboardTimezoneConfirmationResponse(dashboard_time_zone=zone.key, confirmed_at=now)
+            return DashboardTimezoneConfirmationResponse(
+                dashboard_time_zone=zone.key, confirmed_at=now
+            )
         except IntegrityError as error:
             # The unique preference/audit constraints are the final one-time-confirmation guard
             # when concurrent requests both observed no row before acquiring their transaction locks.
             self._rollback()
-            existing_preference = self._repository.get_dashboard_time_zone_preference_for_user(
-                user_id=user_id, for_update=True
+            existing_preference = (
+                self._repository.get_dashboard_time_zone_preference_for_user(
+                    user_id=user_id, for_update=True
+                )
             )
             if existing_preference is not None:
                 return self._confirmed_dashboard_time_zone_or_conflict(
                     preference=existing_preference, candidate_time_zone=zone
                 )
-            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed") from error
+            raise DashboardTimeZoneAlreadyConfirmed(
+                "dashboard timezone has already been confirmed"
+            ) from error
         except Exception:
             self._rollback()
             raise
 
     def delete_record(self, *, record_id: uuid.UUID, user_id: uuid.UUID) -> None:
-        record = self._repository.get_record_for_user(record_id=record_id, user_id=user_id, for_update=True)
+        record = self._repository.get_record_for_user(
+            record_id=record_id, user_id=user_id, for_update=True
+        )
         if record is None:
             raise MealRecordUnavailable("meal record is unavailable")
         now = self._now()
@@ -217,7 +284,9 @@ class MealRecordService:
     @staticmethod
     def _validate_consumed_at(consumed_at: datetime, now: datetime) -> None:
         if consumed_at.tzinfo is None or consumed_at > now:
-            raise ConsumedAtInvalid("consumed_at must be a past or current aware datetime")
+            raise ConsumedAtInvalid(
+                "consumed_at must be a past or current aware datetime"
+            )
 
     @staticmethod
     def _validated_time_zone(time_zone: str) -> ZoneInfo:
@@ -233,9 +302,12 @@ class MealRecordService:
         """Only the identical persisted statistical basis may safely replay a confirmation."""
 
         if preference.time_zone != candidate_time_zone.key:
-            raise DashboardTimeZoneAlreadyConfirmed("dashboard timezone has already been confirmed")
+            raise DashboardTimeZoneAlreadyConfirmed(
+                "dashboard timezone has already been confirmed"
+            )
         return DashboardTimezoneConfirmationResponse(
-            dashboard_time_zone=preference.time_zone, confirmed_at=preference.confirmed_at
+            dashboard_time_zone=preference.time_zone,
+            confirmed_at=preference.confirmed_at,
         )
 
     @staticmethod
@@ -247,46 +319,92 @@ class MealRecordService:
         try:
             result = Decimal(str(value))
         except (InvalidOperation, ValueError) as error:
-            raise MealRecordConfirmationUnavailable(f"invalid completed report {field}") from error
+            raise MealRecordConfirmationUnavailable(
+                f"invalid completed report {field}"
+            ) from error
         if not result.is_finite() or result < 0:
             raise MealRecordConfirmationUnavailable(f"invalid completed report {field}")
         return result
 
     @classmethod
     def _validated_snapshot(cls, report: object) -> dict[str, Any]:
-        if not isinstance(report, dict) or report.get("waiting_input") or report.get("is_partial"):
+        if (
+            not isinstance(report, dict)
+            or report.get("waiting_input")
+            or report.get("is_partial")
+        ):
             raise MealRecordConfirmationUnavailable("report is not complete")
         raw_items = report.get("items")
         totals = report.get("totals")
-        if not isinstance(raw_items, list) or not raw_items or not isinstance(totals, dict):
-            raise MealRecordConfirmationUnavailable("report has no complete nutrition snapshot")
+        if (
+            not isinstance(raw_items, list)
+            or not raw_items
+            or not isinstance(totals, dict)
+        ):
+            raise MealRecordConfirmationUnavailable(
+                "report has no complete nutrition snapshot"
+            )
         items: list[dict[str, Any]] = []
         catalog_versions: set[str] = set()
         calculation_versions: set[str] = set()
-        summed = {field: Decimal("0") for field in ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")}
+        summed = {
+            field: Decimal("0")
+            for field in ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")
+        }
         for raw in raw_items:
             if not isinstance(raw, dict):
                 raise MealRecordConfirmationUnavailable("invalid report item")
-            name, food_id, catalog_version, calculation_version = (raw.get(key) for key in ("name", "food_id", "catalog_version", "calculation_rule_version"))
-            if not all(isinstance(value, str) and value.strip() for value in (name, food_id, catalog_version, calculation_version)):
-                raise MealRecordConfirmationUnavailable("report item lacks immutable references")
+            name, food_id, catalog_version, calculation_version = (
+                raw.get(key)
+                for key in (
+                    "name",
+                    "food_id",
+                    "catalog_version",
+                    "calculation_rule_version",
+                )
+            )
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in (name, food_id, catalog_version, calculation_version)
+            ):
+                raise MealRecordConfirmationUnavailable(
+                    "report item lacks immutable references"
+                )
             item = {
-                "name": name, "food_reference": food_id, "grams": cls._decimal(raw.get("grams"), field="grams"),
+                "name": name,
+                "food_reference": food_id,
+                "catalog_version": catalog_version,
+                "grams": cls._decimal(raw.get("grams"), field="grams"),
                 "is_estimated": bool(raw.get("is_estimated", False)),
             }
             if item["grams"] <= 0:
-                raise MealRecordConfirmationUnavailable("invalid completed report grams")
+                raise MealRecordConfirmationUnavailable(
+                    "invalid completed report grams"
+                )
             for field in summed:
                 item[field] = cls._decimal(raw.get(field), field=field)
                 summed[field] += item[field]
             catalog_versions.add(catalog_version)
             calculation_versions.add(calculation_version)
             items.append(item)
-        if len(catalog_versions) != 1 or len(calculation_versions) != 1:
-            raise MealRecordConfirmationUnavailable("report uses incompatible nutrition versions")
+        if len(calculation_versions) != 1:
+            raise MealRecordConfirmationUnavailable(
+                "report uses incompatible nutrition versions"
+            )
         for field, expected in summed.items():
-            if cls._decimal(totals.get(field), field=field) != expected.quantize(Decimal("0.1")):
-                raise MealRecordConfirmationUnavailable("report totals do not match deterministic items")
+            if cls._decimal(totals.get(field), field=field) != expected.quantize(
+                Decimal("0.1")
+            ):
+                raise MealRecordConfirmationUnavailable(
+                    "report totals do not match deterministic items"
+                )
         return {
-            "items": items, "catalog_version": catalog_versions.pop(), "calculation_version": calculation_versions.pop(), **summed,
+            "items": items,
+            "catalog_version": (
+                catalog_versions.pop()
+                if len(catalog_versions) == 1
+                else cls._MIXED_CATALOG_SNAPSHOT_VERSION
+            ),
+            "calculation_version": calculation_versions.pop(),
+            **summed,
         }
