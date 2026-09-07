@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse, Response
@@ -34,8 +35,23 @@ from app.admin.schemas import (
     CatalogPublicationResponse,
     RuntimeConfigCommand,
     RuntimeConfigResponse,
+    RecipeCandidateBulkCommand,
+    RecipeCandidateCsvPreview,
+    RecipeCandidateImportCommand,
+    RecipeCandidateImportResponse,
+    RecipeCandidateListQuery,
+    RecipeCandidateListResponse,
 )
-from app.admin.service import AdminAuditCursorInvalid, AdminPermissionDenied, AdminRunCursorInvalid, AdminService, CatalogDraftConflict, RuntimeConfigConflict
+from app.admin.service import (
+    AdminAuditCursorInvalid,
+    AdminPermissionDenied,
+    AdminRunCursorInvalid,
+    AdminService,
+    CatalogDraftConflict,
+    RecipeCandidateConflict,
+    RuntimeConfigConflict,
+)
+from app.admin.recipe_csv import RecipeCandidateCsvInvalid
 from app.auth.api import AuthenticatedPrincipal
 from app.auth.models import UserRole
 from app.core.database import get_session
@@ -45,7 +61,9 @@ from fastapi import Request
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
-def get_admin_service(request: Request, session: Session = Depends(get_session)) -> AdminService:
+def get_admin_service(
+    request: Request, session: Session = Depends(get_session)
+) -> AdminService:
     """Bind the request transaction without allowing routes to touch ORM models."""
 
     return AdminService(
@@ -70,22 +88,36 @@ def probe(
     return AdminProbeResponse()
 
 
-@router.post("/runtime-config", response_model=RuntimeConfigResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/runtime-config",
+    response_model=RuntimeConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def configure_runtime(
     command: RuntimeConfigCommand,
     principal: AuthenticatedPrincipal,
     if_match: int = Header(alias="If-Match", ge=0),
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> RuntimeConfigResponse | JSONResponse:
     """Create an immutable future-only policy version after fresh DB RBAC."""
 
     try:
-        return admin_service.configure_runtime(actor_user_id=principal, command=command, command_key=idempotency_key, expected_version=if_match)
+        return admin_service.configure_runtime(
+            actor_user_id=principal,
+            command=command,
+            command_key=idempotency_key,
+            expected_version=if_match,
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except RuntimeConfigConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="runtime config command conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="runtime config command conflict",
+        ) from error
 
 
 @router.get("/runtime-config", response_model=RuntimeConfigResponse)
@@ -100,7 +132,9 @@ def read_runtime_config(
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="runtime config not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="runtime config not found"
+        ) from error
 
 
 @router.get("/audit", response_model=AdminAuditPageResponse)
@@ -119,7 +153,10 @@ def list_audit(
     except AdminPermissionDenied:
         return _forbidden()
     except AdminAuditCursorInvalid as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid audit cursor") from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="invalid audit cursor",
+        ) from error
 
 
 @router.get("/runs/metrics", response_model=AdminRunMetricsResponse)
@@ -131,7 +168,9 @@ def run_metrics(
     """Use the same validated terminal filters as the runs keyset endpoint."""
 
     try:
-        return admin_service.get_run_metrics(actor_user_id=principal, **query.model_dump(exclude={"limit", "cursor"}))
+        return admin_service.get_run_metrics(
+            actor_user_id=principal, **query.model_dump(exclude={"limit", "cursor"})
+        )
     except AdminPermissionDenied:
         return _forbidden()
 
@@ -148,7 +187,10 @@ def list_runs(
     except AdminPermissionDenied:
         return _forbidden()
     except AdminRunCursorInvalid as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid run cursor") from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="invalid run cursor",
+        ) from error
 
 
 @router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)
@@ -162,7 +204,9 @@ def get_run(
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="agent run not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="agent run not found"
+        ) from error
 
 
 @router.get("/catalog-drafts", response_model=CatalogListResponse)
@@ -177,16 +221,153 @@ def list_catalog_drafts(
         return _forbidden()
 
 
+@router.get("/recipe-candidates", response_model=RecipeCandidateListResponse)
+def list_recipe_candidates(
+    principal: AuthenticatedPrincipal,
+    query: RecipeCandidateListQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> RecipeCandidateListResponse | JSONResponse:
+    try:
+        return admin_service.list_recipe_candidates(
+            actor_user_id=principal, query=query
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/recipe-candidates/template")
+def recipe_candidate_template(
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> Response:
+    try:
+        return Response(
+            admin_service.recipe_candidate_csv_template(actor_user_id=principal),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="recipe-candidates-template.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/recipe-candidates/export")
+def export_recipe_candidates(
+    principal: AuthenticatedPrincipal,
+    query: RecipeCandidateListQuery = Query(),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> Response:
+    try:
+        return Response(
+            admin_service.export_recipe_candidate_csv(
+                actor_user_id=principal, query=query
+            ),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="recipe-candidates.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except RecipeCandidateCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post(
+    "/recipe-candidates/import-preview", response_model=RecipeCandidateCsvPreview
+)
+def preview_recipe_candidates(
+    command: CatalogCsvInput,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> RecipeCandidateCsvPreview | JSONResponse:
+    try:
+        return admin_service.preview_recipe_candidate_csv(
+            actor_user_id=principal, csv_text=command.csv_text
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except RecipeCandidateCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post(
+    "/recipe-candidates/import",
+    response_model=RecipeCandidateImportResponse,
+    status_code=201,
+)
+def import_recipe_candidates(
+    command: RecipeCandidateImportCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> RecipeCandidateImportResponse | JSONResponse:
+    try:
+        return admin_service.import_recipe_candidates(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except RecipeCandidateCsvInvalid as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except RecipeCandidateConflict as error:
+        raise HTTPException(
+            status_code=409, detail="recipe candidate import conflict"
+        ) from error
+
+
+@router.post("/recipe-candidates/{operation}")
+def change_recipe_candidate_status(
+    operation: Literal["enable", "disable", "delete"],
+    command: RecipeCandidateBulkCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
+    admin_service: AdminService = Depends(get_admin_service),
+):
+    try:
+        return admin_service.change_recipe_candidate_status(
+            actor_user_id=principal,
+            command=command,
+            status={"enable": "enabled", "disable": "disabled", "delete": "deleted"}[
+                operation
+            ],
+            command_key=idempotency_key,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404, detail="recipe candidate not found"
+        ) from error
+    except RecipeCandidateConflict as error:
+        raise HTTPException(
+            status_code=409, detail="recipe candidate command conflict"
+        ) from error
+
+
 @router.get("/catalog-drafts/export")
 def export_catalog_csv(
-    principal: AuthenticatedPrincipal, query: CatalogListQuery = Query(),
+    principal: AuthenticatedPrincipal,
+    query: CatalogListQuery = Query(),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> Response:
     try:
         content = admin_service.export_catalog_csv(actor_user_id=principal, query=query)
-        return Response(content, media_type="text/csv; charset=utf-8", headers={
-            "Content-Disposition": 'attachment; filename="nutrition-catalog.csv"', "Cache-Control": "no-store",
-        })
+        return Response(
+            content,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="nutrition-catalog.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except CatalogCsvInvalid as error:
@@ -195,57 +376,87 @@ def export_catalog_csv(
 
 @router.get("/catalog-drafts/template")
 def catalog_csv_template(
-    principal: AuthenticatedPrincipal, admin_service: AdminService = Depends(get_admin_service),
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
 ) -> Response:
     try:
-        return Response(admin_service.catalog_csv_template(actor_user_id=principal), media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": 'attachment; filename="nutrition-catalog-template.csv"', "Cache-Control": "no-store"})
+        return Response(
+            admin_service.catalog_csv_template(actor_user_id=principal),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="nutrition-catalog-template.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
     except AdminPermissionDenied:
         return _forbidden()
 
 
 @router.post("/catalog-drafts/import-preview", response_model=CatalogCsvPreview)
 def preview_catalog_csv(
-    command: CatalogCsvInput, principal: AuthenticatedPrincipal,
+    command: CatalogCsvInput,
+    principal: AuthenticatedPrincipal,
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogCsvPreview | JSONResponse:
     try:
-        return admin_service.preview_catalog_csv(actor_user_id=principal, csv_text=command.csv_text)
+        return admin_service.preview_catalog_csv(
+            actor_user_id=principal, csv_text=command.csv_text
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except CatalogCsvInvalid as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-@router.post("/catalog-drafts/import", response_model=CatalogCsvImportResponse, status_code=201)
+@router.post(
+    "/catalog-drafts/import", response_model=CatalogCsvImportResponse, status_code=201
+)
 def import_catalog_csv(
-    command: CatalogCsvImportCommand, principal: AuthenticatedPrincipal,
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    command: CatalogCsvImportCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogCsvImportResponse | JSONResponse:
     try:
-        return admin_service.import_catalog_csv(actor_user_id=principal, command=command, command_key=idempotency_key)
+        return admin_service.import_catalog_csv(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except CatalogCsvInvalid as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=409, detail="catalog import conflict") from error
+        raise HTTPException(
+            status_code=409, detail="catalog import conflict"
+        ) from error
 
 
-@router.post("/catalog-drafts", response_model=CatalogDraftResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/catalog-drafts",
+    response_model=CatalogDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_catalog_draft(
     command: CatalogDraftCreateCommand,
     principal: AuthenticatedPrincipal,
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogDraftResponse | JSONResponse:
     try:
-        return admin_service.create_catalog_draft(actor_user_id=principal, command=command, command_key=idempotency_key)
+        return admin_service.create_catalog_draft(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="catalog draft command conflict",
+        ) from error
 
 
 @router.post("/catalog-drafts/preview", response_model=CatalogDraftPreviewResponse)
@@ -257,13 +468,20 @@ def preview_catalog_draft(
     """Preview an allowlisted database-derived diff without mutating a draft."""
 
     try:
-        return admin_service.preview_catalog_draft(actor_user_id=principal, command=command)
+        return admin_service.preview_catalog_draft(
+            actor_user_id=principal, command=command
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft preview conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="catalog draft preview conflict",
+        ) from error
 
 
 @router.get("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)
@@ -275,14 +493,21 @@ def read_catalog_draft(
     """Read the current safe draft projection after current database RBAC."""
 
     try:
-        return admin_service.read_catalog_draft(actor_user_id=principal, draft_id=draft_id)
+        return admin_service.read_catalog_draft(
+            actor_user_id=principal, draft_id=draft_id
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
 
 
-@router.get("/catalog-drafts/{draft_id}/lifecycle-preview", response_model=CatalogLifecyclePreviewResponse)
+@router.get(
+    "/catalog-drafts/{draft_id}/lifecycle-preview",
+    response_model=CatalogLifecyclePreviewResponse,
+)
 def preview_catalog_lifecycle(
     draft_id: uuid.UUID,
     principal: AuthenticatedPrincipal,
@@ -291,13 +516,20 @@ def preview_catalog_lifecycle(
     """Return server-derived confirmation evidence without changing lifecycle state."""
 
     try:
-        return admin_service.preview_catalog_lifecycle(actor_user_id=principal, draft_id=draft_id)
+        return admin_service.preview_catalog_lifecycle(
+            actor_user_id=principal, draft_id=draft_id
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle preview conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="catalog lifecycle preview conflict",
+        ) from error
 
 
 @router.patch("/catalog-drafts/{draft_id}", response_model=CatalogDraftResponse)
@@ -306,74 +538,125 @@ def patch_catalog_draft(
     command: CatalogDraftPatchCommand,
     principal: AuthenticatedPrincipal,
     if_match: int = Header(alias="If-Match", ge=1),
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogDraftResponse | JSONResponse:
     try:
         return admin_service.patch_catalog_draft(
-            actor_user_id=principal, draft_id=draft_id, expected_revision=if_match,
-            command=command, command_key=idempotency_key,
+            actor_user_id=principal,
+            draft_id=draft_id,
+            expected_revision=if_match,
+            command=command,
+            command_key=idempotency_key,
         )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog draft command conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="catalog draft command conflict",
+        ) from error
 
 
-@router.post("/catalog-drafts/{draft_id}/review", response_model=CatalogPublicationResponse)
+@router.post(
+    "/catalog-drafts/{draft_id}/review", response_model=CatalogPublicationResponse
+)
 def review_catalog_draft(
     draft_id: uuid.UUID,
     command: CatalogLifecycleCommand,
     principal: AuthenticatedPrincipal,
     if_match: int = Header(alias="If-Match", ge=1),
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogPublicationResponse | JSONResponse:
     try:
-        return admin_service.review_catalog_draft(actor_user_id=principal, draft_id=draft_id, expected_revision=if_match, command=command, command_key=idempotency_key)
+        return admin_service.review_catalog_draft(
+            actor_user_id=principal,
+            draft_id=draft_id,
+            expected_revision=if_match,
+            command=command,
+            command_key=idempotency_key,
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict"
+        ) from error
 
 
-@router.post("/catalog-drafts/{draft_id}/publish", response_model=CatalogPublicationResponse)
+@router.post(
+    "/catalog-drafts/{draft_id}/publish", response_model=CatalogPublicationResponse
+)
 def publish_catalog_draft(
     draft_id: uuid.UUID,
     command: CatalogLifecycleCommand,
     principal: AuthenticatedPrincipal,
     if_match: int = Header(alias="If-Match", ge=1),
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogPublicationResponse | JSONResponse:
     try:
-        return admin_service.publish_catalog_draft(actor_user_id=principal, draft_id=draft_id, expected_revision=if_match, command=command, command_key=idempotency_key)
+        return admin_service.publish_catalog_draft(
+            actor_user_id=principal,
+            draft_id=draft_id,
+            expected_revision=if_match,
+            command=command,
+            command_key=idempotency_key,
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="catalog draft not found"
+        ) from error
     except CatalogDraftConflict as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict") from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="catalog lifecycle conflict"
+        ) from error
 
 
-@router.post("/catalog-publications/{publication_id}/disqualifications", response_model=CatalogPublicationResponse)
+@router.post(
+    "/catalog-publications/{publication_id}/disqualifications",
+    response_model=CatalogPublicationResponse,
+)
 def disqualify_catalog_publication(
     publication_id: uuid.UUID,
     command: CatalogLifecycleCommand,
     principal: AuthenticatedPrincipal,
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    idempotency_key: str = Header(
+        alias="Idempotency-Key", min_length=16, max_length=160
+    ),
     admin_service: AdminService = Depends(get_admin_service),
 ) -> CatalogPublicationResponse | JSONResponse:
     try:
-        return admin_service.disqualify_catalog_publication(actor_user_id=principal, publication_id=publication_id, command=command, command_key=idempotency_key)
+        return admin_service.disqualify_catalog_publication(
+            actor_user_id=principal,
+            publication_id=publication_id,
+            command=command,
+            command_key=idempotency_key,
+        )
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="catalog publication not found",
+        ) from error
 
 
 def _authentication_required() -> JSONResponse:

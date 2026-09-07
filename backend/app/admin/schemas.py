@@ -5,7 +5,14 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 class AdminProbeResponse(BaseModel):
@@ -111,10 +118,14 @@ class _CatalogDraftFields(BaseModel):
 
     canonical_name: str = Field(min_length=1, max_length=200)
     aliases: list[str] = Field(min_length=1, max_length=50)
-    energy_kcal_per_100g: Decimal = Field(ge=0, le=10000, max_digits=14, decimal_places=6)
+    energy_kcal_per_100g: Decimal = Field(
+        ge=0, le=10000, max_digits=14, decimal_places=6
+    )
     protein_g_per_100g: Decimal = Field(ge=0, le=1000, max_digits=14, decimal_places=6)
     fat_g_per_100g: Decimal = Field(ge=0, le=1000, max_digits=14, decimal_places=6)
-    carbohydrate_g_per_100g: Decimal = Field(ge=0, le=1000, max_digits=14, decimal_places=6)
+    carbohydrate_g_per_100g: Decimal = Field(
+        ge=0, le=1000, max_digits=14, decimal_places=6
+    )
     source_name: str = Field(min_length=1, max_length=120)
     source_url: HttpUrl = Field(max_length=500)
     authorization_status: Literal["authorized", "pending", "revoked"]
@@ -131,7 +142,9 @@ class _CatalogDraftFields(BaseModel):
     @classmethod
     def normalize_aliases(cls, aliases: list[str]) -> list[str]:
         normalized = [alias.strip() for alias in aliases]
-        if any(not alias for alias in normalized) or len(set(alias.casefold() for alias in normalized)) != len(normalized):
+        if any(not alias for alias in normalized) or len(
+            set(alias.casefold() for alias in normalized)
+        ) != len(normalized):
             raise ValueError("aliases must be non-empty and unique")
         return normalized
 
@@ -160,10 +173,18 @@ class CatalogDraftPatchCommand(BaseModel):
 
     canonical_name: str | None = Field(default=None, min_length=1, max_length=200)
     aliases: list[str] | None = Field(default=None, min_length=1, max_length=50)
-    energy_kcal_per_100g: Decimal | None = Field(default=None, ge=0, le=10000, max_digits=14, decimal_places=6)
-    protein_g_per_100g: Decimal | None = Field(default=None, ge=0, le=1000, max_digits=14, decimal_places=6)
-    fat_g_per_100g: Decimal | None = Field(default=None, ge=0, le=1000, max_digits=14, decimal_places=6)
-    carbohydrate_g_per_100g: Decimal | None = Field(default=None, ge=0, le=1000, max_digits=14, decimal_places=6)
+    energy_kcal_per_100g: Decimal | None = Field(
+        default=None, ge=0, le=10000, max_digits=14, decimal_places=6
+    )
+    protein_g_per_100g: Decimal | None = Field(
+        default=None, ge=0, le=1000, max_digits=14, decimal_places=6
+    )
+    fat_g_per_100g: Decimal | None = Field(
+        default=None, ge=0, le=1000, max_digits=14, decimal_places=6
+    )
+    carbohydrate_g_per_100g: Decimal | None = Field(
+        default=None, ge=0, le=1000, max_digits=14, decimal_places=6
+    )
     source_name: str | None = Field(default=None, min_length=1, max_length=120)
     source_url: HttpUrl | None = Field(default=None, max_length=500)
     authorization_status: Literal["authorized", "pending", "revoked"] | None = None
@@ -182,12 +203,20 @@ class CatalogDraftPatchCommand(BaseModel):
     @field_validator("aliases")
     @classmethod
     def normalize_patch_aliases(cls, aliases: list[str] | None) -> list[str] | None:
-        return _CatalogDraftFields.normalize_aliases(aliases) if aliases is not None else None
+        return (
+            _CatalogDraftFields.normalize_aliases(aliases)
+            if aliases is not None
+            else None
+        )
 
     @field_validator("source_url")
     @classmethod
     def require_patch_https_source(cls, value: HttpUrl | None) -> HttpUrl | None:
-        return _CatalogDraftFields.require_https_source(value) if value is not None else None
+        return (
+            _CatalogDraftFields.require_https_source(value)
+            if value is not None
+            else None
+        )
 
     @model_validator(mode="after")
     def require_field_change(self) -> "CatalogDraftPatchCommand":
@@ -277,6 +306,110 @@ class CatalogCsvImportResponse(BaseModel):
     draft_ids: list[uuid.UUID]
 
 
+class RecipeCandidateCsvRow(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    catalog_food_name: str = Field(min_length=1, max_length=200)
+    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
+    portion_grams: Decimal = Field(gt=0, le=2000, max_digits=14, decimal_places=6)
+    portion_description: str = Field(min_length=1, max_length=120)
+    method_tags: tuple[str, ...] = Field(min_length=1, max_length=20)
+    flavour_tags: tuple[str, ...] = Field(min_length=1, max_length=20)
+    status: Literal["pending", "disabled"] = "pending"
+
+    @field_validator("catalog_food_name", "portion_description")
+    @classmethod
+    def clean_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be blank")
+        return value
+
+    @field_validator("method_tags", "flavour_tags")
+    @classmethod
+    def clean_tags(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        tags = tuple(tag.strip() for tag in value)
+        if any(not tag for tag in tags):
+            raise ValueError("tags cannot be blank")
+        return tags
+
+
+class RecipeCandidateCsvError(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    row: int
+    field: str
+    message: str
+
+
+class RecipeCandidateCsvPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    total_rows: int
+    valid_rows: int
+    rows: list[RecipeCandidateCsvRow]
+    errors: list[RecipeCandidateCsvError]
+
+
+class RecipeCandidateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    id: uuid.UUID
+    catalog_food_name: str
+    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
+    portion_grams: Decimal
+    portion_description: str
+    method_tags: tuple[str, ...]
+    flavour_tags: tuple[str, ...]
+    status: Literal["pending", "enabled", "disabled"]
+    revision: int = Field(ge=1)
+
+
+class RecipeCandidateListQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+    search: str = Field(default="", max_length=200)
+    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"] | None = None
+    status: Literal["pending", "enabled", "disabled"] | None = None
+    page: int = Field(default=1, ge=1, le=100000)
+    page_size: int = Field(default=20, ge=1, le=100)
+
+
+class RecipeCandidateListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    items: list[RecipeCandidateResponse]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
+class RecipeCandidateImportCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    csv_text: str = Field(min_length=1, max_length=1_048_576)
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def clean_reason(cls, value: str) -> str:
+        return CatalogDraftCreateCommand.normalize_reason(value)
+
+
+class RecipeCandidateImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    imported_count: int
+    candidate_ids: list[uuid.UUID]
+
+
+class RecipeCandidateBulkCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("ids")
+    @classmethod
+    def unique_ids(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("ids must be unique")
+        return value
+
+
 class CatalogDraftPreviewCommand(_CatalogDraftFields):
     """A full candidate evaluated against the database's current draft state.
 
@@ -319,7 +452,12 @@ class CatalogDraftPreviewResponse(BaseModel):
     base_revision: int
     field_diffs: list[CatalogDraftFieldDiff] = Field(min_length=1)
     impact_categories: list[
-        Literal["catalog_identity", "nutrition_per_100g", "source_evidence", "authorization_status"]
+        Literal[
+            "catalog_identity",
+            "nutrition_per_100g",
+            "source_evidence",
+            "authorization_status",
+        ]
     ] = Field(min_length=1)
 
 
@@ -409,7 +547,11 @@ class AdminRunQuery(BaseModel):
 
     @model_validator(mode="after")
     def validate_terminal_window_and_model(self) -> "AdminRunQuery":
-        if self.occurred_after is not None and self.occurred_before is not None and self.occurred_after > self.occurred_before:
+        if (
+            self.occurred_after is not None
+            and self.occurred_before is not None
+            and self.occurred_after > self.occurred_before
+        ):
             raise ValueError("occurred_after must not be after occurred_before")
         if self.model is not None and self.model.count(":") != 1:
             raise ValueError("model must use provider:model_version")
