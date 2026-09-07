@@ -108,6 +108,7 @@ describe('PlanPage', () => {
     expect(screen.getByText('100.0g')).toBeInTheDocument()
     expect(screen.getByText('（80–100g）')).toBeInTheDocument()
     expect(screen.queryByText('查看目标范围与计划值')).not.toBeInTheDocument()
+    expect(screen.queryByText('计划进度')).not.toBeInTheDocument()
     expect(screen.getAllByText('普通饮食参考，不替代医疗建议。')).not.toHaveLength(0)
   })
 
