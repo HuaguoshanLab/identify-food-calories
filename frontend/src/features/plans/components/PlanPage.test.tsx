@@ -91,7 +91,7 @@ describe('PlanPage', () => {
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
-    await screen.findByRole('heading', { name: '今日三餐计划' })
+    await screen.findByRole('heading', { name: '今日饮食计划' })
     const start = request.mock.calls.find(([path]) => path === '/agent/threads/diet-planning')
     expect(JSON.parse(String(start?.[1]?.body))).toMatchObject({
       profile: { height_cm: '170', weight_kg: '65', age_years: 30 },
@@ -132,7 +132,7 @@ describe('PlanPage', () => {
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
     expect(await screen.findByText(/我们不能为你当前描述的情况生成个性化餐单/)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: '今日三餐计划' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '今日饮食计划' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /继续生成/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
   })
@@ -185,7 +185,7 @@ describe('PlanPage', () => {
     await screen.findByText('170 cm')
     await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
-    await screen.findByRole('heading', { name: '今日三餐计划' })
+    await screen.findByRole('heading', { name: '今日饮食计划' })
     await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换清淡一些，provider 不应显示')
     const submitButton = screen.getByRole('button', { name: '提交调整' })
     submitButton.focus()
