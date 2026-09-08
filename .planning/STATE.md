@@ -273,6 +273,7 @@ Fast修正（2026-09-06，4f85cb1）：移除计划日期/时区说明，重新�
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
+| 260908-kn5 | 后台固定侧栏、二级菜单、面包屑与多标签页改版 | 2026-09-08 | 9a9e8e4 | 58项测试、类型、构建及桌面/375px内置浏览器验证通过 | [后台页面壳](./quick/260908-kn5-admin-layout-redesign/) |
 | 260905-jr2 | 营养目录筛选表格、侧边编辑与 CSV 导入导出 | 2026-09-05 | e4aafc8 | 完成；浏览器交互已验证，下载观测限制见总结 | [目录改造](./quick/260905-jr2-catalog-table-filters-import-export/) |
 | 260905-lfe | 独立重量换算、补充恢复与错误提示 | 2026-09-05 | 4709532 | 定向测试及内置浏览器验证通过 | [重量修复](./quick/260905-lfe-extract-weight-parser-and-fix-meal-clari/) |
 | 260905-n05 | 目录表格审核发布入口与居中弹窗 | 2026-09-05 | 7668209 | 41项测试、隔离E2E及内置浏览器验证通过 | [居中弹窗](./quick/260905-n05-catalog-inline-draft-review-publish-acti/) |
