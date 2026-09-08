@@ -13,4 +13,4 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `index.css` | Tailwind 入口、后台颜色/圆角/间距 token、焦点和 `prefers-reduced-motion` 基线。 |
+| `index.css` | Tailwind 入口、后台浅色内容区与绿色操作色 token、页面壳覆盖、焦点和 `prefers-reduced-motion` 基线。 |

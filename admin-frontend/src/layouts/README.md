@@ -15,6 +15,10 @@
 | 路径 | 职责 |
 | --- | --- |
 | `README.md` | 页面壳职责、允许依赖与文件索引。 |
-| `AdminShell.tsx` | 后台导航、响应式 shell、session menu 和 main landmark；不发领域请求。 |
+| `AdminShell.tsx` | 固定侧栏、顶部区域、响应式抽屉和 main landmark 的装配边界；不发领域请求。 |
+| `AdminHeader.tsx` | 顶部面包屑、全局操作入口与管理员会话菜单。 |
+| `AdminSidebar.tsx` | 深色侧栏、分组二级菜单、折叠态与移动抽屉内容。 |
+| `AdminTabs.tsx` | 跟随路由创建、切换和关闭的页面标签栏。 |
+| `adminNavigation.ts` | 后台菜单、图标和路由展示元数据的单一配置源。 |
 
 后续 `AdminShell`、导航和响应式结构文件必须在这里登记，并同步更新 `src/README.md`。

@@ -31,11 +31,11 @@
   --space-md: 1rem;
   --space-lg: 1.5rem;
   --space-xl: 2rem;
-  --background: oklch(0.985 0.003 264);
+  --background: oklch(0.976 0.004 248);
   --foreground: oklch(0.205 0.026 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.205 0.026 265);
-  --primary: oklch(0.372 0.044 257);
+  --primary: oklch(0.488 0.111 166);
   --primary-foreground: oklch(0.985 0.003 264);
   --muted: oklch(0.952 0.008 264);
   --muted-foreground: oklch(0.446 0.025 266);
@@ -61,6 +61,10 @@ body {
   line-height: 1.5;
 }
 
+#root {
+  min-height: 100dvh;
+}
+
 button,
 input,
 select,
@@ -76,6 +80,10 @@ textarea {
 .admin-runtime-root {
   min-height: 100dvh;
   padding: var(--space-xl);
+}
+
+.admin-shell-root .admin-runtime-root {
+  min-height: auto;
 }
 
 .admin-numeric {

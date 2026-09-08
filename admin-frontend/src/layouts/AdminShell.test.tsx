@@ -25,7 +25,7 @@ describe('AdminShell', () => {
     expect(screen.getByRole('link', { name: '运行审计' })).toHaveAttribute('href', '/admin/runs')
   })
 
-  it('768px Sheet 能以 Escape 关闭并将焦点还给触发器', async () => {
+  it('窄屏抽屉能以 Escape 关闭并将焦点还给触发器', async () => {
     window.innerWidth = 768
     window.dispatchEvent(new Event('resize'))
     const user = userEvent.setup()
@@ -33,19 +33,37 @@ describe('AdminShell', () => {
     const trigger = screen.getByRole('button', { name: '打开导航' })
     await user.click(trigger)
     expect(screen.getByRole('dialog', { name: '后台导航' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '关闭导航' })).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: '后台导航' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
   })
 
-  it('三档断点、200% zoom 与 reduced motion 保持可访问页面根且不横溢', () => {
+  it('移动与桌面断点保持可访问页面根且不横溢', () => {
     for (const width of [768, 1024, 1280]) {
       window.innerWidth = width
       window.dispatchEvent(new Event('resize'))
       const { unmount } = renderShell()
-      expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-navigation', width === 768 ? 'sheet' : width === 1024 ? 'compact' : 'full')
+      expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-navigation', width < 1024 ? 'mobile' : 'desktop')
+      expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-sidebar-collapsed', width === 1024 ? 'true' : 'false')
       expect(screen.getByTestId('admin-shell')).toHaveClass('overflow-x-hidden')
       unmount()
     }
+  })
+
+  it('二级菜单可折叠，并为访问过的页面创建和关闭标签', async () => {
+    window.innerWidth = 1440
+    window.dispatchEvent(new Event('resize'))
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: '内容管理' }))
+    expect(screen.queryByRole('link', { name: '营养目录' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '内容管理' }))
+    await user.click(screen.getByRole('link', { name: '营养目录' }))
+
+    expect(screen.getByRole('tab', { name: '营养目录' })).toHaveAttribute('aria-selected', 'true')
+    await user.click(screen.getByRole('button', { name: '关闭营养目录' }))
+    expect(screen.getByRole('tab', { name: '运行概览' })).toHaveAttribute('aria-selected', 'true')
   })
 })

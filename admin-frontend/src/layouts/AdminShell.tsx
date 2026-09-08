@@ -1,44 +1,35 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import { useAdminAuth } from '@/auth/AdminAuthProvider'
+import { AdminHeader } from './AdminHeader'
+import { AdminSidebar } from './AdminSidebar'
+import { AdminTabs } from './AdminTabs'
+import { adminRouteMeta } from './adminNavigation'
 
-type NavigationKind = 'mobile' | 'sheet' | 'compact' | 'full'
+type NavigationKind = 'mobile' | 'desktop'
 type AdminShellProps = PropsWithChildren<Readonly<{ onLogout?: () => void }>>
 
-const navigation = [
-  { label: '概览', to: '/admin/overview' },
-  { label: '营养目录', to: '/admin/catalog' },
-  { label: '菜谱管理', to: '/admin/recipes' },
-  { label: '运行审计', to: '/admin/runs' },
-  { label: '模型配置', to: '/admin/model-configs' },
-  { label: '操作审计', to: '/admin/audit' },
-] as const
-
 function navigationKind(width: number): NavigationKind {
-  if (width >= 1280) return 'full'
-  if (width >= 1024) return 'compact'
-  if (width >= 768) return 'sheet'
-  return 'mobile'
-}
-
-function Navigation({ onNavigate }: Readonly<{ onNavigate?: () => void }>) {
-  return <nav aria-label="后台导航" className="grid gap-1">
-    {navigation.map((item) => <NavLink className={({ isActive }) => `rounded-md px-3 py-2 text-sm ${isActive ? 'bg-muted font-medium' : ''}`} key={item.to} onClick={onNavigate} to={item.to}>{item.label}</NavLink>)}
-  </nav>
+  return width >= 1024 ? 'desktop' : 'mobile'
 }
 
 export function AdminShell({ children, onLogout }: AdminShellProps) {
   const { accessToken, clearSession } = useAdminAuth()
   const [kind, setKind] = useState<NavigationKind>(() => navigationKind(window.innerWidth))
   const [navigationOpen, setNavigationOpen] = useState(false)
-  const [sessionOpen, setSessionOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 1280)
   const navigationTrigger = useRef<HTMLButtonElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const location = useLocation()
+  const desktop = kind === 'desktop'
 
   useEffect(() => {
-    const onResize = () => setKind(navigationKind(window.innerWidth))
+    const onResize = () => {
+      const nextKind = navigationKind(window.innerWidth)
+      setKind(nextKind)
+      if (nextKind === 'desktop') setNavigationOpen(false)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -55,6 +46,13 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [navigationOpen])
 
+  useEffect(() => {
+    if (!navigationOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = originalOverflow }
+  }, [navigationOpen])
+
   async function logout() {
     const token = accessToken
     clearSession()
@@ -65,14 +63,32 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
     }
   }
 
-  const title = navigation.find((item) => item.to === location.pathname)?.label ?? '管理后台'
-  const sidebarWidth = kind === 'full' ? 'w-[240px]' : 'w-[208px]'
-  return <div data-navigation={kind} data-testid="admin-shell" className="admin-runtime-root grid min-h-dvh overflow-x-hidden bg-background text-foreground lg:grid-cols-[auto_1fr]">
-    <a className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[70] focus:rounded focus:bg-card focus:p-3" href="#admin-main" onClick={() => mainRef.current?.focus()}>跳到主要内容</a>
-    {(kind === 'compact' || kind === 'full') ? <aside className={`${sidebarWidth} border-r bg-card p-4`}><p className="mb-6 text-sm font-semibold">饮食健康后台</p><Navigation /></aside> : null}
-    <div className="min-w-0"><header className="flex min-h-16 items-center justify-between gap-3 border-b bg-card px-4 lg:px-6"><div className="flex items-center gap-3">{kind === 'sheet' ? <button aria-controls="admin-navigation-sheet" aria-expanded={navigationOpen} aria-label="打开导航" className="h-10 rounded-md border px-3" onClick={() => setNavigationOpen(true)} ref={navigationTrigger} type="button">导航</button> : null}<h1 className="text-xl font-semibold">{title}</h1></div><div className="relative"><button aria-expanded={sessionOpen} aria-haspopup="menu" aria-label="打开会话菜单" className="h-10 rounded-md border px-3" onClick={() => setSessionOpen((open) => !open)} type="button">会话</button>{sessionOpen ? <div className="absolute right-0 z-20 mt-2 min-w-36 rounded-md border bg-card p-1 shadow" role="menu"><button className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => void logout()} role="menuitem" type="button">退出登录</button></div> : null}</div></header>
-      {kind === 'mobile' ? <section className="border-b bg-muted px-4 py-3 text-sm" aria-label="窄屏后台说明">请在至少 768px 宽度的设备上使用完整后台导航。你仍可安全退出当前会话。</section> : null}
-      {kind === 'sheet' && navigationOpen ? <div className="fixed inset-0 z-50 bg-foreground/20" onMouseDown={() => { setNavigationOpen(false); navigationTrigger.current?.focus() }}><aside aria-label="后台导航" aria-modal="true" className="h-full w-[min(20rem,85vw)] border-r bg-card p-4 shadow-xl" id="admin-navigation-sheet" onMouseDown={(event) => event.stopPropagation()} role="dialog" tabIndex={-1}><div className="mb-6 flex items-center justify-between"><p className="font-semibold">后台导航</p><button aria-label="关闭导航" className="h-10 rounded-md border px-3" onClick={() => { setNavigationOpen(false); navigationTrigger.current?.focus() }} type="button">关闭</button></div><Navigation onNavigate={() => setNavigationOpen(false)} /></aside></div> : null}
+  const collapsed = desktop && sidebarCollapsed
+  const sidebarWidth = collapsed ? 'lg:pl-[76px]' : 'lg:pl-[248px]'
+  const closeNavigation = () => {
+    setNavigationOpen(false)
+    navigationTrigger.current?.focus()
+  }
+
+  return <div data-navigation={kind} data-sidebar-collapsed={collapsed} data-testid="admin-shell" className="admin-shell-root min-h-dvh overflow-x-hidden bg-slate-50 text-foreground">
+    <a className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-white focus:p-3 focus:shadow-lg" href="#admin-main" onClick={() => mainRef.current?.focus()}>跳到主要内容</a>
+
+    {desktop ? <div className={`fixed inset-y-0 left-0 z-40 transition-[width] duration-200 ${collapsed ? 'w-[76px]' : 'w-[248px]'}`}><AdminSidebar collapsed={collapsed} onCollapse={() => setSidebarCollapsed(true)} /></div> : null}
+
+    {!desktop && navigationOpen ? <div className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-[2px]" onMouseDown={closeNavigation}>
+      <div aria-label="后台导航" aria-modal="true" className="h-full w-[min(280px,86vw)] shadow-2xl" id="admin-navigation-drawer" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+        <AdminSidebar drawer onClose={closeNavigation} onNavigate={() => setNavigationOpen(false)} />
+      </div>
+    </div> : null}
+
+    <div className={`min-w-0 transition-[padding] duration-200 ${sidebarWidth}`}>
+      <div className="sticky top-0 z-30">
+        <AdminHeader breadcrumbs={adminRouteMeta(location.pathname).breadcrumbs} collapsed={collapsed} desktop={desktop} navigationTriggerRef={navigationTrigger} onLogout={() => void logout()} onNavigationToggle={() => {
+          if (desktop) setSidebarCollapsed((value) => !value)
+          else setNavigationOpen(true)
+        }} />
+        <AdminTabs />
+      </div>
       <main id="admin-main" ref={mainRef} tabIndex={-1} className="min-w-0">{children ?? <Outlet />}</main>
     </div>
   </div>
