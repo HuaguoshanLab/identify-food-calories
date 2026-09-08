@@ -21,7 +21,7 @@ class PlanningRepository(Protocol):
     ) -> list[ControlledRecipe]: ...
 
     def list_managed_recipe_candidates(
-        self, *, catalog_version: str
+        self, *, catalog_version: str | None
     ) -> list[ManagedRecipeCandidate]: ...
 
 

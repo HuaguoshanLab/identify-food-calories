@@ -17,6 +17,8 @@ from app.planning.schemas import (
     ActivityLevel,
     ControlledRecipe,
     ControlledRecipeIngredient,
+    ManagedRecipeCandidate,
+    ManagedRecipeCandidateStatus,
     DailyTarget,
     MealSlot,
     REQUIRED_MEAL_SLOTS,
@@ -38,15 +40,21 @@ from app.nutrition.service import NutritionService
 class FakePlanningRepository:
     """Records recipe access so health guards prove they run before retrieval."""
 
-    def __init__(self, recipes: list[ControlledRecipe] | None = None) -> None:
+    def __init__(self, recipes: list[ControlledRecipe] | None = None, candidates: list[ManagedRecipeCandidate] | None = None) -> None:
         self.recipe_search_calls = 0
         self.recipes = recipes or []
+        self.candidates = candidates or []
 
     def list_controlled_recipes(
         self, *, catalog_version: str, recipe_version: str
     ) -> list[ControlledRecipe]:
         self.recipe_search_calls += 1
         return [recipe for recipe in self.recipes if recipe.recipe_version == recipe_version]
+
+    def list_managed_recipe_candidates(
+        self, *, catalog_version: str | None
+    ) -> list[ManagedRecipeCandidate]:
+        return [candidate for candidate in self.candidates if catalog_version is None or candidate.catalog_version == catalog_version]
 
 
 class FakeNutritionPort:
@@ -153,6 +161,15 @@ def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> Cont
         source_reference="backend/app/planning/data/controlled-recipes.v1.json",
         audited_at=datetime(2026, 9, 1, tzinfo=UTC),
         audit_version="recipe-audit.v1",
+    )
+
+
+def managed_candidate(*, slot: MealSlot, food: QualifiedFood) -> ManagedRecipeCandidate:
+    return ManagedRecipeCandidate(
+        id=uuid.uuid4(), food_catalog_item_id=food.id, catalog_version=food.catalog_version,
+        display_name=food.canonical_name, meal_slot=slot, portion_grams=Decimal("180"),
+        portion_description="一盘", method_tags=("炒",), flavour_tags=("家常",),
+        status=ManagedRecipeCandidateStatus.ENABLED, revision=1,
     )
 
 
@@ -375,6 +392,19 @@ def test_composition_never_reuses_a_multi_slot_recipe() -> None:
 
     assert result.action is PlanValidationAction.REPLAN
     assert result.meals == ()
+
+
+def test_managed_candidates_are_used_without_a_hard_coded_catalog_version() -> None:
+    foods = [qualified_food(name=f"候选{slot.value}", energy="200") for slot in REQUIRED_MEAL_SLOTS]
+    candidates = [managed_candidate(slot=slot, food=food) for slot, food in zip(REQUIRED_MEAL_SLOTS, foods, strict=True)]
+
+    result = PlanningService(
+        repository=FakePlanningRepository(candidates=candidates),
+        nutrition_port=RecipeNutritionPort(foods),
+    ).compose_daily_meals(catalog_version=None, preferences=confirmed_preferences())
+
+    assert result.action is PlanValidationAction.PASS
+    assert [meal.display_name for meal in result.meals] == [food.canonical_name for food in foods]
 
 
 def test_public_dtos_are_frozen_and_reject_unknown_fields() -> None:

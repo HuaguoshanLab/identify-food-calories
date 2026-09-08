@@ -255,11 +255,12 @@ class SessionNutritionToolAdapter:
     def compose_daily_plan(
         self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
     ) -> MealCompositionResult:
-        # The controlled-recipe seed is versioned and the graph never chooses a catalog itself.
+        # Managed candidates carry their catalog version.  Do not pin the planner to a seed
+        # catalog, or newly imported admin candidates can never enter a meal plan.
         session, service = self._planning_service()
         try:
             return service.compose_daily_meals(
-                catalog_version="foundation-foods-2026-08-rice-fist-v1",
+                catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
             )
@@ -283,7 +284,7 @@ class SessionNutritionToolAdapter:
             if current is None:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="请选择早餐、午餐或晚餐。")
             replacement_plan = service.compose_daily_meals(
-                catalog_version="foundation-foods-2026-08-rice-fist-v1",
+                catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
                 exclude_recipe_ids=(current.recipe_id,),

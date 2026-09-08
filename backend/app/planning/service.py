@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -208,7 +209,7 @@ class PlanningService:
     def compose_daily_meals(
         self,
         *,
-        catalog_version: str,
+        catalog_version: str | None,
         preferences: PreferenceReview,
         recipe_version: str = CONTROLLED_RECIPE_VERSION,
         exclude_recipe_ids: tuple[uuid.UUID, ...] = (),
@@ -223,6 +224,11 @@ class PlanningService:
         candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
         if candidates:
             return self._compose_managed_candidates(candidates, preferences, exclude_recipe_ids)
+        if catalog_version is None:
+            return MealCompositionResult(
+                action=PlanValidationAction.REPLAN,
+                safe_message="没有可用于餐单的已启用候选菜。请先在菜谱管理中启用合格候选菜。",
+            )
         recipes = self._repository.list_controlled_recipes(
             catalog_version=catalog_version, recipe_version=recipe_version
         )
@@ -264,7 +270,11 @@ class PlanningService:
     def _compose_managed_candidates(self, candidates, preferences: PreferenceReview, exclude_recipe_ids: tuple[uuid.UUID, ...]) -> MealCompositionResult:
         meals: list[PlannedMeal] = []
         for slot in REQUIRED_MEAL_SLOTS:
+            # Candidate ordering must not become an accidental permanent menu.  Nutrition
+            # calculation remains deterministic; only equally eligible dish choice rotates.
             options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals}), key=lambda candidate: str(candidate.id))
+            if len(options) > 1:
+                options = [options.pop(secrets.randbelow(len(options))) for _ in range(len(options))]
             meal = next((built for candidate in options if (built := self._build_managed_meal(candidate, preferences)) is not None), None)
             if meal is None:
                 return MealCompositionResult(action=PlanValidationAction.REPLAN, safe_message="没有满足目录资格和三餐槽位的已启用候选菜。")
