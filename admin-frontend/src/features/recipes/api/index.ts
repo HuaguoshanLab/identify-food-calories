@@ -24,12 +24,16 @@ export type RecipeCandidateCsvPreview = z.infer<typeof previewSchema>
 export type RecipeCandidateOperation = 'enable' | 'disable' | 'delete'
 
 export class RecipeCandidateApiError extends Error {
-  constructor(readonly status: number) { super(`recipe candidate request failed: ${status}`) }
+  constructor(readonly status: number, readonly detail?: string) { super(`recipe candidate request failed: ${status}`) }
 }
 
 async function request(input: string, init: RequestInit) {
   const response = await fetch(input, init)
-  if (!response.ok) throw new RecipeCandidateApiError(response.status)
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => undefined)
+    const detail = body && typeof body === 'object' && 'detail' in body && typeof body.detail === 'string' ? body.detail : undefined
+    throw new RecipeCandidateApiError(response.status, detail)
+  }
   return response
 }
 

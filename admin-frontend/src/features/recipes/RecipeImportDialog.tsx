@@ -36,7 +36,13 @@ export function RecipeImportDialog({ accessToken, onClose, onSuccess, onSecurity
     setBusy(true); setError('')
     try { const result = await importRecipeCandidates(accessToken, csvText, reason.trim(), commandKey.current); onSuccess(result.imported_count) }
     catch (requestError) {
-      if (!onSecurityError(requestError)) setError(requestError instanceof RecipeCandidateApiError && requestError.status === 409 ? '导入请求冲突，请重新选择文件并核对。' : '导入结果未确认；使用相同文件和原因重试不会重复新增。')
+      if (!onSecurityError(requestError)) setError(
+        requestError instanceof RecipeCandidateApiError && requestError.status === 409
+          ? '导入请求冲突，请重新选择文件并核对。'
+          : requestError instanceof RecipeCandidateApiError && requestError.detail
+            ? requestError.detail
+            : '导入结果未确认；使用相同文件和原因重试不会重复新增。',
+      )
     } finally { setBusy(false) }
   }
 

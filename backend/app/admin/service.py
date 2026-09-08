@@ -566,13 +566,14 @@ class AdminService:
         now = self._now()
         ids: list[uuid.UUID] = []
         try:
-            for row in preview.rows:
+            for row_number, row in enumerate(preview.rows, start=2):
                 foods = self._repository.resolve_qualified_food_by_name(
                     row.catalog_food_name
                 )
                 if len(foods) != 1:
                     raise RecipeCandidateCsvInvalid(
-                        "目录菜品必须唯一且当前合格，无法自动创建或猜测关联。"
+                        f"第 {row_number} 行“{row.catalog_food_name}”在当前合格目录中"
+                        "不存在或营养值不一致，无法自动创建或猜测关联。"
                     )
                 food = foods[0]
                 candidate = ManagedRecipeCandidate(

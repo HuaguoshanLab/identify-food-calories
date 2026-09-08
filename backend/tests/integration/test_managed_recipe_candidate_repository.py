@@ -14,6 +14,7 @@ from app.admin.models import (
     CatalogPublication,
     CatalogPublicationEligibility,
 )
+from app.admin.repository import SqlAlchemyAdminRepository
 from app.planning.models import ManagedRecipeCandidate
 from app.planning.repository import SqlAlchemyPlanningProfileRepository
 
@@ -45,11 +46,11 @@ def _candidate(item: FoodCatalogItem, *, status: str = "enabled", deleted_at=Non
     )
 
 
-def _published_candidate(db_session) -> ManagedRecipeCandidate:
+def _published_candidate(db_session, *, canonical_name: str | None = None) -> ManagedRecipeCandidate:
     now = datetime.now(UTC)
     suffix = uuid.uuid4().hex
     draft = CatalogDraft(
-        id=uuid.uuid4(), canonical_name=f"后台发布目录菜-{suffix}", aliases=[f"发布别名-{suffix}"],
+        id=uuid.uuid4(), canonical_name=canonical_name or f"后台发布目录菜-{suffix}", aliases=[f"发布别名-{suffix}"],
         energy_kcal_per_100g=Decimal("130"), protein_g_per_100g=Decimal("12"),
         fat_g_per_100g=Decimal("7"), carbohydrate_g_per_100g=Decimal("15"),
         source_name="test", source_url=f"https://example.test/{suffix}",
@@ -120,3 +121,15 @@ def test_repository_only_returns_enabled_candidates_linked_to_current_qualified_
         (qualified.id, "managed-test.v1"),
         (published.catalog_publication_id, "admin-publication-v1"),
     ]
+
+
+def test_admin_lookup_collapses_exact_duplicate_published_nutrition_records(db_session) -> None:
+    first = _published_candidate(db_session, canonical_name="重复发布菜")
+    second = _published_candidate(db_session, canonical_name="重复发布菜")
+
+    resolved = SqlAlchemyAdminRepository(db_session).resolve_qualified_food_by_name("重复发布菜")
+
+    assert len(resolved) == 1
+    assert resolved[0].id == min(
+        first.catalog_publication_id, second.catalog_publication_id, key=str
+    )

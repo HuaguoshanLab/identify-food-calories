@@ -506,6 +506,35 @@ class SqlAlchemyAdminRepository:
                 CatalogPublication.snapshot["canonical_name"].as_string() == canonical_name,
             )
         ).all()
+        published_by_fingerprint: dict[
+            tuple[str, str, str, str], QualifiedRecipeFoodReference
+        ] = {}
+        for publication in published:
+            snapshot = publication.snapshot
+            # A CSV candidate can only name a dish, not a publication UUID.  Re-importing
+            # the exact same released record therefore must not turn a safe lookup into
+            # a false ambiguity.  A candidate's calculation uses these four values;
+            # any difference between them remains an ambiguity and is rejected by the
+            # service.  The chosen publication ID preserves the exact source record.
+            fingerprint = tuple(
+                str(snapshot.get(field, ""))
+                for field in (
+                    "energy_kcal_per_100g",
+                    "protein_g_per_100g",
+                    "fat_g_per_100g",
+                    "carbohydrate_g_per_100g",
+                )
+            )
+            reference = QualifiedRecipeFoodReference(
+                id=publication.id,
+                source_kind="catalog_publication",
+                canonical_name=str(snapshot["canonical_name"]),
+                nutrition_catalog_version="admin-publication-v1",
+            )
+            existing = published_by_fingerprint.get(fingerprint)
+            if existing is None or str(reference.id) < str(existing.id):
+                published_by_fingerprint[fingerprint] = reference
+
         return [
             *(
                 QualifiedRecipeFoodReference(
@@ -516,15 +545,7 @@ class SqlAlchemyAdminRepository:
                 )
                 for item_id, name, version in imported
             ),
-            *(
-                QualifiedRecipeFoodReference(
-                    id=publication.id,
-                    source_kind="catalog_publication",
-                    canonical_name=str(publication.snapshot["canonical_name"]),
-                    nutrition_catalog_version="admin-publication-v1",
-                )
-                for publication in published
-            ),
+            *sorted(published_by_fingerprint.values(), key=lambda item: str(item.id)),
         ]
 
     def add_recipe_candidate(
