@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 06.2 context gathered
-last_updated: "2026-09-08T09:14:29.577Z"
-last_activity: 2026-09-08 — 后台候选管理、已发布目录关联、候选轮换、按需加餐、浏览器 E2E 与教学文档完成
+stopped_at: Phase 06.2 complete
+last_updated: "2026-09-08T09:59:40.000Z"
+last_activity: 2026-09-08 — 系统管理导航、管理员升降权、固定角色说明、审计与跨栈验收完成
 progress:
   total_phases: 10
-  completed_phases: 8
-  total_plans: 106
-  completed_plans: 106
-  percent: 80
+  completed_phases: 9
+  total_plans: 108
+  completed_plans: 108
+  percent: 90
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06.2
-Plan: 05 complete
+Plan: 02 complete
 Status: Complete
-Last activity: 2026-09-08 — 后台候选管理、已发布目录关联、候选轮换、按需加餐、浏览器 E2E 与教学文档完成
+Last activity: 2026-09-08 — 系统管理导航、管理员升降权、固定角色说明、审计与跨栈验收完成
 
 Progress: [██████████] 100%
 
@@ -109,12 +109,15 @@ Progress: [██████████] 100%
 ### Roadmap Evolution
 
 - Phase 06.1 inserted after Phase 6: 菜谱管理与餐单候选池 (URGENT)
+- Phase 06.2 edited: filled goal, requirements, and success criteria from approved context
+- Phase 06.2 completed: system management navigation, audited role governance, and browser verification
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 06.2]: 固定 `user/admin` 两角色；角色页只读。降权保留普通用户会话，但数据库实时 RBAC 立即拒绝后台请求。
 - [Phase 1]: 正式架构为 React + TypeScript + Vite 前端与 FastAPI + SQLAlchemy 2 + Alembic 后端。
 - [Phase 1]: PostgreSQL 持久化受控菜品、匿名结构化分析和用户修正；原图不长期保存。
 - [All phases]: 采用垂直 MVP，不引入微服务、消息队列或未被真实数据证明必要的异步基础设施。
@@ -328,9 +331,6 @@ Phase 7 按用户要求暂不启动；本次计划存档已完成。
 
 ## Session Continuity
 
-Last session: 2026-09-08T09:14:29.566Z
-Stopped at: Phase 06.2 context gathered
-Resume file: .planning/phases/06.2-system-admin/06.2-CONTEXT.md
-.311Z
-Stopped at: Phase 06.1 complete
-Resume file: .planning/phases/06.1-/06.1-05-SUMMARY.md
+Last session: 2026-09-08T09:59:40.000Z
+Stopped at: Phase 06.2 complete
+Resume file: .planning/phases/06.2-system-admin/06.2-VERIFICATION.md
