@@ -81,7 +81,3 @@ npm run typecheck && npm run build
 ## 实施顺序
 
 实施从已批准的 [Phase 6 计划](../.planning/phases/06-user-dashboard-admin/) 开始。先建立锁定的 Vite 供应链与独立入口，再创建认证壳、严格 API 客户端和各功能模块；不得跳过计划直接手写后台页面。
-
-管理员账号
-083100@qq.com
-admin

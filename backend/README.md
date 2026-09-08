@@ -18,6 +18,7 @@ cp .env.example .env
 uv python install 3.12
 uv sync --extra dev --locked
 uv run alembic upgrade head
+uv run python scripts/bootstrap_local_admin.py
 uv run python scripts/bootstrap_local_planning_data.py
 uv run python scripts/setup_local_checkpointer.py
 uv run uvicorn app.main:app --reload
@@ -27,7 +28,7 @@ uv run uvicorn app.main:app --reload
 
 `.env.example` 现在是可直接运行的本地最小配置：复制后只需在 `DEEPSEEK_API_KEY=` 后粘贴自己的 Key。它已固定项目支持的 `deepseek-v4-flash` 和成本快照；本地邮件继续由 Mailpit 接收，图片识别与长期记忆默认使用离线 Fake Provider。真实 Qwen 图片识别、Mem0 与生产环境不是“一把 Key”就能安全开启的功能，必须按各自 Provider 的部署契约显式配置。
 
-`bootstrap_local_planning_data.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等导入受控食材与三餐种子；它不会 reset 数据库或写入用户资料。缺少这一步时，饮食规划没有合格候选，不能生成餐单。`setup_local_checkpointer.py` 只会在同一受保护的本地范围内幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
+`bootstrap_local_admin.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等创建 `admin@admin.com` 管理员，并保留角色审计记录。它要求在每台电脑未提交的 `backend/.env` 设置 `LOCAL_BOOTSTRAP_ADMIN_PASSWORD`；仓库和 `.env.example` 不保存密码。`bootstrap_local_planning_data.py` 只会在同一受保护范围内幂等导入受控食材与三餐种子；它不会 reset 数据库或写入用户资料。缺少这一步时，饮食规划没有合格候选，不能生成餐单。`setup_local_checkpointer.py` 只会在同一受保护的本地范围内幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
 
 健康检查位于 `GET /api/v1/health`。从仓库根目录启动数据库和 Mailpit：
 

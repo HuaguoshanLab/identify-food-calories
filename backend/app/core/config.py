@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     smtp_from_email: str | None = "noreply@local.test"
     smtp_username: str | None = None
     smtp_password: SecretStr | None = None
+    # Deliberately local-only: the password comes from the ignored .env file, never source.
+    local_bootstrap_admin_password: SecretStr | None = None
     reasoning_provider_mode: ReasoningProviderMode = "fake"
     deepseek_api_key: SecretStr | None = None
     deepseek_model: str | None = None
@@ -112,6 +114,12 @@ class Settings(BaseSettings):
 
         if self.app_env != "production":
             return self
+
+        if (
+            self.local_bootstrap_admin_password is not None
+            and self.local_bootstrap_admin_password.get_secret_value()
+        ):
+            raise ConfigurationError("LOCAL_BOOTSTRAP_ADMIN_PASSWORD is only allowed locally")
 
         secret = self.secret_key.get_secret_value()
         if len(secret) < 32 or "local-development" in secret or "change-me" in secret:

@@ -15,5 +15,6 @@
 | 路径 | 职责 |
 |---|---|
 | `run_initialized_app.py` | 固定执行安全 schema reset → Alembic → Checkpointer setup → seed apply → Uvicorn；任一步失败即停止。 |
+| `bootstrap_local_admin.py` | 只对 guard 验证后的本地库幂等创建 `.env` 提供密码的固定管理员，并以既有管理员审计服务记录角色变化。 |
 | `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 显式执行一次 AsyncPostgresSaver schema setup。 |
 | `setup_local_checkpointer.py` | 只对 `APP_ENV=local` 的 loopback `food_agent_dev` 幂等创建 LangGraph Checkpointer 表；不接收 URL、不 reset、不迁移、不 seed。 |

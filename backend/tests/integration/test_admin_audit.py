@@ -19,10 +19,15 @@ from app.admin.service import AdminService
 from app.auth.api import get_authentication_service
 from app.auth.models import AuthSession, User, UserRole
 from app.auth.repository import SqlAlchemyAuthRepository
-from app.auth.security import issue_access_token
+from app.auth.security import issue_access_token, password_matches
 from app.auth.service import AuthenticationService
 from app.core.config import Settings
 from app.main import create_app
+from scripts.bootstrap_local_admin import (
+    LOCAL_BOOTSTRAP_ADMIN_EMAIL,
+    LOCAL_BOOTSTRAP_REASON,
+    ensure_local_admin,
+)
 
 
 SECRET = "admin-audit-test-secret-with-at-least-forty-eight-bytes"
@@ -191,6 +196,35 @@ def test_first_admin_bootstrap_changes_role_and_audits_in_one_commit(
     assert persisted.after_role == UserRole.ADMIN.value
     assert persisted.occurred_at.tzinfo is not None
     assert persisted.reason == "initial production administrator"
+
+
+def test_local_admin_bootstrap_creates_audited_fixed_account_once(
+    db_session: Session,
+) -> None:
+    created = ensure_local_admin(
+        db_session,
+        email=LOCAL_BOOTSTRAP_ADMIN_EMAIL,
+        password="local-bootstrap-password",
+    )
+
+    user = db_session.scalar(select(User).where(User.email == LOCAL_BOOTSTRAP_ADMIN_EMAIL))
+    assert user is not None
+    audit = db_session.scalar(
+        select(AdminRoleAudit).where(AdminRoleAudit.target_user_id == user.id)
+    )
+    assert created is True
+    assert user.role == UserRole.ADMIN.value
+    assert user.is_active is True
+    assert user.email_verified_at is not None
+    assert password_matches(password="local-bootstrap-password", password_hash=user.password_hash)
+    assert audit is not None
+    assert audit.actor_identifier == "system:bootstrap"
+    assert audit.reason == LOCAL_BOOTSTRAP_REASON
+    assert ensure_local_admin(
+        db_session,
+        email=LOCAL_BOOTSTRAP_ADMIN_EMAIL,
+        password="different-local-bootstrap-password",
+    ) is False
 
 
 def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
