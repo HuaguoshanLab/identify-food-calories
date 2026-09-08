@@ -91,6 +91,9 @@ test('管理员通过真实页面导入并批量启用、停用、删除菜谱�
   await page.getByRole('button', { name: '确认导入 3 条' }).click()
   await imported
   await expect(page.getByText('成功导入 3 条菜谱候选。')).toBeVisible()
+  await expect(page.getByLabel('每页条数')).toHaveValue('20')
+  await expect(page.getByRole('navigation', { name: '菜谱分页' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '下一页' })).toBeDisabled()
 
   await page.getByRole('checkbox', { name: '全选当前页' }).check()
   for (const [action, reason, expected] of [['批量启用', 'E2E 启用候选', '已启用 3 条菜谱候选。'], ['批量停用', 'E2E 停用候选', '已停用 3 条菜谱候选。'], ['批量删除', 'E2E 删除候选', '已删除 3 条菜谱候选。']] as const) {

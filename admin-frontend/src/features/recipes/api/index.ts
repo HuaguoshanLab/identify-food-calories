@@ -41,8 +41,8 @@ function authorized(token: string, extra: HeadersInit = {}) {
   return { Authorization: `Bearer ${token}`, ...extra }
 }
 
-export async function listRecipeCandidates(token: string) {
-  const response = await request('/api/v1/admin/recipe-candidates?page_size=100', { headers: authorized(token) })
+export async function listRecipeCandidates(token: string, page: number, pageSize: number) {
+  const response = await request(`/api/v1/admin/recipe-candidates?page=${page}&page_size=${pageSize}`, { headers: authorized(token) })
   return listResponseSchema.parse(await response.json())
 }
 

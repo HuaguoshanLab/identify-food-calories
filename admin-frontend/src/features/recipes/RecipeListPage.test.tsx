@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
@@ -43,5 +43,24 @@ describe('RecipeListPage', () => {
     await user.upload(screen.getByLabelText('选择 CSV 文件'), first)
     expect(await screen.findByText(/第 2 行 · 餐次/)).toBeVisible()
     expect(screen.getByRole('button', { name: '确认导入' })).toBeDisabled()
+  })
+
+  it('使用服务端分页，翻页后清空当前页选择', async () => {
+    const user = userEvent.setup()
+    const second = { ...candidate, id: '0a4f72d4-ec6b-42af-b876-16df9957bb1b', catalog_food_name: '宫保鸡丁' }
+    const pages: string[] = []
+    mswServer.use(http.get(base, ({ request }) => {
+      const page = new URL(request.url).searchParams.get('page')
+      pages.push(page ?? '')
+      return HttpResponse.json({ items: page === '2' ? [second] : [candidate], total: 21, page: Number(page), page_size: 20 })
+    }))
+    setup()
+    await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
+    expect(screen.getByText('已选 1 条')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByRole('checkbox', { name: '选择 宫保鸡丁' })
+    expect(screen.getByText('已选 0 条')).toBeVisible()
+    expect(screen.getByText('第 21–21 条 / 共 21 条')).toBeVisible()
+    await waitFor(() => expect(pages).toContain('2'))
   })
 })

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { useAdminAuth } from '@/auth/AdminAuthProvider'
@@ -13,6 +14,8 @@ const statusStyles = { pending: 'bg-amber-50 text-amber-700', enabled: 'bg-emera
 export function RecipeListPage() {
   const queryClient = useQueryClient()
   const { accessToken, clearSession } = useAdminAuth()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [selected, setSelected] = useState<string[]>([])
   const [reason, setReason] = useState('')
   const [importOpen, setImportOpen] = useState(false)
@@ -20,13 +23,21 @@ export function RecipeListPage() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const query = useQuery({ queryKey: ['recipe-candidates'], queryFn: () => listRecipeCandidates(accessToken!), enabled: Boolean(accessToken), retry: false })
+  const query = useQuery({ queryKey: ['recipe-candidates', page, pageSize], queryFn: () => listRecipeCandidates(accessToken!, page, pageSize), enabled: Boolean(accessToken), retry: false })
 
   useEffect(() => {
     if (query.error instanceof RecipeCandidateApiError && query.error.status === 401) clearSession()
   }, [clearSession, query.error])
 
+  // Hidden rows must never remain selected after moving to a different page.
+  useEffect(() => { setSelected([]) }, [page, pageSize])
+
   const items = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const pages = Math.max(1, Math.ceil(total / pageSize))
+  useEffect(() => {
+    if (query.data && page > pages) setPage(pages)
+  }, [page, pages, query.data])
   const selectedItems = items.filter(item => selected.includes(item.id))
   const allSelected = items.length > 0 && selectedItems.length === items.length
 
@@ -84,7 +95,11 @@ export function RecipeListPage() {
           </tbody>
         </table>
       </div>
-      <p className="border-t px-5 py-4 text-xs text-muted-foreground">共 {query.data?.total ?? 0} 条。批量操作会写入审计记录，删除为软删除，已确认的历史餐单不受影响。</p>
+      <div className="flex flex-wrap items-center justify-end gap-4 border-t px-5 py-4 text-xs text-muted-foreground">
+        <span aria-live="polite">{total && !query.isError ? `第 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} 条 / ` : ''}共 {query.isError ? '—' : total} 条</span>
+        <label className="flex items-center gap-2">每页<select aria-label="每页条数" className="h-8 rounded border bg-card px-2" disabled={busy} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }} value={pageSize}>{[10, 20, 50, 100].map(size => <option key={size} value={size}>{size} 条</option>)}</select></label>
+        <nav aria-label="菜谱分页" className="flex items-center gap-2"><button aria-label="上一页" className="rounded border p-1.5 disabled:opacity-30" disabled={page <= 1 || query.isFetching || busy} onClick={() => setPage(page - 1)} type="button"><ChevronLeft size={15} /></button><span className="admin-numeric rounded border border-blue-300 px-2.5 py-1 text-blue-600">{page}</span><span>/ {pages}</span><button aria-label="下一页" className="rounded border p-1.5 disabled:opacity-30" disabled={page >= pages || query.isFetching || query.isError || busy} onClick={() => setPage(page + 1)} type="button"><ChevronRight size={15} /></button></nav>
+      </div>
     </section>
     {importOpen && <RecipeImportDialog accessToken={accessToken} onClose={() => setImportOpen(false)} onSecurityError={securityError} onSuccess={(count) => { setImportOpen(false); setNotice(`成功导入 ${count} 条菜谱候选。`); void queryClient.invalidateQueries({ queryKey: ['recipe-candidates'] }) }} />}
     {operation && <RecipeDialog busy={busy} description={`将对已选 ${selectedItems.length} 条菜谱候选执行操作；该原因将写入审计记录。`} onClose={() => setOperation(undefined)} title={operation === 'enable' ? '批量启用菜谱' : operation === 'disable' ? '批量停用菜谱' : '批量删除菜谱'} footer={<><button className={button} disabled={busy} onClick={() => setOperation(undefined)} type="button">取消</button><button className={operation === 'delete' ? 'h-9 rounded-md bg-red-600 px-4 text-sm text-white disabled:opacity-50' : 'h-9 rounded-md bg-blue-600 px-4 text-sm text-white disabled:opacity-50'} disabled={busy || !reason.trim()} onClick={() => void confirmOperation()} type="button">{busy ? '正在处理…' : '确认操作'}</button></>}><label className="block text-sm" htmlFor="recipe-bulk-reason">操作原因</label><textarea className="mt-2 w-full rounded-md border bg-card px-3 py-2 text-sm" disabled={busy} id="recipe-bulk-reason" maxLength={500} onChange={event => setReason(event.target.value)} placeholder="填写操作原因（必填，写入审计记录）" rows={3} value={reason} />{operation === 'delete' && <p className="mt-3 text-sm text-red-700">删除后不会出现在新餐单中，也不能从后台恢复。</p>}</RecipeDialog>}
