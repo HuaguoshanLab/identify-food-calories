@@ -2,7 +2,7 @@
 
 ## 职责
 
-`app/admin/` 提供仅后端可见的管理员 RBAC probe、数据库权威角色检查、显式 CLI 提升流程、管理员审计、可审计的营养目录草稿命令，以及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
+`app/admin/` 提供管理员 RBAC probe、数据库权威角色检查、账号/固定角色只读投影、受审计的管理员晋升/降权、显式首管理员 CLI、管理员审计、营养目录草稿命令及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
 
 ## 允许依赖
 
@@ -16,16 +16,20 @@
 |---|---|
 | `__init__.py` | Python 包标识 |
 | `models.py` | 角色提升、通用 append-only 审计、草稿/review/immutable publication、active pointer 与 eligibility history ORM 映射 |
-| `schemas.py` | probe、最小审计 timeline、严格运行配置/草稿/生命周期命令、只读配置与 server-derived diff、安全 publication projection 运行时契约 |
+| `schemas.py` | probe、账号/角色/角色变更、最小审计 timeline、严格运行配置/草稿/生命周期命令及安全 projection 运行时契约 |
 | `ports.py` | Service 所需 flush-only 草稿、review/publication、候选目录引用、pointer 与最新 eligibility 持久化能力协议 |
 | `repository.py` | SQLAlchemy 查询、advisory lock、flush-only 审计、草稿/publication 生命周期与候选目录资格 adapter |
-| `service.py` | 数据库权威 RBAC、原子角色提升、运行配置 optimistic version、命令审计、revision/幂等草稿变更、候选导入/批量生命周期与 immutable publication lifecycle；不信任客户端 diff。 |
-| `api.py` | `/api/v1/admin/probe`、`/runtime-config`、`/audit`、草稿 preview/read/lifecycle-preview/command，以及候选 CSV/批量操作 HTTP 翻译 |
+| `service.py` | 数据库权威 RBAC、账号/角色查询、原子角色提升/降权、运行配置 optimistic version、命令审计及目录/候选生命周期；不信任客户端 diff。 |
+| `api.py` | `/api/v1/admin/probe`、`/users`、`/roles`、`/runtime-config`、`/audit`、草稿生命周期及候选 CSV/批量操作 HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |
 | `catalog_csv.py` | UTF-8 CSV 模板、500 条/1 MB 导入校验、错误行号与防公式执行导出；无 HTTP/数据库依赖 |
 | `recipe_csv.py` | 管理成品菜候选的中文 CSV 模板、500 条/1 MB 行级校验和防公式导出；无 HTTP/数据库依赖 |
 
 ## 目录列表与 CSV
+
+## 系统管理
+
+`GET /users` 只返回账号 ID、邮箱、验证/启用状态、固定角色和时间戳，支持邮箱、状态、角色筛选及有界分页。`GET /roles` 返回固定 `user/admin` 的说明、权限范围与账号数量。`PATCH /users/{id}/role` 要求原因、确认和幂等键；禁止自改角色和撤销最后一个有效管理员。降权立即使后台 DB-RBAC 失败，但不撤销普通用户会话。首管理员 bootstrap 仍只能通过 CLI 完成。
 
 `GET /catalog-drafts` 接受 `search`（名称或别名）、`source`、`authorization_status`、`page`、`page_size`，返回总数及创建时间/UUID 稳定排序分页。SQL 转义 LIKE 元字符，更新草稿不会改变创建顺序。
 

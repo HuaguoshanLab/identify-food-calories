@@ -12,6 +12,7 @@
 ## 文件索引
 
 - `test_admin_catalog_api.py`：目录草稿/预览/生命周期、筛选分页及 CSV 下载/预览/提交的公开 HTTP 契约和权限失败映射。
+- `test_admin_user_management_api.py`：账号/角色最小投影、角色变更输入门和冲突映射的公开 HTTP 契约。
 
 | 文件 | 职责 |
 |---|---|

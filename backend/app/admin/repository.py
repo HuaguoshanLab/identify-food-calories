@@ -21,7 +21,7 @@ from app.admin.models import (
     CatalogPublicationEligibility,
 )
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
-from app.admin.schemas import AdminRunMetricsResponse, CatalogListQuery
+from app.admin.schemas import AdminRunMetricsResponse, AdminUserQuery, CatalogListQuery
 from app.admin.ports import QualifiedRecipeFoodReference
 from app.auth.models import User, UserRole
 from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
@@ -61,6 +61,31 @@ class SqlAlchemyAdminRepository:
                 )
             )
         )
+
+    def count_active_admins(self) -> int:
+        return int(self._session.scalar(select(func.count()).select_from(User).where(User.role == UserRole.ADMIN.value, User.is_active.is_(True))) or 0)
+
+    def list_users(self, *, query: AdminUserQuery, limit: int, offset: int) -> tuple[list[User], int]:
+        predicates = []
+        if query.search:
+            escaped = query.search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            predicates.append(User.email.ilike(f"%{escaped}%", escape="\\"))
+        if query.role:
+            predicates.append(User.role == query.role)
+        if query.status == "active":
+            predicates.extend((User.is_active.is_(True), User.email_verified_at.is_not(None)))
+        elif query.status == "inactive":
+            predicates.append(User.is_active.is_(False))
+        elif query.status == "unverified":
+            predicates.append(User.email_verified_at.is_(None))
+        where = and_(*predicates) if predicates else True
+        total = int(self._session.scalar(select(func.count()).select_from(User).where(where)) or 0)
+        rows = list(self._session.scalars(select(User).where(where).order_by(User.created_at.desc(), User.id.desc()).limit(limit).offset(offset)))
+        return rows, total
+
+    def count_users_by_role(self) -> dict[str, int]:
+        rows = self._session.execute(select(User.role, func.count()).group_by(User.role)).all()
+        return {str(role): int(count) for role, count in rows}
 
     def add_audit(self, audit: AdminRoleAudit) -> AdminRoleAudit:
         self._session.add(audit)

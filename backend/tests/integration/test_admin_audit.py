@@ -168,6 +168,33 @@ def test_admin_migration_and_probe_reloads_authoritative_active_role(
     ).status_code == 403
 
 
+def test_public_user_management_demotes_immediately_without_revoking_user_session(db_session: Session) -> None:
+    actor = _user(role=UserRole.ADMIN.value)
+    target = _user(role=UserRole.ADMIN.value)
+    actor_session = _session(user=actor)
+    target_session = _session(user=target)
+    db_session.add_all([actor, target, actor_session, target_session])
+    db_session.commit()
+    client = _client(db_session)
+    actor_token = _token(user=actor, session=actor_session, claimed_role=UserRole.ADMIN.value)
+    target_token = _token(user=target, session=target_session, claimed_role=UserRole.ADMIN.value)
+
+    listed = client.get("/api/v1/admin/users?role=admin", headers={"Authorization": f"Bearer {actor_token}"})
+    assert listed.status_code == 200
+    assert {item["email"] for item in listed.json()["items"]} >= {actor.email, target.email}
+
+    changed = client.patch(
+        f"/api/v1/admin/users/{target.id}/role",
+        headers={"Authorization": f"Bearer {actor_token}", "Idempotency-Key": "integration-role-command-0001"},
+        json={"role": "user", "reason": "职责调整", "confirm": True},
+    )
+    assert changed.status_code == 200
+    assert client.get("/api/v1/admin/probe", headers={"Authorization": f"Bearer {target_token}"}).status_code == 403
+    me = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {target_token}"})
+    assert me.status_code == 200 and me.json()["role"] == "user"
+    assert db_session.get(AuthSession, target_session.id) is not None
+
+
 def test_first_admin_bootstrap_changes_role_and_audits_in_one_commit(
     db_session: Session,
 ) -> None:

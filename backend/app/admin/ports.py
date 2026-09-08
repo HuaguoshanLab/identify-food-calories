@@ -20,7 +20,7 @@ from app.admin.models import (
 )
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.auth.models import User
-from app.admin.schemas import CatalogListQuery
+from app.admin.schemas import AdminUserQuery, CatalogListQuery
 from app.planning.models import ManagedRecipeCandidate
 
 
@@ -44,6 +44,12 @@ class AdminRepository(Protocol):
     def get_user_for_update(self, user_id: uuid.UUID) -> User | None: ...
 
     def has_active_admin(self) -> bool: ...
+
+    def count_active_admins(self) -> int: ...
+
+    def list_users(self, *, query: AdminUserQuery, limit: int, offset: int) -> tuple[list[User], int]: ...
+
+    def count_users_by_role(self) -> dict[str, int]: ...
 
     def add_audit(self, audit: AdminRoleAudit) -> AdminRoleAudit: ...
 

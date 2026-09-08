@@ -19,6 +19,11 @@ from app.admin.schemas import (
     AdminRunPageResponse,
     AdminRunQuery,
     AdminProbeResponse,
+    AdminRoleChangeCommand,
+    AdminRoleChangeResponse,
+    AdminRoleListResponse,
+    AdminUserPageResponse,
+    AdminUserQuery,
     CatalogDraftCreateCommand,
     CatalogDraftPatchCommand,
     CatalogDraftPreviewCommand,
@@ -45,6 +50,7 @@ from app.admin.schemas import (
 from app.admin.service import (
     AdminAuditCursorInvalid,
     AdminPermissionDenied,
+    AdminRoleChangeDenied,
     AdminRunCursorInvalid,
     AdminService,
     CatalogDraftConflict,
@@ -86,6 +92,34 @@ def probe(
     except AdminPermissionDenied:
         return _forbidden()
     return AdminProbeResponse()
+
+
+@router.get("/users", response_model=AdminUserPageResponse)
+def list_users(principal: AuthenticatedPrincipal, query: AdminUserQuery = Query(), admin_service: AdminService = Depends(get_admin_service)) -> AdminUserPageResponse | JSONResponse:
+    try:
+        return admin_service.list_users(actor_user_id=principal, query=query)
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/roles", response_model=AdminRoleListResponse)
+def list_roles(principal: AuthenticatedPrincipal, admin_service: AdminService = Depends(get_admin_service)) -> AdminRoleListResponse | JSONResponse:
+    try:
+        return admin_service.list_roles(actor_user_id=principal)
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.patch("/users/{target_user_id}/role", response_model=AdminRoleChangeResponse)
+def change_user_role(target_user_id: uuid.UUID, command: AdminRoleChangeCommand, principal: AuthenticatedPrincipal, idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160), admin_service: AdminService = Depends(get_admin_service)) -> AdminRoleChangeResponse | JSONResponse:
+    try:
+        return admin_service.change_user_role(actor_user_id=principal, target_user_id=target_user_id, after_role=UserRole(command.role), reason=command.reason, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="user not found") from error
+    except AdminRoleChangeDenied as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @router.post(

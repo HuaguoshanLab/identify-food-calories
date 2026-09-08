@@ -43,6 +43,12 @@ from app.admin.schemas import (
     AdminRunInvocationResponse,
     AdminRunMetricsResponse,
     AdminRunPageResponse,
+    AdminRoleChangeResponse,
+    AdminRoleListResponse,
+    AdminRoleResponse,
+    AdminUserPageResponse,
+    AdminUserQuery,
+    AdminUserResponse,
     CatalogDraftCreateCommand,
     CatalogDraftDiffField,
     CatalogDraftFieldDiff,
@@ -145,6 +151,61 @@ class AdminService:
         if user is None or not user.is_active or user.role != required_role.value:
             raise AdminPermissionDenied("database role does not permit this operation")
         return user
+
+    def list_users(self, *, actor_user_id: uuid.UUID, query: AdminUserQuery) -> AdminUserPageResponse:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        rows, total = self._repository.list_users(query=query, limit=query.page_size, offset=(query.page - 1) * query.page_size)
+        return AdminUserPageResponse(
+            items=[AdminUserResponse(id=row.id, email=row.email, email_verified_at=row.email_verified_at, is_active=row.is_active, role=cast(Literal["user", "admin"], row.role), created_at=row.created_at, updated_at=row.updated_at) for row in rows],
+            total=total, page=query.page, page_size=query.page_size,
+        )
+
+    def list_roles(self, *, actor_user_id: uuid.UUID) -> AdminRoleListResponse:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        counts = self._repository.count_users_by_role()
+        return AdminRoleListResponse(items=[
+            AdminRoleResponse(role="admin", label="管理员", description="可访问独立管理后台并执行受审计的管理操作。", account_count=counts.get("admin", 0), permissions=["查看后台数据", "管理营养目录和菜谱", "查看运行与操作审计", "管理管理员角色"]),
+            AdminRoleResponse(role="user", label="普通用户", description="只能访问自己的饮食分析、记录、计划和个人资料。", account_count=counts.get("user", 0), permissions=["使用用户端功能", "管理自己的数据"]),
+        ])
+
+    def change_user_role(self, *, actor_user_id: uuid.UUID, target_user_id: uuid.UUID, after_role: UserRole, reason: str, command_key: str) -> AdminRoleChangeResponse:
+        normalized_reason = reason.strip()
+        if not normalized_reason or not command_key.strip():
+            raise AdminRoleChangeDenied("a non-empty reason and command key are required")
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_bootstrap_lock()
+        actor = self._repository.get_user_for_update(actor_user_id)
+        if actor is None or not actor.is_active or actor.role != UserRole.ADMIN.value:
+            raise AdminPermissionDenied("database role does not permit this operation")
+        action = "role.promote" if after_role is UserRole.ADMIN else "role.demote"
+        existing = self._repository.get_audit_event_by_command_key(command_key)
+        if existing is not None:
+            if existing.actor_identifier != str(actor.id) or existing.action != action or existing.object_id != str(target_user_id) or existing.reason != normalized_reason or existing.after_diff != {"role": after_role.value}:
+                raise AdminRoleChangeDenied("role command conflict")
+            return AdminRoleChangeResponse(audit_id=existing.id, target_user_id=target_user_id, before_role=cast(Literal["user", "admin"], existing.before_diff["role"]), after_role=after_role.value, occurred_at=existing.occurred_at)
+        if actor_user_id == target_user_id:
+            raise AdminRoleChangeDenied("an actor cannot change its own role")
+        target = self._repository.get_user_for_update(target_user_id)
+        if target is None:
+            raise KeyError(target_user_id)
+        if target.role == after_role.value:
+            raise AdminRoleChangeDenied("target already has requested role")
+        if after_role is UserRole.ADMIN and (not target.is_active or target.email_verified_at is None):
+            raise AdminRoleChangeDenied("target must be an active verified user")
+        if after_role is UserRole.USER and self._repository.count_active_admins() <= 1:
+            raise AdminRoleChangeDenied("the last active administrator cannot be demoted")
+        before_role = target.role
+        occurred_at = self._now()
+        target.role = after_role.value
+        target.updated_at = occurred_at
+        self._repository.add_audit(AdminRoleAudit(id=uuid.uuid4(), actor_identifier=str(actor.id), target_user_id=target.id, before_role=before_role, after_role=after_role.value, occurred_at=occurred_at, reason=normalized_reason))
+        event = self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=occurred_at, action=action, object_type="user", object_id=str(target.id), reason=normalized_reason, before_diff={"role": before_role}, after_diff={"role": after_role.value}, related_version=None, command_key=command_key.strip()))
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return AdminRoleChangeResponse(audit_id=event.id, target_user_id=target.id, before_role=cast(Literal["user", "admin"], before_role), after_role=after_role.value, occurred_at=occurred_at)
 
     def configure_runtime(
         self,

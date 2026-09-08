@@ -21,6 +21,84 @@ class AdminProbeResponse(BaseModel):
     status: Literal["ADMIN_ACCESS_GRANTED"] = "ADMIN_ACCESS_GRANTED"
 
 
+class AdminUserQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    search: str = Field(default="", max_length=320)
+    role: Literal["user", "admin"] | None = None
+    status: Literal["active", "inactive", "unverified"] | None = None
+    page: int = Field(default=1, ge=1, le=100_000)
+    page_size: int = Field(default=20, ge=1, le=100)
+
+    @field_validator("search")
+    @classmethod
+    def normalize_search(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class AdminUserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    email: str
+    email_verified_at: datetime | None
+    is_active: bool
+    role: Literal["user", "admin"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserPageResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: list[AdminUserResponse]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
+class AdminRoleResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    role: Literal["user", "admin"]
+    label: str
+    description: str
+    account_count: int = Field(ge=0)
+    permissions: list[str]
+
+
+class AdminRoleListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: list[AdminRoleResponse]
+
+
+class AdminRoleChangeCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    role: Literal["user", "admin"]
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_role_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class AdminRoleChangeResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    audit_id: uuid.UUID
+    target_user_id: uuid.UUID
+    before_role: Literal["user", "admin"]
+    after_role: Literal["user", "admin"]
+    occurred_at: datetime
+
+
 class AdminAuditEventResponse(BaseModel):
     """Allowlisted audit projection; it cannot grow into a raw event payload."""
 
