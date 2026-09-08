@@ -21,7 +21,7 @@ function setup() {
 }
 
 describe('CatalogListPage', () => {
-  it('当前页全选/半选、取消保留选择，翻页和筛选清空选择', async () => {
+  it('当前页全选/半选，跨页保留选择，筛选变化清空选择', async () => {
     const user = userEvent.setup()
     const second = { ...item, id: '170d36bc-28da-4eb7-9a6d-bdca560763c2', canonical_name: '米饭' }
     mswServer.use(http.get(base, ({ request }) => HttpResponse.json({ items: [item, second], total: 40, page: Number(new URL(request.url).searchParams.get('page')), page_size: 20 })),
@@ -37,12 +37,31 @@ describe('CatalogListPage', () => {
     await user.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.getByText('已选 2 条')).toBeVisible()
     await user.click(screen.getByRole('button', { name: '下一页' }))
-    await waitFor(() => expect(screen.getByText('已选 0 条')).toBeVisible())
+    await waitFor(() => expect(screen.getByText('已选 2 条')).toBeVisible())
     await waitFor(() => expect(screen.getByRole('checkbox', { name: '全选当前页' })).toBeEnabled())
     await user.click(screen.getByRole('checkbox', { name: '全选当前页' }))
     await user.type(screen.getByPlaceholderText('搜索名称或别名'), '米饭')
     await user.click(screen.getByRole('button', { name: '查询' }))
     expect(screen.getByText('已选 0 条')).toBeVisible()
+  })
+
+  it('全选全部读取当前筛选结果的每一页', async () => {
+    const user = userEvent.setup()
+    const drafts = Array.from({ length: 21 }, (_, index) => ({
+      ...item,
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      canonical_name: `目录菜${index + 1}`,
+    }))
+    mswServer.use(http.get(base, ({ request }) => {
+      const url = new URL(request.url)
+      const page = Number(url.searchParams.get('page'))
+      const pageSize = Number(url.searchParams.get('page_size'))
+      return HttpResponse.json({ items: drafts.slice((page - 1) * pageSize, page * pageSize), total: drafts.length, page, page_size: pageSize })
+    }))
+    setup()
+    await screen.findByRole('checkbox', { name: '选择 目录菜1' })
+    await user.click(screen.getByRole('button', { name: '全选全部（21）' }))
+    expect(await screen.findByText('已选 21 条')).toBeVisible()
   })
 
   it('编辑在居中弹窗直接保存，无二次预览弹窗；保存后保留审核发布入口', async () => {

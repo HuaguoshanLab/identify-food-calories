@@ -202,7 +202,8 @@ async function verifyBulkLifecycle(page: Page, suffix: string) {
   await page.getByPlaceholder('搜索名称或别名').fill(`bulk-${suffix}`)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(page.getByRole('table').getByRole('row')).toHaveCount(3)
-  await page.getByRole('checkbox', { name: '全选当前页' }).check()
+  await page.getByRole('button', { name: '全选全部（2）' }).click()
+  await expect(page.getByText('已选 2 条')).toBeVisible()
   for (const action of ['审核', '发布']) {
     await page.getByRole('button', { name: `批量${action}`, exact: true }).click()
     const dialog = page.getByRole('dialog', { name: `批量${action}` })

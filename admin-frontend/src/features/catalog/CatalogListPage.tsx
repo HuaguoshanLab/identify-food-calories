@@ -17,6 +17,7 @@ const button = 'inline-flex h-9 items-center justify-center gap-2 whitespace-now
 const input = 'h-9 min-w-0 flex-1 rounded-md border bg-card px-3 text-sm'
 const statusLabels = { pending: '待确认', authorized: '已授权', revoked: '已撤销' }
 const statusStyles = { pending: 'bg-amber-50 text-amber-700', authorized: 'bg-emerald-50 text-emerald-700', revoked: 'bg-red-50 text-red-700' }
+const maxBulkSelection = 1000
 
 export function CatalogListPage({ accessToken, onSessionExpired }: Readonly<{ accessToken?: string; onSessionExpired: () => void }>) {
   const queryClient = useQueryClient()
@@ -32,7 +33,7 @@ export function CatalogListPage({ accessToken, onSessionExpired }: Readonly<{ ac
   const [busy, setBusy] = useState(false)
   const [forbidden, setForbidden] = useState(false)
   const [expired, setExpired] = useState(false)
-  const [selected, setSelected] = useState<string[]>([])
+  const [selectedDrafts, setSelectedDrafts] = useState<CatalogDraft[]>([])
   const [bulk, setBulk] = useState<{ drafts: CatalogDraft[]; action: 'review' | 'publish' }>()
   const form = useForm<CatalogFilters>({ resolver: zodResolver(catalogFilterSchema), defaultValues: emptyCatalogFilters })
   const list = useQuery({ queryKey: ['catalog-list', filters, page, pageSize],
@@ -42,14 +43,32 @@ export function CatalogListPage({ accessToken, onSessionExpired }: Readonly<{ ac
     if (list.error instanceof CatalogApiError && list.error.status === 401) onSessionExpired()
   }, [list.error, onSessionExpired])
 
-  // Hidden rows must never become accidental targets after changing the query.
-  useEffect(() => { setSelected([]) }, [filters, page, pageSize])
+  // A changed filter describes a different set of records, so prior selections are unsafe.
+  useEffect(() => { setSelectedDrafts([]) }, [filters])
 
   function securityError(requestError: unknown) {
     if (!(requestError instanceof CatalogApiError)) return false
     if (requestError.status === 401) { setExpired(true); onSessionExpired(); return true }
     if (requestError.status === 403) { setForbidden(true); return true }
     return false
+  }
+
+  async function selectAllDrafts() {
+    if (!accessToken) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const first = await listCatalogDrafts(accessToken, filters, 1, 100)
+      if (first.total > maxBulkSelection) {
+        setError(`一次最多全选 ${maxBulkSelection} 条，请缩小筛选范围后操作。`)
+        return
+      }
+      const remaining = await Promise.all(
+        Array.from({ length: Math.ceil(first.total / 100) - 1 }, (_, index) => listCatalogDrafts(accessToken, filters, index + 2, 100)),
+      )
+      setSelectedDrafts([...new Map([first, ...remaining].flatMap(response => response.items).map(draft => [draft.id, draft])).values()])
+    } catch (requestError) {
+      if (!securityError(requestError)) setError('暂时无法读取全部营养目录，请稍后重试。')
+    } finally { setBusy(false) }
   }
 
   async function edit(draftId: string) {
@@ -84,8 +103,15 @@ export function CatalogListPage({ accessToken, onSessionExpired }: Readonly<{ ac
   const pages = Math.max(1, Math.ceil(total / pageSize))
   const locked = busy || mutating
   const visibleDrafts = list.isError ? [] : list.data?.items ?? []
-  const selectedDrafts = visibleDrafts.filter(draft => selected.includes(draft.id))
-  const allSelected = visibleDrafts.length > 0 && selectedDrafts.length === visibleDrafts.length
+  const selectedIds = new Set(selectedDrafts.map(draft => draft.id))
+  const selectedOnPage = visibleDrafts.filter(draft => selectedIds.has(draft.id))
+  const allSelected = visibleDrafts.length > 0 && selectedOnPage.length === visibleDrafts.length
+  function toggleCurrentPage() {
+    const idsOnPage = new Set(visibleDrafts.map(draft => draft.id))
+    setSelectedDrafts(current => allSelected
+      ? current.filter(draft => !idsOnPage.has(draft.id))
+      : [...new Map([...current, ...visibleDrafts].map(draft => [draft.id, draft])).values()])
+  }
   function openBulk(action: 'review' | 'publish') {
     if (!selectedDrafts.length || list.isFetching || locked) return
     setNotice('')
@@ -120,18 +146,19 @@ export function CatalogListPage({ accessToken, onSessionExpired }: Readonly<{ ac
         <div className="flex flex-wrap gap-2"><button className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 disabled:opacity-50" disabled={locked} onClick={() => { setEditor({}); setLifecycle(undefined) }} type="button"><Plus aria-hidden size={16} />新增</button><button className={button} disabled={locked} onClick={() => setImportOpen(true)} type="button"><Upload aria-hidden size={15} />导入</button><button className={button} disabled={locked} onClick={() => void download()} type="button"><Download aria-hidden size={15} />导出</button><button className={button} disabled={locked} onClick={() => void download(true)} type="button">下载模板</button><button aria-label="刷新目录" className={button} disabled={list.isFetching || locked} onClick={() => void list.refetch()} type="button"><RefreshCw aria-hidden className={list.isFetching ? 'animate-spin motion-reduce:animate-none' : ''} size={16} /></button></div>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t px-5 py-3 text-sm" aria-label="批量操作">
-        <span>已选 {selectedDrafts.length} 条</span>
+        <span aria-live="polite">已选 {selectedDrafts.length} 条</span>
         <button className={button} disabled={locked || list.isFetching || !selectedDrafts.length} onClick={() => openBulk('review')} type="button">批量审核</button>
         <button className={button} disabled={locked || list.isFetching || !selectedDrafts.length} onClick={() => openBulk('publish')} type="button">批量发布</button>
-        <button className="text-blue-600 hover:underline disabled:opacity-50" disabled={locked || !selected.length} onClick={() => setSelected([])} type="button">清空选择</button>
-        <span className="text-xs text-muted-foreground">仅操作当前页所选菜品，可将每页条数调整至 100。</span>
+        <button className={button} disabled={locked || list.isFetching || !total || total > maxBulkSelection} onClick={() => void selectAllDrafts()} type="button">全选全部（{total}）</button>
+        <button className="text-blue-600 hover:underline disabled:opacity-50" disabled={locked || !selectedDrafts.length} onClick={() => setSelectedDrafts([])} type="button">清空选择</button>
+        <span className="text-xs text-muted-foreground">审核和发布会逐项核对版本并记录审计。</span>
       </div>
       <div className="overflow-x-auto" role="region" aria-label="营养目录表格" tabIndex={0}>
         <table aria-busy={list.isFetching} className="w-full whitespace-nowrap text-left text-sm"><caption className="sr-only">营养目录列表，营养值按每 100g 计</caption>
-          <thead className="border-y bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-4 py-3" scope="col"><input type="checkbox" aria-label="全选当前页" className="size-4 cursor-pointer accent-blue-600" disabled={locked || list.isFetching || !visibleDrafts.length} checked={allSelected} ref={element => { if (element) element.indeterminate = selectedDrafts.length > 0 && !allSelected }} onChange={() => setSelected(allSelected ? [] : visibleDrafts.map(draft => draft.id))} /></th>{['菜品名称', '别名', '能量 (kcal)', '蛋白质 (g)', '脂肪 (g)', '碳水 (g)', '来源', '授权状态', '版本', '更新时间', '操作'].map((label) => <th className="px-4 py-3 font-medium" scope="col" key={label}>{label}</th>)}</tr></thead>
+          <thead className="border-y bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-4 py-3" scope="col"><input type="checkbox" aria-label="全选当前页" className="size-4 cursor-pointer accent-blue-600" disabled={locked || list.isFetching || !visibleDrafts.length} checked={allSelected} ref={element => { if (element) element.indeterminate = selectedOnPage.length > 0 && !allSelected }} onChange={toggleCurrentPage} /></th>{['菜品名称', '别名', '能量 (kcal)', '蛋白质 (g)', '脂肪 (g)', '碳水 (g)', '来源', '授权状态', '版本', '更新时间', '操作'].map((label) => <th className="px-4 py-3 font-medium" scope="col" key={label}>{label}</th>)}</tr></thead>
           <tbody className="divide-y">
             {list.isPending ? <tr><td className="p-12 text-center text-muted-foreground" colSpan={12}>正在加载目录…</td></tr> : list.isError ? <tr><td className="p-12 text-center" colSpan={12}><p role="alert">暂时无法加载目录，请稍后重试。</p><button className={`${button} mt-3`} onClick={() => void list.refetch()} type="button">重试</button></td></tr> : !list.data?.items.length ? <tr><td className="p-14 text-center" colSpan={12}><p className="font-medium">{Object.values(filters).some(Boolean) ? '没有符合条件的目录' : '暂无营养目录'}</p><p className="mt-2 text-xs text-muted-foreground">{Object.values(filters).some(Boolean) ? '调整筛选条件，或点击重置查看全部。' : '点击“新增”添加菜品，或下载模板后批量导入。'}</p></td></tr> : list.data.items.map((draft) => <tr className="hover:bg-muted/20" key={draft.id}>
-              <td className="px-4 py-4"><input type="checkbox" aria-label={`选择 ${draft.canonical_name}`} className="size-4 cursor-pointer accent-blue-600" disabled={locked || list.isFetching} checked={selected.includes(draft.id)} onChange={event => setSelected(current => event.target.checked ? [...current, draft.id] : current.filter(id => id !== draft.id))} /></td>
+              <td className="px-4 py-4"><input type="checkbox" aria-label={`选择 ${draft.canonical_name}`} className="size-4 cursor-pointer accent-blue-600" disabled={locked || list.isFetching} checked={selectedIds.has(draft.id)} onChange={event => setSelectedDrafts(current => event.target.checked ? [...new Map([...current, draft].map(item => [item.id, item])).values()] : current.filter(item => item.id !== draft.id))} /></td>
               <td className="max-w-64 truncate px-4 py-4 font-medium" title={draft.canonical_name}><button className="text-blue-600 hover:underline" disabled={locked} onClick={() => void edit(draft.id)} type="button">{draft.canonical_name}</button></td>
               <td className="max-w-40 truncate px-4 py-4 text-muted-foreground" title={draft.aliases.join('、')}>{draft.aliases.join('、')}</td>
               {[draft.energy_kcal_per_100g, draft.protein_g_per_100g, draft.fat_g_per_100g, draft.carbohydrate_g_per_100g].map((value, index) => <td className="admin-numeric px-4 py-4" key={index}>{Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 6 })}</td>)}
