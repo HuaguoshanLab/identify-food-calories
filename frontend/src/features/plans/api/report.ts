@@ -3,7 +3,7 @@ import { z } from 'zod'
 const decimalSchema = z.string().regex(/^\d+(?:\.\d+)?$/)
 const metricSchema = z.object({ lower: decimalSchema, upper: decimalSchema }).strict()
 const nutrientsSchema = z.object({ energy_kcal: decimalSchema, carbohydrate_g: decimalSchema, protein_g: decimalSchema, fat_g: decimalSchema }).strict()
-const slotSchema = z.enum(['breakfast', 'lunch', 'dinner'])
+const slotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const planMealSchema = z.object({
   slot: slotSchema, display_name: z.string().min(1), portion_description: z.string().min(1), portion_grams: decimalSchema,
   method_tags: z.array(z.string().min(1)), flavour_tags: z.array(z.string().min(1)), matched_preference_summaries: z.array(z.string().min(1)), matched_exclusion_summaries: z.array(z.string().min(1)), nutrients: nutrientsSchema,
@@ -16,11 +16,11 @@ const planAdjustmentSchema = z.object({
 }).strict()
 export const planReportSchema = z.object({
   stage: z.literal('complete'), target: z.object({ energy_kcal: metricSchema, carbohydrate_g: metricSchema, protein_g: metricSchema, fat_g: metricSchema }).strict(),
-  meals: z.array(planMealSchema).length(3), relaxation: relaxationSchema.nullish().transform((value) => value ?? undefined), disclaimer: z.literal('普通饮食参考，不替代医疗建议。'), adjustment: planAdjustmentSchema.nullish().transform((value) => value ?? undefined),
+  meals: z.array(planMealSchema).min(3).max(4), relaxation: relaxationSchema.nullish().transform((value) => value ?? undefined), disclaimer: z.literal('普通饮食参考，不替代医疗建议。'), adjustment: planAdjustmentSchema.nullish().transform((value) => value ?? undefined),
 }).strict().superRefine((report, context) => {
-  if (report.meals.map((meal) => meal.slot).join(',') !== 'breakfast,lunch,dinner') context.addIssue({ code: 'custom', message: 'meal slots must remain ordered' })
+  if (!['breakfast,lunch,dinner', 'breakfast,lunch,dinner,snack'].includes(report.meals.map((meal) => meal.slot).join(','))) context.addIssue({ code: 'custom', message: 'meal slots must remain ordered' })
 })
-export const needsInputReportSchema = z.object({ stage: z.literal('needs_input'), message: z.string().min(1).max(500), code: z.literal('LIMIT_REACHED').optional(), input_choices: z.array(slotSchema).length(3).optional() }).strict()
+export const needsInputReportSchema = z.object({ stage: z.literal('needs_input'), message: z.string().min(1).max(500), code: z.literal('LIMIT_REACHED').optional(), input_choices: z.array(slotSchema).min(3).max(4).optional() }).strict()
 export const safeSnapshotSchema = z.object({ thread_id: z.string().uuid(), status: z.enum(['waiting', 'partial', 'completed', 'retryable', 'terminal', 'deletion_pending']), revision: z.number().int().nonnegative(), report: z.unknown().optional(), recovery_code: z.string().min(1).max(80).nullable().optional() }).strict()
 
 export type PlanMeal = z.infer<typeof planMealSchema>

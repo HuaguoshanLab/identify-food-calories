@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { formatPlanNumber } from '../format'
 import type { PlanMeal, PlanMealAdjustment } from './PlanPage'
 
-const slotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐' } as const
+const slotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' } as const
 
 export function MealCard({ meal, adjustment }: { meal: PlanMeal; adjustment?: PlanMealAdjustment }) {
   const tags = [...meal.method_tags, ...meal.flavour_tags]

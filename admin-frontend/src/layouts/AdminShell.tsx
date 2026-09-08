@@ -9,6 +9,7 @@ type AdminShellProps = PropsWithChildren<Readonly<{ onLogout?: () => void }>>
 const navigation = [
   { label: '概览', to: '/admin/overview' },
   { label: '营养目录', to: '/admin/catalog' },
+  { label: '菜谱管理', to: '/admin/recipes' },
   { label: '运行审计', to: '/admin/runs' },
   { label: '模型配置', to: '/admin/model-configs' },
   { label: '操作审计', to: '/admin/audit' },

@@ -25,7 +25,7 @@ import { SafePlanningProgress } from './SafePlanningProgress'
 import { ProfileGoalForm, type PreferenceSummaries } from './ProfileGoalForm'
 
 const healthScopeCopy = '我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。你仍可以查看通用、非医疗的均衡饮食原则。'
-const slotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐' } as const
+const slotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' } as const
 const metricLabels = { energy_kcal: ['能量', 'kcal'], carbohydrate_g: ['碳水', 'g'], protein_g: ['蛋白质', 'g'], fat_g: ['脂肪', 'g'] } as const
 
 export type PlanMealAdjustment = { previousName: string; matchedConstraint: string; rangeStatus: string }
@@ -60,7 +60,7 @@ export function PlanPage() {
     mutationFn: () => confirmDashboardTimeZone(request, timeZone),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: planArchiveKeys.all }),
   })
-  const [mealAdjustment, setMealAdjustment] = useState<Record<PlanMeal['slot'], PlanMealAdjustment | undefined>>({ breakfast: undefined, lunch: undefined, dinner: undefined })
+  const [mealAdjustment, setMealAdjustment] = useState<Record<PlanMeal['slot'], PlanMealAdjustment | undefined>>({ breakfast: undefined, lunch: undefined, dinner: undefined, snack: undefined })
   const [statusKind, setStatusKind] = useState<'idle' | 'working' | 'error' | 'refusal'>('idle')
   const [statusMessage, setStatusMessage] = useState<string>()
   const [progressStage, setProgressStage] = useState<SafePlanningStage>()
@@ -123,7 +123,7 @@ export function PlanPage() {
   }, onInvalidEvent: () => { setStatusKind('error'); setStatusMessage(undefined); setProgressStage('retryable') }, onSnapshot: applySnapshot })
 
   function onStarted(snapshot: DietPlanningStartResponse) {
-    setThreadId(snapshot.thread_id); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('perception')
+    setThreadId(snapshot.thread_id); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined, snack: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('perception')
   }
 
   async function submitAdjustment(text: string) {
@@ -140,7 +140,7 @@ export function PlanPage() {
 
   function startNewPlan() {
     setCreating(true)
-    setThreadId(undefined); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('idle'); setStatusMessage(undefined); setProgressStage(undefined); setAdjustmentText('')
+    setThreadId(undefined); setReport(undefined); setMealAdjustment({ breakfast: undefined, lunch: undefined, dinner: undefined, snack: undefined }); setInputChoices(undefined); setLimitReached(false); setUpdatedSlot(undefined); setStatusKind('idle'); setStatusMessage(undefined); setProgressStage(undefined); setAdjustmentText('')
   }
 
   const relaxation = report?.adjustment?.relaxation ?? report?.relaxation
