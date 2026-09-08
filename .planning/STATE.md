@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Planned
-stopped_at: Phase 06.1 planning complete
-last_updated: "2026-09-07T09:31:42.320Z"
-last_activity: "2026-09-06 — Quick 260906-lz0: H5 step 3 page shell complete; waiting for user review before step 4"
+status: Complete
+stopped_at: Phase 06.1 complete
+last_updated: "2026-09-08T10:35:00+08:00"
+last_activity: "2026-09-08 — Phase 06.1 complete: recipe candidate management, catalog publication references, rotation, optional snack, browser E2E and documentation"
 progress:
   total_phases: 9
   completed_phases: 7
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-08-26)
 ## Current Position
 
 Phase: 06.1
-Plan: 03 complete; 04 next
-Status: In progress
-Last activity: 2026-09-06 — Quick 260906-lz0: H5 step 3 page shell complete; waiting for user review before step 4
+Plan: 05 complete
+Status: Complete
+Last activity: 2026-09-08 — 后台候选管理、已发布目录关联、候选轮换、按需加餐、浏览器 E2E 与教学文档完成
 
 Progress: [██████████] 100%
 
@@ -327,5 +327,5 @@ Phase 7 按用户要求暂不启动；本次计划存档已完成。
 ## Session Continuity
 
 Last session: 2026-09-07T09:31:42.311Z
-Stopped at: Phase 06.1 planning complete
-Resume file: .planning/phases/06.1-/06.1-01-PLAN.md
+Stopped at: Phase 06.1 complete
+Resume file: .planning/phases/06.1-/06.1-05-SUMMARY.md
