@@ -117,6 +117,8 @@ describe('CatalogListPage', () => {
     }), http.get(`${base}/${draft.id}`, () => HttpResponse.json(draft)))
     setup()
     expect(await screen.findByRole('button', { name: '燕麦' })).toBeVisible()
+    expect(screen.getByRole('region', { name: '营养目录表格' })).toHaveClass('overflow-auto', 'lg:flex-1')
+    expect(screen.getByRole('columnheader', { name: '菜品名称' }).closest('thead')).toHaveClass('sticky', 'top-0')
     expect(screen.queryByLabelText('变更原因')).not.toBeInTheDocument()
     await user.type(screen.getByPlaceholderText('搜索名称或别名'), 'oats')
     expect(seen).toHaveLength(1)

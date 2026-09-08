@@ -70,7 +70,7 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
     navigationTrigger.current?.focus()
   }
 
-  return <div data-navigation={kind} data-sidebar-collapsed={collapsed} data-testid="admin-shell" className="admin-shell-root min-h-dvh overflow-x-hidden bg-slate-50 text-foreground">
+  return <div data-navigation={kind} data-sidebar-collapsed={collapsed} data-testid="admin-shell" className="admin-shell-root min-h-dvh overflow-x-hidden bg-slate-50 text-foreground lg:h-dvh lg:overflow-hidden">
     <a className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-white focus:p-3 focus:shadow-lg" href="#admin-main" onClick={() => mainRef.current?.focus()}>跳到主要内容</a>
 
     {desktop ? <div className={`fixed inset-y-0 left-0 z-40 transition-[width] duration-200 ${collapsed ? 'w-[76px]' : 'w-[248px]'}`}><AdminSidebar collapsed={collapsed} onCollapse={() => setSidebarCollapsed(true)} /></div> : null}
@@ -81,7 +81,7 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
       </div>
     </div> : null}
 
-    <div className={`min-w-0 transition-[padding] duration-200 ${sidebarWidth}`}>
+    <div className={`min-w-0 transition-[padding] duration-200 lg:h-dvh lg:overflow-hidden ${sidebarWidth}`}>
       <div className="sticky top-0 z-30">
         <AdminHeader breadcrumbs={adminRouteMeta(location.pathname).breadcrumbs} collapsed={collapsed} desktop={desktop} navigationTriggerRef={navigationTrigger} onLogout={() => void logout()} onNavigationToggle={() => {
           if (desktop) setSidebarCollapsed((value) => !value)
@@ -89,7 +89,7 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
         }} />
         <AdminTabs />
       </div>
-      <main id="admin-main" ref={mainRef} tabIndex={-1} className="min-w-0">{children ?? <Outlet />}</main>
+      <main id="admin-main" ref={mainRef} tabIndex={-1} className="min-w-0 lg:h-[calc(100dvh-6.75rem)] lg:overflow-hidden">{children ?? <Outlet />}</main>
     </div>
   </div>
 }
