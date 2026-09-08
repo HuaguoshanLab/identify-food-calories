@@ -8,6 +8,8 @@ import { AdminCatalogLifecyclePage } from './features/catalog/CatalogLifecyclePa
 import { AdminRuntimeConfigSummaryPage } from './features/config/ConfigSummaryPage'
 import { AdminOverviewRoute } from './features/overview/AdminOverviewPage'
 import { AdminRunsPage } from './features/runs/RunsPage'
+import { AdminRolesPage } from './features/system/RolesPage'
+import { AdminUsersPage } from './features/system/UsersPage'
 import { RecipeListPage } from './features/recipes/RecipeListPage'
 import { AdminShell } from './layouts/AdminShell'
 
@@ -30,6 +32,8 @@ export function App() {
         <Route path="/admin/runs" element={<AdminRunsPage />} />
         <Route path="/admin/model-configs" element={<AdminRuntimeConfigSummaryPage />} />
         <Route path="/admin/audit" element={<AdminAuditPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/roles" element={<AdminRolesPage />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/admin/overview" />} />
     </Routes>

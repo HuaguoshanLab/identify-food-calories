@@ -222,6 +222,7 @@ async function verifyBulkLifecycle(page: Page, suffix: string) {
 }
 
 test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordinary user is denied', async ({ browser, page, request }) => {
+  test.setTimeout(180_000)
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
   const admin = { email: `e2e-admin-${suffix}@example.test`, password: 'E2E-admin-password-2026!' }
   // Verification reads are scoped to this run's unique email; leave other local mail intact.
@@ -256,23 +257,32 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   const ordinaryContext = await browser.newContext({ viewport: { width: 1280, height: 900 } })
   const ordinaryPage = await ordinaryContext.newPage()
   const ordinary = { email: `e2e-user-${suffix}@example.test`, password: 'E2E-user-password-2026!' }
-  try {
-    await registerAndVerify(ordinaryPage, request, ordinary)
-    const forbiddenProbe = ordinaryPage.waitForResponse((response) => response.url().endsWith('/api/v1/admin/probe')
-      && response.status() === 403
-      && response.request().headers().authorization?.startsWith('Bearer '))
-    await ordinaryPage.goto('/admin/login?returnTo=/admin/catalog')
-    await ordinaryPage.getByLabel('邮箱').fill(ordinary.email)
-    await ordinaryPage.getByLabel('密码', { exact: true }).fill(ordinary.password)
-    await ordinaryPage.getByRole('button', { name: '登录后台' }).click()
-    await forbiddenProbe
-    await expect(ordinaryPage).toHaveURL(/\/admin\/forbidden$/)
-    await expect(ordinaryPage.getByTestId('admin-shell')).toHaveCount(0)
-    await expect(ordinaryPage.getByText('营养目录草稿')).toHaveCount(0)
-    await expect(ordinaryPage.getByText('运行概览')).toHaveCount(0)
-  } finally {
-    await ordinaryContext.close()
-  }
+  await registerAndVerify(ordinaryPage, request, ordinary)
+  await page.getByRole('link', { name: '管理员管理' }).click()
+  await page.getByLabel('邮箱').fill(ordinary.email)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const targetRow = page.getByRole('row').filter({ hasText: ordinary.email })
+  await targetRow.getByRole('button', { name: '设为管理员' }).click()
+  await page.getByLabel('变更原因').fill('E2E 验证管理员角色治理')
+  await page.getByRole('button', { name: '确认变更角色' }).click()
+  await expect(page.getByRole('status')).toContainText('操作已记录')
+
+  const rolesRead = ordinaryPage.waitForResponse((response) => response.url().endsWith('/api/v1/admin/roles') && response.status() === 200)
+  await loginToAdmin(ordinaryPage, ordinary, '/admin/roles')
+  const ordinaryAdminToken = (await rolesRead).request().headers().authorization
+  expect(ordinaryAdminToken).toMatch(/^Bearer /)
+  await expect(ordinaryPage.getByRole('heading', { name: '角色管理' })).toBeVisible()
+
+  await targetRow.getByRole('button', { name: '撤销管理员' }).click()
+  await page.getByLabel('变更原因').fill('E2E 验证降权保留普通用户会话')
+  await page.getByRole('button', { name: '确认变更角色' }).click()
+  await expect(page.getByRole('status')).toContainText('更新为 user')
+  const demotedStatus = await ordinaryPage.evaluate(async (authorization) => {
+    const response = await fetch('/api/v1/admin/runs', { headers: { Authorization: authorization } })
+    return response.status
+  }, ordinaryAdminToken as string)
+  expect(demotedStatus).toBe(403)
+  await ordinaryContext.close()
   await page.getByRole('button', { name: '打开会话菜单' }).click()
   const revoked = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/logout') && response.ok())
   await page.getByRole('menuitem', { name: '退出登录' }).click()

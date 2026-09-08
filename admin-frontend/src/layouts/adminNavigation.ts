@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, ClipboardList, Gauge, History, Salad, Settings2 } from 'lucide-react'
+import { BookOpen, ClipboardList, Gauge, History, Salad, Settings2, ShieldCheck, Users } from 'lucide-react'
 
 export type AdminNavigationItem = Readonly<{
   icon: LucideIcon
@@ -14,6 +14,14 @@ export type AdminNavigationGroup = Readonly<{
 }>
 
 export const adminNavigation: readonly AdminNavigationGroup[] = [
+  {
+    id: 'system-management',
+    label: '系统管理',
+    items: [
+      { icon: Users, label: '管理员管理', to: '/admin/users' },
+      { icon: ShieldCheck, label: '角色管理', to: '/admin/roles' },
+    ],
+  },
   {
     id: 'workspace',
     items: [{ icon: Gauge, label: '运行概览', to: '/admin/overview' }],

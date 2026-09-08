@@ -14,7 +14,7 @@ type AdminSidebarProps = Readonly<{
 
 export function AdminSidebar({ collapsed = false, drawer = false, onClose, onCollapse, onNavigate }: AdminSidebarProps) {
   const location = useLocation()
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ content: true, operations: true })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ content: true, operations: true, 'system-management': true })
 
   return <aside aria-label="后台侧边栏" className="flex h-full flex-col bg-slate-950 text-slate-200">
     <div className={`flex h-16 shrink-0 items-center border-b border-white/10 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>

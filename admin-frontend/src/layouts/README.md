@@ -19,6 +19,6 @@
 | `AdminHeader.tsx` | 顶部面包屑、全局操作入口与管理员会话菜单。 |
 | `AdminSidebar.tsx` | 深色侧栏、分组二级菜单、折叠态与移动抽屉内容。 |
 | `AdminTabs.tsx` | 跟随路由创建、切换和关闭的页面标签栏。 |
-| `adminNavigation.ts` | 后台菜单、图标和路由展示元数据的单一配置源。 |
+| `adminNavigation.ts` | 后台菜单、图标和路由展示元数据的单一配置源，包含系统管理分组。 |
 
 后续 `AdminShell`、导航和响应式结构文件必须在这里登记，并同步更新 `src/README.md`。
