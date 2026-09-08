@@ -398,7 +398,7 @@ class RecipeCandidateImportResponse(BaseModel):
 
 class RecipeCandidateBulkCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
     reason: str = Field(min_length=1, max_length=500)
     confirm: Literal[True]
 

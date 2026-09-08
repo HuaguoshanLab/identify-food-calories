@@ -45,7 +45,7 @@ describe('RecipeListPage', () => {
     expect(screen.getByRole('button', { name: '确认导入' })).toBeDisabled()
   })
 
-  it('使用服务端分页，翻页后清空当前页选择', async () => {
+  it('使用服务端分页并保留跨页选择', async () => {
     const user = userEvent.setup()
     const second = { ...candidate, id: '0a4f72d4-ec6b-42af-b876-16df9957bb1b', catalog_food_name: '宫保鸡丁' }
     const pages: string[] = []
@@ -59,8 +59,27 @@ describe('RecipeListPage', () => {
     expect(screen.getByText('已选 1 条')).toBeVisible()
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByRole('checkbox', { name: '选择 宫保鸡丁' })
-    expect(screen.getByText('已选 0 条')).toBeVisible()
+    expect(screen.getByText('已选 1 条')).toBeVisible()
     expect(screen.getByText('第 21–21 条 / 共 21 条')).toBeVisible()
     await waitFor(() => expect(pages).toContain('2'))
+  })
+
+  it('全选全部会读取所有页并显示完整选择数量', async () => {
+    const user = userEvent.setup()
+    const candidates = Array.from({ length: 21 }, (_, index) => ({
+      ...candidate,
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      catalog_food_name: `候选菜${index + 1}`,
+    }))
+    mswServer.use(http.get(base, ({ request }) => {
+      const url = new URL(request.url)
+      const page = Number(url.searchParams.get('page'))
+      const size = Number(url.searchParams.get('page_size'))
+      return HttpResponse.json({ items: candidates.slice((page - 1) * size, page * size), total: candidates.length, page, page_size: size })
+    }))
+    setup()
+    await screen.findByRole('checkbox', { name: '选择 候选菜1' })
+    await user.click(screen.getByRole('button', { name: '全选全部（21）' }))
+    expect(await screen.findByText('已选 21 条')).toBeVisible()
   })
 })

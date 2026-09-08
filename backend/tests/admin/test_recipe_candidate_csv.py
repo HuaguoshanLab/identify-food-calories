@@ -7,13 +7,18 @@ import io
 import uuid
 
 import pytest
+from pydantic import ValidationError
 
 from app.admin.recipe_csv import (
     RecipeCandidateCsvInvalid,
     parse_recipe_candidate_csv,
     write_recipe_candidate_csv,
 )
-from app.admin.schemas import RecipeCandidateCsvRow, RecipeCandidateResponse
+from app.admin.schemas import (
+    RecipeCandidateBulkCommand,
+    RecipeCandidateCsvRow,
+    RecipeCandidateResponse,
+)
 
 
 def row(*, name: str = "辣椒炒肉", slot: str = "lunch") -> RecipeCandidateCsvRow:
@@ -30,6 +35,18 @@ def row(*, name: str = "辣椒炒肉", slot: str = "lunch") -> RecipeCandidateCs
 
 def csv_text(*rows: RecipeCandidateCsvRow) -> str:
     return write_recipe_candidate_csv(rows).decode("utf-8-sig")
+
+
+def test_recipe_candidate_bulk_command_supports_full_current_catalog_selection() -> None:
+    command = RecipeCandidateBulkCommand(
+        ids=[uuid.uuid4() for _ in range(612)], reason="全选当前菜谱候选", confirm=True
+    )
+
+    assert len(command.ids) == 612
+    with pytest.raises(ValidationError):
+        RecipeCandidateBulkCommand(
+            ids=[uuid.uuid4() for _ in range(1001)], reason="超出上限", confirm=True
+        )
 
 
 def test_recipe_candidate_csv_is_chinese_utf8_and_reports_row_errors_without_persisting() -> (
