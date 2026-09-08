@@ -74,7 +74,7 @@ class PlanningToolAdapter(Protocol):
     ) -> TargetCalculationResult: ...
 
     def compose_daily_plan(
-        self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
+        self, *, user_id: uuid.UUID, target: DailyTarget, preferences: PreferenceReview, replan_count: int
     ) -> MealCompositionResult: ...
 
     def validate_daily_plan(
@@ -92,6 +92,7 @@ class PlanningToolAdapter(Protocol):
     def replace_planning_slot(
         self,
         *,
+        user_id: uuid.UUID,
         target: DailyTarget,
         preferences: PreferenceReview,
         existing_meals: tuple[PlannedMeal, ...],
@@ -253,13 +254,14 @@ class SessionNutritionToolAdapter:
             session.close()
 
     def compose_daily_plan(
-        self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
+        self, *, user_id: uuid.UUID, target: DailyTarget, preferences: PreferenceReview, replan_count: int
     ) -> MealCompositionResult:
         # Managed candidates carry their catalog version.  Do not pin the planner to a seed
         # catalog, or newly imported admin candidates can never enter a meal plan.
         session, service = self._planning_service()
         try:
             return service.compose_daily_meals(
+                user_id=user_id,
                 catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
@@ -270,6 +272,7 @@ class SessionNutritionToolAdapter:
     def replace_planning_slot(
         self,
         *,
+        user_id: uuid.UUID,
         target: DailyTarget,
         preferences: PreferenceReview,
         existing_meals: tuple[PlannedMeal, ...],
@@ -284,6 +287,7 @@ class SessionNutritionToolAdapter:
             if current is None:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="请选择早餐、午餐或晚餐。")
             replacement_plan = service.compose_daily_meals(
+                user_id=user_id,
                 catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,

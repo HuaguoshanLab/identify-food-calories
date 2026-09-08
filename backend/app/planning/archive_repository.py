@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.models import User
 from app.agent.models import AgentThread, AgentEvent
 from app.records.models import DashboardTimezonePreference
-from app.planning.models import DietPlan, DietPlanVersion, ControlledRecipe
+from app.planning.models import DietPlan, DietPlanVersion, ControlledRecipe, ManagedRecipeCandidate
 
 
 class SqlAlchemyPlanArchiveRepository:
@@ -141,15 +141,30 @@ class SqlAlchemyPlanArchiveRepository:
         return event is not None
 
     def recipe_versions(self, ids: tuple[uuid.UUID, ...]) -> list[dict[str, str]]:
-        rows = self.session.scalars(
+        controlled = self.session.scalars(
             select(ControlledRecipe).where(ControlledRecipe.id.in_(ids))
         )
-        return [
+        versions = [
             {
                 "recipe_id": str(row.id),
+                "source_kind": "controlled_recipe",
                 "recipe_version": row.recipe_version,
                 "catalog_version": row.catalog_version,
                 "audit_version": row.audit_version,
             }
-            for row in rows
+            for row in controlled
         ]
+        managed = self.session.scalars(
+            select(ManagedRecipeCandidate).where(ManagedRecipeCandidate.id.in_(ids))
+        )
+        versions.extend(
+            {
+                "recipe_id": str(row.id),
+                "source_kind": "managed_recipe_candidate",
+                "recipe_version": f"managed-candidate.v{row.revision}",
+                "catalog_version": row.nutrition_catalog_version,
+                "audit_version": f"candidate-revision.v{row.revision}",
+            }
+            for row in managed
+        )
+        return versions

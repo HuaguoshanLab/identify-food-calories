@@ -209,6 +209,7 @@ class PlanningService:
     def compose_daily_meals(
         self,
         *,
+        user_id: uuid.UUID | None = None,
         catalog_version: str | None,
         preferences: PreferenceReview,
         recipe_version: str = CONTROLLED_RECIPE_VERSION,
@@ -223,7 +224,12 @@ class PlanningService:
             )
         candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
         if candidates:
-            return self._compose_managed_candidates(candidates, preferences, exclude_recipe_ids)
+            recent_recipe_ids = () if user_id is None else getattr(
+                self._repository, "list_recent_recipe_ids", lambda **_: ()
+            )(user_id=user_id, plan_limit=3)
+            return self._compose_managed_candidates(
+                candidates, preferences, exclude_recipe_ids, recent_recipe_ids
+            )
         if catalog_version is None:
             return MealCompositionResult(
                 action=PlanValidationAction.REPLAN,
@@ -267,12 +273,21 @@ class PlanningService:
             safe_message="三餐营养值已由合格目录条目和受控克数重新计算。",
         )
 
-    def _compose_managed_candidates(self, candidates, preferences: PreferenceReview, exclude_recipe_ids: tuple[uuid.UUID, ...]) -> MealCompositionResult:
+    def _compose_managed_candidates(
+        self,
+        candidates,
+        preferences: PreferenceReview,
+        exclude_recipe_ids: tuple[uuid.UUID, ...],
+        recent_recipe_ids: tuple[uuid.UUID, ...],
+    ) -> MealCompositionResult:
         meals: list[PlannedMeal] = []
         for slot in REQUIRED_MEAL_SLOTS:
-            # Candidate ordering must not become an accidental permanent menu.  Nutrition
-            # calculation remains deterministic; only equally eligible dish choice rotates.
+            # Recent archived plans are the rotation authority.  When every option was
+            # recently used, falling back prevents a sparse candidate pool from dead-ending.
             options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals}), key=lambda candidate: str(candidate.id))
+            fresh_options = [candidate for candidate in options if candidate.id not in recent_recipe_ids]
+            if fresh_options:
+                options = fresh_options
             if len(options) > 1:
                 options = [options.pop(secrets.randbelow(len(options))) for _ in range(len(options))]
             meal = next((built for candidate in options if (built := self._build_managed_meal(candidate, preferences)) is not None), None)
@@ -282,7 +297,7 @@ class PlanningService:
         return MealCompositionResult(action=PlanValidationAction.PASS, meals=tuple(meals), safe_message="餐单营养值已按候选关联目录的每 100 克基准重算。")
 
     def _build_managed_meal(self, candidate, preferences: PreferenceReview) -> PlannedMeal | None:
-        calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.food_catalog_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
+        calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.nutrition_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
         if calculation.action is not NutritionAction.PASS or calculation.food is None or calculation.nutrients is None:
             return None
         if any(value.casefold() in calculation.food.canonical_name.casefold() for value in preferences.exclusions):

@@ -20,7 +20,7 @@ from app.planning.schemas import (
 def candidate(*, slot: MealSlot = MealSlot.BREAKFAST, **changes: object) -> ManagedRecipeCandidate:
     values: dict[str, object] = {
         "id": uuid.uuid4(),
-        "food_catalog_item_id": uuid.uuid4(),
+        "nutrition_item_id": uuid.uuid4(),
         "catalog_version": "fdc-foundation-2026-04",
         "display_name": "番茄炒蛋",
         "meal_slot": slot,
@@ -38,7 +38,7 @@ def candidate(*, slot: MealSlot = MealSlot.BREAKFAST, **changes: object) -> Mana
 def test_managed_candidate_only_carries_catalog_reference_and_display_metadata() -> None:
     item = candidate()
 
-    assert item.food_catalog_item_id
+    assert item.nutrition_item_id
     assert item.meal_slot is MealSlot.BREAKFAST
     assert "energy_kcal" not in item.model_dump()
     with pytest.raises(ValidationError):

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from app.admin.models import (
     AdminAuditEvent,
@@ -20,8 +21,17 @@ from app.admin.models import (
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.auth.models import User
 from app.admin.schemas import CatalogListQuery
-from app.nutrition.models import FoodCatalogItem
 from app.planning.models import ManagedRecipeCandidate
+
+
+@dataclass(frozen=True)
+class QualifiedRecipeFoodReference:
+    """One currently usable catalog item, without copying its nutrition values."""
+
+    id: uuid.UUID
+    source_kind: Literal["food_catalog_item", "catalog_publication"]
+    canonical_name: str
+    nutrition_catalog_version: str
 
 
 class AdminRepository(Protocol):
@@ -153,7 +163,7 @@ class AdminRepository(Protocol):
 
     def resolve_qualified_food_by_name(
         self, canonical_name: str
-    ) -> list[FoodCatalogItem]: ...
+    ) -> list[QualifiedRecipeFoodReference]: ...
 
     def add_recipe_candidate(
         self, candidate: ManagedRecipeCandidate

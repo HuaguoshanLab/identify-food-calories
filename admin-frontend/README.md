@@ -6,7 +6,7 @@
 
 它不是用户 H5 的扩展：不得导入 `frontend/src`、不得向用户 H5 注册后台路由，也不得读取数据库或服务端源码。所有数据只能通过公开的 `/api/v1/admin/*` HTTP 合约取得；最终授权始终由后端读取 PostgreSQL 当前角色决定。
 
-当前已具备登录/probe shell、overview、catalog lifecycle、runs、runtime config 与 audit 页面。后台可独立部署，构建产物不包含用户 H5 的源码、路由或组件。
+当前已具备登录/probe shell、overview、catalog lifecycle、菜谱管理、runs、runtime config 与 audit 页面。后台可独立部署，构建产物不包含用户 H5 的源码、路由或组件。
 
 营养目录可勾选多条或全选当前页 → 批量审核 → 填写统一原因并确认 → 完成后批量发布。每页最多 100 条，翻页/查询会清空选择。批量弹窗显示逐项成功、跳过/失败和未确认结果，保持居中布局与固定确认按钮。成功项不会在本轮重试中重复提交，未确认项可原键重试；执行期间请勿刷新。权限、版本、授权与审计仍由后端逐条校验，不自动把未授权菜品改成已授权。
 
@@ -15,6 +15,8 @@
 本地后端的 `CORS_ORIGINS` 必须明确包含 `http://127.0.0.1:5179`（使用 localhost 时也添加对应来源）。该配置同时用于 refresh/logout 的 CSRF 来源校验；即使 Vite 已代理请求，遗漏后台来源仍会返回 `CSRF_ORIGIN_INVALID`。修改后需重新加载后端，不能关闭来源校验来绕过。
 
 营养目录入口 `/admin/catalog` 使用“上方筛选、下方表格”：名称/别名、来源、授权状态可组合查询，支持分页与重置。“新增”及每行“编辑”打开居中表单，直接“保存草稿”；每行“审核”“发布”分别打开精简的居中确认弹窗，原因必填、字段差异默认折叠，不再跳转长详情页。“详情”保留审计及失格操作。“下载模板”提供中文 UTF-8 CSV 表头；“导入”在居中弹窗先显示逐行校验结果，所有行通过后填写原因并确认新增草稿（最多 500 条/1 MB，不覆盖或自动发布）。“导出”下载当前查询条件的全部匹配目录，最多 10000 条；CSV 可由 Excel 打开。
+
+菜谱管理入口 `/admin/recipes` 紧随营养目录。它管理的是“成品菜何时可被选入餐单”，不是另一套营养表：导入 CSV 时名称必须唯一关联当前合格的营养目录，页面提供预校验、模板、导出及当前页批量启用、停用、软删除。每次写操作都要求原因；营养计算和最终资格始终由后端决定。
 
 ## 允许依赖
 
@@ -73,6 +75,7 @@ npm run typecheck && npm run build
 | `components.json` | 官方 shadcn Base UI registry 的受限生成配置 |
 | `src/auth/` | 公开登录、只驻留内存的 access token、probe guard 与 Query cache 清理 |
 | `src/features/catalog/` | 严格预览、草稿、审核、发布与失格 UI；可信 diff 始终来自后端 |
+| `src/features/recipes/` | 候选菜 CSV 导入导出、列表与批量生命周期 UI；不持有营养计算逻辑。 |
 | `src/features/runs/` / `src/features/audit/` | 最小运行诊断和 append-only 审计读取 UI |
 
 ## 实施顺序

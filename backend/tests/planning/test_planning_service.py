@@ -40,10 +40,11 @@ from app.nutrition.service import NutritionService
 class FakePlanningRepository:
     """Records recipe access so health guards prove they run before retrieval."""
 
-    def __init__(self, recipes: list[ControlledRecipe] | None = None, candidates: list[ManagedRecipeCandidate] | None = None) -> None:
+    def __init__(self, recipes: list[ControlledRecipe] | None = None, candidates: list[ManagedRecipeCandidate] | None = None, recent_recipe_ids: tuple[uuid.UUID, ...] = ()) -> None:
         self.recipe_search_calls = 0
         self.recipes = recipes or []
         self.candidates = candidates or []
+        self.recent_recipe_ids = recent_recipe_ids
 
     def list_controlled_recipes(
         self, *, catalog_version: str, recipe_version: str
@@ -55,6 +56,9 @@ class FakePlanningRepository:
         self, *, catalog_version: str | None
     ) -> list[ManagedRecipeCandidate]:
         return [candidate for candidate in self.candidates if catalog_version is None or candidate.catalog_version == catalog_version]
+
+    def list_recent_recipe_ids(self, *, user_id: uuid.UUID, plan_limit: int) -> tuple[uuid.UUID, ...]:
+        return self.recent_recipe_ids
 
 
 class FakeNutritionPort:
@@ -166,7 +170,7 @@ def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> Cont
 
 def managed_candidate(*, slot: MealSlot, food: QualifiedFood) -> ManagedRecipeCandidate:
     return ManagedRecipeCandidate(
-        id=uuid.uuid4(), food_catalog_item_id=food.id, catalog_version=food.catalog_version,
+        id=uuid.uuid4(), nutrition_item_id=food.id, catalog_version=food.catalog_version,
         display_name=food.canonical_name, meal_slot=slot, portion_grams=Decimal("180"),
         portion_description="一盘", method_tags=("炒",), flavour_tags=("家常",),
         status=ManagedRecipeCandidateStatus.ENABLED, revision=1,
@@ -405,6 +409,21 @@ def test_managed_candidates_are_used_without_a_hard_coded_catalog_version() -> N
 
     assert result.action is PlanValidationAction.PASS
     assert [meal.display_name for meal in result.meals] == [food.canonical_name for food in foods]
+
+
+def test_managed_candidates_avoid_recently_archived_meals_when_each_slot_has_an_alternative() -> None:
+    foods = [qualified_food(name=f"{slot.value}旧菜", energy="200") for slot in REQUIRED_MEAL_SLOTS]
+    alternatives = [qualified_food(name=f"{slot.value}新菜", energy="200") for slot in REQUIRED_MEAL_SLOTS]
+    used = [managed_candidate(slot=slot, food=food) for slot, food in zip(REQUIRED_MEAL_SLOTS, foods, strict=True)]
+    fresh = [managed_candidate(slot=slot, food=food) for slot, food in zip(REQUIRED_MEAL_SLOTS, alternatives, strict=True)]
+
+    result = PlanningService(
+        repository=FakePlanningRepository(candidates=[*used, *fresh], recent_recipe_ids=tuple(candidate.id for candidate in used)),
+        nutrition_port=RecipeNutritionPort([*foods, *alternatives]),
+    ).compose_daily_meals(user_id=uuid.uuid4(), catalog_version=None, preferences=confirmed_preferences())
+
+    assert result.action is PlanValidationAction.PASS
+    assert {meal.recipe_id for meal in result.meals}.isdisjoint({candidate.id for candidate in used})
 
 
 def test_public_dtos_are_frozen_and_reject_unknown_fields() -> None:

@@ -906,6 +906,7 @@ class DietPlanningGraph:
 
         while current.replan_count < 3:
             composition = self._tools.compose_daily_plan(
+                user_id=current.user_id,
                 target=target_result.target,
                 preferences=current.preferences,
                 replan_count=current.replan_count,
@@ -1008,6 +1009,7 @@ class DietPlanningGraph:
         if target is None or len(current.meals) not in (3, 4) or slot is None or intent is None:
             return state
         composition = self._tools.replace_planning_slot(
+            user_id=current.user_id,
             target=target,
             preferences=current.preferences,
             existing_meals=current.meals,

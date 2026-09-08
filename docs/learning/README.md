@@ -23,6 +23,7 @@
 | `05-diet-planning-subgraph.md` | Phase 5 资料复核、确定性目标、受控三餐、独立 checkpoint、个人资料删除、Phase 4 偏好权威性、安全 SSE 与跨层测试教学。 |
 | `phase-06-dashboard-read-api.md` | Phase 6 以餐食快照、窄完成计划投影、签名 cursor 和真实 PostgreSQL 证据构建 dashboard 读 API 的教学说明。 |
 | `06-dashboard-admin.md` | Phase 6 统计窗口、受控周复盘、独立后台，以及目录表格与 CSV 原子导入/幂等/导出的教学说明。 |
+| `06.1-recipe-candidate-pool.md` | 菜谱候选与营养目录的职责边界、CSV 导入/审计、候选轮换、可选加餐及跨层验证。 |
 | `meal-weight-input.md` | 独立重量解析、单位转换、输入拒绝与同会话追问恢复的中文教学。 |
 | `meal-slot-records.md` | 餐次确认、时间补录、历史兼容、请求链路与跨层测试教学。 |
 

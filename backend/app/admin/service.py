@@ -574,9 +574,17 @@ class AdminService:
                     raise RecipeCandidateCsvInvalid(
                         "目录菜品必须唯一且当前合格，无法自动创建或猜测关联。"
                     )
+                food = foods[0]
                 candidate = ManagedRecipeCandidate(
                     id=uuid.uuid4(),
-                    food_catalog_item_id=foods[0].id,
+                    food_catalog_item_id=(
+                        food.id if food.source_kind == "food_catalog_item" else None
+                    ),
+                    catalog_publication_id=(
+                        food.id if food.source_kind == "catalog_publication" else None
+                    ),
+                    catalog_food_name=food.canonical_name,
+                    nutrition_catalog_version=food.nutrition_catalog_version,
                     meal_slot=row.meal_slot,
                     portion_grams=row.portion_grams,
                     portion_description=row.portion_description,
@@ -600,7 +608,8 @@ class AdminService:
                         reason=command.reason,
                         before_diff={},
                         after_diff={
-                            "food_catalog_item_id": str(candidate.food_catalog_item_id),
+                            "nutrition_item_id": str(food.id),
+                            "nutrition_catalog_version": food.nutrition_catalog_version,
                             "meal_slot": candidate.meal_slot,
                             "status": candidate.status,
                             "revision": 1,
@@ -1414,10 +1423,9 @@ class AdminService:
     def _recipe_candidate_response(
         candidate: ManagedRecipeCandidate,
     ) -> RecipeCandidateResponse:
-        food = candidate.food_catalog_item
         return RecipeCandidateResponse(
             id=candidate.id,
-            catalog_food_name=food.canonical_name,
+            catalog_food_name=candidate.catalog_food_name,
             meal_slot=cast(
                 Literal["breakfast", "lunch", "dinner", "snack"], candidate.meal_slot
             ),

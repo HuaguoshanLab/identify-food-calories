@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import and_, case, exists, func, or_, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.admin.models import (
     AdminAuditEvent,
@@ -22,8 +22,9 @@ from app.admin.models import (
 )
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.admin.schemas import AdminRunMetricsResponse, CatalogListQuery
+from app.admin.ports import QualifiedRecipeFoodReference
 from app.auth.models import User, UserRole
-from app.nutrition.models import FoodCatalogItem
+from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
 from app.planning.models import ManagedRecipeCandidate
 
 
@@ -472,19 +473,59 @@ class SqlAlchemyAdminRepository:
 
     def resolve_qualified_food_by_name(
         self, canonical_name: str
-    ) -> list[FoodCatalogItem]:
-        return list(
-            self._session.scalars(
-                select(FoodCatalogItem).where(
+    ) -> list[QualifiedRecipeFoodReference]:
+        imported = self._session.execute(
+            select(FoodCatalogItem.id, FoodCatalogItem.canonical_name, NutritionCatalogVersion.version)
+            .join(NutritionCatalogVersion, NutritionCatalogVersion.id == FoodCatalogItem.catalog_version_id)
+            .where(
                     FoodCatalogItem.canonical_name == canonical_name,
                     FoodCatalogItem.is_qualified.is_(True),
                     FoodCatalogItem.energy_kcal_per_100g.is_not(None),
                     FoodCatalogItem.protein_g_per_100g.is_not(None),
                     FoodCatalogItem.fat_g_per_100g.is_not(None),
                     FoodCatalogItem.carbohydrate_g_per_100g.is_not(None),
-                )
             )
+        ).all()
+        latest = aliased(CatalogPublicationEligibility)
+        latest_eligibility = (
+            select(latest.id)
+            .where(latest.publication_id == CatalogPublication.id)
+            .order_by(latest.occurred_at.desc(), latest.id.desc())
+            .limit(1)
+            .scalar_subquery()
         )
+        published = self._session.scalars(
+            select(CatalogPublication)
+            .join(
+                CatalogActivePublication,
+                CatalogActivePublication.publication_id == CatalogPublication.id,
+            )
+            .join(CatalogPublicationEligibility, CatalogPublicationEligibility.id == latest_eligibility)
+            .where(
+                CatalogPublicationEligibility.status == "eligible",
+                CatalogPublication.snapshot["canonical_name"].as_string() == canonical_name,
+            )
+        ).all()
+        return [
+            *(
+                QualifiedRecipeFoodReference(
+                    id=item_id,
+                    source_kind="food_catalog_item",
+                    canonical_name=name,
+                    nutrition_catalog_version=version,
+                )
+                for item_id, name, version in imported
+            ),
+            *(
+                QualifiedRecipeFoodReference(
+                    id=publication.id,
+                    source_kind="catalog_publication",
+                    canonical_name=str(publication.snapshot["canonical_name"]),
+                    nutrition_catalog_version="admin-publication-v1",
+                )
+                for publication in published
+            ),
+        ]
 
     def add_recipe_candidate(
         self, candidate: ManagedRecipeCandidate
@@ -516,8 +557,8 @@ class SqlAlchemyAdminRepository:
             ManagedRecipeCandidate.deleted_at.is_(None)
         )
         if search:
-            statement = statement.join(FoodCatalogItem).where(
-                FoodCatalogItem.canonical_name.icontains(search, autoescape=True)
+            statement = statement.where(
+                ManagedRecipeCandidate.catalog_food_name.icontains(search, autoescape=True)
             )
         if meal_slot:
             statement = statement.where(ManagedRecipeCandidate.meal_slot == meal_slot)

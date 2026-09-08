@@ -197,11 +197,19 @@ class ManagedRecipeCandidate(Base):
         CheckConstraint("flavour_tags = btrim(flavour_tags) AND flavour_tags <> ''", name="ck_managed_recipe_candidates_flavour_tags"),
         CheckConstraint("status IN ('pending', 'enabled', 'disabled')", name="ck_managed_recipe_candidates_status"),
         CheckConstraint("revision >= 1", name="ck_managed_recipe_candidates_revision"),
-        Index("ix_managed_recipe_candidates_planning_eligibility", "meal_slot", "food_catalog_item_id", postgresql_where=text("status = 'enabled' AND deleted_at IS NULL")),
+        CheckConstraint(
+            "(food_catalog_item_id IS NOT NULL AND catalog_publication_id IS NULL) "
+            "OR (food_catalog_item_id IS NULL AND catalog_publication_id IS NOT NULL)",
+            name="ck_managed_recipe_candidates_one_catalog_reference",
+        ),
+        Index("ix_managed_recipe_candidates_planning_eligibility", "meal_slot", "food_catalog_item_id", "catalog_publication_id", postgresql_where=text("status = 'enabled' AND deleted_at IS NULL")),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    food_catalog_item_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("food_catalog_items.id", ondelete="RESTRICT"), nullable=False)
+    food_catalog_item_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("food_catalog_items.id", ondelete="RESTRICT"), nullable=True)
+    catalog_publication_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("catalog_publications.id", ondelete="RESTRICT"), nullable=True)
+    catalog_food_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    nutrition_catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
     meal_slot: Mapped[str] = mapped_column(String(16), nullable=False)
     portion_grams: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
     portion_description: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -212,7 +220,7 @@ class ManagedRecipeCandidate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    food_catalog_item: Mapped[FoodCatalogItem] = relationship(FoodCatalogItem)
+    food_catalog_item: Mapped[FoodCatalogItem | None] = relationship(FoodCatalogItem)
 
 
 class DietPlan(Base):

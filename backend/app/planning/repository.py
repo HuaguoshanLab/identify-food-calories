@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Select, and_, exists, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.agent.models import AgentRun, AgentThread
 from app.dashboard.ports import PlanningTargetEligibility
@@ -16,6 +16,7 @@ from app.planning.models import (
     ControlledRecipe as ControlledRecipeModel,
     ControlledRecipeIngredient as ControlledRecipeIngredientModel,
     ManagedRecipeCandidate as ManagedRecipeCandidateModel,
+    DietPlanVersion,
     PlanningCompletionProjection,
     PlanningProfile,
 )
@@ -153,8 +154,8 @@ class SqlAlchemyPlanningProfileRepository:
     ) -> list[ManagedRecipeCandidate]:
         """Return only candidates whose referenced catalog row remains calculable now."""
 
-        statement = (
-            select(ManagedRecipeCandidateModel, FoodCatalogItem, NutritionCatalogVersion.version)
+        imported_statement = (
+            select(ManagedRecipeCandidateModel)
             .join(FoodCatalogItem, FoodCatalogItem.id == ManagedRecipeCandidateModel.food_catalog_item_id)
             .join(NutritionCatalogVersion, NutritionCatalogVersion.id == FoodCatalogItem.catalog_version_id)
             .where(
@@ -166,17 +167,58 @@ class SqlAlchemyPlanningProfileRepository:
                 FoodCatalogItem.fat_g_per_100g.is_not(None),
                 FoodCatalogItem.carbohydrate_g_per_100g.is_not(None),
             )
-            .order_by(ManagedRecipeCandidateModel.meal_slot, ManagedRecipeCandidateModel.updated_at, ManagedRecipeCandidateModel.id)
         )
         if catalog_version is not None:
-            statement = statement.where(NutritionCatalogVersion.version == catalog_version)
-        rows = self._session.execute(statement).all()
+            imported_statement = imported_statement.where(NutritionCatalogVersion.version == catalog_version)
+        latest = aliased(CatalogPublicationEligibility)
+        latest_eligibility = (
+            select(latest.id)
+            .where(latest.publication_id == CatalogPublication.id)
+            .order_by(
+                latest.occurred_at.desc(),
+                latest.id.desc(),
+            )
+            .limit(1)
+            .scalar_subquery()
+        )
+        publication_statement = (
+            select(ManagedRecipeCandidateModel)
+            .join(
+                CatalogPublication,
+                CatalogPublication.id == ManagedRecipeCandidateModel.catalog_publication_id,
+            )
+            .join(
+                CatalogActivePublication,
+                CatalogActivePublication.publication_id == CatalogPublication.id,
+            )
+            .join(
+                CatalogPublicationEligibility,
+                CatalogPublicationEligibility.id == latest_eligibility,
+            )
+            .where(
+                ManagedRecipeCandidateModel.status == "enabled",
+                ManagedRecipeCandidateModel.deleted_at.is_(None),
+                CatalogPublicationEligibility.status == "eligible",
+            )
+        )
+        if catalog_version is not None:
+            publication_statement = publication_statement.where(
+                ManagedRecipeCandidateModel.nutrition_catalog_version == catalog_version
+            )
+        rows = [
+            *self._session.scalars(imported_statement),
+            *self._session.scalars(publication_statement),
+        ]
         return [
             ManagedRecipeCandidate(
                 id=candidate.id,
-                food_catalog_item_id=candidate.food_catalog_item_id,
-                catalog_version=version,
-                display_name=food.canonical_name,
+                nutrition_item_id=(
+                    candidate.food_catalog_item_id
+                    if candidate.food_catalog_item_id is not None
+                    else candidate.catalog_publication_id
+                ),
+                catalog_version=candidate.nutrition_catalog_version,
+                display_name=candidate.catalog_food_name,
                 meal_slot=MealSlot(candidate.meal_slot),
                 portion_grams=candidate.portion_grams,
                 portion_description=candidate.portion_description,
@@ -185,8 +227,44 @@ class SqlAlchemyPlanningProfileRepository:
                 status=ManagedRecipeCandidateStatus(candidate.status),
                 revision=candidate.revision,
             )
-            for candidate, food, version in rows
+            for candidate in sorted(
+                rows,
+                key=lambda row: (row.meal_slot, row.updated_at, str(row.id)),
+            )
         ]
+
+    def list_recent_recipe_ids(
+        self, *, user_id: uuid.UUID, plan_limit: int
+    ) -> tuple[uuid.UUID, ...]:
+        """Read only archived recipe provenance; mutable candidate rows are never history truth."""
+
+        snapshots = self._session.scalars(
+            select(DietPlanVersion.provenance)
+            .where(
+                DietPlanVersion.user_id == user_id,
+                DietPlanVersion.report.is_not(None),
+                DietPlanVersion.provenance.is_not(None),
+            )
+            .order_by(DietPlanVersion.created_at.desc(), DietPlanVersion.id.desc())
+            .limit(plan_limit)
+        )
+        ids: list[uuid.UUID] = []
+        for provenance in snapshots:
+            if not isinstance(provenance, dict):
+                continue
+            recipes = provenance.get("recipes")
+            if not isinstance(recipes, list):
+                continue
+            for recipe in recipes:
+                if not isinstance(recipe, dict) or not isinstance(recipe.get("recipe_id"), str):
+                    continue
+                try:
+                    recipe_id = uuid.UUID(recipe["recipe_id"])
+                except ValueError:
+                    continue
+                if recipe_id not in ids:
+                    ids.append(recipe_id)
+        return tuple(ids)
 
     @staticmethod
     def _profile_statement(*, user_id: uuid.UUID):

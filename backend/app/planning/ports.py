@@ -24,6 +24,10 @@ class PlanningRepository(Protocol):
         self, *, catalog_version: str | None
     ) -> list[ManagedRecipeCandidate]: ...
 
+    def list_recent_recipe_ids(
+        self, *, user_id: uuid.UUID, plan_limit: int
+    ) -> tuple[uuid.UUID, ...]: ...
+
 
 class PlanningProfileRepository(Protocol):
     """Persistence port for explicit profile CRUD; every lookup is tenant-filtered."""

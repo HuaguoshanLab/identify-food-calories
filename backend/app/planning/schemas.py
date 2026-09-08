@@ -262,7 +262,7 @@ class ManagedRecipeCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: uuid.UUID
-    food_catalog_item_id: uuid.UUID
+    nutrition_item_id: uuid.UUID
     catalog_version: str = Field(min_length=1, max_length=80)
     display_name: str = Field(min_length=1, max_length=200)
     meal_slot: MealSlot

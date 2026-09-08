@@ -97,7 +97,7 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
   uv run pytest tests/integration/test_dashboard_repository.py tests/integration/test_dashboard_overview_projection.py tests/integration/test_catalog_publish_eligibility.py -q
 ```
 
-Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit）、`0017`（catalog draft）、`0018`（catalog lifecycle）与 `0019`（runtime config）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
+Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit）、`0017`（catalog draft）、`0018`（catalog lifecycle）与 `0019`（runtime config）。Phase 6.1 再接 `0020`（餐次）、`0021`（计划存档）、`0022`（餐食目录版本）、`0023`（成品菜候选）和 `0024`（候选可引用后台已发布目录）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
 
 ## 文件索引
 
@@ -122,6 +122,7 @@ Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013
 | `tests/` | 单元、集成和 API 合约测试 |
 | `app/dashboard/` | 用户看板读模型、签名 cursor、facts-first 周复盘 cache 与安全 graph |
 | `app/admin/` | DB-RBAC、审计、运行配置、目录草稿与 immutable publication 生命周期 |
+| `app/planning/` | 身体资料、目标、计划存档，以及由营养目录引用支撑的受控菜谱和管理员候选餐单池。 |
 
 ### 正式餐单存档
 

@@ -6,7 +6,7 @@
 
 ## 允许依赖
 
-- Domain Service 只通过 `PlanningRepository` 和 `PlanningNutritionPort` Protocol 获取资料、受控菜谱/成品菜候选和营养数据；每个菜品必须调用 nutrition 的确定性 `calculate_nutrition`，不得读取或保存 recipe total。
+- Domain Service 只通过 `PlanningRepository` 和 `PlanningNutritionPort` Protocol 获取资料、受控菜谱/成品菜候选和营养数据；每个菜品必须调用 nutrition 的确定性 `calculate_nutrition`，不得读取或保存 recipe total。候选可引用系统目录或管理员已发布目录，二者都只保存引用与份量，不复制营养。
 - 完成计划投影只通过 planning-owned Port 写入、撤销和读取；dashboard 仅消费资格、目标区间与版本，不能读取 profile ORM。
 - Profile API 只可依赖 `auth.api.AuthenticatedPrincipal`、Profile Service 与 request-scoped SQLAlchemy adapter；不得接受客户端 `user_id`。
 - Profile Service 只通过 `PlanningProfileRepository` 查询或写入；偏好、原始反馈、Provider 数据和医疗叙述禁止进入 profile。
@@ -21,8 +21,8 @@
 | `schemas.py` | 冻结的 profile、偏好、目标、R-03 recipe、管理员成品菜候选、D-08 meal card 与闭合结果 DTO |
 | `models.py` | 最小化的 owner-bound `PlanningProfile`、可撤销 `PlanningCompletionProjection`，以及受审核菜谱、固定食材引用和管理员候选 ORM 与数据库不变量 |
 | `ports.py` | 可替换的 profile/recipe/candidate/nutrition 数据 Protocol、completion projection 与 profile CRUD port |
-| `repository.py` | SQLAlchemy tenant-filtered profile/projection adapter，以及排除失格或停用目录项的 recipe/candidate future query |
-| `service.py` | `target-policy.v1`、健康 guard、目录重算的餐单组合、确定性校验、completion projection 和 profile 事务边界 |
+| `repository.py` | SQLAlchemy tenant-filtered profile/projection adapter、已归档候选轮换历史，以及排除失格或停用目录项的 recipe/candidate future query |
+| `service.py` | `target-policy.v1`、健康 guard、目录重算的餐单组合、最近三份历史优先去重的候选轮换、确定性校验、completion projection 和 profile 事务边界 |
 | `api.py` | 认证的 `/api/v1/planning/profile` HTTP CRUD 与统一不可用响应 |
 | `importer.py` | 离线校验并幂等导入项目自有、已审核的受控菜谱 seed；仅启用 `controlled-recipes.v2`，旧版本保留审计记录但不能被组合 |
 | `data/` | 项目自有、无第三方正文的 R-03 受控菜谱短 seed；`v1` 为审计历史，`v2` 为当前可用版本 |

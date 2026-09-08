@@ -113,7 +113,7 @@ class FakePlanningTools(PlanningToolAdapter):
         )
 
     def compose_daily_plan(
-        self, *, target: DailyTarget, preferences: PreferenceReview, replan_count: int
+        self, *, user_id: uuid.UUID, target: DailyTarget, preferences: PreferenceReview, replan_count: int
     ) -> MealCompositionResult:
         self.compose_calls += 1
         if self._composition_action is not PlanValidationAction.PASS:
@@ -157,6 +157,7 @@ class FakePlanningTools(PlanningToolAdapter):
     def replace_planning_slot(
         self,
         *,
+        user_id: uuid.UUID,
         target: DailyTarget,
         preferences: PreferenceReview,
         existing_meals: tuple[PlannedMeal, ...],

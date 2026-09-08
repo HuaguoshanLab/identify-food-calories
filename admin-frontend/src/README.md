@@ -23,3 +23,5 @@
 | `layouts/` | 后台页面壳、导航和桌面/窄屏结构；不发领域请求，目录索引见 `layouts/README.md`。 |
 | `components/` | 仅跨两个以上后台 feature 的共享展示组件与官方 UI 原语；目录索引见 `components/README.md`。 |
 | `features/` | 按后台能力隔离的 API、Query、页面和组件；目录索引见 `features/README.md`。 |
+
+`features/recipes/` 是与营养目录同级的菜谱候选管理模块：只显示后端严格 DTO，并提供 CSV 预览/导入、模板/导出及批量启用、停用、软删除。它不计算营养，也不自行判断目录资格。
