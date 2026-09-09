@@ -51,6 +51,15 @@ describe('AdminShell', () => {
     }
   })
 
+  it('桌面端主内容区域可纵向滚动，避免超出视口的页面被裁切', () => {
+    window.innerWidth = 1440
+    window.dispatchEvent(new Event('resize'))
+    renderShell()
+
+    expect(screen.getByRole('main')).toHaveClass('lg:overflow-y-auto')
+    expect(screen.getByRole('main')).not.toHaveClass('lg:overflow-hidden')
+  })
+
   it('二级菜单可折叠，并为访问过的页面创建和关闭标签', async () => {
     window.innerWidth = 1440
     window.dispatchEvent(new Event('resize'))

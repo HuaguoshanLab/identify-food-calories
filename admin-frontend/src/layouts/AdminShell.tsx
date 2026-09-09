@@ -89,7 +89,7 @@ export function AdminShell({ children, onLogout }: AdminShellProps) {
         }} />
         <AdminTabs />
       </div>
-      <main id="admin-main" ref={mainRef} tabIndex={-1} className="min-w-0 lg:h-[calc(100dvh-6.75rem)] lg:overflow-hidden">{children ?? <Outlet />}</main>
+      <main id="admin-main" ref={mainRef} tabIndex={-1} className="min-w-0 lg:h-[calc(100dvh-6.75rem)] lg:overflow-y-auto">{children ?? <Outlet />}</main>
     </div>
   </div>
 }
