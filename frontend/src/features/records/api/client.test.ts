@@ -17,7 +17,7 @@ const record = {
   created_at: '2026-09-04T02:00:00+00:00',
   updated_at: '2026-09-04T02:00:00+00:00',
   items: [{
-    id: '3f8ba163-ddf2-4b58-b5b4-455937c19f7d', position: 0, display_name: '白米饭', grams: '100.0',
+    id: '3f8ba163-ddf2-4b58-b5b4-455937c19f7d', position: 0, display_name: '白米饭', nutrition_catalog_version: 'admin-publication-v1', grams: '100.0',
     energy_kcal: '130.0', protein_g: '2.6', fat_g: '0.3', carbohydrate_g: '25.9', is_estimated: false,
   }],
 }
