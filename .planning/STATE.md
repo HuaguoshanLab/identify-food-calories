@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 06.2 complete
-last_updated: "2026-09-08T09:59:40.000Z"
-last_activity: 2026-09-08 — 系统管理导航、管理员升降权、固定角色说明、审计与跨栈验收完成
+status: Not started
+stopped_at: Phase 06.3 context gathered
+last_updated: "2026-09-10T07:55:45.104Z"
+last_activity: 2026-09-10 — 插入 Phase 06.3 混合菜品检索，进入规格澄清
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 9
   total_plans: 108
   completed_plans: 108
-  percent: 90
+  percent: 82
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-26)
 
 **Core value:** 让用户通过图片或自然语言得到可追问、可校验、可追溯、能记住个人偏好的饮食分析与规划结果。
-**Current focus:** Phase 06.2 — 系统管理与角色治理
+**Current focus:** Phase 06.3 — 混合菜品检索
 
 ## Current Position
 
-Phase: 06.2
-Plan: 02 complete
-Status: Complete
-Last activity: 2026-09-08 — 系统管理导航、管理员升降权、固定角色说明、审计与跨栈验收完成
+Phase: 06.3
+Plan: Not planned
+Status: Not started
+Last activity: 2026-09-10 — 插入 Phase 06.3 混合菜品检索，进入规格澄清
 
 Progress: [██████████] 100%
 
@@ -111,6 +111,7 @@ Progress: [██████████] 100%
 - Phase 06.1 inserted after Phase 6: 菜谱管理与餐单候选池 (URGENT)
 - Phase 06.2 edited: filled goal, requirements, and success criteria from approved context
 - Phase 06.2 completed: system management navigation, audited role governance, and browser verification
+- Phase 06.3 inserted after Phase 6: 混合菜品检索：精确别名、模糊文本与 pgvector 语义召回，安全返回受控候选 (URGENT)
 
 ### Decisions
 
@@ -331,6 +332,6 @@ Phase 7 按用户要求暂不启动；本次计划存档已完成。
 
 ## Session Continuity
 
-Last session: 2026-09-08T09:59:40.000Z
-Stopped at: Phase 06.2 complete
-Resume file: .planning/phases/06.2-system-admin/06.2-VERIFICATION.md
+Last session: 2026-09-10T07:55:45.086Z
+Stopped at: Phase 06.3 context gathered
+Resume file: .planning/phases/06.3-pgvector/06.3-CONTEXT.md
