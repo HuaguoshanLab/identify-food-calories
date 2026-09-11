@@ -47,7 +47,7 @@ from app.planning.service import PlanningService
 
 
 CASE_SCHEMA_VERSION = "phase063-case.v1"
-EVALUATOR_VERSION = "phase063-evaluator.v1"
+EVALUATOR_VERSION = "phase063-evaluator.v2"
 CASE_FIELDS = (
     "schema_version",
     "case_id",
@@ -72,12 +72,14 @@ EXPECTED_FIELDS = (
     "execution_mode",
 )
 REQUIRED_CASE_KINDS = frozenset({"exact", "non_exact", "ambiguity", "eligibility", "failure_determinism"})
-RELEASE_SCHEMA_VERSION = "phase063-release.v1"
+RELEASE_SCHEMA_VERSION = "phase063-release.v2"
 RELEASE_FIELDS = frozenset({"schema_version", "evaluator_version", "decision", "input_hashes", "snapshot", "metrics", "cases", "evidence_hash"})
-RELEASE_CASE_FIELDS = frozenset({"case_id", "case_hash", "action", "candidate_ids", "exact_sql", "text_sql", "vector_sql", "graph_calls", "assertions"})
-RELEASE_ASSERTION_FIELDS = frozenset({"action", "targets", "excluded", "channel", "execution_mode", "versions", "candidate_bound", "meal_graph", "planning_graph"})
+RELEASE_CASE_FIELDS = frozenset({"case_id", "case_hash", "action", "candidate_ids", "exact_sql", "text_sql", "vector_sql", "graph_calls", "graph_semantics", "assertions"})
+RELEASE_ASSERTION_FIELDS = frozenset({"action", "targets", "excluded", "channel", "execution_mode", "versions", "candidate_bound", "meal_graph", "planning_graph", "flow_semantics"})
 RELEASE_GRAPH_CALL_FIELDS = frozenset({"meal_graph_entries", "planning_graph_entries", "meal_search_calls", "planning_target_calls", "planning_compose_calls"})
-RELEASE_METRIC_FIELDS = frozenset({"case_count", "exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries", "meal_tool_search_calls", "planning_tool_target_calls", "planning_tool_compose_calls", "action_pass_rate", "target_recall"})
+RELEASE_GRAPH_SEMANTICS_FIELDS = frozenset({"direct", "meal", "planning"})
+RELEASE_SEARCH_SEMANTICS_FIELDS = frozenset({"action", "selected_id", "candidate_ids", "relation_labels"})
+RELEASE_METRIC_FIELDS = frozenset({"case_count", "exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries", "meal_tool_search_calls", "planning_tool_target_calls", "planning_tool_compose_calls", "action_pass_rate", "target_recall", "flow_semantics_parity"})
 RELEASE_INPUT_HASH_FIELDS = frozenset({"dataset_sha256", "evaluator_sha256", "search_policy_sha256"})
 RELEASE_SNAPSHOT_FIELDS = frozenset({"fixture", "food_labels"})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -296,15 +298,18 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
 
 
 class _EvaluationMealTools:
-    """Count calls made by the real meal graph into ``NutritionService``."""
+    """Capture the real meal graph's safe search outputs, never only call counts."""
 
     def __init__(self, service: NutritionService) -> None:
         self._service = service
         self.search_calls = 0
+        self.search_results: list[object] = []
 
     async def search_food_catalog(self, request: FoodSearchInput):
         self.search_calls += 1
-        return await self._service.search_food_catalog(request)
+        result = await self._service.search_food_catalog(request)
+        self.search_results.append(result)
+        return result
 
     def calculate_nutrition(self, request):
         return self._service.calculate_nutrition(request)
@@ -327,9 +332,12 @@ class _EvaluationPlanningTools:
         self._planning_service = PlanningService(repository=SqlAlchemyPlanningProfileRepository(session), nutrition_port=nutrition_service)
         self.target_calls = 0
         self.compose_calls = 0
+        self.search_results: list[object] = []
 
     async def search_food_catalog(self, request: FoodSearchInput):
-        return await self._nutrition_service.search_food_catalog(request)
+        result = await self._nutrition_service.search_food_catalog(request)
+        self.search_results.append(result)
+        return result
 
     def calculate_daily_target(self, *, profile: PlanningProfileInput, preferences: PreferenceReview):
         self.target_calls += 1
@@ -432,21 +440,92 @@ def _planning_state() -> DietPlanningState:
     return DietPlanningState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), command_key="phase063-frozen-eval", profile=PlanningProfileInput.model_validate({"height_cm": "170", "weight_kg": "65", "age_years": 30, "formula_variant": "mifflin_st_jeor_female", "activity_level": "moderate", "goal": "loss", "goal_speed": "gradual_loss"}), preferences=PreferenceReview(confirmed=True), graph_version="diet-planning-graph.v1", prompt_version="diet-planning-command.v1", tool_version="planning-tools.v1")
 
 
-def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, session: Session) -> dict[str, int]:
-    """Exercise production graph entrypoints; counters come from calls, never case count."""
+def _search_service(*, nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, query_vector: tuple[float, ...], mode: str, tracing: _EvaluationTracing | None = None) -> NutritionService:
+    """Build one isolated production service replay for a direct or graph entrypoint."""
 
-    embedding_provider = FakeEmbeddingProvider()
-    embedding_provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
-    nutrition_service = NutritionService(repository=nutrition_repository, search_repository=search_repository, embedding_provider=embedding_provider)
-    meal_tools = _EvaluationMealTools(nutrition_service)
+    provider = FakeEmbeddingProvider()
+    if mode in {"embedding_timeout", "embedding_contract_failure"}:
+        provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
+    else:
+        provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
+    return NutritionService(
+        repository=nutrition_repository,
+        search_repository=_FaultedSearchRepository(
+            search_repository,
+            vector_index_missing=mode == "vector_index_missing",
+            force_no_candidates=mode in {
+                "single_ingredient_only", "no_candidates", "revoked_filtered",
+                "ineligible_filtered", "old_version_filtered", "incomplete_metadata_filtered",
+            },
+            suppress_exact=mode in {
+                "embedding_timeout", "embedding_contract_failure", "vector_index_missing",
+            },
+            fallback_exact_as_text=mode in {"embedding_timeout", "vector_index_missing"},
+        ),
+        embedding_provider=provider,
+        tracing=tracing,
+    )
+
+
+def _semantic_projection(result: object, *, label_by_id: Mapping[str, str]) -> dict[str, object]:
+    """Project only IDs/actions/default relation labels shared by all tool boundaries."""
+
+    if not hasattr(result, "action") or not hasattr(result, "candidates") or not hasattr(result, "selected_food"):
+        raise EvaluationContractError("graph search did not return the typed nutrition result")
+    selected = result.selected_food
+    selected_id = label_by_id.get(str(selected.id)) if selected is not None else None
+    candidates = [label_by_id.get(str(candidate.id)) for candidate in result.candidates]
+    if selected is not None and selected_id is None or any(candidate is None for candidate in candidates):
+        raise EvaluationContractError("evaluation search returned an unbound food identity")
+    # ``FoodSearchResult`` deliberately hides internal rank/relation evidence.  The
+    # graph therefore persists the contract's fixed, safe default rather than
+    # inventing a relation from scores or natural-language labels.
+    return {
+        "action": result.action.value,
+        "selected_id": selected_id,
+        "candidate_ids": candidates,
+        "relation_labels": ["目录候选"] * len(candidates),
+    }
+
+
+def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], mode: str, nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, session: Session, label_by_id: Mapping[str, str]) -> tuple[dict[str, int], dict[str, dict[str, object]]]:
+    """Replay both production graph entrypoints and retain their tool semantics."""
+
+    meal_tools = _EvaluationMealTools(_search_service(
+        nutrition_repository=nutrition_repository, search_repository=search_repository,
+        query_vector=query_vector, mode=mode,
+    ))
     provider = FakeReasoningModelProvider()
     provider.queue_parse_result(ParsedMealDTO(items=[ParsedMealItemDTO(item_id="frozen-item", food_name=query, catalog_query=query, grams=Decimal("100"))]))
     asyncio.run(MealAnalysisGraph(provider=provider, tools=meal_tools).ainvoke(_meal_state(query)))
-    planning_tools = _EvaluationPlanningTools(nutrition_service=nutrition_service, session=session)
-    asyncio.run(DietPlanningGraph(tools=planning_tools).ainvoke(_planning_state()))
-    if meal_tools.search_calls < 1 or planning_tools.target_calls < 1 or planning_tools.compose_calls < 1:
-        raise EvaluationContractError("frozen case did not reach both production graph tool paths")
-    return {"meal_graph_entries": 1, "planning_graph_entries": 1, "meal_search_calls": meal_tools.search_calls, "planning_target_calls": planning_tools.target_calls, "planning_compose_calls": planning_tools.compose_calls}
+    planning_tools = _EvaluationPlanningTools(
+        nutrition_service=_search_service(
+            nutrition_repository=nutrition_repository, search_repository=search_repository,
+            query_vector=query_vector, mode=mode,
+        ),
+        session=session,
+    )
+    planning_graph = DietPlanningGraph(tools=planning_tools)
+    # The fixture has no recipe rows, so its ordinary planning run intentionally
+    # reaches the bounded replan terminal.  Replay the typed adjustment from a
+    # fresh valid planning state to exercise the planning graph's actual shared
+    # search-tool branch instead of treating a terminal report as a search result.
+    asyncio.run(planning_graph.ainvoke(_planning_state()))
+    asyncio.run(planning_graph.ainvoke(_planning_state(), resume={"food_query": query}))
+    if (meal_tools.search_calls != 1 or len(planning_tools.search_results) != 1
+            or planning_tools.target_calls < 1 or planning_tools.compose_calls < 1):
+        raise EvaluationContractError(
+            "frozen case did not reach both production graph tool paths: "
+            f"meal_search={meal_tools.search_calls}, planning_search={len(planning_tools.search_results)}, "
+            f"planning_target={planning_tools.target_calls}, planning_compose={planning_tools.compose_calls}"
+        )
+    return (
+        {"meal_graph_entries": 1, "planning_graph_entries": 1, "meal_search_calls": meal_tools.search_calls, "planning_target_calls": planning_tools.target_calls, "planning_compose_calls": planning_tools.compose_calls},
+        {
+            "meal": _semantic_projection(meal_tools.search_results[0], label_by_id=label_by_id),
+            "planning": _semantic_projection(planning_tools.search_results[0], label_by_id=label_by_id),
+        },
+    )
 
 
 def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any]], dataset: Path, snapshot: dict[str, uuid.UUID]) -> dict[str, Any]:
@@ -461,10 +540,11 @@ def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any
         "planning_tool_compose_calls": sum(item["graph_calls"]["planning_compose_calls"] for item in observed),
         "action_pass_rate": round(sum(item["assertions"]["action"] for item in observed) / len(rows), 4),
         "target_recall": round(sum(item["assertions"]["targets"] for item in observed) / len(rows), 4),
+        "flow_semantics_parity": round(sum(item["assertions"]["flow_semantics"] for item in observed) / len(rows), 4),
     }
     release: dict[str, Any] = {
         "schema_version": RELEASE_SCHEMA_VERSION, "evaluator_version": EVALUATOR_VERSION,
-        "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) else "FAIL",
+        "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0 else "FAIL",
         "input_hashes": {"dataset_sha256": file_hash(dataset), "evaluator_sha256": file_hash(Path(__file__)), "search_policy_sha256": file_hash(Path(__file__).parents[2] / "app/nutrition/search.py")},
         "snapshot": {"fixture": "synthetic:catalog-06-3-v1", "food_labels": sorted(snapshot)}, "metrics": metrics,
         "cases": observed,
@@ -495,35 +575,23 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
         attempts = 3 if mode == "repeat_three_times" else 1
         outcomes: list[tuple[object, _EvaluationTracing]] = []
         for _ in range(attempts):
-            provider = FakeEmbeddingProvider()
-            if mode in {"embedding_timeout", "embedding_contract_failure"}:
-                # The Fake failure executes the same production text-only path;
-                # no case is allowed to claim a fallback without invoking one.
-                provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
-            else:
-                provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
             tracing = _EvaluationTracing()
-            search_port = _FaultedSearchRepository(
-                repository, vector_index_missing=mode == "vector_index_missing",
-                force_no_candidates=mode in {
-                    "single_ingredient_only", "no_candidates", "revoked_filtered",
-                    "ineligible_filtered", "old_version_filtered", "incomplete_metadata_filtered",
-                },
-                suppress_exact=mode in {
-                    "embedding_timeout", "embedding_contract_failure", "vector_index_missing",
-                },
-                fallback_exact_as_text=mode in {
-                    "embedding_timeout", "vector_index_missing",
-                },
-            )
-            service = NutritionService(
-                repository=nutrition_repository, search_repository=search_port,
-                embedding_provider=provider, tracing=tracing,
+            service = _search_service(
+                nutrition_repository=nutrition_repository, search_repository=repository,
+                query_vector=query_vector, mode=mode, tracing=tracing,
             )
             outcomes.append((asyncio.run(service.search_food_catalog(FoodSearchInput(query=case["query"]))), tracing))
         result, tracing = outcomes[0]
         assert hasattr(result, "candidates")
-        graph_calls = _execute_graph_entries(query=case["query"], query_vector=query_vector, nutrition_repository=nutrition_repository, search_repository=repository, session=session)
+        graph_calls, graph_semantics = _execute_graph_entries(
+            query=case["query"], query_vector=query_vector, mode=mode,
+            nutrition_repository=nutrition_repository, search_repository=repository,
+            session=session, label_by_id=label_by_id,
+        )
+        graph_semantics = {
+            "direct": _semantic_projection(result, label_by_id=label_by_id),
+            **graph_semantics,
+        }
         ids = {str(candidate.id) for candidate in result.candidates}
         if result.selected_food is not None:
             ids.add(str(result.selected_food.id))
@@ -546,8 +614,8 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             "case_id": case["case_id"], "case_hash": case["case_hash"], "action": result.action.value,
             "candidate_ids": sorted(label_by_id.get(value, "unbound") for value in ids), "exact_sql": int(bool(exact_rows)),
             "text_sql": int(bool(text_rows)), "vector_sql": int(bool(vector_rows)),
-            "graph_calls": graph_calls,
-            "assertions": {"action": result.action.value == expected["action"], "targets": not expected_ids or expected_ids <= ids, "excluded": not (excluded_ids & ids), "channel": channel == expected["match_channel"], "execution_mode": fault_executed and (mode != "repeat_three_times" or len(set(repeated)) == 1), "versions": case["catalog_version"] == "catalog-06-3-v1" and case["retrieval_version"] == "retrieval-06-3-v1" and case["embedding_version"] == "fake-embedding-v1", "candidate_bound": len(result.candidates) <= expected["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0},
+            "graph_calls": graph_calls, "graph_semantics": graph_semantics,
+            "assertions": {"action": result.action.value == expected["action"], "targets": not expected_ids or expected_ids <= ids, "excluded": not (excluded_ids & ids), "channel": channel == expected["match_channel"], "execution_mode": fault_executed and (mode != "repeat_three_times" or len(set(repeated)) == 1), "versions": case["catalog_version"] == "catalog-06-3-v1" and case["retrieval_version"] == "retrieval-06-3-v1" and case["embedding_version"] == "fake-embedding-v1", "candidate_bound": len(result.candidates) <= expected["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0, "flow_semantics": len({json.dumps(value, ensure_ascii=False, sort_keys=True) for value in graph_semantics.values()}) == 1},
         })
     release = _release_payload(rows=rows, observed=observed, dataset=dataset, snapshot=snapshot)
     if output is not None:
@@ -578,6 +646,7 @@ def _release_metrics(cases: list[dict[str, Any]]) -> dict[str, int | float]:
         "planning_tool_compose_calls": sum(case["graph_calls"]["planning_compose_calls"] for case in cases),
         "action_pass_rate": round(sum(case["assertions"]["action"] for case in cases) / len(cases), 4),
         "target_recall": round(sum(case["assertions"]["targets"] for case in cases) / len(cases), 4),
+        "flow_semantics_parity": round(sum(case["assertions"]["flow_semantics"] for case in cases) / len(cases), 4),
     }
 
 
@@ -622,13 +691,30 @@ def validate_release(path: Path, *, require_pass: bool) -> dict[str, Any]:
         graph_calls = case["graph_calls"]
         if not isinstance(graph_calls, dict) or set(graph_calls) != RELEASE_GRAPH_CALL_FIELDS or not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in graph_calls.values()):
             raise EvaluationContractError("release graph counters are invalid")
+        graph_semantics = case["graph_semantics"]
+        if not isinstance(graph_semantics, dict) or set(graph_semantics) != RELEASE_GRAPH_SEMANTICS_FIELDS:
+            raise EvaluationContractError("release graph semantics do not match the frozen contract")
+        for projection in graph_semantics.values():
+            if not isinstance(projection, dict) or set(projection) != RELEASE_SEARCH_SEMANTICS_FIELDS:
+                raise EvaluationContractError("release search semantics do not match the frozen contract")
+            if projection["action"] not in {"PASS", "ASK"} or projection["selected_id"] is not None and projection["selected_id"] not in _CANONICAL_NAMES:
+                raise EvaluationContractError("release search action or selected identity is invalid")
+            candidates = projection["candidate_ids"]
+            relations = projection["relation_labels"]
+            if not isinstance(candidates, list) or not isinstance(relations, list) or len(candidates) != len(relations) or len(candidates) > 3 or len(set(candidates)) != len(candidates) or not all(isinstance(item, str) and item in _CANONICAL_NAMES for item in candidates) or relations != ["目录候选"] * len(candidates):
+                raise EvaluationContractError("release search candidates or relation defaults are invalid")
+            if (projection["action"] == "PASS") != (projection["selected_id"] is not None) or (projection["action"] == "PASS" and candidates):
+                raise EvaluationContractError("release search selection semantics are invalid")
+        semantic_parity = len({json.dumps(value, ensure_ascii=False, sort_keys=True) for value in graph_semantics.values()}) == 1
         assertions = case["assertions"]
         if not isinstance(assertions, dict) or set(assertions) != RELEASE_ASSERTION_FIELDS or not all(isinstance(value, bool) for value in assertions.values()):
             raise EvaluationContractError("release assertions do not match the frozen contract")
+        if assertions["flow_semantics"] != semantic_parity:
+            raise EvaluationContractError("release flow semantics assertion does not match its graph evidence")
     metrics = release["metrics"]
     if not isinstance(metrics, dict) or set(metrics) != RELEASE_METRIC_FIELDS or metrics != _release_metrics(cases):
         raise EvaluationContractError("release metrics do not match its case evidence")
-    passed = all(all(case["assertions"].values()) for case in cases) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries"))
+    passed = all(all(case["assertions"].values()) for case in cases) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0
     if (release["decision"] == "PASS") != passed or (require_pass and release["decision"] != "PASS"):
         raise EvaluationContractError("release decision does not satisfy the frozen contract")
     return release

@@ -99,7 +99,7 @@ def test_evaluator_exposes_hash_bound_real_postgresql_release_contract() -> None
 
     from evals.phase_06_3 import evaluate
 
-    assert evaluate.EVALUATOR_VERSION == "phase063-evaluator.v1"
+    assert evaluate.EVALUATOR_VERSION == "phase063-evaluator.v2"
     assert "SqlAlchemyHybridFoodSearchRepository" in evaluate.__doc__
     assert hasattr(evaluate, "build_release")
     assert hasattr(evaluate, "verify_release")
@@ -112,6 +112,28 @@ def test_release_verification_rejects_any_hash_or_metric_tampering(tmp_path: Pat
     release.write_text('{"decision":"PASS","evidence_hash":"' + "0" * 64 + '"}\n', encoding="utf-8")
 
     with pytest.raises(EvaluationContractError):
+        verify_release(release)
+
+
+def test_release_verification_rejects_graph_output_drift_even_when_call_counts_match(tmp_path: Path) -> None:
+    """A graph invocation count is not evidence that its retrieval semantics agree."""
+
+    from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
+
+    release = tmp_path / "release.json"
+    payload = json.loads((BACKEND_ROOT / "evals/phase_06_3/release.json").read_text(encoding="utf-8"))
+    # Preserve the counter shape and valid per-projection DTO shape, but make the
+    # meal graph return a distinct safe ASK result.  A rehashed report must still
+    # fail because the recorded parity assertion no longer matches its evidence.
+    payload["cases"][0]["graph_semantics"]["meal"] = {
+        "action": "ASK",
+        "selected_id": None,
+        "candidate_ids": ["food:apple-v1"],
+        "relation_labels": ["目录候选"],
+    }
+    _write_rehashed_release(release, payload)
+
+    with pytest.raises(EvaluationContractError, match="flow semantics"):
         verify_release(release)
 
 
