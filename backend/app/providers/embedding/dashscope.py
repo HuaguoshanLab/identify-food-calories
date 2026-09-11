@@ -26,6 +26,7 @@ DASHSCOPE_EMBEDDING_URL = (
 )
 PINNED_MODEL = "text-embedding-v4"
 PINNED_ADAPTER_VERSION = "dashscope-text-embedding-v4-1024.v1"
+MAX_HTTP_ATTEMPTS = 2
 
 
 class EmbeddingBudgetLedger(Protocol):
@@ -108,7 +109,12 @@ class DashScopeEmbeddingProvider:
             )
         try:
             reservation = self._budget_ledger.reserve(
-                amount_cny=self._single_call_cap_cny, cap_cny=self._period_cap_cny
+                # A retry is another vendor request and can be billable even if its
+                # first response is a 5xx.  Reserve the whole bounded attempt budget
+                # atomically before the first request; reserving only one call here
+                # would let concurrent workers spend beyond the monthly cap.
+                amount_cny=self._single_call_cap_cny * MAX_HTTP_ATTEMPTS,
+                cap_cny=self._period_cap_cny,
             )
         except EmbeddingBudgetUnavailable as error:
             raise ProviderCallError(
@@ -128,7 +134,8 @@ class DashScopeEmbeddingProvider:
             },
         }
         started = monotonic()
-        for attempt in range(2):
+        retry_cost_exposure = Decimal("0")
+        for attempt in range(MAX_HTTP_ATTEMPTS):
             try:
                 async with httpx.AsyncClient(
                     timeout=httpx.Timeout(self._timeout_seconds), transport=self._transport
@@ -148,6 +155,10 @@ class DashScopeEmbeddingProvider:
                 ) from error
 
             if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                # These statuses do not prove the provider skipped billing.  Retain
+                # one full-call allowance before retrying, then settle the final
+                # reservation with that conservative exposure plus known success cost.
+                retry_cost_exposure += self._single_call_cap_cny
                 continue
             if response.status_code >= 400:
                 raise ProviderCallError(
@@ -169,7 +180,8 @@ class DashScopeEmbeddingProvider:
                 ) from error
             try:
                 self._budget_ledger.settle(
-                    reservation, actual_cost_cny=result.metadata.usage.cost_cny
+                    reservation,
+                    actual_cost_cny=retry_cost_exposure + result.metadata.usage.cost_cny,
                 )
             except EmbeddingBudgetUnavailable as error:
                 raise ProviderCallError(
