@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from time import monotonic
+from typing import Protocol
 import httpx
 from pydantic import ValidationError
 
 from app.core.config import Settings
+from app.core.embedding_budget import EmbeddingBudgetReservation, EmbeddingBudgetUnavailable
 from app.providers.embedding.dto import (
     EMBEDDING_DIMENSION,
     EmbeddingCallMetadataDTO,
@@ -26,6 +28,14 @@ PINNED_MODEL = "text-embedding-v4"
 PINNED_ADAPTER_VERSION = "dashscope-text-embedding-v4-1024.v1"
 
 
+class EmbeddingBudgetLedger(Protocol):
+    """Small accounting port keeps the HTTP adapter free of persistence details."""
+
+    def reserve(self, *, amount_cny: Decimal, cap_cny: Decimal) -> EmbeddingBudgetReservation | None: ...
+
+    def settle(self, reservation: EmbeddingBudgetReservation, *, actual_cost_cny: Decimal) -> None: ...
+
+
 class DashScopeEmbeddingProvider:
     """Call the pinned DashScope embedding endpoint without exposing vendor bodies."""
 
@@ -41,6 +51,7 @@ class DashScopeEmbeddingProvider:
         period_cap_cny: Decimal,
         price_snapshot_version: str,
         adapter_version: str = PINNED_ADAPTER_VERSION,
+        budget_ledger: EmbeddingBudgetLedger | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         if not api_key.strip() or model != PINNED_MODEL or dimension != EMBEDDING_DIMENSION:
@@ -59,10 +70,11 @@ class DashScopeEmbeddingProvider:
         self._period_cap_cny = period_cap_cny
         self._price_snapshot_version = price_snapshot_version
         self._adapter_version = adapter_version
+        self._budget_ledger = budget_ledger
         self._transport = transport
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> DashScopeEmbeddingProvider:
+    def from_settings(cls, settings: Settings, *, budget_ledger: EmbeddingBudgetLedger | None = None) -> DashScopeEmbeddingProvider:
         required = (
             settings.dashscope_api_key,
             settings.embedding_model,
@@ -86,9 +98,26 @@ class DashScopeEmbeddingProvider:
             period_cap_cny=settings.embedding_period_cap_cny or Decimal("0"),
             price_snapshot_version=settings.embedding_price_snapshot_version or "",
             adapter_version=settings.embedding_adapter_version or PINNED_ADAPTER_VERSION,
+            budget_ledger=budget_ledger,
         )
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResult:
+        if self._budget_ledger is None:
+            raise ProviderCallError(
+                kind=ProviderFailureKind.PERMANENT, code="PROVIDER_BUDGET_LEDGER_UNAVAILABLE"
+            )
+        try:
+            reservation = self._budget_ledger.reserve(
+                amount_cny=self._single_call_cap_cny, cap_cny=self._period_cap_cny
+            )
+        except EmbeddingBudgetUnavailable as error:
+            raise ProviderCallError(
+                kind=ProviderFailureKind.PERMANENT, code="PROVIDER_BUDGET_LEDGER_UNAVAILABLE"
+            ) from error
+        if reservation is None:
+            raise ProviderCallError(
+                kind=ProviderFailureKind.PERMANENT, code="PROVIDER_PERIOD_COST_CAP_EXCEEDED"
+            )
         body = {
             "model": self._model,
             "input": {"texts": list(request.names)},
@@ -137,6 +166,14 @@ class DashScopeEmbeddingProvider:
             except (TypeError, ValueError, InvalidOperation, ValidationError) as error:
                 raise ProviderCallError(
                     kind=ProviderFailureKind.PERMANENT, code="PROVIDER_SCHEMA_INVALID"
+                ) from error
+            try:
+                self._budget_ledger.settle(
+                    reservation, actual_cost_cny=result.metadata.usage.cost_cny
+                )
+            except EmbeddingBudgetUnavailable as error:
+                raise ProviderCallError(
+                    kind=ProviderFailureKind.PERMANENT, code="PROVIDER_BUDGET_LEDGER_UNAVAILABLE"
                 ) from error
             return result
         raise AssertionError("unreachable retry loop")

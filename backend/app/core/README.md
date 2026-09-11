@@ -18,4 +18,5 @@
 | `__init__.py` | Core 包标识 |
 | `config.py` | fail-closed 运行配置与测试数据库保护 |
 | `database.py` | 应用 Engine、Session factory 与请求依赖 |
+| `embedding_budget.py` | embedding 调用前的 PostgreSQL 周期预算预留与结算；跨进程共享硬上限。 |
 | `tracing.py` | fail-closed Phoenix/OTel collector 生命周期、HMAC scope 与属性 allowlist |
