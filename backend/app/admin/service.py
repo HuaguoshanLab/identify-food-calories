@@ -21,6 +21,11 @@ from app.admin.models import (
     CatalogPublication,
     CatalogPublicationEligibility,
 )
+from app.nutrition.search_models import (
+    CatalogEmbeddingJob,
+    CatalogSearchName,
+    CatalogSearchVersion,
+)
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.agent.ports import RuntimeConfigAdmission
 from app.agent.service import AgentRuntimeAdmissionDenied
@@ -68,6 +73,10 @@ from app.admin.schemas import (
     CatalogLifecyclePreviewResponse,
     CatalogLifecyclePublicationResponse,
     CatalogPublicationResponse,
+    CatalogEmbeddingJobResponse,
+    CatalogEmbeddingRetryCommand,
+    CatalogEmbeddingRetryResponse,
+    CatalogEmbeddingStatusResponse,
     RuntimeConfigCommand,
     RuntimeConfigResponse,
     RecipeCandidateBulkCommand,
@@ -96,6 +105,9 @@ class AdminAuditCursorInvalid(ValueError):
 
 class CatalogDraftConflict(ValueError):
     """A stale revision or incompatible idempotency replay cannot overwrite a draft."""
+
+
+CatalogEmbeddingRetryConflict = CatalogDraftConflict
 
 
 RecipeCandidateConflict = CatalogDraftConflict
@@ -1198,6 +1210,7 @@ class AdminService:
                 occurred_at=self._lifecycle_now(),
             )
         )
+        self._enqueue_catalog_embedding_jobs(publication)
         self._record_catalog_lifecycle_audit(
             actor_identifier=str(actor.id),
             action="catalog.publish",
@@ -1213,6 +1226,96 @@ class AdminService:
         )
         self._commit_catalog_mutation()
         return self._publication_response(publication, eligibility="eligible")
+
+    def get_catalog_embedding_status(
+        self, *, actor_user_id: uuid.UUID, publication_id: uuid.UUID
+    ) -> CatalogEmbeddingStatusResponse:
+        """Project publication work without leaking controlled names or provider data."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        if self._repository.get_catalog_publication(publication_id) is None:
+            raise KeyError("catalog publication not found")
+        return self._catalog_embedding_status(publication_id)
+
+    def retry_catalog_embedding_jobs(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        publication_id: uuid.UUID,
+        command: CatalogEmbeddingRetryCommand,
+    ) -> CatalogEmbeddingRetryResponse:
+        """Reset only finite-budget failed jobs in one locked, replay-safe batch."""
+
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_catalog_embedding_retry_lock(publication_id)
+        publication = self._repository.get_catalog_publication(publication_id)
+        if publication is None:
+            raise KeyError("catalog publication not found")
+
+        request_hash = self._embedding_retry_request_hash(
+            actor_id=actor.id,
+            publication_id=publication_id,
+            command=command,
+        )
+        audit_key = self._embedding_retry_audit_key(
+            publication_id=publication_id, idempotency_key=command.idempotency_key
+        )
+        existing = self._repository.get_audit_event_by_command_key(audit_key)
+        if existing is not None:
+            if (
+                existing.action != "catalog.embedding_retry"
+                or existing.object_type != "catalog_publication"
+                or existing.object_id != str(publication_id)
+                or existing.actor_identifier != str(actor.id)
+                or existing.reason != command.reason
+                or existing.related_version != request_hash
+            ):
+                raise CatalogEmbeddingRetryConflict(
+                    "idempotency key was reused for a different embedding retry command"
+                )
+            return self._catalog_embedding_retry_response(
+                publication_id, reset_count=int(existing.after_diff["reset_count"])
+            )
+
+        jobs = self._repository.list_catalog_embedding_jobs(
+            publication_id, for_update=True
+        )
+        before = self._embedding_job_counts(jobs)
+        now = self._now()
+        retryable = [
+            job
+            for job in jobs
+            if job.status == "failed" and job.attempt_count < job.max_attempts
+        ]
+        for job in retryable:
+            job.status = "pending"
+            job.not_before = now
+            job.lease_owner = None
+            job.leased_at = None
+            job.lease_expires_at = None
+            job.last_error_code = None
+            job.updated_at = now
+        after = self._embedding_job_counts(jobs)
+        reset_count = len(retryable)
+        self._repository.add_audit_event(
+            AdminAuditEvent(
+                id=uuid.uuid4(),
+                actor_identifier=str(actor.id),
+                occurred_at=now,
+                action="catalog.embedding_retry",
+                object_type="catalog_publication",
+                object_id=str(publication_id),
+                reason=command.reason,
+                before_diff=before,
+                after_diff={**after, "reset_count": reset_count},
+                related_version=request_hash,
+                command_key=audit_key,
+            )
+        )
+        self._commit_catalog_mutation()
+        return self._catalog_embedding_retry_response(
+            publication_id, reset_count=reset_count
+        )
 
     def disqualify_catalog_publication(
         self,
@@ -1540,6 +1643,159 @@ class AdminService:
             content_hash=publication.content_hash,
             eligibility=eligibility,
         )
+
+    def _enqueue_catalog_embedding_jobs(self, publication: CatalogPublication) -> None:
+        """Create derived name work in the same publication transaction, never via I/O."""
+
+        search_version = self._repository.add_catalog_search_version(
+            CatalogSearchVersion(
+                id=uuid.uuid4(),
+                publication_id=publication.id,
+                content_hash=publication.content_hash,
+                created_at=self._now(),
+            )
+        )
+        candidates = [
+            (str(publication.snapshot["canonical_name"]), "canonical"),
+            *(
+                (str(alias), "controlled_alias")
+                for alias in publication.snapshot["aliases"]
+            ),
+        ]
+        unique_names: dict[str, tuple[str, Literal["canonical", "controlled_alias"]]] = {}
+        for display_name, name_kind in candidates:
+            normalized_name = " ".join(display_name.casefold().split())
+            if normalized_name:
+                unique_names.setdefault(
+                    normalized_name,
+                    (display_name, cast(Literal["canonical", "controlled_alias"], name_kind)),
+                )
+        names = self._repository.add_catalog_search_names(
+            [
+                CatalogSearchName(
+                    id=uuid.uuid4(),
+                    publication_id=publication.id,
+                    search_version_id=search_version.id,
+                    display_name=display_name,
+                    normalized_name=normalized_name,
+                    name_kind=name_kind,
+                    created_at=self._now(),
+                )
+                for normalized_name, (display_name, name_kind) in sorted(
+                    unique_names.items()
+                )
+            ]
+        )
+        spaces = self._repository.list_active_catalog_vector_spaces()
+        now = self._now()
+        self._repository.add_catalog_embedding_jobs(
+            [
+                CatalogEmbeddingJob(
+                    id=uuid.uuid4(),
+                    publication_id=publication.id,
+                    name_id=name.id,
+                    vector_space_id=space.id,
+                    status="pending",
+                    attempt_count=0,
+                    max_attempts=5,
+                    not_before=now,
+                    lease_owner=None,
+                    leased_at=None,
+                    lease_expires_at=None,
+                    last_error_code=None,
+                    created_at=now,
+                    updated_at=now,
+                )
+                for name in names
+                for space in spaces
+            ]
+        )
+
+    def _catalog_embedding_status(
+        self, publication_id: uuid.UUID
+    ) -> CatalogEmbeddingStatusResponse:
+        jobs = self._repository.list_catalog_embedding_jobs(publication_id)
+        counts = self._embedding_job_counts(jobs)
+        return CatalogEmbeddingStatusResponse(
+            publication_id=publication_id,
+            status=self._embedding_aggregate_status(jobs),
+            pending_count=counts["pending_count"],
+            processing_count=counts["processing_count"],
+            failed_count=counts["failed_count"],
+            completed_count=counts["completed_count"],
+            jobs=[self._embedding_job_response(job) for job in jobs],
+        )
+
+    def _catalog_embedding_retry_response(
+        self, publication_id: uuid.UUID, *, reset_count: int
+    ) -> CatalogEmbeddingRetryResponse:
+        status = self._catalog_embedding_status(publication_id)
+        return CatalogEmbeddingRetryResponse(
+            **status.model_dump(), reset_count=reset_count
+        )
+
+    @staticmethod
+    def _embedding_job_response(job: CatalogEmbeddingJob) -> CatalogEmbeddingJobResponse:
+        return CatalogEmbeddingJobResponse(
+            id=job.id,
+            vector_space_id=job.vector_space_id,
+            status=cast(Literal["pending", "leased", "completed", "failed"], job.status),
+            attempt_count=job.attempt_count,
+            max_attempts=job.max_attempts,
+            last_error_code=job.last_error_code,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+        )
+
+    @staticmethod
+    def _embedding_job_counts(jobs: list[CatalogEmbeddingJob]) -> dict[str, int]:
+        return {
+            "pending_count": sum(job.status == "pending" for job in jobs),
+            "processing_count": sum(job.status == "leased" for job in jobs),
+            "failed_count": sum(job.status == "failed" for job in jobs),
+            "completed_count": sum(job.status == "completed" for job in jobs),
+        }
+
+    @staticmethod
+    def _embedding_aggregate_status(
+        jobs: list[CatalogEmbeddingJob],
+    ) -> Literal["pending", "processing", "partial_failure", "failed", "ready"]:
+        if not jobs or all(job.status == "completed" for job in jobs):
+            return "ready"
+        has_completed = any(job.status == "completed" for job in jobs)
+        has_failed = any(job.status == "failed" for job in jobs)
+        if has_failed and (has_completed or any(job.status == "pending" for job in jobs)):
+            return "partial_failure"
+        if any(job.status == "leased" for job in jobs):
+            return "processing"
+        if any(job.status == "pending" for job in jobs):
+            return "pending"
+        return "failed"
+
+    @staticmethod
+    def _embedding_retry_audit_key(
+        *, publication_id: uuid.UUID, idempotency_key: str
+    ) -> str:
+        material = f"catalog-embedding-retry:{publication_id}:{idempotency_key}"
+        return f"embedding-retry-{hashlib.sha256(material.encode('utf-8')).hexdigest()}"
+
+    @staticmethod
+    def _embedding_retry_request_hash(
+        *, actor_id: uuid.UUID,
+        publication_id: uuid.UUID,
+        command: CatalogEmbeddingRetryCommand,
+    ) -> str:
+        material = json.dumps(
+            {
+                "actor_id": str(actor_id),
+                "publication_id": str(publication_id),
+                "reason": command.reason,
+                "idempotency_key": command.idempotency_key,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
     def _record_catalog_lifecycle_audit(
         self,

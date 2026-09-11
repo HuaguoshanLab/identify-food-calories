@@ -50,11 +50,12 @@ def _draft_command() -> CatalogDraftCreateCommand:
     )
 
 
-def _publish(service: AdminService, actor_id: uuid.UUID) -> uuid.UUID:
+def _publish(service: AdminService, actor_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID, str]:
+    suffix = actor_id.hex
     draft = service.create_catalog_draft(
         actor_user_id=actor_id,
         command=_draft_command(),
-        command_key="create-embedding-jobs-pg-0001",
+        command_key=f"create-embedding-jobs-pg-{suffix}",
     )
     lifecycle = CatalogLifecycleCommand(reason="reviewed", confirm=True)
     service.review_catalog_draft(
@@ -62,18 +63,29 @@ def _publish(service: AdminService, actor_id: uuid.UUID) -> uuid.UUID:
         draft_id=draft.id,
         expected_revision=1,
         command=lifecycle,
-        command_key="review-embedding-jobs-pg-0001",
+        command_key=f"review-embedding-jobs-pg-{suffix}",
     )
-    return service.publish_catalog_draft(
+    publication = service.publish_catalog_draft(
         actor_user_id=actor_id,
         draft_id=draft.id,
         expected_revision=1,
         command=lifecycle,
-        command_key="publish-embedding-jobs-pg-0001",
-    ).id
+        command_key=f"publish-embedding-jobs-pg-{suffix}",
+    )
+    return publication.id, draft.id, suffix
 
 
 def _install_active_space(session: Session, now: datetime) -> CatalogVectorSpace:
+    existing = session.scalar(
+        select(CatalogVectorSpace)
+        .join(
+            CatalogActiveVectorSpace,
+            CatalogActiveVectorSpace.vector_space_id == CatalogVectorSpace.id,
+        )
+        .where(CatalogActiveVectorSpace.pointer_key == "catalog")
+    )
+    if existing is not None:
+        return existing
     space = CatalogVectorSpace(
         id=uuid.uuid4(),
         embedding_model="text-embedding-v4",
@@ -107,7 +119,7 @@ def test_publish_creates_one_job_per_name_and_active_space_and_exposes_safe_aggr
         rollback=db_session.rollback,
     )
 
-    publication_id = _publish(service, actor.id)
+    publication_id, draft_id, suffix = _publish(service, actor.id)
     status = service.get_catalog_embedding_status(
         actor_user_id=actor.id, publication_id=publication_id
     )
@@ -132,6 +144,23 @@ def test_publish_creates_one_job_per_name_and_active_space_and_exposes_safe_aggr
     assert status.pending_count == 3
     assert all(item.status == "pending" for item in status.jobs)
     assert all("display_name" not in item.model_dump() for item in status.jobs)
+    replay = service.publish_catalog_draft(
+        actor_user_id=actor.id,
+        draft_id=draft_id,
+        expected_revision=1,
+        command=CatalogLifecycleCommand(reason="reviewed", confirm=True),
+        command_key=f"publish-embedding-jobs-pg-{suffix}",
+    )
+    assert replay.id == publication_id
+    assert len(
+        list(
+            db_session.scalars(
+                select(CatalogEmbeddingJob).where(
+                    CatalogEmbeddingJob.publication_id == publication_id
+                )
+            )
+        )
+    ) == 3
 
 
 def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requests(test_engine) -> None:
@@ -147,7 +176,7 @@ def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requ
             commit=session.commit,
             rollback=session.rollback,
         )
-        publication_id = _publish(service, actor.id)
+        publication_id, _, _ = _publish(service, actor.id)
         jobs = list(session.scalars(select(CatalogEmbeddingJob).where(CatalogEmbeddingJob.publication_id == publication_id)))
         jobs[0].status = "completed"
         jobs[1].status = "failed"

@@ -608,6 +608,56 @@ class CatalogPublicationResponse(BaseModel):
     eligibility: Literal["eligible", "disqualified"]
 
 
+class CatalogEmbeddingRetryCommand(BaseModel):
+    """An auditable, publication-scoped retry command without provider payloads."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    reason: str = Field(min_length=1, max_length=500)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+    @field_validator("reason", "idempotency_key")
+    @classmethod
+    def normalize_required_value(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("value must not be blank")
+        return normalized
+
+
+class CatalogEmbeddingJobResponse(BaseModel):
+    """Safe job projection: never expose name text, vectors or provider bodies."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    vector_space_id: uuid.UUID
+    status: Literal["pending", "leased", "completed", "failed"]
+    attempt_count: int = Field(ge=0)
+    max_attempts: int = Field(gt=0)
+    last_error_code: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CatalogEmbeddingStatusResponse(BaseModel):
+    """Publication aggregate plus safe per-job lifecycle evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    publication_id: uuid.UUID
+    status: Literal["pending", "processing", "partial_failure", "failed", "ready"]
+    pending_count: int = Field(ge=0)
+    processing_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    completed_count: int = Field(ge=0)
+    jobs: list[CatalogEmbeddingJobResponse]
+
+
+class CatalogEmbeddingRetryResponse(CatalogEmbeddingStatusResponse):
+    reset_count: int = Field(ge=0)
+
+
 class AdminRunQuery(BaseModel):
     """Bounded filters for terminal Agent ledger evidence only."""
 
