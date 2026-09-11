@@ -169,8 +169,10 @@ def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
     assert attempts == 2
     assert result.metadata.usage.input_tokens == 3
     assert result.metadata.usage.cost_cny == Decimal("0.0000015")
-    assert ledger.reserved == [(Decimal("0.01"), Decimal("20"))]
-    assert ledger.settled == [Decimal("0.0000015")]
+    assert ledger.reserved == [(Decimal("0.02"), Decimal("20"))]
+    # The first 429 might still have consumed tokens.  Its full bounded cost is
+    # retained while the second, successful call settles to its known token cost.
+    assert ledger.settled == [Decimal("0.0100015")]
 
 
 @pytest.mark.parametrize(
