@@ -291,3 +291,115 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   await expect(page.getByRole('heading', { name: '后台登录' })).toBeVisible()
   await expect(page.getByTestId('admin-shell')).toHaveCount(0)
 })
+
+async function publishMultiNameCatalogEntry(page: Page, suffix: string) {
+  const name = `E2E 索引验收 ${suffix}`
+  await page.getByRole('link', { name: '营养目录', exact: true }).click()
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: '新增营养目录' })
+  await editor.getByLabel('菜品名称').fill(name)
+  await editor.getByLabel('别名').fill(`index-${suffix}`)
+  await editor.getByLabel('每 100g 能量（kcal）').fill('100')
+  await editor.getByLabel('每 100g 蛋白质（g）').fill('3')
+  await editor.getByLabel('每 100g 脂肪（g）').fill('2')
+  await editor.getByLabel('每 100g 碳水（g）').fill('18')
+  await editor.getByLabel('来源名称').fill('E2E controlled source')
+  await editor.getByLabel('来源链接').fill('https://example.test/e2e-index')
+  await editor.getByLabel('授权状态').selectOption('authorized')
+  await editor.getByLabel('变更原因').fill('公开 UI 创建多名称索引验收条目')
+  const created = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/catalog-drafts') && response.request().method() === 'POST' && response.status() === 201)
+  await editor.getByRole('button', { name: '保存草稿' }).click()
+  const draft = await (await created).json() as { id: string }
+
+  for (const [action, confirm, path] of [['审核', '确认审核草稿', '/review'], ['发布', '确认发布版本', '/publish']] as const) {
+    await page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: action, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('操作原因').fill(`公开 UI ${action} 索引验收条目`)
+    const mutation = page.waitForResponse((response) => response.url().includes('/api/v1/admin/catalog-drafts') && response.url().endsWith(path) && response.request().method() === 'POST' && response.status() === 200)
+    await dialog.getByRole('button', { name: confirm }).click()
+    await mutation
+  }
+  await page.getByRole('row').filter({ hasText: name }).getByRole('link', { name: '详情', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/admin/catalog/${draft.id}`))
+  return draft.id
+}
+
+async function waitForVisibleEmbeddingStatus(page: Page, label: '部分失败' | '已就绪') {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await page.getByRole('region', { name: '嵌入构建状态' }).getByText(label, { exact: false }).count()) return
+    await page.getByRole('button', { name: '刷新嵌入构建状态' }).click()
+    await page.waitForTimeout(1_000)
+  }
+  await expect(page.getByRole('region', { name: '嵌入构建状态' })).toContainText(label)
+}
+
+async function changeRole(page: Page, email: string, action: '设为管理员' | '撤销管理员') {
+  await page.getByRole('link', { name: '管理员管理' }).click()
+  await page.getByLabel('邮箱').fill(email)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = page.getByRole('row').filter({ hasText: email })
+  await row.getByRole('button', { name: action }).click()
+  await page.getByLabel('变更原因').fill(`E2E ${action} 验证实时目录索引 RBAC`)
+  await page.getByRole('button', { name: '确认变更角色' }).click()
+  await expect(page.getByRole('status')).toBeVisible()
+}
+
+test('admin embedding status and batch retry', async ({ browser, page, request }) => {
+  test.setTimeout(180_000)
+  const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
+  const admin = { email: `e2e-index-admin-${suffix}@example.test`, password: 'E2E-index-admin-password-2026!' }
+  await registerAndVerify(page, request, admin)
+  await bootstrapFirstAdmin(admin)
+  await loginToAdmin(page, admin, '/admin/catalog')
+  const draftId = await publishMultiNameCatalogEntry(page, suffix)
+  await waitForVisibleEmbeddingStatus(page, '部分失败')
+
+  const status = page.getByRole('region', { name: '嵌入构建状态' })
+  await expect(status).toContainText('失败 1')
+  await expect(status.getByRole('row')).toHaveCount(3)
+
+  const ordinaryGet = { email: `e2e-index-get-${suffix}@example.test`, password: 'E2E-index-user-password-2026!' }
+  const ordinaryPost = { email: `e2e-index-post-${suffix}@example.test`, password: 'E2E-index-user-password-2026!' }
+  const getContext = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const postContext = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const getPage = await getContext.newPage()
+  const postPage = await postContext.newPage()
+  await registerAndVerify(getPage, request, ordinaryGet)
+  await registerAndVerify(postPage, request, ordinaryPost)
+  await changeRole(page, ordinaryGet.email, '设为管理员')
+  await changeRole(page, ordinaryPost.email, '设为管理员')
+  await loginToAdmin(getPage, ordinaryGet, `/admin/catalog/${draftId}`)
+  await loginToAdmin(postPage, ordinaryPost, `/admin/catalog/${draftId}`)
+  await expect(getPage.getByRole('region', { name: '嵌入构建状态' })).toBeVisible()
+  await expect(postPage.getByRole('region', { name: '嵌入构建状态' })).toBeVisible()
+
+  await changeRole(page, ordinaryGet.email, '撤销管理员')
+  await changeRole(page, ordinaryPost.email, '撤销管理员')
+  const deniedGet = getPage.waitForResponse((response) => response.url().includes('/embedding-status') && response.status() === 403)
+  await getPage.getByRole('button', { name: '刷新嵌入构建状态' }).click()
+  await deniedGet
+  await expect(getPage.getByRole('heading', { name: '无后台访问权限' })).toBeVisible()
+  const deniedPost = postPage.waitForResponse((response) => response.url().includes('/embedding-retries') && response.request().method() === 'POST' && response.status() === 403)
+  await postPage.getByRole('button', { name: '重试 1 个可恢复任务' }).click()
+  const forbiddenDialog = postPage.getByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
+  await forbiddenDialog.getByLabel('变更原因').fill('普通用户不可重试')
+  await forbiddenDialog.getByRole('button', { name: '确认重新排队' }).click()
+  await deniedPost
+  await expect(postPage.getByRole('heading', { name: '无后台访问权限' })).toBeVisible()
+  await getContext.close()
+  await postContext.close()
+
+  const retry = page.waitForResponse((response) => response.url().includes('/embedding-retries') && response.request().method() === 'POST' && response.status() === 200)
+  await page.getByRole('button', { name: '重试 1 个可恢复任务' }).click()
+  const dialog = page.getByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
+  await dialog.getByLabel('变更原因').fill('公开页面确认失败任务重新排队')
+  await dialog.getByRole('button', { name: '确认重新排队' }).click()
+  expect((await (await retry).json()) as { reset_count: number }).toMatchObject({ reset_count: 1 })
+  await waitForVisibleEmbeddingStatus(page, '已就绪')
+  await expect(status).toContainText('完成 2')
+  await expect(status.getByRole('row')).toHaveCount(3)
+  // Repeating the visible status action proves the completed retry did not add jobs.
+  await page.getByRole('button', { name: '刷新嵌入构建状态' }).click()
+  await expect(status).toContainText('完成 2')
+  await expect(status.getByRole('row')).toHaveCount(3)
+})

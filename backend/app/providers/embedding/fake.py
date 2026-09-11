@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.providers.embedding.dto import EmbeddingCallMetadataDTO, EmbeddingRequest, EmbeddingResult, EmbeddingUsageDTO, EmbeddingVectorDTO
+from app.providers.embedding.dto import EMBEDDING_DIMENSION, EmbeddingCallMetadataDTO, EmbeddingRequest, EmbeddingResult, EmbeddingUsageDTO, EmbeddingVectorDTO
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
 
 
@@ -34,6 +34,22 @@ class FakeEmbeddingProvider:
 
     def queue_error(self, *, kind: ProviderFailureKind, code: str) -> None:
         self._outcomes.append(ProviderCallError(kind=kind, code=code, safe_message="Scripted embedding provider failure."))
+
+    def queue_test_outcomes(self, outcomes: tuple[str, ...]) -> None:
+        """Install an offline test-app script without retaining controlled names.
+
+        The factory exposes this only when Settings already proved APP_ENV=test.
+        It deliberately accepts a tiny closed vocabulary so an environment value
+        cannot become an arbitrary provider payload or callback.
+        """
+
+        for outcome in outcomes:
+            if outcome == "success":
+                self.queue_result((tuple(0.0 for _ in range(EMBEDDING_DIMENSION)),))
+            elif outcome == "permanent_failure":
+                self.queue_error(kind=ProviderFailureKind.PERMANENT, code="E2E_SCRIPTED_FAILURE")
+            else:
+                raise ValueError("unsupported test embedding outcome")
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResult:
         input_count = len(request.names)

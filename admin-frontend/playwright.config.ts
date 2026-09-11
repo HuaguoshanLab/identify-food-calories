@@ -41,6 +41,10 @@ export default defineConfig({
         CORS_ORIGINS: JSON.stringify([userFrontendUrl, adminFrontendUrl]),
         SMTP_HOST: '127.0.0.1',
         SMTP_PORT: '1025',
+        // Closed, test-only Fake script: two-name publication becomes partial
+        // failure, and the remaining success completes the explicit retry.
+        TEST_EMBEDDING_OUTCOMES: 'success,permanent_failure,success',
+        EMBEDDING_WORKER_POLL_INTERVAL_SECONDS: '1',
       },
       url: `${backendOrigin}/api/v1/health`,
       reuseExistingServer: false,
