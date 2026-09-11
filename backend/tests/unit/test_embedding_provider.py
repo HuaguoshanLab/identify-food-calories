@@ -130,6 +130,26 @@ def test_factory_is_fail_closed_but_allows_explicit_text_fallback() -> None:
     assert provider.__class__.__name__ == "DashScopeEmbeddingProvider"
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("embedding_single_call_cap_cny", Decimal("0"), "finite positive"),
+        ("embedding_period_cap_cny", Decimal("-0.01"), "finite positive"),
+        ("embedding_period_cap_cny", Decimal("NaN"), "finite number"),
+        ("embedding_period_cap_cny", Decimal("0.000000001"), "at most 8 decimal"),
+        ("embedding_period_cap_cny", Decimal("10000000000"), "must not exceed"),
+        # Two HTTP attempts are reserved before the first paid call, so a
+        # single-call cap that fits alone can still overflow ledger storage.
+        ("embedding_single_call_cap_cny", Decimal("5000000000"), "retry reservation"),
+    ],
+)
+def test_dashscope_budget_settings_must_fit_persistent_ledger(
+    field: str, value: Decimal, reason: str
+) -> None:
+    with pytest.raises(ValidationError, match=reason):
+        _dashscope_settings(**{field: value})
+
+
 def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
     attempts = 0
 

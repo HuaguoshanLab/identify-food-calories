@@ -12,6 +12,8 @@ from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
+from app.core.embedding_budget import require_ledger_amount
+
 
 class ConfigurationError(ValueError):
     """Raised when runtime configuration crosses a security boundary."""
@@ -141,6 +143,27 @@ class Settings(BaseSettings):
             outcomes = tuple(part.strip() for part in self.test_embedding_outcomes.split(","))
             if not outcomes or any(part not in {"success", "permanent_failure"} for part in outcomes):
                 raise ConfigurationError("TEST_EMBEDDING_OUTCOMES accepts only success,permanent_failure")
+
+        # These caps are persisted by the cross-process ledger as NUMERIC(18, 8).
+        # Validate them even outside production: local DashScope must not start
+        # with a value that PostgreSQL would round into a different hard limit.
+        for variable, value in (
+            ("EMBEDDING_SINGLE_CALL_CAP_CNY", self.embedding_single_call_cap_cny),
+            ("EMBEDDING_PERIOD_CAP_CNY", self.embedding_period_cap_cny),
+        ):
+            if value is None:
+                continue
+            try:
+                require_ledger_amount(value, variable=variable)
+                if variable == "EMBEDDING_SINGLE_CALL_CAP_CNY":
+                    # The provider reserves both bounded HTTP attempts before
+                    # making the first vendor call.
+                    require_ledger_amount(
+                        value * 2,
+                        variable="EMBEDDING_SINGLE_CALL_CAP_CNY retry reservation",
+                    )
+            except ValueError as error:
+                raise ConfigurationError(str(error)) from error
 
         if self.app_env != "production":
             return self

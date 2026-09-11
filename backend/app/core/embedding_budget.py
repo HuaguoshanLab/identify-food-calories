@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Callable
 
 from sqlalchemy import Engine, create_engine, text
@@ -12,6 +12,52 @@ from sqlalchemy import Engine, create_engine, text
 
 class EmbeddingBudgetUnavailable(RuntimeError):
     """Accounting cannot safely reserve a provider call."""
+
+
+LEDGER_AMOUNT_SCALE = 8
+LEDGER_AMOUNT_QUANTUM = Decimal("0.00000001")
+LEDGER_MAX_AMOUNT_CNY = Decimal("9999999999.99999999")
+
+
+def require_ledger_amount(value: Decimal, *, variable: str) -> Decimal:
+    """Reject values PostgreSQL ``NUMERIC(18, 8)`` would silently round or overflow.
+
+    A cost cap is a security boundary.  Letting PostgreSQL round a sub-precision
+    cap to zero turns an approved reservation into an unbounded sequence of
+    no-op reservations, so callers must supply an exactly representable positive
+    amount before a transaction starts.
+    """
+
+    try:
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{variable} must be a finite positive amount")
+        if value.as_tuple().exponent < -LEDGER_AMOUNT_SCALE:
+            raise ValueError(
+                f"{variable} must have at most {LEDGER_AMOUNT_SCALE} decimal places"
+            )
+        if value > LEDGER_MAX_AMOUNT_CNY:
+            raise ValueError(
+                f"{variable} must not exceed {LEDGER_MAX_AMOUNT_CNY}"
+            )
+    except (InvalidOperation, ValueError) as error:
+        if isinstance(error, ValueError):
+            raise
+        raise ValueError(f"{variable} must be a finite positive amount") from error
+    return value
+
+
+def round_cost_up_for_ledger(value: Decimal) -> Decimal:
+    """Round a computed vendor charge upward so accounting never undercounts it."""
+
+    try:
+        if not value.is_finite() or value < 0:
+            raise ValueError("computed embedding cost must be finite and non-negative")
+        rounded = value.quantize(LEDGER_AMOUNT_QUANTUM, rounding=ROUND_CEILING)
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError("computed embedding cost is incompatible with the budget ledger") from error
+    if rounded > LEDGER_MAX_AMOUNT_CNY:
+        raise ValueError("computed embedding cost exceeds the budget ledger range")
+    return rounded
 
 
 @dataclass(frozen=True)
@@ -28,6 +74,11 @@ class PostgresEmbeddingBudgetLedger:
         self._now = now
 
     def reserve(self, *, amount_cny: Decimal, cap_cny: Decimal) -> EmbeddingBudgetReservation | None:
+        try:
+            require_ledger_amount(amount_cny, variable="embedding reservation amount")
+            require_ledger_amount(cap_cny, variable="embedding period cap")
+        except ValueError as error:
+            raise EmbeddingBudgetUnavailable("embedding budget reservation is invalid") from error
         period_key = self._now().astimezone(UTC).strftime("%Y-%m")
         try:
             with self._engine.begin() as connection:
@@ -57,7 +108,12 @@ class PostgresEmbeddingBudgetLedger:
     def settle(self, reservation: EmbeddingBudgetReservation, *, actual_cost_cny: Decimal) -> None:
         # A failed settlement deliberately leaves the reservation held, which is
         # conservative when a provider request may have consumed paid tokens.
-        if actual_cost_cny < 0 or actual_cost_cny > reservation.amount_cny:
+        try:
+            actual_cost_cny = round_cost_up_for_ledger(actual_cost_cny)
+            require_ledger_amount(reservation.amount_cny, variable="embedding reservation amount")
+        except ValueError as error:
+            raise EmbeddingBudgetUnavailable("embedding budget settlement is invalid") from error
+        if actual_cost_cny > reservation.amount_cny:
             raise EmbeddingBudgetUnavailable("embedding budget settlement is invalid")
         try:
             with self._engine.begin() as connection:
