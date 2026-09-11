@@ -27,7 +27,9 @@
 
 ## 向量空间构建
 
-`POST /vector-space-builds` 只接受数据库重新确认的 `admin`。命令固定模型、1024 维度、adapter 和 retrieval 版本，要求原因、确认与 `Idempotency-Key`。Service 在 advisory lock 保护的单事务中冻结所有当前 eligible publication 的 canonical/controlled alias ID、publication/content version 清单，计算稳定 hash，创建唯一的空间/任务并写审计。安全响应只给出 identity、hash 和任务计数，绝不返回受控名称、向量或 provider 内容；同键重放不会扩大快照或重复入队。该路由不写 completion evidence，也绝不切换 active pointer——worker 和后续 activation 流程分别拥有这些职责。
+`POST /vector-space-builds` 只接受数据库重新确认的 `admin`。命令固定模型、1024 维度、adapter 和 retrieval 版本，要求原因、确认与 `Idempotency-Key`。Service 在 advisory lock 保护的单事务中冻结所有当前 eligible publication 的 canonical/controlled alias ID、publication/content version 清单，计算稳定 hash，创建唯一的空间/任务并写审计。安全响应只给出 identity、hash 和任务计数，绝不返回受控名称、向量或 provider 内容；同键重放不会扩大快照或重复入队。若复用空间已具备该新清单的所有完成 job/ready embedding，只会补写该清单自己的 completion evidence，不会调用 Provider 或切换 active pointer。
+
+`activate.py` 必须同时提交目标 `vector_space_id` 和不可变 `build_id`。Service 重新读取管理员角色，复算 release 文件及源码 hash，逐项验证 build manifest、completion evidence、completed job 与 ready embedding；approval、审计和 active pointer 在一个锁定事务中提交。空间可复用时绝不按“最新”猜测 snapshot；任何 hash、身份、完成度或幂等参数不一致都 fail closed。
 
 ## 目录列表与 CSV
 

@@ -58,6 +58,7 @@ class CatalogEmbeddingWorker:
 
         claimed = self._claim()
         if claimed is None:
+            self._reconcile_reused_space_if_scoped()
             return "idle"
         document_name = self._recheck_before_io(claimed)
         if document_name is None:
@@ -156,6 +157,17 @@ class CatalogEmbeddingWorker:
 
     def _lease_owner(self, claimed: _LeasedJob) -> str:
         return f"{self._worker_id}:{claimed.lease_token}"
+
+    def _reconcile_reused_space_if_scoped(self) -> None:
+        """An idle scoped worker can prove a reused snapshot without Provider I/O."""
+
+        if self._vector_space_id is None:
+            return
+        with self._session_factory() as session:
+            SqlAlchemyHybridFoodSearchRepository(session).reconcile_vector_space_build_completions(
+                vector_space_id=self._vector_space_id, now=self._now()
+            )
+            session.commit()
 
 
 def completion_hash(*, snapshot_hash: str, manifest: list[dict[str, str]]) -> str:

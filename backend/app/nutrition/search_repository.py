@@ -205,8 +205,24 @@ class SqlAlchemyHybridFoodSearchRepository:
         job.last_error_code = None
         job.updated_at = now
         self._session.flush()
-        self._reconcile_build_completion(build=build, now=now)
+        self.reconcile_vector_space_build_completions(vector_space_id=build.vector_space_id, now=now)
         return True
+
+    def reconcile_vector_space_build_completions(self, *, vector_space_id: uuid.UUID, now) -> None:
+        """Reconcile every immutable manifest for a reusable vector space.
+
+        A later snapshot can reuse already-ready embeddings, so it may have no
+        future write-back event of its own.  Rechecking all manifests keeps the
+        separate completion evidence complete without issuing Provider work.
+        """
+
+        builds = self._session.scalars(
+            select(CatalogVectorSpaceBuild)
+            .where(CatalogVectorSpaceBuild.vector_space_id == vector_space_id)
+            .order_by(CatalogVectorSpaceBuild.requested_at, CatalogVectorSpaceBuild.id)
+        ).all()
+        for build in builds:
+            self._reconcile_build_completion(build=build, now=now)
 
     def fail_leased_build_embedding_job(self, *, job_id: uuid.UUID, lease_owner: str, error_code: str, retryable: bool, now, max_backoff_seconds: int) -> bool:
         context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
@@ -298,9 +314,17 @@ class SqlAlchemyHybridFoodSearchRepository:
             return
         manifest = build.snapshot_manifest
         expected = {(item["publication_id"], item["name_id"]) for item in manifest}
+        name_ids = [uuid.UUID(item["name_id"]) for item in manifest]
+        # A vector-space identity is reusable.  Completion proves this immutable
+        # manifest only, so embeddings from another complete snapshot must not
+        # make equality fail or prevent its independent evidence record.
         rows = self._session.execute(
             select(CatalogSearchEmbedding.publication_id, CatalogSearchEmbedding.name_id)
-            .where(CatalogSearchEmbedding.vector_space_id == build.vector_space_id, CatalogSearchEmbedding.status == "ready")
+            .where(
+                CatalogSearchEmbedding.vector_space_id == build.vector_space_id,
+                CatalogSearchEmbedding.status == "ready",
+                CatalogSearchEmbedding.name_id.in_(name_ids),
+            )
         ).all()
         actual = {(str(publication_id), str(name_id)) for publication_id, name_id in rows}
         if len(manifest) != build.expected_name_count or actual != expected:
