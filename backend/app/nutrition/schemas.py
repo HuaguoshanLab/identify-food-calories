@@ -17,6 +17,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 TOOL_VERSION = "nutrition-tools-v1"
 CALCULATION_RULE_VERSION = "per-100g-v1"
 MAX_CATALOG_CANDIDATES = 3
+MAX_CANDIDATE_PORTION_HINTS = 3
+RETRIEVAL_VERSION = "hybrid-food-retrieval-v1"
 
 
 class NutritionAction(str, Enum):
@@ -27,6 +29,14 @@ class NutritionAction(str, Enum):
     BLOCK = "BLOCK"
     WARN = "WARN"
     PASS = "PASS"
+
+
+class FoodRelation(str, Enum):
+    """Controlled, user-readable relation labels for non-exact candidates."""
+
+    NAME_VARIANT = "名称相近"
+    REGIONAL_PREPARATION_VARIANT = "地域/做法变体"
+    SAME_CLASS = "同类食物"
 
 
 class NutritionValues(BaseModel):
@@ -89,6 +99,62 @@ class FoodSearchInput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     query: str = Field(min_length=1, max_length=200)
+
+
+class FoodSearchEvidence(BaseModel):
+    """Internal channel evidence; it must never cross a public boundary."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    food: QualifiedFood
+    relation: FoodRelation
+    text_rank: int | None = Field(default=None, gt=0)
+    vector_rank: int | None = Field(default=None, gt=0)
+    text_score: Decimal | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    vector_score: Decimal | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def requires_ranked_channel_evidence(self) -> FoodSearchEvidence:
+        if self.text_rank is None and self.vector_rank is None:
+            raise ValueError("search evidence requires at least one ranked channel")
+        if self.text_rank is None and self.text_score is not None:
+            raise ValueError("text score requires a text rank")
+        if self.vector_rank is None and self.vector_score is not None:
+            raise ValueError("vector score requires a vector rank")
+        return self
+
+
+class FoodSearchCandidate(BaseModel):
+    """Allowlisted public projection; scores and provider evidence stay internal."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    food_id: uuid.UUID
+    catalog_version: str = Field(min_length=1, max_length=80)
+    canonical_name: str = Field(min_length=1, max_length=200)
+    relation: FoodRelation
+    prepared_state: str | None = Field(default=None, min_length=1, max_length=120)
+    portion_hints: tuple[str, ...] = Field(default=(), max_length=MAX_CANDIDATE_PORTION_HINTS)
+    source_name: str = Field(min_length=1, max_length=120)
+
+
+class FoodSearchFusionResult(BaseModel):
+    """Non-exact fusion is always a confirmation boundary, never an authority."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    action: NutritionAction = NutritionAction.ASK
+    selected_food: None = None
+    candidates: tuple[FoodSearchCandidate, ...] = Field(
+        default=(), max_length=MAX_CATALOG_CANDIDATES
+    )
+    retrieval_version: str = Field(default=RETRIEVAL_VERSION, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def rejects_nonexact_selection(self) -> FoodSearchFusionResult:
+        if self.action is not NutritionAction.ASK:
+            raise ValueError("fused non-exact search results must ask for confirmation")
+        return self
 
 
 class FoodSearchResult(BaseModel):

@@ -14,8 +14,9 @@
 
 | 文件 | 职责 |
 |---|---|
-| `schemas.py` | 营养工具输入、输出、版本与封闭 action DTO |
-| `ports.py` | 可替换的 qualified catalog Repository Protocol |
+| `schemas.py` | 营养工具输入、输出、版本、封闭 action，以及内外分离的检索候选 DTO |
+| `ports.py` | 可替换的 qualified catalog 与 hybrid-search Repository Protocol |
+| `search.py` | 版本化纯融合：可靠性阈值、按关系分层、去重、稳定排序和 D-04 安全投影 |
 | `models.py` | 共享 Base 的 catalog/version/source/food/alias/portion 权威营养目录 ORM 模型 |
 | `search_models.py` | 派生的 hybrid-search version、name、vector-space、job、build 与 activation evidence ORM；不存用户查询文本或向量 |
 | `repository.py` | flush-only SQLAlchemy 查询 adapter；只读取 active + eligible admin publication snapshot，并在失格后立即拒绝未来查询 |
