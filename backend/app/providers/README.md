@@ -17,3 +17,4 @@
 | `__init__.py` | Python 包标识 |
 | `reasoning/` | 文本推理 Provider 的独立 DTO、Port、Fake 和工厂 |
 | `vision/` | 图片观察 Provider 的独立 DTO、Port、Fake 和工厂；只接收安全临时引用。 |
+| `embedding/` | 菜品检索 Embedding Provider 的独立 DTO、Port 和离线 Fake；只接收归一化菜品名称。 |
