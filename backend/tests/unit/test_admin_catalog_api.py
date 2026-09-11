@@ -67,6 +67,16 @@ class StubCatalogService:
             reset_count=1,
         )
 
+    def create_catalog_vector_space_build(self, **_kwargs: object):
+        from app.admin.schemas import CatalogVectorSpaceBuildResponse
+
+        return CatalogVectorSpaceBuildResponse(
+            id=uuid.uuid4(), vector_space_id=uuid.uuid4(), embedding_model="text-embedding-v4",
+            embedding_dimension=1024, adapter_version="v1", retrieval_version="hybrid-v1",
+            snapshot_hash="a" * 64, expected_name_count=2, pending_count=2,
+            failed_count=0, completed_count=0, status="pending",
+        )
+
     def create_catalog_relation_evidence(self, *, command, **_kwargs: object):
         source_publication_id = command.source_publication_id
         target_publication_id = command.target_publication_id
@@ -302,6 +312,29 @@ def test_catalog_embedding_control_plane_is_publication_scoped_and_safe() -> Non
     assert missing_key.status_code == 422
     assert retry.status_code == 200
     assert retry.json()["reset_count"] == 1
+
+
+def test_vector_space_build_requires_admin_idempotency_and_pinned_identity() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    payload = {
+        "embedding_model": "text-embedding-v4", "embedding_dimension": 1024,
+        "adapter_version": "v1", "retrieval_version": "hybrid-v1",
+        "reason": "backfill current qualified names", "confirm": True,
+    }
+    with TestClient(app) as client:
+        assert client.post("/api/v1/admin/vector-space-builds", json=payload).status_code == 422
+        response = client.post(
+            "/api/v1/admin/vector-space-builds", json=payload,
+            headers={"Idempotency-Key": "vector-space-build-000001"},
+        )
+        assert client.post(
+            "/api/v1/admin/vector-space-builds", json=payload | {"embedding_dimension": 9},
+            headers={"Idempotency-Key": "vector-space-build-000002"},
+        ).status_code == 422
+    assert response.status_code == 201
+    assert response.json()["status"] == "pending"
 
 
 def test_catalog_relation_evidence_requires_bounded_idempotent_admin_command() -> None:
