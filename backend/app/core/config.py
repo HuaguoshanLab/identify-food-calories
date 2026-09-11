@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     embedding_single_call_cap_cny: Decimal | None = None
     embedding_period_cap_cny: Decimal | None = None
     embedding_timeout_seconds: float | None = None
+    embedding_worker_poll_interval_seconds: int = 5
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -122,6 +123,8 @@ class Settings(BaseSettings):
                 raise ConfigurationError(f"{variable} must be positive when configured")
         if self.retention_poll_interval_seconds is not None and self.retention_poll_interval_seconds > 300:
             raise ConfigurationError("RETENTION_POLL_INTERVAL_SECONDS must not exceed 300")
+        if not 0 < self.embedding_worker_poll_interval_seconds <= 300:
+            raise ConfigurationError("EMBEDDING_WORKER_POLL_INTERVAL_SECONDS must be within (0, 300]")
 
         if self.app_env != "production":
             return self
@@ -268,6 +271,10 @@ class Settings(BaseSettings):
             raise ConfigurationError("embedding model and dimension must be text-embedding-v4/1024")
         if self.embedding_timeout_seconds != 1.5:
             raise ConfigurationError("EMBEDDING_TIMEOUT_SECONDS must be exactly 1.5")
+        if "embedding_worker_poll_interval_seconds" not in self.model_fields_set:
+            raise ConfigurationError(
+                "EMBEDDING_WORKER_POLL_INTERVAL_SECONDS must be explicitly configured in production"
+            )
         if any(value is None or value <= 0 for value in (
             self.embedding_input_cny_per_m, self.embedding_single_call_cap_cny,
             self.embedding_period_cap_cny,

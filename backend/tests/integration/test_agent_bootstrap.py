@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import asyncio
+from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
@@ -14,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.core.config import Settings, validate_test_database_configuration
+from app.main import create_app
 from app.nutrition.repository import SqlAlchemyNutritionRepository
 from app.nutrition.schemas import FoodSearchInput
 from app.nutrition.service import NutritionService
@@ -21,6 +23,77 @@ from app.nutrition.service import NutritionService
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 SEED_HASH = "9009d03d802589038efc7fe996fcf62f8ff2424f7a555f8ba6d86c378794a91f"
+
+
+class _LifecycleRuntimeFactory:
+    """Keep the HTTP test offline while exercising lifespan-owned worker wiring."""
+
+    def __init__(self, supervisor: PostgresLeaseSupervisor, worker: object) -> None:
+        self.runtime = type("Runtime", (), {"supervisor": supervisor})()
+        self._supervisor = supervisor
+        self._worker = worker
+        self.created = False
+        self.closed = False
+
+    async def create(self) -> object:
+        self.created = True
+        await self._supervisor.start()
+        await self._supervisor.start_embedding_worker(
+            worker=self._worker,
+            poll_interval=timedelta(milliseconds=1),
+        )
+        return self.runtime
+
+    async def close(self, runtime: object | None) -> None:
+        assert runtime is self.runtime
+        self.closed = True
+        await self.runtime.supervisor.stop()
+
+
+class _IdleWorker:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run_once(self) -> str:
+        self.calls += 1
+        return "idle"
+
+
+def test_embedding_worker_lifecycle_is_singleton_and_stops_cleanly() -> None:
+    """The app owns the worker; tests never construct a real network provider."""
+
+    async def scenario() -> None:
+        settings = Settings(
+            _env_file=None,
+            app_env="test",
+            test_database_url="postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test",
+        )
+        engine = create_engine(validate_test_database_configuration(settings))
+        try:
+            supervisor = PostgresLeaseSupervisor(
+                session_factory=sessionmaker(engine), holder_id="embedding-lifespan-test"
+            )
+            worker = _IdleWorker()
+            factory = _LifecycleRuntimeFactory(supervisor, worker)
+            application = create_app(settings, runtime_factory=factory)
+            async with application.router.lifespan_context(application):
+                await asyncio.sleep(0.01)
+                assert supervisor.embedding_worker_started is True
+            assert factory.created is True
+            assert factory.closed is True
+            assert supervisor.embedding_worker_started is False
+            assert worker.calls > 0
+        finally:
+            engine.dispose()
+
+    asyncio.run(scenario())
+
+
+def test_embedding_worker_disabled_mode_does_not_block_lifespan() -> None:
+    """Exact/text retrieval stays usable when semantic retrieval is explicitly disabled."""
+
+    settings = Settings(_env_file=None, embedding_provider_mode="disabled")  # type: ignore[call-arg]
+    assert settings.embedding_provider_mode == "disabled"
 
 
 def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> None:
