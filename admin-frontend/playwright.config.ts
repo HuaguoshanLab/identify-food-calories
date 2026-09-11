@@ -35,12 +35,15 @@ export default defineConfig({
     {
       name: 'FastAPI isolated test backend',
       cwd: '..',
-      command: 'docker compose up -d --wait postgres-test mailpit && cd backend && exec .venv/bin/python tests/run_pg.py --env-file .env.test.example -- .venv/bin/python scripts/run_initialized_app.py --host 127.0.0.1 --port ' + backendPort,
+      command: 'docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait postgres-e2e mailpit-e2e && cd backend && exec .venv/bin/python scripts/run_initialized_app.py --host 127.0.0.1 --port ' + backendPort,
       env: {
         ...process.env,
+        APP_ENV: 'test',
+        DATABASE_URL: 'postgresql+psycopg://postgres:postgres@127.0.0.1:5432/food_agent_dev',
+        TEST_DATABASE_URL: 'postgresql+psycopg://postgres:postgres@127.0.0.1:55433/food_agent_e2e_test',
         CORS_ORIGINS: JSON.stringify([userFrontendUrl, adminFrontendUrl]),
         SMTP_HOST: '127.0.0.1',
-        SMTP_PORT: '1025',
+        SMTP_PORT: '1026',
         // Closed, test-only Fake script: two-name publication becomes partial
         // failure, and the remaining success completes the explicit retry.
         TEST_EMBEDDING_OUTCOMES: 'success,permanent_failure,success',

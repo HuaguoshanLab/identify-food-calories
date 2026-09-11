@@ -336,6 +336,8 @@ def validate_test_database_configuration(settings: Settings) -> str:
         raise ConfigurationError("TEST_DATABASE_URL must use the postgresql+psycopg dialect")
     if not test_url.database or not test_url.database.endswith("_test"):
         raise ConfigurationError("TEST_DATABASE_URL database name must end with '_test'")
+    if test_url.host not in {"localhost", "127.0.0.1", "::1"}:
+        raise ConfigurationError("TEST_DATABASE_URL must target a loopback host")
 
     if normalize_database_url(settings.database_url) == normalize_database_url(
         settings.test_database_url

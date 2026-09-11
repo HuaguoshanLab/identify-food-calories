@@ -31,14 +31,17 @@ def main(
             repository=repository, commit=session.commit, rollback=session.rollback
         )
         try:
-            target = repository.get_user_by_email(_normalize_email(arguments.email))
-            if target is None:
-                return _denied("target user was not found")
             if arguments.command == "bootstrap":
+                target = repository.get_user_by_email(_normalize_email(arguments.email))
+                if target is None:
+                    return _denied("target user was not found")
                 audit = service.bootstrap_first_admin(
                     target_user_id=target.id, reason=arguments.reason
                 )
             elif arguments.command == "promote":
+                target = repository.get_user_by_email(_normalize_email(arguments.email))
+                if target is None:
+                    return _denied("target user was not found")
                 actor = repository.get_user_by_email(
                     _normalize_email(arguments.actor_email)
                 )

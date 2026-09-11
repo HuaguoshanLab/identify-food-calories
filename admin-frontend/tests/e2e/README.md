@@ -19,7 +19,7 @@
 
 ## 隔离运行合同
 
-`admin-management.spec.ts` 固定使用 backend `8003`、用户 SPA `5183` 与独立后台 SPA `5184`；只允许分别用 `E2E_ADMIN_BACKEND_PORT`、`E2E_ADMIN_USER_FRONTEND_PORT`、`E2E_ADMIN_FRONTEND_PORT` 覆盖。runner 每次经仓库根 `docker compose up -d --wait postgres-test mailpit`、`backend/tests/run_pg.py` 与 `backend/scripts/run_initialized_app.py` 启动，后者只会 reset 受 guard 保护的 `food_agent_test`、迁移和受控 seed；不复用本地服务，所有 server 均以 HTTP readiness、`reuseExistingServer: false` 和 SIGTERM cleanup 管理。
+`admin-management.spec.ts` 固定使用 backend `8003`、用户 SPA `5183`、独立后台 SPA `5184` 及 Mailpit `8026`；只允许分别用 `E2E_ADMIN_BACKEND_PORT`、`E2E_ADMIN_USER_FRONTEND_PORT`、`E2E_ADMIN_FRONTEND_PORT`、`E2E_ADMIN_MAILPIT_PORT` 覆盖。runner 每次经仓库根 `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait postgres-e2e mailpit-e2e` 与 `backend/scripts/run_initialized_app.py` 启动；后者只会 reset 被 `APP_ENV=test`、`_test` 数据库名和 loopback host 三重 guard 保护的 `food_agent_e2e_test`、迁移和受控 seed。它不复用 `postgres-test` 或开发库，所有 server 均以 HTTP readiness、`reuseExistingServer: false` 和 SIGTERM cleanup 管理。
 
 严格顺序是：浏览器注册并通过 Mailpit 公共 HTTP 读取验证码完成验证 → 受 `run_pg.py` 包装的 audited `app.admin.cli bootstrap` 写入首位角色 → admin SPA 登录并观察 Bearer probe 200 → RuntimeConfig 页面以 If-Match 0 和 Idempotency-Key 的公开 POST 201 创建启用 policy → 目录草稿、服务器 diff、审核、发布、失格与审计 → 完整刷新后 refresh 200 并保留目录 → 普通用户独立浏览器会话 probe 403 → 管理员退出后再刷新仍为登录页。
 

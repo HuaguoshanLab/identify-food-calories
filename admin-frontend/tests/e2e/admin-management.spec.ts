@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 const execFile = promisify(execFileCallback)
-const mailpitApi = 'http://127.0.0.1:8025/api/v1'
+const mailpitApi = `http://127.0.0.1:${process.env.E2E_ADMIN_MAILPIT_PORT ?? '8026'}/api/v1`
 const userFrontendUrl = `http://127.0.0.1:${process.env.E2E_ADMIN_USER_FRONTEND_PORT ?? '5183'}`
 
 type Account = Readonly<{ email: string, password: string }>

@@ -1,0 +1,32 @@
+services:
+  postgres-e2e:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: food_agent_e2e_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - postgres_e2e_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d food_agent_e2e_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mailpit-e2e:
+    image: axllent/mailpit:v1.30.6
+    ports:
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8026:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  postgres_e2e_test_data:
