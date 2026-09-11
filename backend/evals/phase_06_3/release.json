@@ -685,10 +685,10 @@
   ],
   "decision": "PASS",
   "evaluator_version": "phase063-evaluator.v1",
-  "evidence_hash": "4c1d0c9b685d1940dfcd319a1c2805ab028554ec985fe6942e8b5374cdbf044f",
+  "evidence_hash": "98012e35cf47f60f54322215a07c4a34fa23ac38326cdc293d3681cb274a9890",
   "input_hashes": {
     "dataset_sha256": "0f206658e40d79d289236c80520246368838cb17cdae53389f52f86170ccf82a",
-    "evaluator_sha256": "ff92a4e4577a66631c4f4bc41dae868b42306661490a6941fb9b0a0fa39854a2",
+    "evaluator_sha256": "1bc6ee05c82a1f85db3eafd1317d9f214061b75b5c9f3831881092425f88e00c",
     "search_policy_sha256": "dca26399e483f6c6666fa148cc1b984c7c72e1a2ad8252e5f23af555a77cf76f"
   },
   "metrics": {

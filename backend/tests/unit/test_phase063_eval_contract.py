@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -109,6 +110,34 @@ def test_release_verification_rejects_any_hash_or_metric_tampering(tmp_path: Pat
 
     release = tmp_path / "release.json"
     release.write_text('{"decision":"PASS","evidence_hash":"' + "0" * 64 + '"}\n', encoding="utf-8")
+
+    with pytest.raises(EvaluationContractError):
+        verify_release(release)
+
+
+def _write_rehashed_release(path: Path, payload: dict[str, object]) -> None:
+    evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
+    payload["evidence_hash"] = hashlib.sha256(
+        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+@pytest.mark.parametrize("mutation", ["top_level", "case_field", "non_hex", "current_source_hash"])
+def test_release_verification_rejects_schema_and_current_source_binding_drift(tmp_path: Path, mutation: str) -> None:
+    from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
+
+    release = tmp_path / "release.json"
+    payload = json.loads((BACKEND_ROOT / "evals/phase_06_3/release.json").read_text(encoding="utf-8"))
+    if mutation == "top_level":
+        payload["unexpected"] = "forbidden"
+    elif mutation == "case_field":
+        payload["cases"][0]["unexpected"] = "forbidden"
+    elif mutation == "non_hex":
+        payload["input_hashes"]["dataset_sha256"] = "g" * 64
+    else:
+        payload["input_hashes"]["search_policy_sha256"] = "0" * 64
+    _write_rehashed_release(release, payload)
 
     with pytest.raises(EvaluationContractError):
         verify_release(release)

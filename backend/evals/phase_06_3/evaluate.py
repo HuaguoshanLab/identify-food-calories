@@ -14,6 +14,7 @@ import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -71,6 +72,15 @@ EXPECTED_FIELDS = (
     "execution_mode",
 )
 REQUIRED_CASE_KINDS = frozenset({"exact", "non_exact", "ambiguity", "eligibility", "failure_determinism"})
+RELEASE_SCHEMA_VERSION = "phase063-release.v1"
+RELEASE_FIELDS = frozenset({"schema_version", "evaluator_version", "decision", "input_hashes", "snapshot", "metrics", "cases", "evidence_hash"})
+RELEASE_CASE_FIELDS = frozenset({"case_id", "case_hash", "action", "candidate_ids", "exact_sql", "text_sql", "vector_sql", "graph_calls", "assertions"})
+RELEASE_ASSERTION_FIELDS = frozenset({"action", "targets", "excluded", "channel", "execution_mode", "versions", "candidate_bound", "meal_graph", "planning_graph"})
+RELEASE_GRAPH_CALL_FIELDS = frozenset({"meal_graph_entries", "planning_graph_entries", "meal_search_calls", "planning_target_calls", "planning_compose_calls"})
+RELEASE_METRIC_FIELDS = frozenset({"case_count", "exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries", "meal_tool_search_calls", "planning_tool_target_calls", "planning_tool_compose_calls", "action_pass_rate", "target_recall"})
+RELEASE_INPUT_HASH_FIELDS = frozenset({"dataset_sha256", "evaluator_sha256", "search_policy_sha256"})
+RELEASE_SNAPSHOT_FIELDS = frozenset({"fixture", "food_labels"})
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _FORBIDDEN_FIELD_PARTS = frozenset({
     "email", "identity", "user", "meal", "body", "health", "image", "base64",
     "prompt", "provider", "response", "vector", "embedding_data", "token", "secret",
@@ -453,7 +463,7 @@ def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any
         "target_recall": round(sum(item["assertions"]["targets"] for item in observed) / len(rows), 4),
     }
     release: dict[str, Any] = {
-        "schema_version": "phase063-release.v1", "evaluator_version": EVALUATOR_VERSION,
+        "schema_version": RELEASE_SCHEMA_VERSION, "evaluator_version": EVALUATOR_VERSION,
         "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) else "FAIL",
         "input_hashes": {"dataset_sha256": file_hash(dataset), "evaluator_sha256": file_hash(Path(__file__)), "search_policy_sha256": file_hash(Path(__file__).parents[2] / "app/nutrition/search.py")},
         "snapshot": {"fixture": "synthetic:catalog-06-3-v1", "food_labels": sorted(snapshot)}, "metrics": metrics,
@@ -547,33 +557,86 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
     return release
 
 
-def verify_release(path: Path) -> dict[str, Any]:
+def _release_input_hashes() -> dict[str, str]:
+    return {
+        "dataset_sha256": file_hash(Path(__file__).with_name("cases.jsonl")),
+        "evaluator_sha256": file_hash(Path(__file__)),
+        "search_policy_sha256": file_hash(Path(__file__).parents[2] / "app/nutrition/search.py"),
+    }
+
+
+def _release_metrics(cases: list[dict[str, Any]]) -> dict[str, int | float]:
+    return {
+        "case_count": len(cases),
+        "exact_sql_cases": sum(case["exact_sql"] for case in cases),
+        "text_sql_cases": sum(case["text_sql"] for case in cases),
+        "vector_sql_cases": sum(case["vector_sql"] for case in cases),
+        "meal_graph_entries": sum(case["graph_calls"]["meal_graph_entries"] for case in cases),
+        "planning_graph_entries": sum(case["graph_calls"]["planning_graph_entries"] for case in cases),
+        "meal_tool_search_calls": sum(case["graph_calls"]["meal_search_calls"] for case in cases),
+        "planning_tool_target_calls": sum(case["graph_calls"]["planning_target_calls"] for case in cases),
+        "planning_tool_compose_calls": sum(case["graph_calls"]["planning_compose_calls"] for case in cases),
+        "action_pass_rate": round(sum(case["assertions"]["action"] for case in cases) / len(cases), 4),
+        "target_recall": round(sum(case["assertions"]["targets"] for case in cases) / len(cases), 4),
+    }
+
+
+def validate_release(path: Path, *, require_pass: bool) -> dict[str, Any]:
+    """Validate the complete frozen release shape and bind it to current source bytes.
+
+    ``require_pass`` separates activation/CLI verification from audit mirrors: a
+    genuine hash-bound FAIL report is useful audit evidence, but can never certify
+    activation or make ``--verify-release`` succeed.
+    """
     try:
         release = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise EvaluationContractError("release evidence is unreadable") from error
-    evidence_hash = release.pop("evidence_hash", None)
-    required_assertions = {
-        "action", "targets", "excluded", "channel", "execution_mode", "versions",
-        "candidate_bound", "meal_graph", "planning_graph",
-    }
-    cases = release.get("cases")
-    valid_cases = isinstance(cases, list) and len(cases) >= 24 and all(
-        isinstance(case, dict)
-        and isinstance(case.get("case_hash"), str)
-        and len(case["case_hash"]) == 64
-        and isinstance(case.get("assertions"), dict)
-        and set(case["assertions"]) == required_assertions
-        and all(value is True for value in case["assertions"].values())
-        for case in cases
-    )
-    versions = release.get("input_hashes")
-    valid_versions = isinstance(versions, dict) and set(versions) == {
-        "dataset_sha256", "evaluator_sha256", "search_policy_sha256"
-    } and all(isinstance(value, str) and len(value) == 64 for value in versions.values())
-    if release.get("decision") != "PASS" or not valid_cases or not valid_versions or not isinstance(evidence_hash, str) or evidence_hash != _hash(release):
+    if not isinstance(release, dict) or set(release) != RELEASE_FIELDS:
+        raise EvaluationContractError("release fields do not match the frozen contract")
+    evidence_hash = release["evidence_hash"]
+    evidence = {key: value for key, value in release.items() if key != "evidence_hash"}
+    if not isinstance(evidence_hash, str) or not _SHA256.fullmatch(evidence_hash) or evidence_hash != _hash(evidence):
         raise EvaluationContractError("release evidence hash or decision is invalid")
-    return {**release, "evidence_hash": evidence_hash}
+    if release["schema_version"] != RELEASE_SCHEMA_VERSION or release["evaluator_version"] != EVALUATOR_VERSION or release["decision"] not in {"PASS", "FAIL"}:
+        raise EvaluationContractError("release version or decision is invalid")
+    input_hashes = release["input_hashes"]
+    if not isinstance(input_hashes, dict) or set(input_hashes) != RELEASE_INPUT_HASH_FIELDS or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in input_hashes.values()) or input_hashes != _release_input_hashes():
+        raise EvaluationContractError("release input hashes do not bind the current frozen sources")
+    snapshot = release["snapshot"]
+    if not isinstance(snapshot, dict) or set(snapshot) != RELEASE_SNAPSHOT_FIELDS or snapshot != {"fixture": "synthetic:catalog-06-3-v1", "food_labels": sorted(_CANONICAL_NAMES)}:
+        raise EvaluationContractError("release snapshot does not match the frozen fixture")
+    rows = validate_dataset(Path(__file__).with_name("cases.jsonl"))
+    cases = release["cases"]
+    if not isinstance(cases, list) or len(cases) != len(rows):
+        raise EvaluationContractError("release cases do not match the frozen dataset")
+    for case, row in zip(cases, rows, strict=True):
+        if not isinstance(case, dict) or set(case) != RELEASE_CASE_FIELDS:
+            raise EvaluationContractError("release case fields do not match the frozen contract")
+        if case["case_id"] != row["case_id"] or case["case_hash"] != row["case_hash"] or case["action"] != row["expected"]["action"]:
+            raise EvaluationContractError("release case identity or expected action is invalid")
+        if not isinstance(case["candidate_ids"], list) or case["candidate_ids"] != sorted(case["candidate_ids"]) or len(set(case["candidate_ids"])) != len(case["candidate_ids"]) or not all(isinstance(item, str) and item in _CANONICAL_NAMES for item in case["candidate_ids"]):
+            raise EvaluationContractError("release candidate identifiers are invalid")
+        if not all(isinstance(case[key], int) and not isinstance(case[key], bool) and case[key] >= 0 for key in ("exact_sql", "text_sql", "vector_sql")):
+            raise EvaluationContractError("release SQL counters are invalid")
+        graph_calls = case["graph_calls"]
+        if not isinstance(graph_calls, dict) or set(graph_calls) != RELEASE_GRAPH_CALL_FIELDS or not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in graph_calls.values()):
+            raise EvaluationContractError("release graph counters are invalid")
+        assertions = case["assertions"]
+        if not isinstance(assertions, dict) or set(assertions) != RELEASE_ASSERTION_FIELDS or not all(isinstance(value, bool) for value in assertions.values()):
+            raise EvaluationContractError("release assertions do not match the frozen contract")
+    metrics = release["metrics"]
+    if not isinstance(metrics, dict) or set(metrics) != RELEASE_METRIC_FIELDS or metrics != _release_metrics(cases):
+        raise EvaluationContractError("release metrics do not match its case evidence")
+    passed = all(all(case["assertions"].values()) for case in cases) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries"))
+    if (release["decision"] == "PASS") != passed or (require_pass and release["decision"] != "PASS"):
+        raise EvaluationContractError("release decision does not satisfy the frozen contract")
+    return release
+
+
+def verify_release(path: Path) -> dict[str, Any]:
+    """Verify that a release can certify the current frozen evidence for activation."""
+    return validate_release(path, require_pass=True)
 
 
 def main(argv: list[str] | None = None) -> int:
