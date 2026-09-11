@@ -319,7 +319,9 @@ async function publishMultiNameCatalogEntry(page: Page, suffix: string) {
     await dialog.getByRole('button', { name: confirm }).click()
     await mutation
   }
-  await page.getByRole('row').filter({ hasText: name }).getByRole('link', { name: '详情', exact: true }).click()
+  // The catalog's SPA-level detail link retains the runtime-only access token.
+  // A row-local anchor performs a full navigation and would deliberately clear it.
+  await page.getByRole('link', { name: '详情', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/admin/catalog/${draft.id}`))
   return draft.id
 }
