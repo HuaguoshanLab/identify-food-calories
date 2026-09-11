@@ -16,6 +16,7 @@
 | `test_phase063_eval_contract.py` | Phase 06.3 冻结检索案例的 schema、顺序/hash 链、类别覆盖、隐私 fail-closed，以及 hash-bound release evidence 拒绝篡改合同。 |
 | `test_embedding_provider.py` | Embedding Provider 的名称、批量、1024 维有限浮点、Fake 隐私边界，以及 DashScope/factory 的离线 fail-closed 合同。 |
 | `test_hybrid_food_search.py` | 锁定混合检索的精确短路、非精确 ASK、故障降级、追踪脱敏、可靠候选不凑满、分层融合/稳定去重及 D-04 安全 discriminator 投影。 |
+| `test_langfuse_export.py` | 锁定本地 Langfuse 显式镜像的默认关闭、逐例 PASS/FAIL、严格字段 allowlist 与 release 字节不变性。 |
 
 - `test_admin_catalog_api.py`：目录草稿/预览/生命周期、筛选分页及 CSV 下载/预览/提交的公开 HTTP 契约和权限失败映射。
 - `test_admin_user_management_api.py`：账号/角色最小投影、角色变更输入门和冲突映射的公开 HTTP 契约。
