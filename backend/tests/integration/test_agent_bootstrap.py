@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import asyncio
+from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
@@ -15,10 +16,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.agent.supervisor import PostgresLeaseSupervisor
 from app.core.config import Settings, validate_test_database_configuration
-from app.main import create_app
+from app.main import PersistedAgentRuntimeFactory, create_app
 from app.nutrition.repository import SqlAlchemyNutritionRepository
 from app.nutrition.schemas import FoodSearchInput
 from app.nutrition.service import NutritionService
+from app.providers.embedding.fake import FakeEmbeddingProvider
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -59,6 +61,29 @@ class _IdleWorker:
         return "idle"
 
 
+class _SpyTracingRuntime:
+    """A memory-only exporter seam for lifecycle and privacy assertions."""
+
+    def __init__(self) -> None:
+        self.spans: list[dict[str, object]] = []
+        self.flushes = 0
+        self.shutdowns = 0
+
+    @contextmanager
+    def span(self, _name: str, attributes: dict[str, object]):
+        self.spans.append(dict(attributes))
+        yield
+
+    def scoped_hmac(self, _value: str) -> str:
+        return "test-fingerprint"
+
+    def flush(self) -> None:
+        self.flushes += 1
+
+    def shutdown(self) -> None:
+        self.shutdowns += 1
+
+
 def test_embedding_worker_lifecycle_is_singleton_and_stops_cleanly() -> None:
     """The app owns the worker; tests never construct a real network provider."""
 
@@ -94,6 +119,49 @@ def test_embedding_worker_disabled_mode_does_not_block_lifespan() -> None:
 
     settings = Settings(_env_file=None, embedding_provider_mode="disabled")  # type: ignore[call-arg]
     assert settings.embedding_provider_mode == "disabled"
+
+
+def test_hybrid_tracing_runtime_is_shared_and_lifecycle_owned(monkeypatch: object) -> None:
+    """The real factory wires one safe telemetry runtime and the app closes it once."""
+
+    settings = Settings(
+        _env_file=None,
+        app_env="test",
+        test_database_url="postgresql+psycopg://postgres:postgres@localhost:55432/food_agent_test",
+    )
+    tracing = _SpyTracingRuntime()
+    embedding = FakeEmbeddingProvider()
+    embedding.queue_result((tuple(0.0 for _ in range(1024)),))
+    monkeypatch.setattr("app.main.create_tracing_runtime", lambda _settings: tracing)  # type: ignore[attr-defined]
+    monkeypatch.setattr("app.main.create_embedding_provider", lambda _settings: embedding)  # type: ignore[attr-defined]
+    application = create_app(settings)
+    factory = application.state.agent_runtime_factory
+    assert isinstance(factory, PersistedAgentRuntimeFactory)
+
+    async def search() -> None:
+        runtime = application.state.agent_runtime
+        assert runtime.tools._tracing is tracing  # type: ignore[attr-defined]
+        assert runtime.supervisor._tracing is tracing  # type: ignore[attr-defined]
+        await runtime.tools.search_food_catalog(FoodSearchInput(query="不存在的受控食物"))
+
+    from fastapi.testclient import TestClient
+
+    with TestClient(application):
+        asyncio.run(search())
+
+    hybrid = next(attributes for attributes in tracing.spans if "retrieval.version" in attributes)
+    assert set(hybrid) >= {
+        "retrieval.version",
+        "match.channel",
+        "fallback.code",
+        "latency.bucket",
+        "index.health",
+        "index.version",
+    }
+    forbidden = {"query", "vector", "candidate", "user", "meal", "body", "health"}
+    assert not any(forbidden & set(attributes) for attributes in tracing.spans)
+    assert tracing.flushes == 1
+    assert tracing.shutdowns == 1
 
 
 def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> None:

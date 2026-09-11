@@ -97,6 +97,9 @@ class FakePlanningTools(PlanningToolAdapter):
         self._composition_action = composition_action
         self._validation_action = validation_action
 
+    async def search_food_catalog(self, request: object) -> object:
+        raise AssertionError(f"diet planning must not perform an unowned food search: {request!r}")
+
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
     ) -> TargetCalculationResult:

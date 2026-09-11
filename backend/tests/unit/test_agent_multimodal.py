@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import cast
 
 from app.agent.graph import MealAnalysisGraph
-from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState, StateImageReference
+from app.agent.state import AgentNextAction, AgentRuntimeStatus, MealAgentState, StateCandidate, StateImageReference
 from app.agent.tools import NutritionToolAdapter
 from app.agent.tools import NutritionServiceToolAdapter
 from app.nutrition.schemas import QualifiedFood, NutritionValues
@@ -164,3 +164,24 @@ def test_estimated_weight_reaches_only_deterministic_nutrition_and_is_reported()
     assert item["energy_kcal"] == "130.0"
     assert item["is_estimated"] is True
     assert item["estimate_confidence"] == "0.9"
+
+
+def test_checkpoint_projection_is_backward_compatible_and_excludes_retrieval_evidence() -> None:
+    """Old checkpoints have only the historical display fields; retrieval evidence never persists."""
+
+    candidate = StateCandidate.model_validate(
+        {
+            "item_id": "rice-1",
+            "food_id": str(uuid.uuid4()),
+            "catalog_version": "foundation-foods-v1",
+            "label": "熟米饭（cooked）",
+        }
+    )
+
+    assert candidate.canonical_label is None
+    assert candidate.relation_label is None
+    assert candidate.prepared_state is None
+    assert candidate.portion_hints == ()
+    serialized = candidate.model_dump_json()
+    for forbidden in ("score", "rank", "vector", "query", "provider"):
+        assert forbidden not in serialized

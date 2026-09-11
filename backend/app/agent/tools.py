@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, cast
@@ -19,6 +20,8 @@ from app.nutrition.schemas import (
     NutritionValidationResult,
 )
 from app.nutrition.service import NutritionService
+from app.core.tracing import DisabledTracingRuntime, TracingRuntime
+from app.providers.embedding.ports import EmbeddingProvider
 from app.retrieval.ports import RetrievedContextItem
 from app.memory.ports import MemoryProvider
 from app.planning.schemas import (
@@ -68,6 +71,8 @@ class NutritionToolAdapter(Protocol):
 
 class PlanningToolAdapter(Protocol):
     """The planning graph's complete authority; it never receives a Session or repository."""
+
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult: ...
 
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
@@ -155,20 +160,46 @@ class SessionNutritionToolAdapter:
     infrastructure adapter and never leaks into graph nodes.
     """
 
-    def __init__(self, *, session_factory: Callable[[], Session], memory_provider: MemoryProvider | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session],
+        memory_provider: MemoryProvider | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+        tracing: TracingRuntime | None = None,
+    ) -> None:
         self._session_factory = session_factory
         self._memory_provider = memory_provider
+        self._embedding_provider = embedding_provider
+        self._tracing = tracing or DisabledTracingRuntime()
 
     def _service(self) -> tuple[Session, NutritionService]:
         from app.nutrition.repository import SqlAlchemyNutritionRepository
+        from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
 
         session = self._session_factory()
-        return session, NutritionService(repository=SqlAlchemyNutritionRepository(session))
+        repository = SqlAlchemyNutritionRepository(session)
+        return session, NutritionService(
+            repository=repository,
+            search_repository=SqlAlchemyHybridFoodSearchRepository(session),
+            embedding_provider=self._embedding_provider,
+            tracing=self._tracing,
+        )
 
     async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
+        return await asyncio.to_thread(self._search_food_catalog_in_thread, request)
+
+    def _search_food_catalog_in_thread(self, request: FoodSearchInput) -> FoodSearchResult:
+        """Keep one synchronous Session confined to the worker thread that consumes it.
+
+        The service owns an async embedding call, so the worker owns a short-lived event loop
+        rather than leaking its Session back to the graph event loop.
+        """
+
         session, service = self._service()
         try:
-            return await service.search_food_catalog(request)
+            with asyncio.Runner() as runner:
+                return runner.run(service.search_food_catalog(request))
         finally:
             session.close()
 
@@ -241,7 +272,10 @@ class SessionNutritionToolAdapter:
         repository = SqlAlchemyPlanningProfileRepository(session)
         return session, PlanningService(
             repository=repository,
-            nutrition_port=NutritionService(repository=SqlAlchemyNutritionRepository(session)),
+            nutrition_port=NutritionService(
+                repository=SqlAlchemyNutritionRepository(session),
+                tracing=self._tracing,
+            ),
         )
 
     def calculate_daily_target(

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.planning.schemas import DailyTarget, PlannedMeal, PlanningProfileInput, PreferenceReview
@@ -120,12 +120,25 @@ class StateVisionMetadata(BaseModel):
 
 
 class StateCandidate(BaseModel):
+    """Safe, explainable catalog projection persisted in a checkpoint.
+
+    Retrieval evidence is intentionally not state: rank, score, vector, query and provider
+    payloads are ephemeral inputs to deterministic search, not durable graph facts.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     item_id: str = Field(min_length=1, max_length=128)
     food_id: uuid.UUID
     catalog_version: str = Field(min_length=1, max_length=80)
     label: str = Field(min_length=1, max_length=240)
+    canonical_label: str | None = Field(default=None, min_length=1, max_length=240)
+    relation_label: str | None = Field(default=None, min_length=1, max_length=80)
+    prepared_state: str | None = Field(default=None, min_length=1, max_length=120)
+    portion_hints: tuple[Annotated[str, Field(min_length=1, max_length=120)], ...] = Field(
+        default=(), max_length=3
+    )
+    source_name: str | None = Field(default=None, min_length=1, max_length=120)
 
 
 class StateNutritionResult(BaseModel):

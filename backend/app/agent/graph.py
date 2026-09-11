@@ -779,6 +779,13 @@ def _food_question(item: StateMealItem, candidates: tuple[QualifiedFood, ...]) -
             food_id=candidate.id,
             catalog_version=candidate.catalog_version,
             label=f"{candidate.canonical_name}（{candidate.prepared_state}）",
+            canonical_label=candidate.canonical_name,
+            relation_label="目录候选",
+            prepared_state=candidate.prepared_state,
+            portion_hints=tuple(
+                portion.description for portion in candidate.portions if portion.audited
+            )[:3],
+            source_name=candidate.source_name,
         )
         for candidate in candidates[:3]
     )
