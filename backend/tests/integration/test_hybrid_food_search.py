@@ -90,6 +90,23 @@ def test_hybrid_search_repository_exposes_an_authoritative_adapter() -> None:
     assert SqlAlchemyHybridFoodSearchRepository.__name__ == "SqlAlchemyHybridFoodSearchRepository"
 
 
+def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_session, tmp_path, monkeypatch) -> None:
+    """The frozen evaluator is required to reach production repository SQL, not fixtures."""
+
+    from evals.phase_06_3 import evaluate
+
+    output = tmp_path / "release.json"
+    release = evaluate.build_release(session=db_session, output=output)
+
+    assert release["decision"] == "PASS"
+    assert output.is_file()
+    assert release["metrics"]["exact_sql_cases"] > 0
+    assert release["metrics"]["text_sql_cases"] > 0
+    assert release["metrics"]["vector_sql_cases"] > 0
+    assert release["metrics"]["meal_graph_entries"] > 0
+    assert release["metrics"]["planning_graph_entries"] > 0
+
+
 def test_exact_and_confirmation_reread_use_current_qualified_publication(db_session) -> None:
     from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
 

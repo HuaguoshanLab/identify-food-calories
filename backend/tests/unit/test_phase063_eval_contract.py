@@ -91,3 +91,24 @@ def test_dataset_rejects_privacy_fields_before_execution(tmp_path: Path, forbidd
 
     with pytest.raises(EvaluationContractError, match="sensitive|privacy|forbidden"):
         validate_dataset(dataset)
+
+
+def test_evaluator_exposes_hash_bound_real_postgresql_release_contract() -> None:
+    """Plan 16 must not silently turn the frozen evaluation into an in-memory replay."""
+
+    from evals.phase_06_3 import evaluate
+
+    assert evaluate.EVALUATOR_VERSION == "phase063-evaluator.v1"
+    assert "SqlAlchemyHybridFoodSearchRepository" in evaluate.__doc__
+    assert hasattr(evaluate, "build_release")
+    assert hasattr(evaluate, "verify_release")
+
+
+def test_release_verification_rejects_any_hash_or_metric_tampering(tmp_path: Path) -> None:
+    from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
+
+    release = tmp_path / "release.json"
+    release.write_text('{"decision":"PASS","evidence_hash":"' + "0" * 64 + '"}\n', encoding="utf-8")
+
+    with pytest.raises(EvaluationContractError):
+        verify_release(release)
