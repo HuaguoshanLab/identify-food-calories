@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from evals.phase_06_3.langfuse_publish import LangfusePublishError, publish_release
+from evals.phase_06_3.langfuse_retention import (
+    RetentionFailure,
+    TraceRecord,
+    main as retention_main,
+    purge_detailed_experiments,
+)
 
 
 RELEASE = Path(__file__).parents[2] / "evals" / "phase_06_3" / "release.json"
@@ -124,3 +131,144 @@ def test_publish_rejects_non_pass_release_and_preserves_report_bytes(tmp_path: P
         publish_release(release, client_factory=_FakeLangfuse)
 
     assert release.read_bytes() == original
+
+
+class _FakeRetentionClient:
+    def __init__(self, traces: list[TraceRecord], *, delayed_deletions: int = 0) -> None:
+        self._traces = list(traces)
+        self._delayed_deletions = delayed_deletions
+        self._pending: set[str] = set()
+        self.list_calls = 0
+        self.deleted: list[tuple[str, ...]] = []
+
+    def list_traces(self, *, cutoff_utc: datetime, page: int, limit: int) -> tuple[TraceRecord, ...]:
+        self.list_calls += 1
+        if self._pending and self.list_calls > self._delayed_deletions:
+            self._traces = [trace for trace in self._traces if trace.trace_id not in self._pending]
+            self._pending.clear()
+        overdue = [trace for trace in self._traces if trace.timestamp_utc <= cutoff_utc]
+        start = (page - 1) * limit
+        return tuple(overdue[start : start + limit])
+
+    def delete_traces(self, trace_ids: tuple[str, ...]) -> None:
+        self.deleted.append(trace_ids)
+        self._pending.update(trace_ids)
+
+
+def _trace(trace_id: str, *, days_old: int, now: datetime, action: str) -> TraceRecord:
+    return TraceRecord(trace_id=trace_id, timestamp_utc=now - timedelta(days=days_old), action=action)
+
+
+def test_retention_keeps_29_days_and_purges_30_days_or_older_for_pass_and_fail() -> None:
+    now = datetime(2026, 9, 11, 12, tzinfo=UTC)
+    client = _FakeRetentionClient(
+        [
+            _trace("29-pass", days_old=29, now=now, action="PASS"),
+            _trace("30-pass", days_old=30, now=now, action="PASS"),
+            _trace("30-fail", days_old=30, now=now, action="FAIL"),
+            _trace("31-fail", days_old=31, now=now, action="FAIL"),
+        ]
+    )
+
+    report = purge_detailed_experiments(
+        client=client,
+        now=lambda: now,
+        page_size=2,
+        batch_size=2,
+        max_pages=8,
+        max_attempts=3,
+        deadline_seconds=1,
+        sleep=lambda _seconds: None,
+    )
+
+    assert report.as_json() == {
+        "cutoff_utc": "2026-08-12T12:00:00Z",
+        "scanned": 3,
+        "requested": 3,
+        "verified_deleted": 3,
+        "remaining_overdue": 0,
+        "status": "PASS",
+    }
+    assert {trace_id for batch in client.deleted for trace_id in batch} == {"30-pass", "30-fail", "31-fail"}
+
+
+def test_retention_paginates_and_requeries_asynchronous_deletions_without_writing_files() -> None:
+    now = datetime(2026, 9, 11, tzinfo=UTC)
+    client = _FakeRetentionClient(
+        [_trace(f"old-{index}", days_old=31, now=now, action="PASS" if index % 2 else "FAIL") for index in range(5)],
+        delayed_deletions=5,
+    )
+
+    report = purge_detailed_experiments(
+        client=client,
+        now=lambda: now,
+        page_size=2,
+        batch_size=2,
+        max_pages=8,
+        max_attempts=6,
+        deadline_seconds=1,
+        sleep=lambda _seconds: None,
+    )
+
+    assert report.requested == 5
+    assert report.verified_deleted == 5
+    assert report.status == "PASS"
+    assert len(client.deleted) == 3
+
+
+def test_retention_fails_closed_when_async_deletion_cannot_be_verified() -> None:
+    now = datetime(2026, 9, 11, 12, tzinfo=UTC)
+    client = _FakeRetentionClient([_trace("old", days_old=31, now=now, action="FAIL")], delayed_deletions=99)
+
+    with pytest.raises(RetentionFailure, match="RETENTION_UNVERIFIED"):
+        purge_detailed_experiments(
+            client=client,
+            now=lambda: now,
+            page_size=2,
+            batch_size=2,
+            max_pages=8,
+            max_attempts=2,
+            deadline_seconds=1,
+            sleep=lambda _seconds: None,
+        )
+
+
+def test_retention_rejects_pages_that_exceed_the_configured_bound() -> None:
+    now = datetime(2026, 9, 11, 12, tzinfo=UTC)
+    client = _FakeRetentionClient([_trace(f"old-{index}", days_old=31, now=now, action="PASS") for index in range(3)])
+
+    with pytest.raises(RetentionFailure, match="RETENTION_PAGE_LIMIT"):
+        purge_detailed_experiments(
+            client=client,
+            now=lambda: now,
+            page_size=1,
+            batch_size=1,
+            max_pages=2,
+            max_attempts=2,
+            deadline_seconds=1,
+            sleep=lambda _seconds: None,
+        )
+
+
+def test_retention_cli_emits_only_exact_ephemeral_json_and_safe_failure_codes(capsys: pytest.CaptureFixture[str]) -> None:
+    now = datetime(2026, 9, 11, 12, tzinfo=UTC)
+    client = _FakeRetentionClient([_trace("old", days_old=31, now=now, action="FAIL")])
+
+    code = retention_main(
+        ["purge", "--older-than", "30d", "--verify", "--format", "json"],
+        client_factory=lambda: client,
+        now=lambda: now,
+        sleep=lambda _seconds: None,
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out) == {
+        "cutoff_utc": "2026-08-12T12:00:00Z",
+        "scanned": 1,
+        "requested": 1,
+        "verified_deleted": 1,
+        "remaining_overdue": 0,
+        "status": "PASS",
+    }
+    assert captured.err == ""
