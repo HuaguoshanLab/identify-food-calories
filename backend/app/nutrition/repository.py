@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.nutrition.models import (
@@ -41,7 +41,7 @@ class SqlAlchemyNutritionRepository:
         imported = [self._to_qualified_food(row) for row in self._session.scalars(statement).unique()]
         # The database enforces publication pointer and eligibility below. Python
         # only performs the final name match over those already-qualified rows.
-        published = [self._to_published_food(row) for row in self._session.scalars(self._eligible_publication_statement())]
+        published = [self._to_published_food(row) for row in self._session.scalars(self.current_qualified_publication_statement())]
         candidates = (*imported, *published)
         return [food for food in candidates if normalized_query in {alias.casefold() for alias in food.aliases}][:limit]
 
@@ -58,7 +58,7 @@ class SqlAlchemyNutritionRepository:
         if catalog_version != ADMIN_PUBLICATION_VERSION:
             return None
         publication = self._session.scalar(
-            self._eligible_publication_statement().where(CatalogPublication.id == food_id)
+            self.current_qualified_publication_statement().where(CatalogPublication.id == food_id)
         )
         return self._to_published_food(publication) if publication is not None else None
 
@@ -104,7 +104,8 @@ class SqlAlchemyNutritionRepository:
         )
 
     @staticmethod
-    def _eligible_publication_statement() -> Select[tuple[CatalogPublication]]:
+    def current_qualified_publication_statement() -> Select[tuple[CatalogPublication]]:
+        """Live publication qualification shared by legacy and hybrid adapters."""
         latest = aliased(CatalogPublicationEligibility)
         latest_eligibility = (
             select(latest.id)
@@ -113,11 +114,21 @@ class SqlAlchemyNutritionRepository:
             .limit(1)
             .scalar_subquery()
         )
+        snapshot = CatalogPublication.snapshot
         return (
             select(CatalogPublication)
             .join(CatalogActivePublication, CatalogActivePublication.publication_id == CatalogPublication.id)
             .join(CatalogPublicationEligibility, CatalogPublicationEligibility.id == latest_eligibility)
-            .where(CatalogPublicationEligibility.status == "eligible")
+            .where(
+                CatalogPublicationEligibility.status == "eligible",
+                func.btrim(snapshot["canonical_name"].as_string()) != "",
+                func.btrim(snapshot["source_name"].as_string()) != "",
+                func.btrim(snapshot["source_url"].as_string()) != "",
+                snapshot["energy_kcal_per_100g"].as_string().is_not(None),
+                snapshot["protein_g_per_100g"].as_string().is_not(None),
+                snapshot["fat_g_per_100g"].as_string().is_not(None),
+                snapshot["carbohydrate_g_per_100g"].as_string().is_not(None),
+            )
         )
 
     @staticmethod
