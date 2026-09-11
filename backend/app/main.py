@@ -33,10 +33,12 @@ from app.core.config import Settings, get_settings
 from app.core.config import runtime_database_url
 from app.core.database import create_session_factory
 from app.providers.reasoning.factory import create_reasoning_provider
+from app.providers.embedding.factory import create_embedding_provider
 from app.providers.vision.factory import create_vision_provider
 from app.providers.vision.ports import VisionModelProvider
 from app.images.repository import PrivateTemporaryImageRepository
 from app.images.service import ImageSafetyService
+from app.nutrition.index_worker import CatalogEmbeddingWorker
 
 
 class PersistedAgentRuntimeFactory:
@@ -60,6 +62,7 @@ class PersistedAgentRuntimeFactory:
         memory_provider = create_memory_provider(self._settings)
         tools = SessionNutritionToolAdapter(session_factory=session_factory, memory_provider=memory_provider)
         provider = create_reasoning_provider(self._settings)
+        embedding_provider = create_embedding_provider(self._settings)
         vision_provider = self._vision_provider or create_vision_provider(self._settings)
         image_safety = ImageSafetyService(
             repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),
@@ -120,6 +123,17 @@ class PersistedAgentRuntimeFactory:
             ),
             now=self._retention_now,
         )
+        if embedding_provider is not None:
+            await supervisor.start_embedding_worker(
+                worker=CatalogEmbeddingWorker(
+                    session_factory=session_factory,
+                    provider=embedding_provider,
+                    worker_id="fastapi-catalog-embedding-worker",
+                ),
+                poll_interval=timedelta(
+                    seconds=self._settings.embedding_worker_poll_interval_seconds
+                ),
+            )
         return AgentRuntime(
             graph=graph,
             tools=tools,

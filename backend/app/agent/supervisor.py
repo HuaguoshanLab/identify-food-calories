@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,12 @@ from app.agent.retention import RetentionWorker
 from app.agent.service import AgentService, RetentionPolicy
 from app.core.tracing import DisabledTracingRuntime, TracingRuntime
 from app.images.service import ImageSafetyService
+
+
+class EmbeddingWorker(Protocol):
+    """Small synchronous seam so the supervisor can own a single worker task."""
+
+    def run_once(self) -> str: ...
 
 
 class PostgresLeaseSupervisor:
@@ -40,6 +48,8 @@ class PostgresLeaseSupervisor:
         self._tracing = tracing or DisabledTracingRuntime()
         self._started = False
         self._retention_worker: RetentionWorker | None = None
+        self._embedding_worker_task: asyncio.Task[None] | None = None
+        self._embedding_worker_stop = asyncio.Event()
 
     @property
     def started(self) -> bool:
@@ -49,6 +59,12 @@ class PostgresLeaseSupervisor:
     def retention_worker(self) -> RetentionWorker | None:
         return self._retention_worker
 
+    @property
+    def embedding_worker_started(self) -> bool:
+        """Expose lifecycle state without leaking job payloads or provider details."""
+
+        return self._embedding_worker_task is not None and not self._embedding_worker_task.done()
+
     async def start(self) -> None:
         """Mark the lifecycle participant ready; setup remains an explicit CLI step."""
 
@@ -56,6 +72,10 @@ class PostgresLeaseSupervisor:
 
     async def stop(self) -> None:
         try:
+            if self._embedding_worker_task is not None:
+                self._embedding_worker_stop.set()
+                await self._embedding_worker_task
+                self._embedding_worker_task = None
             if self._retention_worker is not None:
                 await self._retention_worker.stop()
                 self._retention_worker = None
@@ -63,6 +83,43 @@ class PostgresLeaseSupervisor:
         finally:
             self._tracing.shutdown()
             self._started = False
+
+    async def start_embedding_worker(
+        self, *, worker: EmbeddingWorker, poll_interval: timedelta
+    ) -> None:
+        """Start one bounded background owner after supervisor readiness.
+
+        PostgreSQL leases still coordinate actual jobs across processes; this task only
+        owns the process-local scheduling loop and therefore never creates work itself.
+        """
+
+        if not self._started:
+            raise RuntimeError("lease supervisor has not started")
+        if poll_interval <= timedelta(0) or poll_interval > timedelta(minutes=5):
+            raise ValueError("embedding worker poll interval must be within (0, 5 minutes]")
+        if self._embedding_worker_task is None:
+            self._embedding_worker_stop.clear()
+            self._embedding_worker_task = asyncio.create_task(
+                self._run_embedding_worker(worker=worker, poll_interval=poll_interval),
+                name="catalog-embedding-worker",
+            )
+
+    async def _run_embedding_worker(
+        self, *, worker: EmbeddingWorker, poll_interval: timedelta
+    ) -> None:
+        while not self._embedding_worker_stop.is_set():
+            try:
+                await asyncio.to_thread(worker.run_once)
+            except Exception:
+                # Job-level failures are persisted by the worker. A broken provider or
+                # database connection must not take down HTTP fallback retrieval.
+                pass
+            try:
+                await asyncio.wait_for(
+                    self._embedding_worker_stop.wait(), timeout=poll_interval.total_seconds()
+                )
+            except TimeoutError:
+                pass
 
     async def start_retention(
         self,

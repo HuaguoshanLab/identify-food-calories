@@ -24,7 +24,7 @@
 | `weight.py` | 独立用户重量命令解析；完整识别受支持单位，Decimal 换算克数后校验范围，不推断营养或模糊份量。 |
 | `tools.py` | Graph 到确定性 Nutrition/Planning Service、显式偏好捕获及安全个人上下文检索的唯一工具适配器。 |
 | `graph.py` | 主图路由、受限餐食/规划子图、槽位局部替换和 FastAPI lifespan runtime 合同。 |
-| `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention Worker |
+| `supervisor.py` | 领取 PostgreSQL run lease，并在同一生命周期启动/停止 retention 与单个 catalog embedding Worker；工作租约仍由 PostgreSQL 协调。 |
 | `schemas.py` | 与 ORM、Graph State、Provider DTO 分离的公开 Agent HTTP 请求/响应 schema |
 | `api.py` | Bearer-protected Agent operation 的稳定 OpenAPI 合同；认证 Principal 由 `auth.api` 统一提供。包含 owned planning same-thread adjustment、图片上传、受限解码与幂等 Vision 路径；快照只含安全 recovery code，删除操作持久化 D-18 intent 后唤醒 lifecycle Worker。 |
 
