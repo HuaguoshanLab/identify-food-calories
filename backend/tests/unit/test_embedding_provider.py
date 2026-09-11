@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import fields
+from decimal import Decimal
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import ConfigurationError, Settings
 from app.providers.embedding.dto import EMBEDDING_DIMENSION, EmbeddingCallMetadataDTO, EmbeddingRequest, EmbeddingResult, EmbeddingUsageDTO, EmbeddingVectorDTO
+from app.providers.embedding.factory import create_embedding_provider
 from app.providers.embedding.fake import FakeEmbeddingProvider, FakeEmbeddingProviderCall
 from app.providers.embedding.ports import EmbeddingProvider
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
@@ -58,3 +62,98 @@ def test_fake_is_scripted_offline_and_traces_only_safe_counters() -> None:
     scripted.queue_error(kind=ProviderFailureKind.PERMANENT, code="SCRIPTED_FAILURE")
     with pytest.raises(ProviderCallError, match="Scripted embedding provider failure"):
         asyncio.run(scripted.embed(_request()))
+
+
+def _dashscope_settings(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "app_env": "local",
+        "embedding_provider_mode": "dashscope",
+        "dashscope_api_key": "test-key",
+        "embedding_model": "text-embedding-v4",
+        "embedding_dimension": EMBEDDING_DIMENSION,
+        "embedding_price_snapshot_version": "dashscope-2026-09-10",
+        "embedding_input_cny_per_m": Decimal("0.5"),
+        "embedding_single_call_cap_cny": Decimal("0.01"),
+        "embedding_period_cap_cny": Decimal("20"),
+        "embedding_timeout_seconds": 1.5,
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+def test_factory_uses_fake_in_test_without_credentials_or_network() -> None:
+    assert isinstance(create_embedding_provider(app_env="test"), FakeEmbeddingProvider)
+    with pytest.raises(ConfigurationError):
+        create_embedding_provider(app_env="production", provider_mode="fake")
+
+
+def test_factory_is_fail_closed_but_allows_explicit_text_fallback() -> None:
+    assert create_embedding_provider(app_env="local", provider_mode="disabled") is None
+    with pytest.raises(ConfigurationError, match="Settings"):
+        create_embedding_provider(app_env="local", provider_mode="dashscope")
+    with pytest.raises(ConfigurationError, match="DASHSCOPE_API_KEY"):
+        create_embedding_provider(_dashscope_settings(dashscope_api_key=None))
+    provider = create_embedding_provider(_dashscope_settings())
+    assert provider.__class__.__name__ == "DashScopeEmbeddingProvider"
+
+
+def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        assert request.url == httpx.URL("https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding")
+        assert request.json() == {
+            "model": "text-embedding-v4",
+            "input": {"texts": ["米饭"]},
+            "parameters": {"text_type": "query", "dimension": EMBEDDING_DIMENSION, "output_type": "dense"},
+        }
+        if attempts == 1:
+            return httpx.Response(429, text="provider body must not escape")
+        return httpx.Response(200, json={
+            "request_id": "safe-request-id",
+            "output": {"embeddings": [{"text_index": 0, "embedding": [0.25] * EMBEDDING_DIMENSION}]},
+            "usage": {"total_tokens": 3},
+        })
+
+    from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
+
+    provider = DashScopeEmbeddingProvider(
+        api_key="test-key",
+        model="text-embedding-v4",
+        dimension=EMBEDDING_DIMENSION,
+        timeout_seconds=1.5,
+        input_cny_per_m=Decimal("0.5"),
+        single_call_cap_cny=Decimal("0.01"),
+        period_cap_cny=Decimal("20"),
+        price_snapshot_version="dashscope-2026-09-10",
+        transport=httpx.MockTransport(handler),
+    )
+    result = asyncio.run(provider.embed(_request()))
+    assert attempts == 2
+    assert result.metadata.usage.input_tokens == 3
+    assert result.metadata.usage.cost_cny == Decimal("0.0000015")
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code"),
+    [
+        (httpx.Response(400, text="sensitive body"), "PROVIDER_REQUEST_REJECTED"),
+        (httpx.Response(200, json={"output": {"embeddings": [{"embedding": [float("nan")] * EMBEDDING_DIMENSION}]}, "usage": {"total_tokens": 1}}), "PROVIDER_SCHEMA_INVALID"),
+        (httpx.Response(200, json={"output": {"embeddings": [{"embedding": [0.0] * (EMBEDDING_DIMENSION - 1)}]}, "usage": {"total_tokens": 1}}), "PROVIDER_SCHEMA_INVALID"),
+    ],
+)
+def test_dashscope_never_leaks_response_body(response: httpx.Response, expected_code: str) -> None:
+    from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
+
+    provider = DashScopeEmbeddingProvider(
+        api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
+        timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
+        period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
+        transport=httpx.MockTransport(lambda request: response),
+    )
+    with pytest.raises(ProviderCallError) as error:
+        asyncio.run(provider.embed(_request()))
+    assert error.value.code == expected_code
+    assert "sensitive body" not in str(error.value)
