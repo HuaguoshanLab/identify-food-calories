@@ -14,7 +14,7 @@ def _columns(db_session, table_name: str) -> dict[str, str]:
         ),
         {"table_name": table_name},
     )
-    return dict(rows)
+    return dict(rows.all())
 
 
 def _constraint_definitions(db_session, table_name: str) -> str:
@@ -52,7 +52,8 @@ def test_hybrid_food_search_schema_contract(db_session) -> None:
     assert "embedding_dimension = 1024" in space_constraints
     assert "embedding_model" in space_constraints and "adapter_version" in space_constraints
 
-    assert {"vector_space_id", "publication_id"} <= _columns(db_session, "catalog_active_vector_spaces").keys()
+    active_columns = _columns(db_session, "catalog_active_vector_spaces")
+    assert {"pointer_key", "vector_space_id", "advanced_at"} <= active_columns.keys()
     embedding_columns = _columns(db_session, "catalog_search_embeddings")
     assert embedding_columns["embedding"] == "vector"
     embedding_constraints = _constraint_definitions(db_session, "catalog_search_embeddings")

@@ -36,3 +36,4 @@
 | `0020_meal_slot.py` | 新增可空四值餐次；历史数据保持未分类，不按时间猜测回填。 |
 
 - `0021_diet_plans.py`：独立日计划与版本快照、用户日期及运行去重约束。
+- `0025_hybrid_food_search.py`：`pg_trgm`、内容派生搜索版本、隔离的 1024 维 vector-space、受控关系证据、有限租约 job，以及 build/activation 不可变审计证据。
