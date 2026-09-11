@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import math
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy import Select, bindparam, case, desc, func, select
+from sqlalchemy import Select, String, bindparam, case, cast, desc, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, aliased
 
 from app.admin.models import CatalogPublication
@@ -19,12 +21,16 @@ from app.nutrition.repository import ADMIN_PUBLICATION_VERSION, SqlAlchemyNutrit
 from app.nutrition.schemas import FoodRelation, FoodSearchEvidence, QualifiedFood
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
+    CatalogEmbeddingJob,
     CatalogSearchEmbedding,
     CatalogSearchName,
     CatalogSearchRelationEvidence,
     CatalogSearchVersion,
     CatalogVectorSpace,
+    CatalogVectorSpaceBuild,
+    CatalogVectorSpaceBuildCompletion,
 )
+from app.admin.models import CatalogPublicationEligibility
 
 
 _TEXT_MIN_SIMILARITY = Decimal("0.20")
@@ -114,6 +120,203 @@ class SqlAlchemyHybridFoodSearchRepository:
             self._current_qualified_statement().where(CatalogPublication.id == food_id)
         )
         return SqlAlchemyNutritionRepository._to_published_food(publication) if publication is not None else None
+
+    def claim_due_build_embedding_job(self, *, due_at, now, lease_owner: str, lease_expires_at, vector_space_id: uuid.UUID | None = None):
+        """Lease one due job belonging to an immutable build manifest.
+
+        The JSONB containment predicate is deliberate: publication-triggered active
+        space jobs are not build jobs and must not be consumed by this worker.
+        """
+        manifest_item = func.jsonb_build_array(
+            func.jsonb_build_object(
+                "publication_id", cast(CatalogEmbeddingJob.publication_id, String),
+                "name_id", cast(CatalogEmbeddingJob.name_id, String),
+                "search_version_id", cast(CatalogSearchName.search_version_id, String),
+            )
+        )
+        predicates = [
+            CatalogEmbeddingJob.status.in_(("pending", "leased")),
+            CatalogEmbeddingJob.not_before <= due_at,
+            (CatalogEmbeddingJob.status == "pending") | (CatalogEmbeddingJob.lease_expires_at <= now),
+            cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+        ]
+        if vector_space_id is not None:
+            predicates.append(CatalogEmbeddingJob.vector_space_id == vector_space_id)
+        job = self._session.scalar(
+            select(CatalogEmbeddingJob)
+            .join(CatalogSearchName, CatalogSearchName.id == CatalogEmbeddingJob.name_id)
+            .join(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .where(*predicates)
+            .order_by(CatalogEmbeddingJob.not_before, CatalogEmbeddingJob.id)
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        if job is None:
+            return None
+        job.status = "leased"
+        job.attempt_count += 1
+        job.lease_owner = lease_owner
+        job.leased_at = now
+        job.lease_expires_at = lease_expires_at
+        job.updated_at = now
+        self._session.flush()
+        return job
+
+    def recheck_leased_build_embedding_job(self, *, job_id: uuid.UUID, lease_owner: str, now) -> str | None:
+        """Lock and revalidate authority immediately before provider I/O."""
+        context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
+        if context is None:
+            return None
+        job, name, publication, build = context
+        if not self._is_live_build_member(job=job, name=name, publication=publication, build=build):
+            self._cancel_stale_job(job, now)
+            return None
+        return name.normalized_name
+
+    def complete_leased_build_embedding_job(self, *, job_id: uuid.UUID, lease_owner: str, vector: tuple[float, ...], now) -> bool:
+        """Upsert only after a second authority check, then reconcile exact coverage."""
+        if len(vector) != _VECTOR_DIMENSION or not all(math.isfinite(value) for value in vector):
+            raise ValueError("catalog embedding must be a finite 1024-dimension vector")
+        context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
+        if context is None:
+            return False
+        job, name, publication, build = context
+        if not self._is_live_build_member(job=job, name=name, publication=publication, build=build):
+            self._cancel_stale_job(job, now)
+            return False
+        embedding = self._session.scalar(
+            select(CatalogSearchEmbedding)
+            .where(
+                CatalogSearchEmbedding.publication_id == job.publication_id,
+                CatalogSearchEmbedding.name_id == job.name_id,
+                CatalogSearchEmbedding.vector_space_id == job.vector_space_id,
+            )
+            .with_for_update()
+        )
+        if embedding is None:
+            embedding = CatalogSearchEmbedding(
+                id=uuid.uuid4(), publication_id=job.publication_id, name_id=job.name_id,
+                vector_space_id=job.vector_space_id, embedding=list(vector), status="ready", created_at=now,
+            )
+            self._session.add(embedding)
+        job.status = "completed"
+        job.lease_owner = None
+        job.lease_expires_at = None
+        job.last_error_code = None
+        job.updated_at = now
+        self._session.flush()
+        self._reconcile_build_completion(build=build, now=now)
+        return True
+
+    def fail_leased_build_embedding_job(self, *, job_id: uuid.UUID, lease_owner: str, error_code: str, retryable: bool, now, max_backoff_seconds: int) -> bool:
+        context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
+        if context is None:
+            return False
+        job, _name, _publication, _build = context
+        job.last_error_code = error_code[:80]
+        job.lease_owner = None
+        job.lease_expires_at = None
+        if retryable and job.attempt_count < job.max_attempts:
+            job.status = "pending"
+            job.not_before = now + timedelta(seconds=min(max_backoff_seconds, 2 ** job.attempt_count))
+            retrying = True
+        else:
+            job.status = "failed"
+            retrying = False
+        job.updated_at = now
+        self._session.flush()
+        return retrying
+
+    def _locked_build_job_context(self, *, job_id: uuid.UUID, lease_owner: str):
+        manifest_item = func.jsonb_build_array(
+            func.jsonb_build_object(
+                "publication_id", cast(CatalogEmbeddingJob.publication_id, String),
+                "name_id", cast(CatalogEmbeddingJob.name_id, String),
+                "search_version_id", cast(CatalogSearchName.search_version_id, String),
+            )
+        )
+        row = self._session.execute(
+            select(CatalogEmbeddingJob, CatalogSearchName, CatalogPublication, CatalogVectorSpaceBuild)
+            .join(CatalogSearchName, CatalogSearchName.id == CatalogEmbeddingJob.name_id)
+            .join(CatalogPublication, CatalogPublication.id == CatalogEmbeddingJob.publication_id)
+            .join(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .where(
+                CatalogEmbeddingJob.id == job_id,
+                CatalogEmbeddingJob.status == "leased",
+                CatalogEmbeddingJob.lease_owner == lease_owner,
+                cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+            )
+            .with_for_update()
+        ).first()
+        return row
+
+    def _is_live_build_member(self, *, job, name, publication, build) -> bool:
+        manifest_items = {
+            (item["publication_id"], item["name_id"], item["search_version_id"])
+            for item in build.snapshot_manifest
+        }
+        if (str(job.publication_id), str(job.name_id), str(name.search_version_id)) not in manifest_items:
+            return False
+        current_hash = self._session.scalar(
+            select(CatalogSearchVersion.content_hash).where(
+                CatalogSearchVersion.id == name.search_version_id,
+                CatalogSearchVersion.publication_id == publication.id,
+            )
+        )
+        return (
+            name.publication_id == publication.id
+            and current_hash == publication.content_hash
+            and self._latest_eligibility_status(job.publication_id) == "eligible"
+        )
+
+    def _latest_eligibility_status(self, publication_id: uuid.UUID) -> str | None:
+        return self._session.scalar(
+            select(CatalogPublicationEligibility.status)
+            .where(CatalogPublicationEligibility.publication_id == publication_id)
+            .order_by(CatalogPublicationEligibility.occurred_at.desc(), CatalogPublicationEligibility.id.desc())
+            .limit(1)
+        )
+
+    @staticmethod
+    def _cancel_stale_job(job, now) -> None:
+        job.status = "failed"
+        job.attempt_count = job.max_attempts
+        job.lease_owner = None
+        job.lease_expires_at = None
+        job.last_error_code = "stale_authority"
+        job.updated_at = now
+
+    def _reconcile_build_completion(self, *, build, now) -> None:
+        # Lock the immutable build while proving its exact manifest coverage.  This
+        # serializes two final job write-backs without granting either activation.
+        build = self._session.scalar(
+            select(CatalogVectorSpaceBuild)
+            .where(CatalogVectorSpaceBuild.id == build.id)
+            .with_for_update()
+        )
+        if build is None:  # pragma: no cover - FK integrity protects this in PostgreSQL
+            return
+        manifest = build.snapshot_manifest
+        expected = {(item["publication_id"], item["name_id"]) for item in manifest}
+        rows = self._session.execute(
+            select(CatalogSearchEmbedding.publication_id, CatalogSearchEmbedding.name_id)
+            .where(CatalogSearchEmbedding.vector_space_id == build.vector_space_id, CatalogSearchEmbedding.status == "ready")
+        ).all()
+        actual = {(str(publication_id), str(name_id)) for publication_id, name_id in rows}
+        if len(manifest) != build.expected_name_count or actual != expected:
+            return
+        completion = self._session.scalar(
+            select(CatalogVectorSpaceBuildCompletion)
+            .where(CatalogVectorSpaceBuildCompletion.build_id == build.id)
+            .with_for_update()
+        )
+        if completion is None:
+            from app.nutrition.index_worker import completion_hash
+            self._session.add(CatalogVectorSpaceBuildCompletion(
+                id=uuid.uuid4(), build_id=build.id, completed_name_count=len(actual),
+                completion_hash=completion_hash(snapshot_hash=build.snapshot_hash, manifest=manifest), completed_at=now,
+            ))
+            self._session.flush()
 
     @staticmethod
     def _current_qualified_statement() -> Select[tuple[CatalogPublication]]:
