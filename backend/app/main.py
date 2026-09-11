@@ -39,6 +39,7 @@ from app.providers.vision.ports import VisionModelProvider
 from app.images.repository import PrivateTemporaryImageRepository
 from app.images.service import ImageSafetyService
 from app.nutrition.index_worker import CatalogEmbeddingWorker
+from app.core.tracing import TracingRuntime, create_tracing_runtime
 
 
 class PersistedAgentRuntimeFactory:
@@ -55,14 +56,23 @@ class PersistedAgentRuntimeFactory:
         self._retention_now = retention_now or (lambda: datetime.now(UTC))
         self._vision_provider = vision_provider
         self._saver_context: AbstractAsyncContextManager[Any] | None = None
+        self._tracing_runtime: TracingRuntime | None = None
 
     async def create(self) -> AgentRuntime:
+        if self._tracing_runtime is None:
+            self._tracing_runtime = create_tracing_runtime(self._settings)
+        tracing_runtime = self._tracing_runtime
         database_url = runtime_database_url(self._settings)
         session_factory = create_session_factory(self._settings)
         memory_provider = create_memory_provider(self._settings)
-        tools = SessionNutritionToolAdapter(session_factory=session_factory, memory_provider=memory_provider)
         provider = create_reasoning_provider(self._settings)
         embedding_provider = create_embedding_provider(self._settings)
+        tools = SessionNutritionToolAdapter(
+            session_factory=session_factory,
+            memory_provider=memory_provider,
+            embedding_provider=embedding_provider,
+            tracing=tracing_runtime,
+        )
         vision_provider = self._vision_provider or create_vision_provider(self._settings)
         image_safety = ImageSafetyService(
             repository=PrivateTemporaryImageRepository(self._settings.image_temporary_directory),
@@ -82,7 +92,9 @@ class PersistedAgentRuntimeFactory:
             diet_planning_graph=DietPlanningGraph(tools=tools),
         )
         supervisor = PostgresLeaseSupervisor(
-            session_factory=session_factory, holder_id="fastapi-agent-runtime"
+            session_factory=session_factory,
+            holder_id="fastapi-agent-runtime",
+            tracing=tracing_runtime,
         )
         await supervisor.start()
         # Checkpointer schema setup is intentionally performed by the explicit bootstrap CLI.
@@ -144,11 +156,19 @@ class PersistedAgentRuntimeFactory:
         )
 
     async def close(self, runtime: AgentRuntime | None) -> None:
-        if runtime is not None:
-            await cast(PostgresLeaseSupervisor, runtime.supervisor).stop()
-        if self._saver_context is not None:
-            await self._saver_context.__aexit__(None, None, None)
-            self._saver_context = None
+        try:
+            if runtime is not None:
+                await cast(PostgresLeaseSupervisor, runtime.supervisor).stop()
+            if self._saver_context is not None:
+                await self._saver_context.__aexit__(None, None, None)
+                self._saver_context = None
+        finally:
+            if self._tracing_runtime is not None:
+                try:
+                    self._tracing_runtime.flush()
+                finally:
+                    self._tracing_runtime.shutdown()
+                    self._tracing_runtime = None
 
 
 @asynccontextmanager

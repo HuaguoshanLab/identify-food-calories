@@ -79,9 +79,7 @@ class PostgresLeaseSupervisor:
             if self._retention_worker is not None:
                 await self._retention_worker.stop()
                 self._retention_worker = None
-            self._tracing.flush()
         finally:
-            self._tracing.shutdown()
             self._started = False
 
     async def start_embedding_worker(
