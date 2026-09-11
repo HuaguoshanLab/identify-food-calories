@@ -332,7 +332,7 @@ Plans:
 **Goal:** 受控菜品目录以唯一 canonical/alias 精确匹配优先；无唯一精确结果时，通过确定性 PostgreSQL 模糊文本与隔离的 pgvector 语义空间召回最多 3 个当前合格、版本明确、可解释的候选，并在餐食分析和饮食规划中一律要求确认；语义故障安全降级，异步索引可审计，最终发布结论只由冻结确定性评测产生。
 **Requirements**: HFS-01, HFS-02, HFS-03, HFS-04, HFS-05, HFS-06, HFS-07, HFS-08, HFS-09
 **Depends on:** Phase 6
-**Plans:** 19/21 plans executed
+**Plans:** 20/21 plans executed
 
 Plans:
 - [x] 06.3-01-PLAN.md — 锁定 pgvector 与 dev-only Langfuse 供应链依赖
@@ -353,7 +353,7 @@ Plans:
 - [x] 06.3-16-PLAN.md — 通过真实 PostgreSQL 与双 Graph 入口生成确定性发布报告
 - [x] 06.3-17-PLAN.md — 校验 Plan 21 快照和 Plan 10 完成证据后原子激活目标空间
 - [x] 06.3-18-PLAN.md — 接入隔离 Compose 与显式 allowlist Langfuse 镜像
-- [ ] 06.3-19-PLAN.md — 实现 30 天对称清理与临时 stdout/JSON purge 报告
+- [x] 06.3-19-PLAN.md — 实现 30 天对称清理与临时 stdout/JSON purge 报告
 - [ ] 06.3-20-PLAN.md — 完成中文教学、真实 Playwright 门禁和内置浏览器验收
 - [x] 06.3-21-PLAN.md — 建立管理员专用、快照绑定且可恢复的向量空间构建命令
 
