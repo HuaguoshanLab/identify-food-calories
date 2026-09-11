@@ -332,7 +332,7 @@ Plans:
 **Goal:** 受控菜品目录以唯一 canonical/alias 精确匹配优先；无唯一精确结果时，通过确定性 PostgreSQL 模糊文本与隔离的 pgvector 语义空间召回最多 3 个当前合格、版本明确、可解释的候选，并在餐食分析和饮食规划中一律要求确认；语义故障安全降级，异步索引可审计，最终发布结论只由冻结确定性评测产生。
 **Requirements**: HFS-01, HFS-02, HFS-03, HFS-04, HFS-05, HFS-06, HFS-07, HFS-08, HFS-09
 **Depends on:** Phase 6
-**Plans:** 12/21 plans executed
+**Plans:** 13/21 plans executed
 
 Plans:
 - [x] 06.3-01-PLAN.md — 锁定 pgvector 与 dev-only Langfuse 供应链依赖
@@ -344,7 +344,7 @@ Plans:
 - [x] 06.3-07-PLAN.md — 扩展 NutritionService 精确短路、安全降级与 Phoenix 最小化追踪
 - [x] 06.3-08-PLAN.md — 实现 publication aggregate、多 job 状态和幂等批量重试合同
 - [x] 06.3-09-PLAN.md — 暴露 DB-RBAC 聚合状态、批量重试与版本化关系证据管理 API
-- [ ] 06.3-10-PLAN.md — 对 Plan 21 不可变快照执行有限租约索引并写独立完成证据
+- [x] 06.3-10-PLAN.md — 对 Plan 21 不可变快照执行有限租约索引并写独立完成证据
 - [ ] 06.3-11-PLAN.md — 将索引 Worker 接入受监督 FastAPI lifespan
 - [x] 06.3-12-PLAN.md — 在现有后台目录页显示聚合/job 状态并批量重试
 - [ ] 06.3-13-PLAN.md — 接入共享异步 Tool、安全 State 与单例 Phoenix runtime 生命周期
