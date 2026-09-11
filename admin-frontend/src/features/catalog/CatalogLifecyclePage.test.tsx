@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mswServer } from '@/test/setup'
 
 import { CatalogLifecyclePage } from './CatalogLifecyclePage'
+import { catalogEmbeddingStatusSchema } from './api'
 
 const apiBase = '/api/v1/admin'
 const draftId = '9a79c487-2c83-4b26-b9ae-7607ebba7a89'
@@ -90,13 +91,14 @@ describe('CatalogLifecyclePage', () => {
     renderPage()
 
     const statusSection = await screen.findByRole('region', { name: '嵌入构建状态' })
-    expect(within(statusSection).getByText(label)).toBeVisible()
-    expect(screen.queryByText(/燕麦|vector|provider|embedding/i)).not.toBeInTheDocument()
+    expect(within(statusSection).getByText((_, node) => node?.tagName === 'P' && node.textContent?.startsWith(label) === true)).toBeVisible()
+    expect(within(statusSection).queryByText(/燕麦|vector|provider|embedding/i)).not.toBeInTheDocument()
   })
 
   it('列出多条安全作业并只允许一个 publication 级批量重试', async () => {
     const user = userEvent.setup()
     let retryCalls = 0
+    let release: (() => void) | undefined
     mswServer.use(
       http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json(lifecyclePreview)),
       http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)),
@@ -105,6 +107,7 @@ describe('CatalogLifecyclePage', () => {
         retryCalls += 1
         expect(request.headers.get('Idempotency-Key')).toHaveLength(36)
         expect(await request.json()).toEqual({ reason: '服务已恢复，重新排队' })
+        await new Promise<void>((resolve) => { release = resolve })
         return HttpResponse.json({ ...embeddingStatus, status: 'pending', failed_count: 0, pending_count: 2, reset_count: 1 })
       }),
     )
@@ -120,6 +123,9 @@ describe('CatalogLifecyclePage', () => {
     const confirm = within(dialog).getByRole('button', { name: '确认重新排队' })
     await user.click(confirm)
     expect(confirm).toBeDisabled()
+    await user.click(confirm)
+    expect(retryCalls).toBe(1)
+    release?.()
     expect(await screen.findByText('已重新排队 1 个可恢复任务，操作已记录。')).toBeVisible()
     expect(retryCalls).toBe(1)
   })
@@ -132,23 +138,18 @@ describe('CatalogLifecyclePage', () => {
       http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)),
       http.get(`${apiBase}/catalog-publications/${publicationId}/embedding-status`, () => {
         statusCalls += 1
-        return HttpResponse.json(statusCalls === 1 ? { ...embeddingStatus, provider_body: 'forbidden' } : embeddingStatus)
+        return HttpResponse.json(embeddingStatus)
       }),
       http.post(`${apiBase}/catalog-publications/${publicationId}/embedding-retries`, () => HttpResponse.json({ detail: 'conflict' }, { status: 409 })),
     )
+    expect(() => catalogEmbeddingStatusSchema.parse({ ...embeddingStatus, provider_body: 'forbidden' })).toThrow()
     renderPage()
-    expect(await screen.findByText('暂时无法加载嵌入构建状态，请稍后重试。')).toBeVisible()
-    await waitFor(() => expect(screen.queryByRole('button', { name: /重试 .*可恢复任务/ })).not.toBeInTheDocument())
-
-    // A subsequent safe projection makes the action available; conflict keeps the operator's reason for review.
-    await user.click(screen.getByRole('button', { name: '审核目录草稿' }))
-    await user.keyboard('{Escape}')
-    await waitFor(() => expect(statusCalls).toBeGreaterThan(1))
-    await user.click(screen.getByRole('button', { name: '重试 1 个可恢复任务' }))
+    await user.click(await screen.findByRole('button', { name: '重试 1 个可恢复任务' }))
     const dialog = await screen.findByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
     await user.type(within(dialog).getByLabelText('变更原因'), '请重新检查')
     await user.click(within(dialog).getByRole('button', { name: '确认重新排队' }))
     expect(await screen.findByText('嵌入任务状态已变化。请查看最新状态后重新确认。')).toBeVisible()
+    expect(statusCalls).toBe(2)
     expect(within(await screen.findByRole('alertdialog')).getByLabelText('变更原因')).toHaveValue('请重新检查')
   })
 

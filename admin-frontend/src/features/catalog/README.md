@@ -19,8 +19,8 @@
 | `README.md` | 目录草稿能力的边界、允许依赖和文件索引。 |
 | `CatalogDraftPage.test.tsx` | 目录草稿表单、确认、冲突和授权安全 UX 的组件契约。 |
 | `CatalogDraftPage.tsx` | 草稿表单、弹窗直接保存/版本保护与幂等重试；兼容旧页的服务器预览与确认。 |
-| `CatalogLifecyclePage.test.tsx` | 审核、发布、失格、冲突与只读审计的生命周期组件契约。 |
-| `CatalogLifecyclePage.tsx` | 严格生命周期投影、两列 diff、理由确认和审计组合页。 |
+| `CatalogLifecyclePage.test.tsx` | 审核、发布、失格、嵌入聚合状态、批量重试、冲突与只读审计的生命周期组件契约。 |
+| `CatalogLifecyclePage.tsx` | 严格生命周期投影、两列 diff、嵌入作业安全状态、publication 级批量重试、理由确认和审计组合页。 |
 | `api/` | 草稿严格 DTO 与公开 admin HTTP 命令；目录索引见 `api/README.md`。 |
 | `CatalogListPage.tsx` | 筛选、分页、每行编辑/审核/发布的居中弹窗、模板/导出及授权错误处理。 |
 | `CatalogListPage.test.tsx` | 筛选/分页、居中编辑保存/冲突保护、导入错误、重试去重和 403 零数据呈现。 |
