@@ -13,6 +13,7 @@ from evals.phase_06_3.langfuse_publish import LangfusePublishError, publish_rele
 from evals.phase_06_3.langfuse_retention import (
     RetentionFailure,
     TraceRecord,
+    main as retention_main,
     purge_detailed_experiments,
 )
 
@@ -141,13 +142,13 @@ class _FakeRetentionClient:
         self.deleted: list[tuple[str, ...]] = []
 
     def list_traces(self, *, cutoff_utc: datetime, page: int, limit: int) -> tuple[TraceRecord, ...]:
-        del cutoff_utc
         self.list_calls += 1
         if self._pending and self.list_calls > self._delayed_deletions:
             self._traces = [trace for trace in self._traces if trace.trace_id not in self._pending]
             self._pending.clear()
+        overdue = [trace for trace in self._traces if trace.timestamp_utc <= cutoff_utc]
         start = (page - 1) * limit
-        return tuple(self._traces[start : start + limit])
+        return tuple(overdue[start : start + limit])
 
     def delete_traces(self, trace_ids: tuple[str, ...]) -> None:
         self.deleted.append(trace_ids)
@@ -182,7 +183,7 @@ def test_retention_keeps_29_days_and_purges_30_days_or_older_for_pass_and_fail()
 
     assert report.as_json() == {
         "cutoff_utc": "2026-08-12T12:00:00Z",
-        "scanned": 4,
+        "scanned": 3,
         "requested": 3,
         "verified_deleted": 3,
         "remaining_overdue": 0,
@@ -247,3 +248,27 @@ def test_retention_rejects_pages_that_exceed_the_configured_bound() -> None:
             deadline_seconds=1,
             sleep=lambda _seconds: None,
         )
+
+
+def test_retention_cli_emits_only_exact_ephemeral_json_and_safe_failure_codes(capsys: pytest.CaptureFixture[str]) -> None:
+    now = datetime(2026, 9, 11, 12, tzinfo=UTC)
+    client = _FakeRetentionClient([_trace("old", days_old=31, now=now, action="FAIL")])
+
+    code = retention_main(
+        ["purge", "--older-than", "30d", "--verify", "--format", "json"],
+        client_factory=lambda: client,
+        now=lambda: now,
+        sleep=lambda _seconds: None,
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out) == {
+        "cutoff_utc": "2026-08-12T12:00:00Z",
+        "scanned": 1,
+        "requested": 1,
+        "verified_deleted": 1,
+        "remaining_overdue": 0,
+        "status": "PASS",
+    }
+    assert captured.err == ""

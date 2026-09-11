@@ -18,6 +18,7 @@
 | `evaluate.py` | 严格校验 schema、顺序、类别覆盖、隐私 allowlist 与 hash 链的离线 loader。 |
 | `activate.py` | 受控激活入口；只接受 actor/目标/原因/幂等键和 release 路径，所有权限与证据由服务重新校验。 |
 | `langfuse_publish.py` | 默认不运行的本地实验镜像；仅在 `--publish-langfuse` 下验证完整 PASS release 后导出严格 allowlist 投影。 |
+| `langfuse_retention.py` | 仅手工执行的 UTC 30 天详细实验 trace 删除与异步回查；结果只写 stdout JSON。 |
 | `__init__.py` | 让 pytest 与离线 runner 使用同一评测包路径。 |
 
 ## 可选本地 Langfuse 镜像
@@ -33,3 +34,24 @@ uv run --extra dev python evals/phase_06_3/langfuse_publish.py --publish-langfus
 ```
 
 发布器在创建客户端前拒绝任何未知字段，以及 query、候选正文、用户、餐食、身体/健康、图片、base64、prompt、Provider、向量、密钥、response 或思维链字段。它只镜像合成 case ID/hash、版本/hash、受控候选 ID、PASS/FAIL 与锁定 assertion score；原始 release 字节与判定在发布前后均保持不变。
+
+## 详细实验记录的 30 天留存
+
+本地开源 Langfuse 默认不会自动删除记录。开发者可在已配置的独立 Langfuse 环境中手工运行：
+
+```bash
+cd backend
+uv run python evals/phase_06_3/langfuse_retention.py purge --older-than 30d --verify --format json
+```
+
+该命令固定只查询 `phase063.frozen_case` 的 trace，使用同一个 UTC cutoff：`timestamp <= now - 30 days`。
+它不读取或按 PASS/FAIL、分数、用户、餐食、提示词或其他 payload 过滤；因此成功和失败实验受到相同处理。
+每次查询、批量删除、回查与退避都受页面、批次、尝试次数和总截止时间约束。Langfuse 的 trace 删除会级联其 observation 和 score，且可能异步完成；命令会反复回查，未能在界限内证明删除完成时以非零状态退出。
+
+stdout 仅输出以下临时 JSON，不创建 purge 文件、业务数据库记录、评测数据集或 Git artifact：
+
+```json
+{"cutoff_utc":"...","scanned":0,"requested":0,"verified_deleted":0,"remaining_overdue":0,"status":"PASS"}
+```
+
+失败时 stderr 只有安全状态码，不能把服务响应、trace payload、密钥或 URL 写入日志。若要保存运行结果，由操作者在应用外显式重定向 stdout；这不是应用的数据留存机制。
