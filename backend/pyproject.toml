@@ -25,6 +25,7 @@ dependencies = [
   "sqlalchemy==2.0.52",
   "uvicorn[standard]==0.39.0",
   "mem0ai==2.0.19",
+  "pgvector==0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,12 @@ index-url = "https://mirrors.aliyun.com/pypi/simple/"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[dependency-groups]
+dev = [
+    "langfuse==4.14.0",
+]

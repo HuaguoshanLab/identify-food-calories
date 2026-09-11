@@ -1,6 +1,6 @@
 {
   "schema_version": "supply-chain-evidence/v1",
-  "generated_at": "2026-08-31T06:00:00Z",
+  "generated_at": "2026-09-11T00:00:00Z",
   "status": "approved",
   "manual_manifest": {
     "packages": [
@@ -42,6 +42,32 @@
         "checked_at": "2026-08-29T03:45:00Z",
         "reviewer": "project owner approved exact version",
         "registry_response_sha256": "234b49dfd9744aef8aae10d702b41f051f1daedf8c85084d2ec7c9ae3cd5fba4"
+      },
+      {
+        "name": "pgvector",
+        "ecosystem": "pypi",
+        "version": "0.5.0",
+        "registry_url": "https://pypi.org/pypi/pgvector/0.5.0/json",
+        "owner": "Andrew Kane <andrew@ankane.org>",
+        "repository_url": "https://github.com/pgvector/pgvector-python",
+        "license": "MIT",
+        "published_at": "2026-07-06T18:27:27.767083Z",
+        "checked_at": "2026-09-11T00:00:00Z",
+        "reviewer": "Phase 06.3 package legitimacy audit; exact PyPI metadata and source repository reviewed",
+        "registry_response_sha256": "e0463e7eaa856c8f875db703a94600a7d63acbc722cd9fad06f5d9f5deed9d55"
+      },
+      {
+        "name": "langfuse",
+        "ecosystem": "pypi",
+        "version": "4.14.0",
+        "registry_url": "https://pypi.org/pypi/langfuse/4.14.0/json",
+        "owner": "langfuse <developers@langfuse.com>",
+        "repository_url": "https://github.com/langfuse/langfuse-python",
+        "license": "MIT",
+        "published_at": "2026-07-10T11:33:39.153848Z",
+        "checked_at": "2026-09-11T00:00:00Z",
+        "reviewer": "Phase 06.3 package legitimacy audit; exact PyPI metadata and source repository reviewed; dev-only",
+        "registry_response_sha256": "9e0c0aaf7cee85e2c32560d79a271eecc4d67be05bb10a5e6a1c178be966b888"
       },
       {
         "name": "eventsource-parser",
@@ -135,6 +161,6 @@
         "registry_response_sha256": "d575776647a7cbdc3acfdbdb4cb0d47308f463280a6ac32ce050cc57f274b531"
       }
     ],
-    "manifest_sha256": "c2317a5382c85bc3341093aaa4f735cdfc9daf4547f8300d4f4637fd8e2a88cd"
+    "manifest_sha256": "41f783718704276b4c452590490965b513bdc83c23cef0e844d2cc19c815f9cb"
   }
 }

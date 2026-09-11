@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ APPROVED_PACKAGES: tuple[tuple[str, str, str], ...] = (
     ("fastapi", "pypi", "0.137.0"),
     ("langgraph", "pypi", "1.2.11"),
     ("langgraph-checkpoint-postgres", "pypi", "3.1.2"),
+    ("pgvector", "pypi", "0.5.0"),
+    ("langfuse", "pypi", "4.14.0"),
     ("eventsource-parser", "npm", "3.1.0"),
     ("arize-phoenix", "pypi", "18.1.0"),
     ("arize-phoenix-otel", "pypi", "0.17.1"),
@@ -56,6 +59,92 @@ PACKAGE_FIELDS = {
 
 class ValidationError(ValueError):
     """The evidence cannot authorize an install."""
+
+
+LOCK_HEADER = "# food-agent direct dependency lock v1"
+
+
+class LockValidationError(ValueError):
+    """The direct-dependency lock no longer represents the approved manifest."""
+
+
+def _direct_dependencies(pyproject: Path) -> set[str]:
+    try:
+        document = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise LockValidationError(f"cannot read {pyproject}: {error}") from error
+
+    project = _as_object(document.get("project"), "pyproject.project")
+    dependencies = project.get("dependencies", [])
+    optional = project.get("optional-dependencies", {})
+    if not isinstance(dependencies, list) or not isinstance(optional, dict):
+        raise LockValidationError("pyproject dependencies must use the pinned list shape")
+    values = [*dependencies]
+    for group in optional.values():
+        if not isinstance(group, list):
+            raise LockValidationError("optional dependency groups must be lists")
+        values.extend(group)
+    if any(not isinstance(value, str) or "==" not in value for value in values):
+        raise LockValidationError("direct dependencies must be exact pins")
+    return set(values)
+
+
+def check_lock(pyproject: Path, lock: Path) -> None:
+    """Reject lock metadata that drifts from direct, exact dependency pins."""
+
+    try:
+        lines = lock.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise LockValidationError(f"cannot read {lock}: {error}") from error
+    if not lines or lines[0] != LOCK_HEADER:
+        raise LockValidationError("lock header is not the pinned supply-chain contract")
+
+    expected = _direct_dependencies(pyproject)
+    for dependency in expected:
+        if dependency in lines:
+            raise LockValidationError(f"{dependency} is missing a SHA-256 lock hash")
+    declared = {
+        line.removeprefix("# direct-dependency: ")
+        for line in lines
+        if line.startswith("# direct-dependency: ")
+    }
+    if declared != expected:
+        raise LockValidationError("pyproject drift in direct dependency lock")
+    for dependency in expected:
+        escaped = re.escape(dependency)
+        if not any(
+            re.fullmatch(rf"{escaped} --hash=sha256:[a-f0-9]{{64}}", line)
+            for line in lines
+        ):
+            raise LockValidationError(f"{dependency} is missing a SHA-256 lock hash")
+
+
+def _report_packages(report: object) -> dict[str, tuple[str, str, str]]:
+    """Extract only remote artifacts with validated hashes from a pip-style report."""
+
+    document = _as_object(report, "report")
+    installs = document.get("install")
+    if not isinstance(installs, list):
+        raise LockValidationError("report.install must be a list")
+    packages: dict[str, tuple[str, str, str]] = {}
+    for index, install in enumerate(installs):
+        item = _as_object(install, f"report.install[{index}]")
+        metadata = _as_object(item.get("metadata"), f"report.install[{index}].metadata")
+        name = _as_string(metadata.get("name"), f"report.install[{index}].metadata.name")
+        version = _as_string(metadata.get("version"), f"report.install[{index}].metadata.version")
+        download = _as_object(item.get("download_info"), f"report.install[{index}].download_info")
+        url = _as_string(download.get("url"), f"report.install[{index}].download_info.url")
+        if url.startswith("file:"):
+            continue
+        archive = _as_object(download.get("archive_info"), f"report.install[{index}].archive_info")
+        digest = _as_string(archive.get("hash"), f"report.install[{index}].archive_info.hash")
+        if not (digest.startswith("sha256:") or digest.startswith("sha256=")):
+            raise LockValidationError(f"{name} must use a SHA-256 artifact hash")
+        value = digest.removeprefix("sha256:").removeprefix("sha256=")
+        if not SHA256_RE.fullmatch(value):
+            raise LockValidationError(f"{name} has an invalid SHA-256 artifact hash")
+        packages[name] = (name, version, value)
+    return packages
 
 
 def _as_object(value: object, path: str) -> dict[str, Any]:
@@ -285,11 +374,20 @@ def _self_test() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     verify = subparsers.add_parser("verify", help="validate a pinned evidence file")
-    verify.add_argument("--schema", type=Path, required=True)
-    verify.add_argument("--evidence", type=Path, required=True)
+    verify.add_argument(
+        "--schema", type=Path, default=Path("supply-chain-evidence-v1.schema.json")
+    )
+    verify.add_argument(
+        "--evidence", type=Path, default=Path("supply-chain-evidence.json")
+    )
     subparsers.add_parser("self-test", help="run deterministic validator smoke checks")
+    parser.set_defaults(
+        command="verify",
+        schema=Path("supply-chain-evidence-v1.schema.json"),
+        evidence=Path("supply-chain-evidence.json"),
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "self-test":
