@@ -80,8 +80,10 @@ def _load_safe_release(path: Path) -> dict[str, object]:
         _validate_case(case)
     evidence_hash = payload["evidence_hash"]
     evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
-    if payload["decision"] != "PASS" or not isinstance(evidence_hash, str) or not _HASH.fullmatch(evidence_hash) or hashlib.sha256(_canonical(evidence)).hexdigest() != evidence_hash:
-        raise LangfusePublishError("release must be a completed PASS with a valid evidence hash")
+    # Langfuse is an evidence mirror, not an activation authority.  A hash-bound
+    # failure is just as important for retention and audit as a passing release.
+    if payload["decision"] not in {"PASS", "FAIL"} or not isinstance(evidence_hash, str) or not _HASH.fullmatch(evidence_hash) or hashlib.sha256(_canonical(evidence)).hexdigest() != evidence_hash:
+        raise LangfusePublishError("release must be a completed PASS or FAIL with a valid evidence hash")
     return payload
 
 
@@ -150,6 +152,7 @@ def publish_release(path: Path, *, client_factory: Callable[[], LangfuseClient] 
             "schema_version": release["schema_version"],
             "evaluator_version": release["evaluator_version"],
             "evidence_hash": release["evidence_hash"],
+            "release_decision": release["decision"],
         }
         with client.start_as_current_observation(name="phase063.frozen_case", as_type="evaluator", metadata=metadata) as observation:
             trace_id = getattr(observation, "trace_id", None)

@@ -120,17 +120,23 @@ def test_publish_rejects_sensitive_or_unknown_fields_before_client_creation(tmp_
     assert called is False
 
 
-def test_publish_rejects_non_pass_release_and_preserves_report_bytes(tmp_path: Path) -> None:
+def test_publish_mirrors_hash_bound_fail_release_and_preserves_report_bytes(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
     payload["decision"] = "FAIL"
+    evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
+    payload["evidence_hash"] = hashlib.sha256(
+        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     release.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     original = release.read_bytes()
 
-    with pytest.raises(LangfusePublishError, match="completed PASS"):
-        publish_release(release, client_factory=_FakeLangfuse)
+    client = _FakeLangfuse()
+    result = publish_release(release, client_factory=lambda: client)
 
     assert release.read_bytes() == original
+    assert result.published_cases == 24
+    assert all(payload["metadata"]["release_decision"] == "FAIL" for payload, _ in client.observations)
 
 
 class _FakeRetentionClient:
