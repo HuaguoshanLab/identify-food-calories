@@ -9,7 +9,12 @@ import httpx
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.core.embedding_budget import EmbeddingBudgetReservation, EmbeddingBudgetUnavailable
+from app.core.embedding_budget import (
+    EmbeddingBudgetReservation,
+    EmbeddingBudgetUnavailable,
+    require_ledger_amount,
+    round_cost_up_for_ledger,
+)
 from app.providers.embedding.dto import (
     EMBEDDING_DIMENSION,
     EmbeddingCallMetadataDTO,
@@ -63,6 +68,15 @@ class DashScopeEmbeddingProvider:
             raise ValueError("DashScope adapter or price snapshot version is invalid")
         if any(value <= 0 for value in (input_cny_per_m, single_call_cap_cny, period_cap_cny)):
             raise ValueError("DashScope price and cost caps must be positive")
+        try:
+            require_ledger_amount(single_call_cap_cny, variable="DashScope single-call cost cap")
+            require_ledger_amount(period_cap_cny, variable="DashScope period cost cap")
+            require_ledger_amount(
+                single_call_cap_cny * MAX_HTTP_ATTEMPTS,
+                variable="DashScope retry reservation amount",
+            )
+        except ValueError as error:
+            raise ValueError("DashScope cost caps are incompatible with the budget ledger") from error
         self._api_key = api_key
         self._model = model
         self._timeout_seconds = timeout_seconds
@@ -222,6 +236,14 @@ def _result(
     cost = Decimal(total_tokens) * input_cny_per_m / Decimal("1000000")
     if cost > single_call_cap_cny:
         raise ProviderCallError(kind=ProviderFailureKind.PERMANENT, code="PROVIDER_COST_CAP_EXCEEDED")
+    try:
+        # Metadata and settlement must agree on the conservatively rounded
+        # amount that the NUMERIC(18, 8) ledger can represent.
+        cost = round_cost_up_for_ledger(cost)
+    except ValueError as error:
+        raise ProviderCallError(
+            kind=ProviderFailureKind.PERMANENT, code="PROVIDER_COST_ACCOUNTING_INVALID"
+        ) from error
     request_id = document.get("request_id")
     if not isinstance(request_id, str) or not request_id.strip() or len(request_id.strip()) > 128:
         request_id = None
