@@ -48,6 +48,7 @@
 | `phase03-eval.schema.json` | Phase 3 冻结案例字段、禁止敏感字段和必需场景的版本化合同。 |
 | `evaluate_phase3.py` | 用 Fake Vision 回放构建 hash-bound 发布报告；零分母、hash 漂移、缺案例、未经授权目录项或任一关键安全断言均 fail closed。 |
 | `phase03-release.json` | 当前 Phase 3 冻结评测结果；只保存安全观察、指标、阈值和 hashes，不保存原图、模型原文或密钥。 |
+| `phase_06_3/` | Phase 06.3 混合菜品检索的合成、顺序固定、hash 链绑定的冻结案例与离线 loader。 |
 
 ## Phase 3 多模态冻结门
 
