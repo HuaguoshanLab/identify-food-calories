@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 import uuid
 
 from sqlalchemy import select, text
@@ -88,6 +89,16 @@ def test_hybrid_search_repository_exposes_an_authoritative_adapter() -> None:
     from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
 
     assert SqlAlchemyHybridFoodSearchRepository.__name__ == "SqlAlchemyHybridFoodSearchRepository"
+
+
+def test_hybrid_downgrade_does_not_drop_database_wide_pg_trgm_extension() -> None:
+    """A feature rollback may only remove objects this migration owns."""
+
+    migration = Path(__file__).parents[2] / "migrations/versions/0025_hybrid_food_search.py"
+    source = migration.read_text(encoding="utf-8")
+    downgrade = source.split("def downgrade() -> None:", maxsplit=1)[1]
+
+    assert "DROP EXTENSION" not in downgrade
 
 
 def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_session, tmp_path, monkeypatch) -> None:

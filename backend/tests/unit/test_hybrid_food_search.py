@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.nutrition.schemas import (
     ControlledPortion,
     FoodRelation,
@@ -307,6 +308,30 @@ def test_service_nonexact_stays_ask_and_safely_falls_back_to_text() -> None:
     assert result.selected_food is None
     assert tuple(candidate.canonical_name for candidate in result.candidates) == ("番茄炒蛋",)
     assert provider.calls[0].input_count == 1
+    assert repository.vector_calls == 0
+
+
+def test_local_default_unscripted_fake_degrades_nonexact_search_to_text_only() -> None:
+    """The default local provider must not turn a normal ASK into an HTTP 500."""
+
+    from app.providers.embedding.factory import create_embedding_provider
+
+    food = make_food(name="番茄炒蛋")
+    repository = _HybridSearchRepository(
+        exact=[], text=[evidence(food, relation=FoodRelation.NAME_VARIANT)]
+    )
+    settings = Settings(app_env="local")
+    provider = create_embedding_provider(settings)
+    assert isinstance(provider, FakeEmbeddingProvider)
+
+    result = asyncio.run(
+        NutritionService(
+            repository=_LegacyRepository(), search_repository=repository, embedding_provider=provider
+        ).search_food_catalog(FoodSearchInput(query="西红柿炒鸡蛋"))
+    )
+
+    assert result.action.value == "ASK"
+    assert tuple(candidate.canonical_name for candidate in result.candidates) == ("番茄炒蛋",)
     assert repository.vector_calls == 0
 
 

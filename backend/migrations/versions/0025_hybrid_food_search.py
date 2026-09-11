@@ -221,4 +221,6 @@ def downgrade() -> None:
     op.drop_table("catalog_active_vector_spaces")
     op.drop_table("catalog_vector_spaces")
     op.drop_table("catalog_search_versions")
-    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
+    # pg_trgm is a database-wide prerequisite, not an object owned by this
+    # feature migration.  Removing it here could break another module during a
+    # rollback, so deployment governance owns its lifecycle.

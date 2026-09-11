@@ -12,11 +12,27 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import ConfigurationError, Settings
+from app.core.embedding_budget import EmbeddingBudgetReservation
 from app.providers.embedding.dto import EMBEDDING_DIMENSION, EmbeddingCallMetadataDTO, EmbeddingRequest, EmbeddingResult, EmbeddingUsageDTO, EmbeddingVectorDTO
 from app.providers.embedding.factory import create_embedding_provider
 from app.providers.embedding.fake import FakeEmbeddingProvider, FakeEmbeddingProviderCall
 from app.providers.embedding.ports import EmbeddingProvider
 from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
+
+
+class _BudgetLedger:
+    def __init__(self, *, allow: bool = True) -> None:
+        self.allow = allow
+        self.reserved: list[tuple[Decimal, Decimal]] = []
+        self.settled: list[Decimal] = []
+
+    def reserve(self, *, amount_cny: Decimal, cap_cny: Decimal) -> EmbeddingBudgetReservation | None:
+        self.reserved.append((amount_cny, cap_cny))
+        return EmbeddingBudgetReservation(period_key="2026-09", amount_cny=amount_cny) if self.allow else None
+
+    def settle(self, reservation: EmbeddingBudgetReservation, *, actual_cost_cny: Decimal) -> None:
+        assert reservation.amount_cny >= actual_cost_cny
+        self.settled.append(actual_cost_cny)
 
 
 def _request(*, names: tuple[str, ...] = ("米饭",), text_type: str = "query") -> EmbeddingRequest:
@@ -136,6 +152,7 @@ def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
 
     from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
 
+    ledger = _BudgetLedger()
     provider = DashScopeEmbeddingProvider(
         api_key="test-key",
         model="text-embedding-v4",
@@ -145,12 +162,15 @@ def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
         single_call_cap_cny=Decimal("0.01"),
         period_cap_cny=Decimal("20"),
         price_snapshot_version="dashscope-2026-09-10",
+        budget_ledger=ledger,
         transport=httpx.MockTransport(handler),
     )
     result = asyncio.run(provider.embed(_request()))
     assert attempts == 2
     assert result.metadata.usage.input_tokens == 3
     assert result.metadata.usage.cost_cny == Decimal("0.0000015")
+    assert ledger.reserved == [(Decimal("0.01"), Decimal("20"))]
+    assert ledger.settled == [Decimal("0.0000015")]
 
 
 @pytest.mark.parametrize(
@@ -169,6 +189,7 @@ def test_dashscope_never_leaks_response_body(response_factory: object, expected_
         api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
         timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
         period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
+        budget_ledger=_BudgetLedger(),
         transport=httpx.MockTransport(lambda request: response_factory()),  # type: ignore[operator]
     )
     with pytest.raises(ProviderCallError) as error:
@@ -187,9 +208,34 @@ def test_dashscope_timeout_maps_to_safe_code() -> None:
         api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
         timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
         period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
+        budget_ledger=_BudgetLedger(),
         transport=httpx.MockTransport(timeout),
     )
     with pytest.raises(ProviderCallError) as error:
         asyncio.run(provider.embed(_request()))
     assert error.value.code == "PROVIDER_TIMEOUT"
     assert "provider body" not in str(error.value)
+
+
+def test_dashscope_rejects_period_cap_before_network_call() -> None:
+    from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
+
+    called = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200)
+
+    provider = DashScopeEmbeddingProvider(
+        api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
+        timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
+        period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
+        budget_ledger=_BudgetLedger(allow=False), transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(ProviderCallError) as error:
+        asyncio.run(provider.embed(_request()))
+
+    assert error.value.code == "PROVIDER_PERIOD_COST_CAP_EXCEEDED"
+    assert called is False

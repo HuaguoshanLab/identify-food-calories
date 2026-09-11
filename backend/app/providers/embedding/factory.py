@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import Literal
 
 from app.core.config import ConfigurationError, EmbeddingProviderMode, Settings
+from app.core.embedding_budget import PostgresEmbeddingBudgetLedger
 from app.providers.embedding.fake import FakeEmbeddingProvider
 from app.providers.embedding.ports import EmbeddingProvider
 
@@ -48,6 +49,9 @@ def create_embedding_provider(
     try:
         adapter_module = import_module("app.providers.embedding.dashscope")
         adapter_class = getattr(adapter_module, "DashScopeEmbeddingProvider")
-        return adapter_class.from_settings(settings)
+        return adapter_class.from_settings(
+            settings,
+            budget_ledger=PostgresEmbeddingBudgetLedger(database_url=settings.database_url),
+        )
     except (ImportError, AttributeError, ValueError) as error:
         raise ConfigurationError("DashScope embedding provider configuration is invalid") from error
