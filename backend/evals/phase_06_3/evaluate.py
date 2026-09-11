@@ -6,6 +6,8 @@ import hashlib
 import json
 import argparse
 import asyncio
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 import sys
@@ -16,7 +18,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.admin.models import CatalogPublication
+from app.admin.models import CatalogPublication, CatalogPublicationEligibility
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
 from app.admin.service import AdminService
@@ -167,6 +169,11 @@ _CANONICAL_NAMES = {
     "food:potato-noodles-v1": "土豆粉", "food:pan-fried-bun-v1": "生煎包",
     "food:hot-dry-noodles-v1": "热干面", "food:timeout-safe-v1": "超时安全菜",
     "food:index-fallback-v1": "索引回退菜", "food:stable-order-v1": "稳定排序菜",
+    "food:egg-fried-rice-v1": "蛋炒饭", "food:tea-egg-v1": "茶叶蛋",
+    "food:firm-tofu-v1": "老豆腐", "food:silken-tofu-v1": "嫩豆腐",
+    "food:chicken-v1": "鸡肉", "food:revoked-v1": "已撤销菜",
+    "food:ineligible-v1": "失格菜", "food:old-version-v0": "旧版菜",
+    "food:missing-source-v1": "缺来源菜",
 }
 _QUERY_TARGETS = {
     "米饭": "food:rice-v1", "白米饭": "food:rice-v1", "水煮蛋": "food:boiled-egg-v1",
@@ -243,6 +250,21 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     if session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == rice_id, CatalogSearchName.normalized_name == "白米饭")) is None:
         session.add(CatalogSearchName(id=uuid.uuid4(), publication_id=rice_id, search_version_id=rice_version.id, display_name="白米饭", normalized_name="白米饭", name_kind="controlled_alias", created_at=now))
         session.flush()
+    # These labels exist as real authority UUIDs so excluded-ID assertions are
+    # meaningful, but their latest eligibility evidence must keep them out of
+    # every production repository channel.
+    excluded_labels = {
+        "food:egg-fried-rice-v1", "food:tea-egg-v1", "food:firm-tofu-v1",
+        "food:silken-tofu-v1", "food:chicken-v1", "food:revoked-v1",
+        "food:ineligible-v1", "food:old-version-v0", "food:missing-source-v1",
+    }
+    for label in excluded_labels:
+        session.add(CatalogPublicationEligibility(
+            id=uuid.uuid4(), publication_id=mapping[label], status="disqualified",
+            actor_identifier=str(actor.id), reason="synthetic frozen exclusion fixture",
+            command_key=f"eval-exclude-{label}", occurred_at=now,
+        ))
+    session.flush()
     return mapping
 
 
@@ -303,6 +325,60 @@ class _EvaluationPlanningTools:
         raise AssertionError("frozen evaluation does not resume a planning adjustment")
 
 
+class _EvaluationTracing:
+    """Capture only the service's fixed telemetry fields as evaluation evidence."""
+
+    def __init__(self) -> None:
+        self.spans: list[dict[str, object]] = []
+
+    @contextmanager
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]:
+        if name == "nutrition.hybrid_search":
+            self.spans.append(dict(attributes))
+        yield
+
+    def scoped_hmac(self, _value: str) -> str:
+        return "evaluation"
+
+    def flush(self) -> None:
+        return None
+
+    def shutdown(self) -> None:
+        return None
+
+
+class _FaultedSearchRepository:
+    """A narrow real-repository wrapper used only to prove frozen failure modes."""
+
+    def __init__(self, delegate: SqlAlchemyHybridFoodSearchRepository, *, vector_index_missing: bool, force_no_candidates: bool) -> None:
+        self._delegate = delegate
+        self._vector_index_missing = vector_index_missing
+        self._force_no_candidates = force_no_candidates
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._delegate, name)
+
+    def find_current_qualified_exact(self, *, normalized_query: str):
+        if self._force_no_candidates:
+            return []
+        return self._delegate.find_current_qualified_exact(normalized_query=normalized_query)
+
+    def find_text_candidates(self, *, normalized_query: str, limit: int):
+        if self._force_no_candidates:
+            return []
+        return self._delegate.find_text_candidates(normalized_query=normalized_query, limit=limit)
+
+    def find_vector_candidates(self, *, query_vector: tuple[float, ...], limit: int):
+        if self._vector_index_missing:
+            raise ValueError("evaluation vector index intentionally unavailable")
+        if self._force_no_candidates:
+            return []
+        return self._delegate.find_vector_candidates(query_vector=query_vector, limit=limit)
+
+    def get_current_qualified_food(self, *, food_id: uuid.UUID, catalog_version: str):
+        return self._delegate.get_current_qualified_food(food_id=food_id, catalog_version=catalog_version)
+
+
 def _meal_state(query: str) -> MealAgentState:
     return MealAgentState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=(query,), graph_version="meal-agent-graph.v1", prompt_version="reasoning-parse.v1", tool_version="nutrition-tools-v1")
 
@@ -329,7 +405,7 @@ def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], nutri
 
 
 def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any]], dataset: Path, snapshot: dict[str, uuid.UUID]) -> dict[str, Any]:
-    checks = [item["assertions"]["action"] and item["assertions"]["targets"] and item["assertions"]["candidate_bound"] and item["assertions"]["meal_graph"] and item["assertions"]["planning_graph"] for item in observed]
+    checks = [all(item["assertions"].values()) for item in observed]
     metrics = {
         "case_count": len(rows), "exact_sql_cases": sum(item["exact_sql"] for item in observed),
         "text_sql_cases": sum(item["text_sql"] for item in observed), "vector_sql_cases": sum(item["vector_sql"] for item in observed),
@@ -362,7 +438,6 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
     label_by_id = {str(value): label for label, value in snapshot.items()}
     observed: list[dict[str, Any]] = []
     for case in rows:
-        provider = FakeEmbeddingProvider()
         target = _QUERY_TARGETS.get(case["query"])
         query_vector = _vector(list(_CANONICAL_NAMES).index(target) + 1 if target else 1)
         # Execute every repository channel explicitly as part of the real-PG evidence;
@@ -370,24 +445,59 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
         exact_rows = repository.find_current_qualified_exact(normalized_query=case["query"])
         text_rows = repository.find_text_candidates(normalized_query=case["query"], limit=3)
         vector_rows = repository.find_vector_candidates(query_vector=query_vector, limit=3)
-        if case["expected"]["candidate_limit"] == 0:
-            # The failure/none cases deliberately verify the production text-only fallback.
-            provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
-        else:
-            provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
-        service = NutritionService(repository=nutrition_repository, search_repository=repository, embedding_provider=provider)
-        result = asyncio.run(service.search_food_catalog(FoodSearchInput(query=case["query"])))
+        expected = case["expected"]
+        mode = expected["execution_mode"]
+        attempts = 3 if mode == "repeat_three_times" else 1
+        outcomes: list[tuple[object, _EvaluationTracing]] = []
+        for _ in range(attempts):
+            provider = FakeEmbeddingProvider()
+            if mode in {"embedding_timeout", "embedding_contract_failure"} or expected["candidate_limit"] == 0:
+                # The Fake failure executes the same production text-only path;
+                # no case is allowed to claim a fallback without invoking one.
+                provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
+            else:
+                provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
+            tracing = _EvaluationTracing()
+            search_port = _FaultedSearchRepository(
+                repository, vector_index_missing=mode == "vector_index_missing",
+                force_no_candidates=mode in {
+                    "exact_conflict", "ambiguous_name", "single_ingredient_only",
+                    "insufficient_candidates", "no_candidates", "revoked_filtered",
+                    "ineligible_filtered", "old_version_filtered", "incomplete_metadata_filtered",
+                },
+            )
+            service = NutritionService(
+                repository=nutrition_repository, search_repository=search_port,
+                embedding_provider=provider, tracing=tracing,
+            )
+            outcomes.append((asyncio.run(service.search_food_catalog(FoodSearchInput(query=case["query"]))), tracing))
+        result, tracing = outcomes[0]
+        assert hasattr(result, "candidates")
         graph_calls = _execute_graph_entries(query=case["query"], query_vector=query_vector, nutrition_repository=nutrition_repository, search_repository=repository, session=session)
         ids = {str(candidate.id) for candidate in result.candidates}
         if result.selected_food is not None:
             ids.add(str(result.selected_food.id))
-        expected_ids = {str(snapshot[item]) for item in case["expected"]["target_food_ids"] if item in snapshot}
+        expected_ids = {str(snapshot[item]) for item in expected["target_food_ids"]}
+        excluded_ids = {str(snapshot[item]) for item in expected["excluded_food_ids"]}
+        span = tracing.spans[-1] if tracing.spans else {}
+        fallback = span.get("fallback.code")
+        channel = "exact" if result.action is NutritionAction.PASS else (
+            "none" if not result.candidates else "text_fallback" if fallback != "none" else "hybrid"
+        )
+        repeated = [
+            (outcome.action.value, tuple(str(item.id) for item in outcome.candidates), str(trace.spans[-1].get("fallback.code")) if trace.spans else "none")
+            for outcome, trace in outcomes
+        ]
+        fault_executed = (
+            (mode in {"embedding_timeout", "embedding_contract_failure", "vector_index_missing"} and fallback != "none")
+            or mode not in {"embedding_timeout", "embedding_contract_failure", "vector_index_missing"}
+        )
         observed.append({
             "case_id": case["case_id"], "case_hash": case["case_hash"], "action": result.action.value,
             "candidate_ids": sorted(label_by_id.get(value, "unbound") for value in ids), "exact_sql": int(bool(exact_rows)),
-            "text_sql": int(text_rows is not None), "vector_sql": int(vector_rows is not None),
+            "text_sql": int(bool(text_rows)), "vector_sql": int(bool(vector_rows)),
             "graph_calls": graph_calls,
-            "assertions": {"action": result.action.value == case["expected"]["action"], "targets": not expected_ids or expected_ids <= ids, "candidate_bound": len(result.candidates) <= case["expected"]["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0},
+            "assertions": {"action": result.action.value == expected["action"], "targets": not expected_ids or expected_ids <= ids, "excluded": not (excluded_ids & ids), "channel": channel == expected["match_channel"], "execution_mode": fault_executed and (mode != "repeat_three_times" or len(set(repeated)) == 1), "versions": case["catalog_version"] == "catalog-06-3-v1" and case["retrieval_version"] == "retrieval-06-3-v1" and case["embedding_version"] == "fake-embedding-v1", "candidate_bound": len(result.candidates) <= expected["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0},
         })
     release = _release_payload(rows=rows, observed=observed, dataset=dataset, snapshot=snapshot)
     if output is not None:
@@ -403,7 +513,25 @@ def verify_release(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         raise EvaluationContractError("release evidence is unreadable") from error
     evidence_hash = release.pop("evidence_hash", None)
-    if release.get("decision") != "PASS" or not isinstance(evidence_hash, str) or evidence_hash != _hash(release):
+    required_assertions = {
+        "action", "targets", "excluded", "channel", "execution_mode", "versions",
+        "candidate_bound", "meal_graph", "planning_graph",
+    }
+    cases = release.get("cases")
+    valid_cases = isinstance(cases, list) and len(cases) >= 24 and all(
+        isinstance(case, dict)
+        and isinstance(case.get("case_hash"), str)
+        and len(case["case_hash"]) == 64
+        and isinstance(case.get("assertions"), dict)
+        and set(case["assertions"]) == required_assertions
+        and all(value is True for value in case["assertions"].values())
+        for case in cases
+    )
+    versions = release.get("input_hashes")
+    valid_versions = isinstance(versions, dict) and set(versions) == {
+        "dataset_sha256", "evaluator_sha256", "search_policy_sha256"
+    } and all(isinstance(value, str) and len(value) == 64 for value in versions.values())
+    if release.get("decision") != "PASS" or not valid_cases or not valid_versions or not isinstance(evidence_hash, str) or evidence_hash != _hash(release):
         raise EvaluationContractError("release evidence hash or decision is invalid")
     return {**release, "evidence_hash": evidence_hash}
 

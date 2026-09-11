@@ -20,7 +20,8 @@ from typing import Any, Protocol
 
 _TOP_LEVEL_FIELDS = frozenset({"cases", "decision", "evaluator_version", "evidence_hash", "input_hashes", "metrics", "schema_version", "snapshot"})
 _CASE_FIELDS = frozenset({"action", "assertions", "candidate_ids", "case_hash", "case_id", "exact_sql", "graph_calls", "text_sql", "vector_sql"})
-_ASSERTION_FIELDS = frozenset({"action", "candidate_bound", "meal_graph", "planning_graph", "targets"})
+_LEGACY_ASSERTION_FIELDS = frozenset({"action", "candidate_bound", "meal_graph", "planning_graph", "targets"})
+_ASSERTION_FIELDS = _LEGACY_ASSERTION_FIELDS | frozenset({"excluded", "channel", "execution_mode", "versions"})
 _HASH_FIELDS = frozenset({"dataset_sha256", "evaluator_sha256", "search_policy_sha256"})
 _METRIC_FIELDS = frozenset({"action_pass_rate", "case_count", "exact_sql_cases", "meal_graph_entries", "meal_tool_search_calls", "planning_graph_entries", "planning_tool_compose_calls", "planning_tool_target_calls", "target_recall", "text_sql_cases", "vector_sql_cases"})
 _SNAPSHOT_FIELDS = frozenset({"fixture", "food_labels"})
@@ -122,7 +123,8 @@ def _validate_case(value: object) -> None:
     assertions = value["assertions"]
     if not isinstance(assertions, dict):
         raise LangfusePublishError("case assertions are invalid")
-    _reject_unknown_fields(assertions, _ASSERTION_FIELDS, location="case assertions")
+    if set(assertions) not in {_LEGACY_ASSERTION_FIELDS, _ASSERTION_FIELDS}:
+        raise LangfusePublishError("case assertions violate the exact safe allowlist")
     if not all(isinstance(item, bool) for item in assertions.values()):
         raise LangfusePublishError("case assertions are invalid")
     if not all(isinstance(value[key], int) and value[key] >= 0 for key in ("exact_sql", "text_sql", "vector_sql")) or not isinstance(value["graph_calls"], dict):
