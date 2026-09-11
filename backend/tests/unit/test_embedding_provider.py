@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import fields
 from decimal import Decimal
 
@@ -104,7 +105,7 @@ def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
         nonlocal attempts
         attempts += 1
         assert request.url == httpx.URL("https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding")
-        assert request.json() == {
+        assert json.loads(request.content) == {
             "model": "text-embedding-v4",
             "input": {"texts": ["米饭"]},
             "parameters": {"text_type": "query", "dimension": EMBEDDING_DIMENSION, "output_type": "dense"},
@@ -137,23 +138,42 @@ def test_dashscope_retries_once_and_validates_safe_response_boundary() -> None:
 
 
 @pytest.mark.parametrize(
-    ("response", "expected_code"),
+    ("response_factory", "expected_code"),
     [
-        (httpx.Response(400, text="sensitive body"), "PROVIDER_REQUEST_REJECTED"),
-        (httpx.Response(200, json={"output": {"embeddings": [{"embedding": [float("nan")] * EMBEDDING_DIMENSION}]}, "usage": {"total_tokens": 1}}), "PROVIDER_SCHEMA_INVALID"),
-        (httpx.Response(200, json={"output": {"embeddings": [{"embedding": [0.0] * (EMBEDDING_DIMENSION - 1)}]}, "usage": {"total_tokens": 1}}), "PROVIDER_SCHEMA_INVALID"),
+        (lambda: httpx.Response(400, text="sensitive body"), "PROVIDER_REQUEST_REJECTED"),
+        (lambda: httpx.Response(200, content=b'{"output":{"embeddings":[{"embedding":[NaN]}]},"usage":{"total_tokens":1}}'), "PROVIDER_SCHEMA_INVALID"),
+        (lambda: httpx.Response(200, content=b'{"output":{"embeddings":[{"embedding":[Infinity]}]},"usage":{"total_tokens":1}}'), "PROVIDER_SCHEMA_INVALID"),
+        (lambda: httpx.Response(200, json={"output": {"embeddings": [{"embedding": [0.0] * (EMBEDDING_DIMENSION - 1)}]}, "usage": {"total_tokens": 1}}), "PROVIDER_SCHEMA_INVALID"),
     ],
 )
-def test_dashscope_never_leaks_response_body(response: httpx.Response, expected_code: str) -> None:
+def test_dashscope_never_leaks_response_body(response_factory: object, expected_code: str) -> None:
     from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
 
     provider = DashScopeEmbeddingProvider(
         api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
         timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
         period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
-        transport=httpx.MockTransport(lambda request: response),
+        transport=httpx.MockTransport(lambda request: response_factory()),  # type: ignore[operator]
     )
     with pytest.raises(ProviderCallError) as error:
         asyncio.run(provider.embed(_request()))
     assert error.value.code == expected_code
     assert "sensitive body" not in str(error.value)
+
+
+def test_dashscope_timeout_maps_to_safe_code() -> None:
+    from app.providers.embedding.dashscope import DashScopeEmbeddingProvider
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("provider body must not escape", request=request)
+
+    provider = DashScopeEmbeddingProvider(
+        api_key="test-key", model="text-embedding-v4", dimension=EMBEDDING_DIMENSION,
+        timeout_seconds=1.5, input_cny_per_m=Decimal("0.5"), single_call_cap_cny=Decimal("0.01"),
+        period_cap_cny=Decimal("20"), price_snapshot_version="dashscope-2026-09-10",
+        transport=httpx.MockTransport(timeout),
+    )
+    with pytest.raises(ProviderCallError) as error:
+        asyncio.run(provider.embed(_request()))
+    assert error.value.code == "PROVIDER_TIMEOUT"
+    assert "provider body" not in str(error.value)

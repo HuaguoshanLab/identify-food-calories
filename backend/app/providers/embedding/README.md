@@ -18,3 +18,7 @@
 | `dto.py` | 冻结的请求、结果、使用量与 1024 维有限浮点校验契约。 |
 | `ports.py` | 应用层可依赖的窄异步 `EmbeddingProvider` Protocol。 |
 | `fake.py` | 支持可脚本化成功和安全失败的零网络替身。 |
+| `dashscope.py` | 唯一具体 HTTP Adapter；固定 HTTPS Endpoint、模型、维度和 1.5 秒超时，响应只映射为安全 DTO/错误码。 |
+| `factory.py` | 只从受验证的 Settings 选择 Fake、禁用的文本降级或生产 DashScope Adapter。 |
+
+`dashscope.py` 可以依赖 HTTPX、配置和本目录 DTO；`factory.py` 是唯一允许导入具体 Adapter 的模块。两者均不得依赖 API、Repository、Service、Agent State 或请求级 Endpoint 配置。

@@ -20,6 +20,7 @@ class ConfigurationError(ValueError):
 ReasoningProviderMode: TypeAlias = Literal["fake", "deepseek"]
 VisionProviderMode: TypeAlias = Literal["fake", "qwen"]
 MemoryProviderMode: TypeAlias = Literal["fake", "mem0"]
+EmbeddingProviderMode: TypeAlias = Literal["disabled", "fake", "dashscope"]
 
 
 class Settings(BaseSettings):
@@ -82,6 +83,16 @@ class Settings(BaseSettings):
     memory_operation_timeout_seconds: int = 10
     memory_retry_max_attempts: int = 3
     memory_retry_backoff_seconds: int = 30
+    embedding_provider_mode: EmbeddingProviderMode = "fake"
+    dashscope_api_key: SecretStr | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | None = None
+    embedding_adapter_version: str | None = None
+    embedding_price_snapshot_version: str | None = None
+    embedding_input_cny_per_m: Decimal | None = None
+    embedding_single_call_cap_cny: Decimal | None = None
+    embedding_period_cap_cny: Decimal | None = None
+    embedding_timeout_seconds: float | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -229,6 +240,39 @@ class Settings(BaseSettings):
         for field in ("memory_operation_timeout_seconds", "memory_retry_max_attempts", "memory_retry_backoff_seconds"):
             if field not in self.model_fields_set:
                 raise ConfigurationError(f"{field.upper()} must be explicitly configured in production")
+
+        if self.embedding_provider_mode != "dashscope":
+            raise ConfigurationError("production requires EMBEDDING_PROVIDER_MODE=dashscope")
+        embedding_required = {
+            "DASHSCOPE_API_KEY": self.dashscope_api_key.get_secret_value() if self.dashscope_api_key else None,
+            "EMBEDDING_MODEL": self.embedding_model,
+            "EMBEDDING_DIMENSION": self.embedding_dimension,
+            "EMBEDDING_ADAPTER_VERSION": self.embedding_adapter_version,
+            "EMBEDDING_PRICE_SNAPSHOT_VERSION": self.embedding_price_snapshot_version,
+            "EMBEDDING_INPUT_CNY_PER_M": self.embedding_input_cny_per_m,
+            "EMBEDDING_SINGLE_CALL_CAP_CNY": self.embedding_single_call_cap_cny,
+            "EMBEDDING_PERIOD_CAP_CNY": self.embedding_period_cap_cny,
+            "EMBEDDING_TIMEOUT_SECONDS": self.embedding_timeout_seconds,
+        }
+        for variable, embedding_value in embedding_required.items():
+            if embedding_value is None or not str(embedding_value).strip():
+                raise ConfigurationError(f"{variable} is required in production")
+        for field in (
+            "embedding_model", "embedding_dimension", "embedding_adapter_version",
+            "embedding_price_snapshot_version", "embedding_input_cny_per_m",
+            "embedding_single_call_cap_cny", "embedding_period_cap_cny", "embedding_timeout_seconds",
+        ):
+            if field not in self.model_fields_set:
+                raise ConfigurationError(f"{field.upper()} must be explicitly configured in production")
+        if self.embedding_model != "text-embedding-v4" or self.embedding_dimension != 1024:
+            raise ConfigurationError("embedding model and dimension must be text-embedding-v4/1024")
+        if self.embedding_timeout_seconds != 1.5:
+            raise ConfigurationError("EMBEDDING_TIMEOUT_SECONDS must be exactly 1.5")
+        if any(value is None or value <= 0 for value in (
+            self.embedding_input_cny_per_m, self.embedding_single_call_cap_cny,
+            self.embedding_period_cap_cny,
+        )):
+            raise ConfigurationError("embedding price and cost caps must be positive")
 
         return self
 

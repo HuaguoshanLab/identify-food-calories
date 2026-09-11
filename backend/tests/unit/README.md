@@ -14,7 +14,7 @@
 | 文件 | 职责 |
 |---|---|
 | `test_phase063_eval_contract.py` | Phase 06.3 冻结检索案例的 schema、顺序/hash 链、类别覆盖与隐私 fail-closed 合同。 |
-| `test_embedding_provider.py` | Embedding Provider 的名称、批量、1024 维有限浮点和 Fake 隐私边界。 |
+| `test_embedding_provider.py` | Embedding Provider 的名称、批量、1024 维有限浮点、Fake 隐私边界，以及 DashScope/factory 的离线 fail-closed 合同。 |
 
 - `test_admin_catalog_api.py`：目录草稿/预览/生命周期、筛选分页及 CSV 下载/预览/提交的公开 HTTP 契约和权限失败映射。
 - `test_admin_user_management_api.py`：账号/角色最小投影、角色变更输入门和冲突映射的公开 HTTP 契约。
