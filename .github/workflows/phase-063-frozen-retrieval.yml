@@ -1,0 +1,113 @@
+name: Phase 06.3 frozen retrieval
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/phase-063-frozen-retrieval.yml"
+      - "docker-compose.yml"
+      - "backend/app/admin/**"
+      - "backend/app/core/embedding_budget.py"
+      - "backend/app/nutrition/**"
+      - "backend/app/providers/embedding/**"
+      - "backend/evals/phase_06_3/**"
+      - "backend/migrations/versions/0025_hybrid_food_search.py"
+      - "backend/migrations/versions/0026_embedding_build_activation.py"
+      - "backend/migrations/versions/0027_embedding_period_budgets.py"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+      - "backend/scripts/run_initialized_app.py"
+      - "backend/tests/run_pg.py"
+      - "backend/tests/integration/test_hybrid_food_search.py"
+      - "backend/tests/integration/test_catalog_embedding_jobs.py"
+      - "backend/tests/integration/test_embedding_budget_ledger.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/phase-063-frozen-retrieval.yml"
+      - "docker-compose.yml"
+      - "backend/app/admin/**"
+      - "backend/app/core/embedding_budget.py"
+      - "backend/app/nutrition/**"
+      - "backend/app/providers/embedding/**"
+      - "backend/evals/phase_06_3/**"
+      - "backend/migrations/versions/0025_hybrid_food_search.py"
+      - "backend/migrations/versions/0026_embedding_build_activation.py"
+      - "backend/migrations/versions/0027_embedding_period_budgets.py"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+      - "backend/scripts/run_initialized_app.py"
+      - "backend/tests/run_pg.py"
+      - "backend/tests/integration/test_hybrid_food_search.py"
+      - "backend/tests/integration/test_catalog_embedding_jobs.py"
+      - "backend/tests/integration/test_embedding_budget_ledger.py"
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-retrieval:
+    name: frozen retrieval / PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Start isolated pgvector test database
+        run: docker compose up -d --wait postgres-test
+
+      - name: Install locked backend dependencies
+        working-directory: backend
+        run: uv sync --extra dev --frozen
+
+      - name: Initialize guarded PostgreSQL schema and seeds
+        working-directory: backend
+        run: >-
+          uv run python tests/run_pg.py --env-file .env.test.example --
+          uv run python scripts/run_initialized_app.py --prepare-only
+
+      - name: Generate frozen release from real PostgreSQL channels
+        working-directory: backend
+        run: >-
+          uv run python tests/run_pg.py --env-file .env.test.example --
+          uv run python evals/phase_06_3/evaluate.py
+          --output "$RUNNER_TEMP/phase063-release.json"
+
+      - name: Verify hash-bound PASS release
+        working-directory: backend
+        run: >-
+          uv run python tests/run_pg.py --env-file .env.test.example --
+          uv run python evals/phase_06_3/evaluate.py --verify-release
+          --output "$RUNNER_TEMP/phase063-release.json"
+
+      - name: Run Phase 06.3 real PostgreSQL integration contracts
+        working-directory: backend
+        run: >-
+          uv run python tests/run_pg.py --env-file .env.test.example --
+          uv run --extra dev pytest -q
+          tests/integration/test_hybrid_food_search.py
+          tests/integration/test_catalog_embedding_jobs.py
+          tests/integration/test_embedding_budget_ledger.py
+
+      - name: Lint the CI-gated backend surface
+        working-directory: backend
+        run: >-
+          uv run --extra dev ruff check
+          app/admin app/core/embedding_budget.py app/nutrition app/providers/embedding
+          evals/phase_06_3
+          tests/integration/test_hybrid_food_search.py
+          tests/integration/test_catalog_embedding_jobs.py
+          tests/integration/test_embedding_budget_ledger.py
+
+      - name: Stop isolated test database
+        if: always()
+        run: docker compose down -v --remove-orphans

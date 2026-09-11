@@ -85,6 +85,15 @@ E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND
 
 Phase 06.3 的混合菜品检索、受控索引构建和激活命令见 [`docs/learning/phase-06.3-hybrid-food-search.md`](docs/learning/phase-06.3-hybrid-food-search.md)。release 不依赖 Langfuse 或付费 Provider：必须在真实 PostgreSQL 上运行完整测试及 `evaluate.py --verify-release`。只有 hash-bound PASS 证据、数据库管理员身份和明确 immutable build 同时存在时，才可按 `activate.py --help` 请求原子激活；不要猜测或复制生产参数。
 
+Phase 06.3 的 GitHub CI 门禁定义在 [`.github/workflows/phase-063-frozen-retrieval.yml`](.github/workflows/phase-063-frozen-retrieval.yml)。它只启动 `postgres-test`，并固定执行：受保护初始化与 seed → 在 CI 临时目录生成 release → `--verify-release` → 相关真实 PostgreSQL 集成测试。需要本地复现时，在已启动 `postgres-test` 的前提下，从 `backend/` 依次运行：
+
+```bash
+uv run python tests/run_pg.py --env-file .env.test.example -- uv run python scripts/run_initialized_app.py --prepare-only
+uv run python tests/run_pg.py --env-file .env.test.example -- uv run python evals/phase_06_3/evaluate.py --output /tmp/phase063-release.json
+uv run python tests/run_pg.py --env-file .env.test.example -- uv run python evals/phase_06_3/evaluate.py --verify-release --output /tmp/phase063-release.json
+uv run python tests/run_pg.py --env-file .env.test.example -- uv run --extra dev pytest -q tests/integration/test_hybrid_food_search.py tests/integration/test_catalog_embedding_jobs.py tests/integration/test_embedding_budget_ledger.py
+```
+
 ## Phase 6 架构与边界
 
 ```mermaid
