@@ -660,6 +660,46 @@ class CatalogEmbeddingRetryResponse(CatalogEmbeddingStatusResponse):
     reset_count: int = Field(ge=0)
 
 
+class CatalogVectorSpaceBuildCommand(BaseModel):
+    """Pinned, auditable request to backfill a separate immutable vector space."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    embedding_model: str = Field(min_length=1, max_length=120)
+    embedding_dimension: Literal[1024]
+    adapter_version: str = Field(min_length=1, max_length=80)
+    retrieval_version: str = Field(min_length=1, max_length=80)
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("embedding_model", "adapter_version", "retrieval_version", "reason")
+    @classmethod
+    def normalize_build_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("value must not be blank")
+        return normalized
+
+
+class CatalogVectorSpaceBuildResponse(BaseModel):
+    """Safe build evidence; controlled names and vectors are intentionally absent."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    vector_space_id: uuid.UUID
+    embedding_model: str
+    embedding_dimension: Literal[1024]
+    adapter_version: str
+    retrieval_version: str
+    snapshot_hash: str = Field(min_length=64, max_length=64)
+    expected_name_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    completed_count: int = Field(ge=0)
+    status: Literal["pending", "processing", "partial_failure", "ready"]
+
+
 class CatalogRelationEvidenceCommand(BaseModel):
     """A version-bound relation assertion over two controlled catalog names."""
 

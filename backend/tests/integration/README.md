@@ -37,7 +37,7 @@
 | `test_dashboard_overview_projection.py` | 真实 PostgreSQL 快照与窄完成计划资格 Port 组合的 overview 降级证据。 |
 | `test_weekly_review_cache_repository.py` | 周复盘 cache key 的最小化持久化契约。 |
 | `test_hybrid_food_search.py` | 真实 PostgreSQL 检查 schema、`pg_trgm`/cosine 三通道、当前资格与确认 reread、1024 维隔离 vector space、受控关系撤销、有限 job，以及 build/activation hash evidence。 |
-| `test_catalog_embedding_jobs.py` | 发布时的 canonical/alias × active vector space job 入队、仅安全字段的聚合状态，以及 publication 级失败重试的并发幂等证据。 |
+| `test_catalog_embedding_jobs.py` | 发布时的 canonical/alias × active vector space job 入队、仅安全字段的聚合状态、publication 级失败重试，以及管理员 immutable vector-space build 的快照/重放/不激活真实 PostgreSQL 证据。 |
 | `test_catalog_search_admin.py` | 真实 PostgreSQL 验证 relation evidence 的管理员 RBAC、当前 publication version、幂等重放、追加更新/撤销与不可变审计。 |
 
 - `test_diet_planning_agent_api.py`：补充正式餐单公开读删、版本、运行清理、注入故障回滚及并发连接验证。

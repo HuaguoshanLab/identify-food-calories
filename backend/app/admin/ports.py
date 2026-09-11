@@ -28,6 +28,7 @@ from app.nutrition.search_models import (
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
+    CatalogVectorSpaceBuild,
 )
 
 
@@ -160,6 +161,30 @@ class AdminRepository(Protocol):
 
     def list_catalog_embedding_jobs(
         self, publication_id: uuid.UUID, *, for_update: bool = False
+    ) -> list[CatalogEmbeddingJob]: ...
+
+    def acquire_catalog_vector_space_build_lock(self) -> None: ...
+
+    def get_catalog_vector_space(
+        self, *, embedding_model: str, embedding_dimension: int, adapter_version: str
+    ) -> CatalogVectorSpace | None: ...
+
+    def get_catalog_vector_space_by_id(self, vector_space_id: uuid.UUID) -> CatalogVectorSpace | None: ...
+
+    def add_catalog_vector_space(self, space: CatalogVectorSpace) -> CatalogVectorSpace: ...
+
+    def list_current_eligible_catalog_search_names(self) -> list[CatalogSearchName]: ...
+
+    def get_catalog_vector_space_build_by_command_key(
+        self, command_key: str
+    ) -> CatalogVectorSpaceBuild | None: ...
+
+    def add_catalog_vector_space_build(
+        self, build: CatalogVectorSpaceBuild
+    ) -> CatalogVectorSpaceBuild: ...
+
+    def list_catalog_embedding_jobs_for_vector_space(
+        self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]
     ) -> list[CatalogEmbeddingJob]: ...
 
     def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None: ...

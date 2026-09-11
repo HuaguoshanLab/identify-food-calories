@@ -33,6 +33,7 @@ from app.nutrition.search_models import (
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
+    CatalogVectorSpaceBuild,
 )
 
 
@@ -389,6 +390,55 @@ class SqlAlchemyAdminRepository:
         if for_update:
             statement = statement.with_for_update()
         return list(self._session.scalars(statement))
+
+    def acquire_catalog_vector_space_build_lock(self) -> None:
+        self._session.execute(text("SELECT pg_advisory_xact_lock(63021021)"))
+
+    def get_catalog_vector_space(self, *, embedding_model: str, embedding_dimension: int, adapter_version: str) -> CatalogVectorSpace | None:
+        return self._session.scalar(select(CatalogVectorSpace).where(
+            CatalogVectorSpace.embedding_model == embedding_model,
+            CatalogVectorSpace.embedding_dimension == embedding_dimension,
+            CatalogVectorSpace.adapter_version == adapter_version,
+        ))
+
+    def get_catalog_vector_space_by_id(self, vector_space_id: uuid.UUID) -> CatalogVectorSpace | None:
+        return self._session.get(CatalogVectorSpace, vector_space_id)
+
+    def add_catalog_vector_space(self, space: CatalogVectorSpace) -> CatalogVectorSpace:
+        self._session.add(space)
+        self._session.flush()
+        return space
+
+    def list_current_eligible_catalog_search_names(self) -> list[CatalogSearchName]:
+        latest_status = (
+            select(CatalogPublicationEligibility.status)
+            .where(CatalogPublicationEligibility.publication_id == CatalogSearchName.publication_id)
+            .order_by(CatalogPublicationEligibility.occurred_at.desc(), CatalogPublicationEligibility.id.desc())
+            .limit(1).scalar_subquery()
+        )
+        return list(self._session.scalars(
+            select(CatalogSearchName)
+            .join(CatalogSearchVersion, CatalogSearchVersion.id == CatalogSearchName.search_version_id)
+            .join(CatalogPublication, CatalogPublication.id == CatalogSearchName.publication_id)
+            .where(CatalogSearchVersion.content_hash == CatalogPublication.content_hash, latest_status == "eligible")
+            .order_by(CatalogSearchName.publication_id, CatalogSearchName.name_kind, CatalogSearchName.normalized_name, CatalogSearchName.id)
+        ))
+
+    def get_catalog_vector_space_build_by_command_key(self, command_key: str) -> CatalogVectorSpaceBuild | None:
+        return self._session.scalar(select(CatalogVectorSpaceBuild).where(CatalogVectorSpaceBuild.command_key == command_key))
+
+    def add_catalog_vector_space_build(self, build: CatalogVectorSpaceBuild) -> CatalogVectorSpaceBuild:
+        self._session.add(build)
+        self._session.flush()
+        return build
+
+    def list_catalog_embedding_jobs_for_vector_space(self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]) -> list[CatalogEmbeddingJob]:
+        if not name_ids:
+            return []
+        return list(self._session.scalars(select(CatalogEmbeddingJob).where(
+            CatalogEmbeddingJob.vector_space_id == vector_space_id,
+            CatalogEmbeddingJob.name_id.in_(name_ids),
+        ).order_by(CatalogEmbeddingJob.id)))
 
     def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None:
         # A publication-scoped transaction lock keeps a replay from resetting a job
