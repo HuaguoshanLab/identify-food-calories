@@ -53,8 +53,17 @@ def main(
                     reason=arguments.reason,
                 )
             else:
+                if arguments.actor_user_id is not None:
+                    actor_user_id = arguments.actor_user_id
+                else:
+                    actor = repository.get_user_by_email(_normalize_email(arguments.actor_email))
+                    if actor is None:
+                        return _denied("actor user was not found")
+                    # Email is only a local operational lookup convenience. The
+                    # service rechecks the persisted role and records this UUID.
+                    actor_user_id = actor.id
                 build = service.create_catalog_vector_space_build(
-                    actor_user_id=arguments.actor_user_id,
+                    actor_user_id=actor_user_id,
                     command=CatalogVectorSpaceBuildCommand(
                         embedding_model="phase063-fake-embedding-v1",
                         embedding_dimension=1024,
@@ -88,7 +97,9 @@ def _parser() -> argparse.ArgumentParser:
     promote.add_argument("--email", required=True, help="existing target account email")
     promote.add_argument("--reason", required=True, help="non-empty audit reason")
     build = commands.add_parser("vector-build", help="freeze the fixed Phase 06.3 vector build through AdminService")
-    build.add_argument("--actor-user-id", type=uuid.UUID, required=True)
+    build_actor = build.add_mutually_exclusive_group(required=True)
+    build_actor.add_argument("--actor-user-id", type=uuid.UUID)
+    build_actor.add_argument("--actor-email", help="resolve the local operator to a UUID before service RBAC")
     build.add_argument("--reason", required=True)
     build.add_argument("--idempotency-key", required=True)
     return parser

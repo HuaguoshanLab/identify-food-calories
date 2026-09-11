@@ -414,8 +414,28 @@ def test_vector_build_cli_uses_database_admin_and_replays_idempotently(
     assert admin_cli(command, session_factory=session_factory) == 0
     assert capsys.readouterr().out.strip().split() == first
 
+    email_command = [
+        "vector-build",
+        "--actor-email",
+        administrator.email,
+        "--reason",
+        "isolated E2E vector-space preparation by audited email lookup",
+        "--idempotency-key",
+        "e2e-vector-build-cli-email-0001",
+    ]
+    assert admin_cli(email_command, session_factory=session_factory) == 0
+    assert len(capsys.readouterr().out.strip().split()) == 2
+
     assert admin_cli(
-        command[:2] + [str(regular_user.id)] + command[3:],
+        [
+            "vector-build",
+            "--actor-email",
+            regular_user.email,
+            "--reason",
+            "regular user is forbidden",
+            "--idempotency-key",
+            "e2e-vector-build-cli-email-denied-0001",
+        ],
         session_factory=session_factory,
     ) == 2
 

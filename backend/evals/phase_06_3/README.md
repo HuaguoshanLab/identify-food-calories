@@ -16,7 +16,7 @@
 |---|---|
 | `cases.jsonl` | 24 条以上的合成、顺序固定、hash 链绑定的检索案例。 |
 | `evaluate.py` | 严格校验 schema、顺序、类别覆盖、隐私 allowlist 与 hash 链的离线 loader。 |
-| `activate.py` | 受控激活入口；只接受 actor/目标/原因/幂等键和 release 路径，所有权限与证据由服务重新校验。 |
+| `activate.py` | 受控激活入口；actor UUID 或本地 email lookup 二选一，后者只解析 UUID；目标/原因/幂等键和 release 路径均由服务重新校验权限与证据。 |
 | `langfuse_publish.py` | 默认不运行的本地实验镜像；仅在 `--publish-langfuse` 下验证完整 PASS release 后导出严格 allowlist 投影。 |
 | `langfuse_retention.py` | 仅手工执行的 UTC 30 天详细实验 trace 删除与异步回查；结果只写 stdout JSON。 |
 | `__init__.py` | 让 pytest 与离线 runner 使用同一评测包路径。 |
