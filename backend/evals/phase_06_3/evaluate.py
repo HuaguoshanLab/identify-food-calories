@@ -20,6 +20,9 @@ from app.admin.models import CatalogPublication
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
 from app.admin.service import AdminService
+from app.agent.graph import DietPlanningGraph, MealAnalysisGraph
+from app.agent.state import DietPlanningState, MealAgentState
+from app.agent.tools import CapturedPreferenceSummary
 from app.auth.models import User, UserRole
 from app.nutrition.repository import SqlAlchemyNutritionRepository
 from app.nutrition.schemas import FoodSearchInput, NutritionAction
@@ -33,7 +36,11 @@ from app.nutrition.search_models import (
 from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
 from app.nutrition.service import NutritionService
 from app.providers.embedding.fake import FakeEmbeddingProvider
-from app.providers.reasoning.dto import ProviderFailureKind
+from app.providers.reasoning.dto import ParsedMealDTO, ParsedMealItemDTO, ProviderFailureKind
+from app.providers.reasoning.fake import FakeReasoningModelProvider
+from app.planning.repository import SqlAlchemyPlanningProfileRepository
+from app.planning.schemas import MealCompositionResult, PlanValidationResult, PlanningProfileInput, PreferenceReview
+from app.planning.service import PlanningService
 
 
 CASE_SCHEMA_VERSION = "phase063-case.v1"
@@ -239,12 +246,98 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     return mapping
 
 
+class _EvaluationMealTools:
+    """Count calls made by the real meal graph into ``NutritionService``."""
+
+    def __init__(self, service: NutritionService) -> None:
+        self._service = service
+        self.search_calls = 0
+
+    async def search_food_catalog(self, request: FoodSearchInput):
+        self.search_calls += 1
+        return await self._service.search_food_catalog(request)
+
+    def calculate_nutrition(self, request):
+        return self._service.calculate_nutrition(request)
+
+    def validate_nutrition_result(self, request):
+        return self._service.validate_nutrition_result(request)
+
+    def retrieve_personal_context(self, **_kwargs: object) -> list[object]:
+        return []
+
+    def capture_explicit_preferences(self, **_kwargs: object) -> tuple[CapturedPreferenceSummary, ...]:
+        return ()
+
+
+class _EvaluationPlanningTools:
+    """Live planning boundary backed by production planning repository/service."""
+
+    def __init__(self, *, nutrition_service: NutritionService, session: Session) -> None:
+        self._nutrition_service = nutrition_service
+        self._planning_service = PlanningService(repository=SqlAlchemyPlanningProfileRepository(session), nutrition_port=nutrition_service)
+        self.target_calls = 0
+        self.compose_calls = 0
+
+    async def search_food_catalog(self, request: FoodSearchInput):
+        return await self._nutrition_service.search_food_catalog(request)
+
+    def calculate_daily_target(self, *, profile: PlanningProfileInput, preferences: PreferenceReview):
+        self.target_calls += 1
+        return self._planning_service.calculate_daily_target(profile, preferences)
+
+    def compose_daily_plan(self, *, user_id: uuid.UUID, target: object, preferences: PreferenceReview, replan_count: int) -> MealCompositionResult:
+        self.compose_calls += 1
+        return self._planning_service.compose_daily_meals(user_id=user_id, catalog_version=None, preferences=preferences)
+
+    def validate_daily_plan(self, *, target: object, meals: tuple[object, ...], replan_count: int) -> PlanValidationResult:
+        return self._planning_service.validate_plan(target=target, meals=meals, allow_target_relaxation=replan_count >= 2)  # type: ignore[arg-type]
+
+    def upsert_planning_profile(self, **_kwargs: object) -> None:
+        raise AssertionError("frozen evaluation must not persist planning profiles")
+
+    def capture_explicit_preferences(self, **_kwargs: object) -> tuple[CapturedPreferenceSummary, ...]:
+        return ()
+
+    def replace_planning_slot(self, **_kwargs: object) -> MealCompositionResult:
+        raise AssertionError("frozen evaluation does not resume a planning adjustment")
+
+
+def _meal_state(query: str) -> MealAgentState:
+    return MealAgentState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=(query,), graph_version="meal-agent-graph.v1", prompt_version="reasoning-parse.v1", tool_version="nutrition-tools-v1")
+
+
+def _planning_state() -> DietPlanningState:
+    return DietPlanningState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), command_key="phase063-frozen-eval", profile=PlanningProfileInput.model_validate({"height_cm": "170", "weight_kg": "65", "age_years": 30, "formula_variant": "mifflin_st_jeor_female", "activity_level": "moderate", "goal": "loss", "goal_speed": "gradual_loss"}), preferences=PreferenceReview(confirmed=True), graph_version="diet-planning-graph.v1", prompt_version="diet-planning-command.v1", tool_version="planning-tools.v1")
+
+
+def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, session: Session) -> dict[str, int]:
+    """Exercise production graph entrypoints; counters come from calls, never case count."""
+
+    embedding_provider = FakeEmbeddingProvider()
+    embedding_provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
+    nutrition_service = NutritionService(repository=nutrition_repository, search_repository=search_repository, embedding_provider=embedding_provider)
+    meal_tools = _EvaluationMealTools(nutrition_service)
+    provider = FakeReasoningModelProvider()
+    provider.queue_parse_result(ParsedMealDTO(items=[ParsedMealItemDTO(item_id="frozen-item", food_name=query, catalog_query=query, grams=Decimal("100"))]))
+    asyncio.run(MealAnalysisGraph(provider=provider, tools=meal_tools).ainvoke(_meal_state(query)))
+    planning_tools = _EvaluationPlanningTools(nutrition_service=nutrition_service, session=session)
+    asyncio.run(DietPlanningGraph(tools=planning_tools).ainvoke(_planning_state()))
+    if meal_tools.search_calls < 1 or planning_tools.target_calls < 1 or planning_tools.compose_calls < 1:
+        raise EvaluationContractError("frozen case did not reach both production graph tool paths")
+    return {"meal_graph_entries": 1, "planning_graph_entries": 1, "meal_search_calls": meal_tools.search_calls, "planning_target_calls": planning_tools.target_calls, "planning_compose_calls": planning_tools.compose_calls}
+
+
 def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any]], dataset: Path, snapshot: dict[str, uuid.UUID]) -> dict[str, Any]:
-    checks = [item["assertions"]["action"] and item["assertions"]["targets"] and item["assertions"]["candidate_bound"] for item in observed]
+    checks = [item["assertions"]["action"] and item["assertions"]["targets"] and item["assertions"]["candidate_bound"] and item["assertions"]["meal_graph"] and item["assertions"]["planning_graph"] for item in observed]
     metrics = {
         "case_count": len(rows), "exact_sql_cases": sum(item["exact_sql"] for item in observed),
         "text_sql_cases": sum(item["text_sql"] for item in observed), "vector_sql_cases": sum(item["vector_sql"] for item in observed),
-        "meal_graph_entries": len(rows), "planning_graph_entries": len(rows),
+        "meal_graph_entries": sum(item["graph_calls"]["meal_graph_entries"] for item in observed),
+        "planning_graph_entries": sum(item["graph_calls"]["planning_graph_entries"] for item in observed),
+        "meal_tool_search_calls": sum(item["graph_calls"]["meal_search_calls"] for item in observed),
+        "planning_tool_target_calls": sum(item["graph_calls"]["planning_target_calls"] for item in observed),
+        "planning_tool_compose_calls": sum(item["graph_calls"]["planning_compose_calls"] for item in observed),
         "action_pass_rate": round(sum(item["assertions"]["action"] for item in observed) / len(rows), 4),
         "target_recall": round(sum(item["assertions"]["targets"] for item in observed) / len(rows), 4),
     }
@@ -284,6 +377,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
         service = NutritionService(repository=nutrition_repository, search_repository=repository, embedding_provider=provider)
         result = asyncio.run(service.search_food_catalog(FoodSearchInput(query=case["query"])))
+        graph_calls = _execute_graph_entries(query=case["query"], query_vector=query_vector, nutrition_repository=nutrition_repository, search_repository=repository, session=session)
         ids = {str(candidate.id) for candidate in result.candidates}
         if result.selected_food is not None:
             ids.add(str(result.selected_food.id))
@@ -292,7 +386,8 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             "case_id": case["case_id"], "case_hash": case["case_hash"], "action": result.action.value,
             "candidate_ids": sorted(label_by_id.get(value, "unbound") for value in ids), "exact_sql": int(bool(exact_rows)),
             "text_sql": int(text_rows is not None), "vector_sql": int(vector_rows is not None),
-            "assertions": {"action": result.action.value == case["expected"]["action"], "targets": not expected_ids or expected_ids <= ids, "candidate_bound": len(result.candidates) <= case["expected"]["candidate_limit"] or result.action is NutritionAction.PASS},
+            "graph_calls": graph_calls,
+            "assertions": {"action": result.action.value == case["expected"]["action"], "targets": not expected_ids or expected_ids <= ids, "candidate_bound": len(result.candidates) <= case["expected"]["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0},
         })
     release = _release_payload(rows=rows, observed=observed, dataset=dataset, snapshot=snapshot)
     if output is not None:

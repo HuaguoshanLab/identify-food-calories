@@ -105,6 +105,11 @@ def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_sessio
     assert release["metrics"]["vector_sql_cases"] > 0
     assert release["metrics"]["meal_graph_entries"] > 0
     assert release["metrics"]["planning_graph_entries"] > 0
+    assert release["metrics"]["meal_tool_search_calls"] >= release["metrics"]["meal_graph_entries"]
+    assert release["metrics"]["planning_tool_target_calls"] >= release["metrics"]["planning_graph_entries"]
+    assert release["metrics"]["planning_tool_compose_calls"] >= release["metrics"]["planning_graph_entries"]
+    assert all(case["assertions"]["meal_graph"] for case in release["cases"])
+    assert all(case["assertions"]["planning_graph"] for case in release["cases"])
 
 
 def test_exact_and_confirmation_reread_use_current_qualified_publication(db_session) -> None:
