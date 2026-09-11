@@ -58,6 +58,20 @@ const auditPage = {
   next_cursor: null,
 }
 
+const embeddingStatus = {
+  publication_id: publicationId,
+  status: 'partial_failure',
+  pending_count: 1,
+  processing_count: 0,
+  failed_count: 1,
+  completed_count: 1,
+  jobs: [
+    { id: '7d9cbff6-334c-4d48-a29e-612f59e3e545', vector_space_id: '4c1b5f8d-cad6-424d-97c8-e6ec4f500274', status: 'completed', attempt_count: 1, max_attempts: 3, last_error_code: null, created_at: '2026-09-03T04:20:00Z', updated_at: '2026-09-03T04:21:00Z' },
+    { id: '61bb3bb4-a7c3-48a8-8c44-d0e71f4a4a72', vector_space_id: '54dbf6c4-38a9-4643-a962-d6f2a468260b', status: 'failed', attempt_count: 1, max_attempts: 3, last_error_code: 'UPSTREAM_UNAVAILABLE', created_at: '2026-09-03T04:20:00Z', updated_at: '2026-09-03T04:21:00Z' },
+    { id: 'ea212a59-0e67-4e36-bb79-202fdbf02531', vector_space_id: 'a065bd86-9969-4744-b870-56dd3da1e493', status: 'pending', attempt_count: 0, max_attempts: 3, last_error_code: null, created_at: '2026-09-03T04:20:00Z', updated_at: '2026-09-03T04:21:00Z' },
+  ],
+}
+
 function renderPage() {
   const onSessionExpired = vi.fn()
   render(<CatalogLifecyclePage accessToken="runtime-only-token" draftId={draftId} onSessionExpired={onSessionExpired} />)
@@ -65,6 +79,79 @@ function renderPage() {
 }
 
 describe('CatalogLifecyclePage', () => {
+  it.each([
+    ['pending', '等待处理'], ['processing', '正在处理'], ['partial_failure', '部分失败'], ['failed', '处理失败'], ['ready', '已就绪'],
+  ])('展示 %s 聚合状态而不泄露目录名称、向量或 Provider 详情', async (status, label) => {
+    mswServer.use(
+      http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json(lifecyclePreview)),
+      http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)),
+      http.get(`${apiBase}/catalog-publications/${publicationId}/embedding-status`, () => HttpResponse.json({ ...embeddingStatus, status })),
+    )
+    renderPage()
+
+    const statusSection = await screen.findByRole('region', { name: '嵌入构建状态' })
+    expect(within(statusSection).getByText(label)).toBeVisible()
+    expect(screen.queryByText(/燕麦|vector|provider|embedding/i)).not.toBeInTheDocument()
+  })
+
+  it('列出多条安全作业并只允许一个 publication 级批量重试', async () => {
+    const user = userEvent.setup()
+    let retryCalls = 0
+    mswServer.use(
+      http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json(lifecyclePreview)),
+      http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)),
+      http.get(`${apiBase}/catalog-publications/${publicationId}/embedding-status`, () => HttpResponse.json(embeddingStatus)),
+      http.post(`${apiBase}/catalog-publications/${publicationId}/embedding-retries`, async ({ request }) => {
+        retryCalls += 1
+        expect(request.headers.get('Idempotency-Key')).toHaveLength(36)
+        expect(await request.json()).toEqual({ reason: '服务已恢复，重新排队' })
+        return HttpResponse.json({ ...embeddingStatus, status: 'pending', failed_count: 0, pending_count: 2, reset_count: 1 })
+      }),
+    )
+    renderPage()
+    const statusSection = await screen.findByRole('region', { name: '嵌入构建状态' })
+    expect(within(statusSection).getAllByRole('row')).toHaveLength(4)
+    expect(within(statusSection).getByText('UPSTREAM_UNAVAILABLE')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: '重试 1 个可恢复任务' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '取消' })).toHaveFocus())
+    await user.type(within(dialog).getByLabelText('变更原因'), '服务已恢复，重新排队')
+    const confirm = within(dialog).getByRole('button', { name: '确认重新排队' })
+    await user.click(confirm)
+    expect(confirm).toBeDisabled()
+    expect(await screen.findByText('已重新排队 1 个可恢复任务，操作已记录。')).toBeVisible()
+    expect(retryCalls).toBe(1)
+  })
+
+  it('409 重新读取状态，拒绝额外字段且保留已填写的重试理由', async () => {
+    const user = userEvent.setup()
+    let statusCalls = 0
+    mswServer.use(
+      http.get(`${apiBase}/catalog-drafts/${draftId}/lifecycle-preview`, () => HttpResponse.json(lifecyclePreview)),
+      http.get(`${apiBase}/audit`, () => HttpResponse.json(auditPage)),
+      http.get(`${apiBase}/catalog-publications/${publicationId}/embedding-status`, () => {
+        statusCalls += 1
+        return HttpResponse.json(statusCalls === 1 ? { ...embeddingStatus, provider_body: 'forbidden' } : embeddingStatus)
+      }),
+      http.post(`${apiBase}/catalog-publications/${publicationId}/embedding-retries`, () => HttpResponse.json({ detail: 'conflict' }, { status: 409 })),
+    )
+    renderPage()
+    expect(await screen.findByText('暂时无法加载嵌入构建状态，请稍后重试。')).toBeVisible()
+    await waitFor(() => expect(screen.queryByRole('button', { name: /重试 .*可恢复任务/ })).not.toBeInTheDocument())
+
+    // A subsequent safe projection makes the action available; conflict keeps the operator's reason for review.
+    await user.click(screen.getByRole('button', { name: '审核目录草稿' }))
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(statusCalls).toBeGreaterThan(1))
+    await user.click(screen.getByRole('button', { name: '重试 1 个可恢复任务' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
+    await user.type(within(dialog).getByLabelText('变更原因'), '请重新检查')
+    await user.click(within(dialog).getByRole('button', { name: '确认重新排队' }))
+    expect(await screen.findByText('嵌入任务状态已变化。请查看最新状态后重新确认。')).toBeVisible()
+    expect(within(await screen.findByRole('alertdialog')).getByLabelText('变更原因')).toHaveValue('请重新检查')
+  })
+
   it('以两列可读 diff 和影响数量预览审核，不暴露 raw JSON 或敏感字段', async () => {
     const user = userEvent.setup()
     mswServer.use(
