@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.agent.graph import DietPlanningGraph
 from app.agent.state import DietPlanningAction, DietPlanningState, MealAgentState
 from app.agent.tools import PlanningToolAdapter
+from app.nutrition.schemas import FoodSearchResult, NutritionAction, QualifiedFood
 from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
@@ -94,11 +95,15 @@ class FakePlanningTools(PlanningToolAdapter):
         self.upsert_calls: list[tuple[uuid.UUID, PlanningProfileInput, str]] = []
         self.capture_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
         self.replacement_calls: list[tuple[MealSlot, str]] = []
+        self.selected_food_calls: list[tuple[uuid.UUID | None, str | None]] = []
+        self.search_result: FoodSearchResult | None = None
         self._composition_action = composition_action
         self._validation_action = validation_action
 
-    async def search_food_catalog(self, request: object) -> object:
-        raise AssertionError(f"diet planning must not perform an unowned food search: {request!r}")
+    async def search_food_catalog(self, request: object) -> FoodSearchResult:
+        if self.search_result is None:
+            raise AssertionError(f"unexpected planning food search: {request!r}")
+        return self.search_result
 
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
@@ -166,9 +171,12 @@ class FakePlanningTools(PlanningToolAdapter):
         existing_meals: tuple[PlannedMeal, ...],
         affected_slot: MealSlot,
         feedback_intent: str,
+        selected_food_id: uuid.UUID | None = None,
+        selected_catalog_version: str | None = None,
         replan_count: int,
     ) -> MealCompositionResult:
         self.replacement_calls.append((affected_slot, feedback_intent))
+        self.selected_food_calls.append((selected_food_id, selected_catalog_version))
         replacement = _meal(MealSlot.LUNCH, "清淡鸡丝午餐")
         return MealCompositionResult(
             action=PlanValidationAction.PASS,
@@ -322,6 +330,26 @@ def test_explicit_lunch_feedback_replaces_only_lunch_and_captures_once() -> None
     replay = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(adjusted))
     assert replay == adjusted
     assert len(tools.capture_calls) == 1
+
+
+def test_nonexact_planning_substitution_waits_then_passes_only_offered_identity() -> None:
+    tools = FakePlanningTools()
+    food_id = uuid.uuid4()
+    food = QualifiedFood.model_construct(
+        id=food_id, canonical_name="番茄炒蛋", catalog_version="catalog-v1", prepared_state="熟制",
+        source_name="测试目录", source_url="https://example.test/food", license_name="test", aliases=(), portions=(), nutrients_per_100g=None,
+    )
+    tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="西红柿炒鸡蛋", selected_food=None, candidates=(food,), safe_message="选择")
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+    waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成番茄炒蛋", "food_query": "西红柿炒鸡蛋"}))
+
+    assert waiting.status.value == "waiting_input"
+    assert waiting.pending_food_candidates[0].food_id == food_id
+    assert "score" not in str(waiting.report)
+    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(waiting, resume={"feedback": "午餐换成番茄炒蛋", "candidate_id": str(food_id), "catalog_version": "catalog-v1"}))
+
+    assert completed.status.value == "completed"
+    assert tools.selected_food_calls[-1] == (food_id, "catalog-v1")
 
 
 def test_ambiguous_feedback_requires_a_closed_three_slot_choice_and_invalid_resume_is_noop() -> None:

@@ -185,3 +185,64 @@ def test_checkpoint_projection_is_backward_compatible_and_excludes_retrieval_evi
     serialized = candidate.model_dump_json()
     for forbidden in ("score", "rank", "vector", "query", "provider"):
         assert forbidden not in serialized
+
+
+def test_food_resume_requires_the_offered_catalog_version() -> None:
+    """An id is not sufficient authority when a publication version changes."""
+
+    from app.agent.state import AgentNextAction, AgentRuntimeStatus, ClarificationQuestion, StateMealItem
+
+    food_id = uuid.uuid4()
+    state = MealAgentState.model_validate(
+        {
+            "user_id": str(uuid.uuid4()),
+            "thread_id": str(uuid.uuid4()),
+            "run_id": str(uuid.uuid4()),
+            "graph_version": "meal-agent-graph.v1",
+            "prompt_version": "test.v1",
+            "tool_version": "nutrition-tools.v1",
+            "status": AgentRuntimeStatus.WAITING_INPUT,
+            "next_action": AgentNextAction.ASK_USER,
+            "items": [
+                StateMealItem(
+                    item_id="rice-1",
+                    normalized_name="西红柿炒鸡蛋",
+                    grams=Decimal("100"),
+                    input_version="test.v1",
+                    is_dirty=False,
+                    search_query="西红柿炒鸡蛋",
+                )
+            ],
+            "clarification_questions": [
+                ClarificationQuestion(
+                    item_id="rice-1",
+                    field="food",
+                    message="请选择受控目录条目。",
+                    candidates=(
+                        StateCandidate(
+                            item_id="rice-1",
+                            food_id=food_id,
+                            catalog_version="catalog-v1",
+                            label="番茄炒蛋",
+                            relation_label="名称相近",
+                        ),
+                    ),
+                )
+            ],
+        }
+    )
+    graph = MealAnalysisGraph(provider=FakeReasoningModelProvider(), tools=cast(NutritionToolAdapter, _UnusedTools()))
+
+    rejected = graph._apply_resume(
+        state,
+        {
+            "answers": {
+                "rice-1": {
+                    "candidate_id": str(food_id),
+                    "catalog_version": "catalog-v2",
+                }
+            }
+        },
+    )
+
+    assert rejected is state

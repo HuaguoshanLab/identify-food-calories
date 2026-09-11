@@ -214,6 +214,9 @@ class PlanningService:
         preferences: PreferenceReview,
         recipe_version: str = CONTROLLED_RECIPE_VERSION,
         exclude_recipe_ids: tuple[uuid.UUID, ...] = (),
+        required_food_id: uuid.UUID | None = None,
+        required_catalog_version: str | None = None,
+        required_slot: MealSlot | None = None,
     ) -> MealCompositionResult:
         """Select one fully qualified candidate per stable slot and recompute every ingredient."""
 
@@ -222,13 +225,21 @@ class PlanningService:
                 action=PlanValidationAction.NEEDS_INPUT,
                 safe_message="请先确认本次要使用的忌口和口味偏好。",
             )
+        if (required_food_id is None) != (required_catalog_version is None):
+            return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="指定菜品版本无效，请重新选择。")
+        if required_food_id is not None:
+            qualified = self._nutrition_port.calculate_nutrition(
+                NutritionCalculationInput(food_id=required_food_id, catalog_version=required_catalog_version, grams=Decimal("1"))
+            )
+            if qualified.action is not NutritionAction.PASS:
+                return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="所选菜品已不再可用，请重新选择。")
         candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
         if candidates:
             recent_recipe_ids = () if user_id is None else getattr(
                 self._repository, "list_recent_recipe_ids", lambda **_: ()
             )(user_id=user_id, plan_limit=3)
             return self._compose_managed_candidates(
-                candidates, preferences, exclude_recipe_ids, recent_recipe_ids
+                candidates, preferences, exclude_recipe_ids, recent_recipe_ids, required_food_id, required_catalog_version, required_slot
             )
         if catalog_version is None:
             return MealCompositionResult(
@@ -279,12 +290,15 @@ class PlanningService:
         preferences: PreferenceReview,
         exclude_recipe_ids: tuple[uuid.UUID, ...],
         recent_recipe_ids: tuple[uuid.UUID, ...],
+        required_food_id: uuid.UUID | None = None,
+        required_catalog_version: str | None = None,
+        required_slot: MealSlot | None = None,
     ) -> MealCompositionResult:
         meals: list[PlannedMeal] = []
         for slot in REQUIRED_MEAL_SLOTS:
             # Recent archived plans are the rotation authority.  When every option was
             # recently used, falling back prevents a sparse candidate pool from dead-ending.
-            options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals}), key=lambda candidate: str(candidate.id))
+            options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals} and (required_food_id is None or slot is not required_slot or (candidate.nutrition_item_id == required_food_id and candidate.catalog_version == required_catalog_version))), key=lambda candidate: str(candidate.id))
             fresh_options = [candidate for candidate in options if candidate.id not in recent_recipe_ids]
             if fresh_options:
                 options = fresh_options
