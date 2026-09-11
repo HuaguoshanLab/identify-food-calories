@@ -121,7 +121,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         )
         return SqlAlchemyNutritionRepository._to_published_food(publication) if publication is not None else None
 
-    def claim_due_build_embedding_job(self, *, due_at, now, lease_owner: str, lease_expires_at, vector_space_id: uuid.UUID | None = None):
+    def claim_due_build_embedding_job(self, *, due_at, now, lease_owner: str, lease_expires_at, vector_space_id: uuid.UUID | None = None, build_id: uuid.UUID | None = None):
         """Lease one due job belonging to an immutable build manifest.
 
         The JSONB containment predicate is deliberate: publication-triggered active
@@ -142,6 +142,8 @@ class SqlAlchemyHybridFoodSearchRepository:
         ]
         if vector_space_id is not None:
             predicates.append(CatalogEmbeddingJob.vector_space_id == vector_space_id)
+        if build_id is not None:
+            predicates.append(CatalogVectorSpaceBuild.id == build_id)
         job = self._session.scalar(
             select(CatalogEmbeddingJob)
             .join(CatalogSearchName, CatalogSearchName.id == CatalogEmbeddingJob.name_id)
@@ -208,7 +210,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         self.reconcile_vector_space_build_completions(vector_space_id=build.vector_space_id, now=now)
         return True
 
-    def reconcile_vector_space_build_completions(self, *, vector_space_id: uuid.UUID, now) -> None:
+    def reconcile_vector_space_build_completions(self, *, vector_space_id: uuid.UUID, now, build_id: uuid.UUID | None = None) -> None:
         """Reconcile every immutable manifest for a reusable vector space.
 
         A later snapshot can reuse already-ready embeddings, so it may have no
@@ -216,11 +218,10 @@ class SqlAlchemyHybridFoodSearchRepository:
         separate completion evidence complete without issuing Provider work.
         """
 
-        builds = self._session.scalars(
-            select(CatalogVectorSpaceBuild)
-            .where(CatalogVectorSpaceBuild.vector_space_id == vector_space_id)
-            .order_by(CatalogVectorSpaceBuild.requested_at, CatalogVectorSpaceBuild.id)
-        ).all()
+        statement = select(CatalogVectorSpaceBuild).where(CatalogVectorSpaceBuild.vector_space_id == vector_space_id)
+        if build_id is not None:
+            statement = statement.where(CatalogVectorSpaceBuild.id == build_id)
+        builds = self._session.scalars(statement.order_by(CatalogVectorSpaceBuild.requested_at, CatalogVectorSpaceBuild.id)).all()
         for build in builds:
             self._reconcile_build_completion(build=build, now=now)
 

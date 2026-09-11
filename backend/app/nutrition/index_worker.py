@@ -43,6 +43,7 @@ class CatalogEmbeddingWorker:
         provider: EmbeddingProvider,
         worker_id: str,
         vector_space_id: uuid.UUID | None = None,
+        build_id: uuid.UUID | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if not worker_id.strip():
@@ -51,6 +52,7 @@ class CatalogEmbeddingWorker:
         self._provider = provider
         self._worker_id = worker_id.strip()
         self._vector_space_id = vector_space_id
+        self._build_id = build_id
         self._now = now or (lambda: datetime.now(UTC))
 
     def run_once(self) -> str:
@@ -90,6 +92,7 @@ class CatalogEmbeddingWorker:
                 lease_owner=f"{self._worker_id}:{token}",
                 lease_expires_at=now + timedelta(seconds=_LEASE_SECONDS),
                 vector_space_id=self._vector_space_id,
+                build_id=self._build_id,
             )
             if job is None:
                 session.commit()
@@ -165,7 +168,7 @@ class CatalogEmbeddingWorker:
             return
         with self._session_factory() as session:
             SqlAlchemyHybridFoodSearchRepository(session).reconcile_vector_space_build_completions(
-                vector_space_id=self._vector_space_id, now=self._now()
+                vector_space_id=self._vector_space_id, build_id=self._build_id, now=self._now()
             )
             session.commit()
 
