@@ -5,9 +5,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:rice-v1"
@@ -30,9 +34,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:rice-v1"
@@ -55,9 +63,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:boiled-egg-v1"
@@ -80,9 +92,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:tomato-egg-v1"
@@ -105,9 +121,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:apple-v1"
@@ -130,9 +150,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:rice-v1"
@@ -147,7 +171,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -155,9 +179,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:tomato-egg-v1"
@@ -172,7 +200,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -180,9 +208,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:beef-jerky-v1"
@@ -197,7 +229,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -205,9 +237,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:grilled-fish-v1"
@@ -222,7 +258,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -230,9 +266,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:potato-noodles-v1"
@@ -255,9 +295,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:pan-fried-bun-v1"
@@ -272,7 +316,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -280,9 +324,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:hot-dry-noodles-v1"
@@ -305,12 +353,16 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
-        "food:rice-v1"
+        "food:vegetable-fried-rice-v1"
       ],
       "case_hash": "c4ea6e21f99e0b9ff1b8d11bb69cdd7f9693e6e238bc1ca507877580990d29a6",
       "case_id": "phase063-013",
@@ -322,7 +374,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -330,9 +382,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "a46d93edafe32b85b9fe1605a741f2871a509fe679c51313866f1eea34e6da2f",
@@ -345,7 +401,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -353,9 +409,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:rice-v1"
@@ -370,7 +430,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -378,9 +438,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "2279ca9c9d946092974d982aa9c71dde9f3ca0feff7058005cd11b2107c87662",
@@ -393,7 +457,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -401,9 +465,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "6b1204b1dc66286790b0a58dc6e20454d2508f5f1bec30f9a27af635b7cf6eb8",
@@ -416,7 +484,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -424,9 +492,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "05d438efc15c7018ce3ef0fbaf0b013811161aec01031c4f8bd93d5fa96f3472",
@@ -439,7 +511,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -447,9 +519,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "1c8ebe24a926c1731cf5fbdb4869b70eb9b6cb569cd9c6b4739be2e57ad0928e",
@@ -462,7 +538,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -470,9 +546,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "29f1ca838f587d5dc7c8f8966fa8c52d9000c5c753a8d63b5c0fca4b86ee4ca7",
@@ -485,7 +565,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -493,16 +573,20 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:timeout-safe-v1"
       ],
       "case_hash": "2b3716e4201ad32f6a5da6a0bcf18ad04862d5ea85c6a704d6e87cbf693acb98",
       "case_id": "phase063-021",
-      "exact_sql": 0,
+      "exact_sql": 1,
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
@@ -518,9 +602,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [],
       "case_hash": "b8fe80770d9f52dfdb77931f9c469cf310273600e9291569e2d2a8663eadfc72",
@@ -533,7 +621,7 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     },
     {
@@ -541,16 +629,20 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:index-fallback-v1"
       ],
       "case_hash": "f0231c1e8a52f36aa6ab12f1dc8352fdc3713f0b40c5f07013c4c659508fb1d4",
       "case_id": "phase063-023",
-      "exact_sql": 0,
+      "exact_sql": 1,
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
@@ -566,9 +658,13 @@
       "assertions": {
         "action": true,
         "candidate_bound": true,
+        "channel": true,
+        "excluded": true,
+        "execution_mode": true,
         "meal_graph": true,
         "planning_graph": true,
-        "targets": true
+        "targets": true,
+        "versions": true
       },
       "candidate_ids": [
         "food:stable-order-v1"
@@ -583,29 +679,29 @@
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
-      "text_sql": 1,
+      "text_sql": 0,
       "vector_sql": 1
     }
   ],
   "decision": "PASS",
   "evaluator_version": "phase063-evaluator.v1",
-  "evidence_hash": "2efa7e208a7fc633d0d754c241ef3420e706c3db3ff694bafdaa78590e24e255",
+  "evidence_hash": "4c1d0c9b685d1940dfcd319a1c2805ab028554ec985fe6942e8b5374cdbf044f",
   "input_hashes": {
     "dataset_sha256": "0f206658e40d79d289236c80520246368838cb17cdae53389f52f86170ccf82a",
-    "evaluator_sha256": "c5f1ae5be7ae1ff5d2483fad6b0a2c43ea89fe2534373d22be2a7df1efbc5ffc",
+    "evaluator_sha256": "ff92a4e4577a66631c4f4bc41dae868b42306661490a6941fb9b0a0fa39854a2",
     "search_policy_sha256": "dca26399e483f6c6666fa148cc1b984c7c72e1a2ad8252e5f23af555a77cf76f"
   },
   "metrics": {
     "action_pass_rate": 1.0,
     "case_count": 24,
-    "exact_sql_cases": 5,
+    "exact_sql_cases": 7,
     "meal_graph_entries": 24,
     "meal_tool_search_calls": 24,
     "planning_graph_entries": 24,
     "planning_tool_compose_calls": 72,
     "planning_tool_target_calls": 24,
     "target_recall": 1.0,
-    "text_sql_cases": 24,
+    "text_sql_cases": 9,
     "vector_sql_cases": 24
   },
   "schema_version": "phase063-release.v1",
@@ -615,15 +711,25 @@
       "food:apple-v1",
       "food:beef-jerky-v1",
       "food:boiled-egg-v1",
+      "food:chicken-v1",
+      "food:egg-fried-rice-v1",
+      "food:firm-tofu-v1",
       "food:grilled-fish-v1",
       "food:hot-dry-noodles-v1",
       "food:index-fallback-v1",
+      "food:ineligible-v1",
+      "food:missing-source-v1",
+      "food:old-version-v0",
       "food:pan-fried-bun-v1",
       "food:potato-noodles-v1",
+      "food:revoked-v1",
       "food:rice-v1",
+      "food:silken-tofu-v1",
       "food:stable-order-v1",
+      "food:tea-egg-v1",
       "food:timeout-safe-v1",
-      "food:tomato-egg-v1"
+      "food:tomato-egg-v1",
+      "food:vegetable-fried-rice-v1"
     ]
   }
 }
