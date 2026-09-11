@@ -16,4 +16,5 @@
 |---|---|
 | `cases.jsonl` | 24 条以上的合成、顺序固定、hash 链绑定的检索案例。 |
 | `evaluate.py` | 严格校验 schema、顺序、类别覆盖、隐私 allowlist 与 hash 链的离线 loader。 |
+| `activate.py` | 受控激活入口；只接受 actor/目标/原因/幂等键和 release 路径，所有权限与证据由服务重新校验。 |
 | `__init__.py` | 让 pytest 与离线 runner 使用同一评测包路径。 |

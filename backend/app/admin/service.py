@@ -9,6 +9,7 @@ import hmac
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Literal, cast
 
 from app.admin.models import (
@@ -23,6 +24,7 @@ from app.admin.models import (
 )
 from app.nutrition.search_models import (
     CatalogEmbeddingJob,
+    CatalogVectorSpaceActivationApproval,
     CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
@@ -121,6 +123,9 @@ CatalogEmbeddingRetryConflict = CatalogDraftConflict
 CatalogVectorSpaceBuildConflict = CatalogDraftConflict
 
 
+CatalogVectorSpaceActivationConflict = CatalogDraftConflict
+
+
 CatalogRelationEvidenceConflict = CatalogDraftConflict
 
 
@@ -149,6 +154,13 @@ _CATALOG_LIFECYCLE_FIELDS: tuple[CatalogDraftDiffField, ...] = (
     "source_url",
     "authorization_status",
 )
+
+_PHASE063_RELEASE_SPACE = {
+    "embedding_model": "phase063-fake-embedding-v1",
+    "embedding_dimension": 1024,
+    "adapter_version": "phase063-eval",
+    "retrieval_version": "retrieval-06-3-v1",
+}
 
 
 class AdminService:
@@ -1332,6 +1344,10 @@ class AdminService:
             ) for name in names
             if (name.publication_id, name.id) not in existing_job_keys
         ])
+        # Reusing a completed vector-space job must still yield independent
+        # completion evidence for this *new* immutable manifest.  This is local
+        # PostgreSQL reconciliation only: no Provider call and no pointer change.
+        self._repository.reconcile_catalog_vector_space_build_completion(build=build, now=now)
         self._repository.add_audit_event(AdminAuditEvent(
             id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
             action="catalog.vector_space_build.create", object_type="catalog_vector_space_build",
@@ -1371,6 +1387,168 @@ class AdminService:
             pending_count=counts["pending_count"],
             failed_count=counts["failed_count"], completed_count=counts["completed_count"], status=status,
         )
+
+    def activate_vector_space(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        vector_space_id: uuid.UUID,
+        build_id: uuid.UUID,
+        reason: str,
+        command_key: str,
+        release_path: Path | None = None,
+    ) -> CatalogVectorSpaceActivationApproval:
+        """Atomically advance the search pointer only from independently stored proof.
+
+        The CLI supplies identifiers and a file path, never a trusted PASS claim.
+        Every mutable fact is re-read under the activation transaction; the frozen
+        report, manifest, worker completion and live rows must agree before the
+        pointer can move.
+        """
+
+        normalized_reason, normalized_key = reason.strip(), command_key.strip()
+        if not normalized_reason or len(normalized_reason) > 500:
+            raise CatalogVectorSpaceActivationConflict("a bounded approval reason is required")
+        if not normalized_key or len(normalized_key) > 160:
+            raise CatalogVectorSpaceActivationConflict("a bounded idempotency key is required")
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_catalog_vector_space_activation_lock()
+
+        existing = self._repository.get_catalog_vector_space_activation_approval(normalized_key)
+        audit_key = f"vector-space-activation-audit:{normalized_key}"
+        if existing is not None:
+            audit = self._repository.get_audit_event_by_command_key(audit_key)
+            if (
+                audit is None
+                or existing.approver_identifier != str(actor.id)
+                or existing.build_id != build_id
+                or audit.action != "catalog.vector_space.activate"
+                or audit.object_id != str(vector_space_id)
+                or audit.reason != normalized_reason
+            ):
+                raise CatalogVectorSpaceActivationConflict("idempotency key was reused for a different activation")
+            return existing
+
+        release = self._load_phase063_release(release_path)
+        space = self._repository.get_catalog_vector_space_by_id(vector_space_id)
+        if space is None:
+            raise CatalogVectorSpaceActivationConflict("target vector space is missing")
+        if any(getattr(space, field) != value for field, value in _PHASE063_RELEASE_SPACE.items()):
+            raise CatalogVectorSpaceActivationConflict("target vector space does not match frozen release identity")
+
+        build = self._repository.get_catalog_vector_space_build_for_activation(build_id)
+        if build is None or build.vector_space_id != vector_space_id:
+            raise CatalogVectorSpaceActivationConflict("target build does not belong to target vector space")
+        self._validate_activation_build(build=build, vector_space_id=vector_space_id)
+
+        now = self._now()
+        approval = CatalogVectorSpaceActivationApproval(
+            id=uuid.uuid4(), build_id=build.id,
+            release_hash=release["evidence_hash"],
+            dataset_hash=release["input_hashes"]["dataset_sha256"],
+            code_hash=release["input_hashes"]["evaluator_sha256"],
+            retrieval_hash=release["input_hashes"]["search_policy_sha256"],
+            embedding_hash=self._activation_embedding_hash(space),
+            approver_identifier=str(actor.id), approved_at=now, command_key=normalized_key,
+        )
+        self._repository.activate_catalog_vector_space(
+            approval=approval, vector_space_id=vector_space_id, now=now
+        )
+        self._repository.add_audit_event(AdminAuditEvent(
+            id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+            action="catalog.vector_space.activate", object_type="catalog_vector_space",
+            object_id=str(vector_space_id), reason=normalized_reason, before_diff={},
+            after_diff={
+                "build_id": str(build.id), "snapshot_hash": build.snapshot_hash,
+                "completion_hash": self._repository.get_catalog_vector_space_build_completion(build.id).completion_hash,
+                "release_hash": approval.release_hash,
+            },
+            related_version=space.retrieval_version, command_key=audit_key,
+        ))
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return approval
+
+    @staticmethod
+    def _activation_embedding_hash(space: CatalogVectorSpace) -> str:
+        payload = {
+            "embedding_model": space.embedding_model,
+            "embedding_dimension": space.embedding_dimension,
+            "adapter_version": space.adapter_version,
+            "retrieval_version": space.retrieval_version,
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _phase063_release_path() -> Path:
+        return Path(__file__).resolve().parents[2] / "evals" / "phase_06_3" / "release.json"
+
+    def _load_phase063_release(self, path: Path | None) -> dict[str, object]:
+        """Validate committed evidence and recompute every source-file hash it names."""
+
+        from evals.phase_06_3.evaluate import EvaluationContractError, file_hash, verify_release
+
+        try:
+            release = verify_release(path or self._phase063_release_path())
+            hashes = release["input_hashes"]
+            if not isinstance(hashes, dict):
+                raise EvaluationContractError("release input hashes are invalid")
+            root = Path(__file__).resolve().parents[2]
+            expected = {
+                "dataset_sha256": file_hash(root / "evals" / "phase_06_3" / "cases.jsonl"),
+                "evaluator_sha256": file_hash(root / "evals" / "phase_06_3" / "evaluate.py"),
+                "search_policy_sha256": file_hash(root / "app" / "nutrition" / "search.py"),
+            }
+            if release.get("schema_version") != "phase063-release.v1" or hashes != expected:
+                raise EvaluationContractError("release inputs no longer match the frozen source files")
+            return release
+        except (EvaluationContractError, KeyError, TypeError) as error:
+            raise CatalogVectorSpaceActivationConflict("release evidence is not activation-valid") from error
+
+    def _validate_activation_build(self, *, build: CatalogVectorSpaceBuild, vector_space_id: uuid.UUID) -> None:
+        manifest = build.snapshot_manifest
+        serialized = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        if len(manifest) != build.expected_name_count or hashlib.sha256(serialized).hexdigest() != build.snapshot_hash:
+            raise CatalogVectorSpaceActivationConflict("immutable build manifest does not match its hash")
+        try:
+            manifest_keys = {
+                (uuid.UUID(item["publication_id"]), uuid.UUID(item["name_id"]), uuid.UUID(item["search_version_id"]))
+                for item in manifest
+            }
+        except (KeyError, TypeError, ValueError) as error:
+            raise CatalogVectorSpaceActivationConflict("immutable build manifest is invalid") from error
+        if len(manifest_keys) != build.expected_name_count:
+            raise CatalogVectorSpaceActivationConflict("immutable build manifest contains duplicate entries")
+        name_ids = [name_id for _, name_id, _ in manifest_keys]
+        completion = self._repository.get_catalog_vector_space_build_completion(build.id)
+        from app.nutrition.index_worker import completion_hash
+        if (
+            completion is None
+            or completion.completed_name_count != build.expected_name_count
+            or completion.completion_hash != completion_hash(snapshot_hash=build.snapshot_hash, manifest=manifest)
+        ):
+            raise CatalogVectorSpaceActivationConflict("separate build completion evidence is missing or mismatched")
+        jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(vector_space_id, name_ids=name_ids)
+        if len(jobs) != build.expected_name_count or any(job.status != "completed" for job in jobs):
+            raise CatalogVectorSpaceActivationConflict("target build has pending or failed embedding jobs")
+        job_keys = set()
+        for job in jobs:
+            name = self._repository.get_catalog_search_name(job.name_id)
+            if name is None:
+                raise CatalogVectorSpaceActivationConflict("target build name is missing")
+            job_keys.add((job.publication_id, job.name_id, name.search_version_id))
+        if job_keys != manifest_keys:
+            raise CatalogVectorSpaceActivationConflict("completed jobs do not exactly cover immutable build manifest")
+        embeddings = self._repository.list_catalog_search_embeddings_for_vector_space(vector_space_id, name_ids=name_ids)
+        if len(embeddings) != build.expected_name_count or any(item.status != "ready" for item in embeddings):
+            raise CatalogVectorSpaceActivationConflict("target build does not have one ready embedding per manifest item")
+        if {(item.publication_id, item.name_id) for item in embeddings} != {(publication_id, name_id) for publication_id, name_id, _ in manifest_keys}:
+            raise CatalogVectorSpaceActivationConflict("ready embeddings do not exactly cover immutable build manifest")
 
     def retry_catalog_embedding_jobs(
         self,

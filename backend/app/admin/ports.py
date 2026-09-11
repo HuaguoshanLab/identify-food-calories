@@ -23,12 +23,16 @@ from app.auth.models import User
 from app.admin.schemas import AdminUserQuery, CatalogListQuery
 from app.planning.models import ManagedRecipeCandidate
 from app.nutrition.search_models import (
+    CatalogActiveVectorSpace,
     CatalogEmbeddingJob,
+    CatalogSearchEmbedding,
     CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
     CatalogVectorSpaceBuild,
+    CatalogVectorSpaceBuildCompletion,
+    CatalogVectorSpaceActivationApproval,
 )
 
 
@@ -186,6 +190,24 @@ class AdminRepository(Protocol):
     def list_catalog_embedding_jobs_for_vector_space(
         self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]
     ) -> list[CatalogEmbeddingJob]: ...
+
+    def acquire_catalog_vector_space_activation_lock(self) -> None: ...
+
+    def get_catalog_vector_space_activation_approval(self, command_key: str) -> CatalogVectorSpaceActivationApproval | None: ...
+
+    def list_catalog_vector_space_builds_for_activation(self, vector_space_id: uuid.UUID) -> list[CatalogVectorSpaceBuild]: ...
+
+    def get_catalog_vector_space_build_for_activation(self, build_id: uuid.UUID) -> CatalogVectorSpaceBuild | None: ...
+
+    def get_catalog_vector_space_build_completion(self, build_id: uuid.UUID) -> CatalogVectorSpaceBuildCompletion | None: ...
+
+    def list_catalog_search_embeddings_for_vector_space(self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]) -> list[CatalogSearchEmbedding]: ...
+
+    def get_active_catalog_vector_space_for_update(self) -> CatalogActiveVectorSpace | None: ...
+
+    def activate_catalog_vector_space(self, *, approval: CatalogVectorSpaceActivationApproval, vector_space_id: uuid.UUID, now: datetime) -> CatalogActiveVectorSpace: ...
+
+    def reconcile_catalog_vector_space_build_completion(self, *, build: CatalogVectorSpaceBuild, now: datetime) -> CatalogVectorSpaceBuildCompletion | None: ...
 
     def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None: ...
 

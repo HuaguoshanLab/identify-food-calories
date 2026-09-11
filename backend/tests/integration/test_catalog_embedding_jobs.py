@@ -7,12 +7,13 @@ from decimal import Decimal
 import threading
 import uuid
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogEmbeddingRetryCommand, CatalogLifecycleCommand, CatalogVectorSpaceBuildCommand
-from app.admin.service import AdminPermissionDenied, AdminService
+from app.admin.service import AdminPermissionDenied, AdminService, CatalogVectorSpaceActivationConflict
 from app.auth.models import User, UserRole
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
@@ -21,6 +22,7 @@ from app.nutrition.search_models import (
     CatalogVectorSpace,
     CatalogVectorSpaceBuild,
     CatalogVectorSpaceBuildCompletion,
+    CatalogVectorSpaceActivationApproval,
 )
 from app.providers.embedding.fake import FakeEmbeddingProvider
 
@@ -175,7 +177,9 @@ def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requ
     now = datetime.now(UTC)
     with Session(test_engine) as session:
         actor = _actor(now)
+        actor_id = actor.id
         session.add(actor)
+        actor_id = actor.id
         _install_active_space(session, now)
         session.commit()
         service = AdminService(
@@ -310,20 +314,21 @@ def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test
     now = datetime.now(UTC)
     with Session(test_engine) as session:
         actor = _actor(now)
+        actor_id = actor.id
         session.add(actor)
         service = AdminService(
             repository=SqlAlchemyAdminRepository(session), now=lambda: now,
             commit=session.commit, rollback=session.rollback,
         )
-        _publish(service, actor.id)
+        _publish(service, actor_id)
         build = service.create_catalog_vector_space_build(
-            actor_user_id=actor.id,
+            actor_user_id=actor_id,
             command=CatalogVectorSpaceBuildCommand(
                 embedding_model="text-embedding-v4", embedding_dimension=1024,
-                adapter_version=f"worker-{actor.id.hex}", retrieval_version="hybrid-v1",
+                adapter_version=f"worker-{actor_id.hex}", retrieval_version="hybrid-v1",
                 reason="worker completion test", confirm=True,
             ),
-            command_key=f"vector-space-worker-pg-{actor.id.hex}",
+            command_key=f"vector-space-worker-pg-{actor_id.hex}",
         )
         session.commit()
 
@@ -351,3 +356,112 @@ def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test
         assert session.scalar(select(CatalogActiveVectorSpace).where(
             CatalogActiveVectorSpace.vector_space_id == build.vector_space_id
         )) is None
+        service = AdminService(
+            repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+            commit=session.commit, rollback=session.rollback,
+        )
+        replay_build = service.create_catalog_vector_space_build(
+            actor_user_id=actor_id,
+            command=CatalogVectorSpaceBuildCommand(
+                embedding_model="text-embedding-v4", embedding_dimension=1024,
+                adapter_version=f"worker-{actor_id.hex}", retrieval_version="hybrid-v1",
+                reason="reused completed jobs need new manifest evidence", confirm=True,
+            ),
+            command_key=f"vector-space-worker-reuse-{actor_id.hex}",
+        )
+        assert replay_build.vector_space_id == build.vector_space_id
+        assert session.scalar(select(CatalogVectorSpaceBuildCompletion).where(
+            CatalogVectorSpaceBuildCompletion.build_id == replay_build.id
+        )) is not None
+
+
+def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(test_engine) -> None:
+    """An approval is durable evidence; it is never inferred from a CLI claim."""
+    from app.nutrition.index_worker import CatalogEmbeddingWorker
+
+    now = datetime.now(UTC)
+    with Session(test_engine) as session:
+        actor = _actor(now)
+        actor_id = actor.id
+        session.add(actor)
+        _install_active_space(session, now)
+        old_space = CatalogVectorSpace(
+            id=uuid.uuid4(), embedding_model="activation-old", embedding_dimension=1024,
+            adapter_version=f"old-{actor_id.hex}", retrieval_version="old-v1", created_at=now,
+        )
+        session.add(old_space)
+        session.flush()
+        active_pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert active_pointer is not None
+        active_pointer.vector_space_id = old_space.id
+        service = AdminService(
+            repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+            commit=session.commit, rollback=session.rollback,
+        )
+        _publish(service, actor_id)
+        build = service.create_catalog_vector_space_build(
+            actor_user_id=actor_id,
+            command=CatalogVectorSpaceBuildCommand(
+                embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024,
+                adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1",
+                reason="activate tested frozen release", confirm=True,
+            ),
+            command_key=f"activation-build-{actor_id.hex}",
+        )
+        previous = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert previous is not None
+        previous_id = previous.vector_space_id
+        session.commit()
+
+    with Session(test_engine) as session:
+        service = AdminService(
+            repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+            commit=session.commit, rollback=session.rollback,
+        )
+        with pytest.raises(AdminPermissionDenied):
+            service.activate_vector_space(
+                actor_user_id=uuid.uuid4(), vector_space_id=build.vector_space_id, build_id=build.id,
+                reason="unknown actor", command_key=f"activation-unknown-{actor_id.hex}",
+            )
+        with pytest.raises(CatalogVectorSpaceActivationConflict):
+            service.activate_vector_space(
+                actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+                reason="incomplete build", command_key=f"activation-incomplete-{actor_id.hex}",
+            )
+        pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert pointer is not None and pointer.vector_space_id == previous_id
+        session.rollback()
+
+    provider = FakeEmbeddingProvider()
+    for _ in range(build.expected_name_count):
+        provider.queue_result((_vector(),))
+    worker = CatalogEmbeddingWorker(
+        session_factory=lambda: Session(test_engine), provider=provider,
+        worker_id="activation-worker", vector_space_id=build.vector_space_id, now=lambda: now,
+    )
+    outcomes = [worker.run_once() for _ in range(build.expected_name_count)]
+    assert all(outcome in {"completed", "idle"} for outcome in outcomes)
+    assert worker.run_once() == "idle"
+
+    with Session(test_engine) as session:
+        service = AdminService(
+            repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+            commit=session.commit, rollback=session.rollback,
+        )
+        approval = service.activate_vector_space(
+            actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+            reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
+        )
+        replay = service.activate_vector_space(
+            actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+            reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
+        )
+        assert replay.id == approval.id
+        pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert pointer is not None and pointer.vector_space_id == build.vector_space_id
+        assert pointer.vector_space_id != previous_id
+        stored = session.scalar(select(CatalogVectorSpaceActivationApproval).where(CatalogVectorSpaceActivationApproval.id == approval.id))
+        assert stored is not None and stored.build_id == build.id
+        assert len(list(session.scalars(select(CatalogVectorSpaceActivationApproval).where(
+            CatalogVectorSpaceActivationApproval.command_key == f"activation-pg-{actor_id.hex}"
+        )))) == 1

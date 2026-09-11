@@ -29,11 +29,14 @@ from app.planning.models import ManagedRecipeCandidate
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogEmbeddingJob,
+    CatalogSearchEmbedding,
     CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
     CatalogVectorSpaceBuild,
+    CatalogVectorSpaceBuildCompletion,
+    CatalogVectorSpaceActivationApproval,
 )
 
 
@@ -440,6 +443,116 @@ class SqlAlchemyAdminRepository:
             CatalogEmbeddingJob.vector_space_id == vector_space_id,
             CatalogEmbeddingJob.name_id.in_(name_ids),
         ).order_by(CatalogEmbeddingJob.id)))
+
+    def acquire_catalog_vector_space_activation_lock(self) -> None:
+        """Serialize pointer creation and switching before taking row locks."""
+
+        self._session.execute(text("SELECT pg_advisory_xact_lock(63021022)"))
+
+    def get_catalog_vector_space_activation_approval(self, command_key: str) -> CatalogVectorSpaceActivationApproval | None:
+        return self._session.scalar(
+            select(CatalogVectorSpaceActivationApproval)
+            .where(CatalogVectorSpaceActivationApproval.command_key == command_key)
+            .with_for_update()
+        )
+
+    def list_catalog_vector_space_builds_for_activation(self, vector_space_id: uuid.UUID) -> list[CatalogVectorSpaceBuild]:
+        return list(self._session.scalars(
+            select(CatalogVectorSpaceBuild)
+            .where(CatalogVectorSpaceBuild.vector_space_id == vector_space_id)
+            .order_by(CatalogVectorSpaceBuild.requested_at, CatalogVectorSpaceBuild.id)
+            .with_for_update()
+        ))
+
+    def get_catalog_vector_space_build_for_activation(self, build_id: uuid.UUID) -> CatalogVectorSpaceBuild | None:
+        return self._session.scalar(
+            select(CatalogVectorSpaceBuild)
+            .where(CatalogVectorSpaceBuild.id == build_id)
+            .with_for_update()
+        )
+
+    def get_catalog_vector_space_build_completion(self, build_id: uuid.UUID) -> CatalogVectorSpaceBuildCompletion | None:
+        return self._session.scalar(
+            select(CatalogVectorSpaceBuildCompletion)
+            .where(CatalogVectorSpaceBuildCompletion.build_id == build_id)
+            .with_for_update()
+        )
+
+    def list_catalog_search_embeddings_for_vector_space(self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]) -> list[CatalogSearchEmbedding]:
+        if not name_ids:
+            return []
+        return list(self._session.scalars(
+            select(CatalogSearchEmbedding)
+            .where(CatalogSearchEmbedding.vector_space_id == vector_space_id, CatalogSearchEmbedding.name_id.in_(name_ids))
+            .with_for_update()
+        ))
+
+    def get_active_catalog_vector_space_for_update(self) -> CatalogActiveVectorSpace | None:
+        return self._session.scalar(
+            select(CatalogActiveVectorSpace)
+            .where(CatalogActiveVectorSpace.pointer_key == "catalog")
+            .with_for_update()
+        )
+
+    def activate_catalog_vector_space(
+        self, *, approval: CatalogVectorSpaceActivationApproval, vector_space_id: uuid.UUID, now: datetime
+    ) -> CatalogActiveVectorSpace:
+        """Persist approval first, then change the sole mutable pointer in this transaction."""
+
+        self._session.add(approval)
+        self._session.flush()
+        pointer = self.get_active_catalog_vector_space_for_update()
+        if pointer is None:
+            pointer = CatalogActiveVectorSpace(pointer_key="catalog", vector_space_id=vector_space_id, advanced_at=now)
+            self._session.add(pointer)
+        else:
+            pointer.vector_space_id = vector_space_id
+            pointer.advanced_at = now
+        self._session.flush()
+        return pointer
+
+    def reconcile_catalog_vector_space_build_completion(
+        self, *, build: CatalogVectorSpaceBuild, now: datetime
+    ) -> CatalogVectorSpaceBuildCompletion | None:
+        """Write evidence for this exact immutable manifest, even when jobs predate it."""
+
+        locked = self.get_catalog_vector_space_build_for_activation(build.id)
+        if locked is None:  # pragma: no cover - protected by the caller's persisted build
+            return None
+        existing = self.get_catalog_vector_space_build_completion(locked.id)
+        if existing is not None:
+            return existing
+        try:
+            expected = {
+                (uuid.UUID(item["publication_id"]), uuid.UUID(item["name_id"]))
+                for item in locked.snapshot_manifest
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+        if len(expected) != locked.expected_name_count:
+            return None
+        name_ids = [name_id for _, name_id in expected]
+        jobs = self.list_catalog_embedding_jobs_for_vector_space(locked.vector_space_id, name_ids=name_ids)
+        embeddings = self.list_catalog_search_embeddings_for_vector_space(locked.vector_space_id, name_ids=name_ids)
+        if (
+            len(jobs) != locked.expected_name_count
+            or len(embeddings) != locked.expected_name_count
+            or any(job.status != "completed" for job in jobs)
+            or any(embedding.status != "ready" for embedding in embeddings)
+            or {(job.publication_id, job.name_id) for job in jobs} != expected
+            or {(embedding.publication_id, embedding.name_id) for embedding in embeddings} != expected
+        ):
+            return None
+        from app.nutrition.index_worker import completion_hash
+
+        completion = CatalogVectorSpaceBuildCompletion(
+            id=uuid.uuid4(), build_id=locked.id, completed_name_count=len(expected),
+            completion_hash=completion_hash(snapshot_hash=locked.snapshot_hash, manifest=locked.snapshot_manifest),
+            completed_at=now,
+        )
+        self._session.add(completion)
+        self._session.flush()
+        return completion
 
     def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None:
         # A publication-scoped transaction lock keeps a replay from resetting a job
