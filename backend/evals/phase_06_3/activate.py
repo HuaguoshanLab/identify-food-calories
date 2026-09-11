@@ -19,7 +19,9 @@ from app.core.database import create_session_factory
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--actor-user-id", type=uuid.UUID, required=True)
+    actor = parser.add_mutually_exclusive_group(required=True)
+    actor.add_argument("--actor-user-id", type=uuid.UUID)
+    actor.add_argument("--actor-email", help="resolve the local operator to a UUID before service RBAC")
     parser.add_argument("--vector-space-id", type=uuid.UUID, required=True)
     parser.add_argument("--build-id", type=uuid.UUID, required=True)
     parser.add_argument("--reason", required=True)
@@ -28,14 +30,24 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
     session_factory = create_session_factory()
     with session_factory() as session:
+        repository = SqlAlchemyAdminRepository(session)
+        if arguments.actor_user_id is not None:
+            actor_user_id = arguments.actor_user_id
+        else:
+            account = repository.get_user_by_email(_normalize_email(arguments.actor_email))
+            if account is None:
+                parser.error("actor user was not found")
+            # Email only resolves the operator locally. Activation authority is
+            # still reloaded and checked by AdminService using this UUID.
+            actor_user_id = account.id
         service = AdminService(
-            repository=SqlAlchemyAdminRepository(session),
+            repository=repository,
             commit=session.commit,
             rollback=session.rollback,
         )
         try:
             approval = service.activate_vector_space(
-                actor_user_id=arguments.actor_user_id,
+                actor_user_id=actor_user_id,
                 vector_space_id=arguments.vector_space_id,
                 build_id=arguments.build_id,
                 reason=arguments.reason,
@@ -46,6 +58,13 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(str(error))
         print(approval.id)
     return 0
+
+
+def _normalize_email(email: str) -> str:
+    value = email.strip().lower()
+    if not value:
+        raise ValueError("actor email must not be empty")
+    return value
 
 
 if __name__ == "__main__":

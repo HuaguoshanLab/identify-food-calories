@@ -74,6 +74,8 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
   uv run python evals/phase_06_3/evaluate.py --verify-release
 
 # 仅 hash-bound PASS release、DB 管理员和明确 build 同时成立时可请求激活。
+# 受控 CLI 在互斥的 --actor-user-id / --actor-email 中二选一；email
+# 只在本地查出 UUID，AdminService 仍重新校验数据库 RBAC 并审计 UUID。
 uv run python evals/phase_06_3/activate.py --help
 
 # 可选、本地且独立的 Langfuse；绝不能替代 release。
