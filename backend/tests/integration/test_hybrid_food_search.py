@@ -172,8 +172,15 @@ def test_exact_and_confirmation_reread_use_current_qualified_publication(db_sess
     _index_name(db_session, publication, "米饭")
     repository = SqlAlchemyHybridFoodSearchRepository(db_session)
 
-    assert [food.id for food in repository.find_current_qualified_exact(normalized_query="米饭")] == [publication.id]
-    assert repository.get_current_qualified_food(food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION) is not None
+    exact_matches = repository.find_current_qualified_exact(normalized_query="米饭")
+    # The initialized, authoritative seed also contains a qualified rice entry.
+    # Exact lookup is allowed to return every current match; selection remains a
+    # confirmation boundary and must re-read the chosen current publication.
+    assert publication.id in {food.id for food in exact_matches}
+    confirmed = repository.get_current_qualified_food(
+        food_id=publication.id, catalog_version=ADMIN_PUBLICATION_VERSION
+    )
+    assert confirmed is not None and confirmed.id == publication.id
     assert repository.get_current_qualified_food(food_id=publication.id, catalog_version="stale") is None
 
 
