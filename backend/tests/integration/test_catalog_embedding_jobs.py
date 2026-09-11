@@ -22,6 +22,11 @@ from app.nutrition.search_models import (
     CatalogVectorSpaceBuild,
     CatalogVectorSpaceBuildCompletion,
 )
+from app.providers.embedding.fake import FakeEmbeddingProvider
+
+
+def _vector(value: float = 0.25) -> tuple[float, ...]:
+    return (value,) * 1024
 
 
 def _actor(now: datetime) -> User:
@@ -286,3 +291,53 @@ def test_vector_space_build_snapshots_current_eligible_names_and_replays_without
         pass
     else:  # pragma: no cover - guard is the assertion
         raise AssertionError("ordinary user unexpectedly started a provider-costing build")
+
+
+def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test_engine) -> None:
+    """The lease is committed before I/O, so a second worker cannot double-charge."""
+    from app.nutrition.index_worker import CatalogEmbeddingWorker
+
+    now = datetime.now(UTC)
+    with Session(test_engine) as session:
+        actor = _actor(now)
+        session.add(actor)
+        service = AdminService(
+            repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+            commit=session.commit, rollback=session.rollback,
+        )
+        _publish(service, actor.id)
+        build = service.create_catalog_vector_space_build(
+            actor_user_id=actor.id,
+            command=CatalogVectorSpaceBuildCommand(
+                embedding_model="text-embedding-v4", embedding_dimension=1024,
+                adapter_version=f"worker-{actor.id.hex}", retrieval_version="hybrid-v1",
+                reason="worker completion test", confirm=True,
+            ),
+            command_key=f"vector-space-worker-pg-{actor.id.hex}",
+        )
+        session.commit()
+
+    provider = FakeEmbeddingProvider()
+    for _ in range(build.expected_name_count):
+        provider.queue_result((_vector(),))
+    worker = CatalogEmbeddingWorker(
+        session_factory=lambda: Session(test_engine), provider=provider,
+        worker_id="worker-a", vector_space_id=build.vector_space_id, now=lambda: now,
+    )
+    assert [worker.run_once() for _ in range(build.expected_name_count)] == ["completed"] * build.expected_name_count
+    assert worker.run_once() == "idle"
+    assert len(provider.calls) == build.expected_name_count
+
+    with Session(test_engine) as session:
+        jobs = list(session.scalars(select(CatalogEmbeddingJob).where(
+            CatalogEmbeddingJob.vector_space_id == build.vector_space_id
+        )))
+        assert sum(job.status == "completed" for job in jobs) == build.expected_name_count
+        completion = session.scalar(select(CatalogVectorSpaceBuildCompletion).where(
+            CatalogVectorSpaceBuildCompletion.build_id == build.id
+        ))
+        assert completion is not None
+        assert completion.completed_name_count == build.expected_name_count
+        assert session.scalar(select(CatalogActiveVectorSpace).where(
+            CatalogActiveVectorSpace.vector_space_id == build.vector_space_id
+        )) is None
