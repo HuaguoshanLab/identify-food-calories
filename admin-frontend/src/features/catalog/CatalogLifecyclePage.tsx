@@ -53,13 +53,13 @@ function FieldDiffPreview({ preview }: Readonly<{ preview: CatalogLifecyclePrevi
   </section>
 }
 
-function EmbeddingStatusPanel({ status, onRetry, disabled }: Readonly<{ status: CatalogEmbeddingStatus, onRetry: () => void, disabled: boolean }>) {
+function EmbeddingStatusPanel({ status, onRetry, onRefresh, disabled }: Readonly<{ status: CatalogEmbeddingStatus, onRetry: () => void, onRefresh: () => void, disabled: boolean }>) {
   const retryableCount = status.jobs.filter((job) => job.status === 'failed' && job.attempt_count < job.max_attempts).length
   return <section aria-label="嵌入构建状态" className="rounded-lg border bg-card p-4">
     <h2 className="text-xl font-semibold">嵌入构建状态</h2>
     <p className="mt-1 text-sm text-muted-foreground">{embeddingStatusCopy[status.status]}：等待 {status.pending_count}，处理中 {status.processing_count}，失败 {status.failed_count}，完成 {status.completed_count}。</p>
     <div className="mt-4 overflow-x-auto"><table className="min-w-full text-left text-sm"><caption className="sr-only">嵌入作业安全状态</caption><thead><tr className="border-b"><th className="p-2" scope="col">作业状态</th><th className="p-2" scope="col">尝试次数</th><th className="p-2" scope="col">安全失败码</th></tr></thead><tbody>{status.jobs.map((job) => <tr className="border-b" key={job.id}><td className="p-2">{job.status === 'leased' ? '处理中' : job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : '等待处理'}</td><td className="p-2">{job.attempt_count} / {job.max_attempts}</td><td className="p-2">{job.last_error_code ?? '—'}</td></tr>)}</tbody></table></div>
-    {retryableCount ? <button className="mt-4 h-10 rounded-md border px-4 disabled:opacity-50" disabled={disabled} onClick={onRetry} type="button">重试 {retryableCount} 个可恢复任务</button> : null}
+    <div className="mt-4 flex flex-wrap gap-3"><button className="h-10 rounded-md border px-4 disabled:opacity-50" disabled={disabled} onClick={onRefresh} type="button">刷新嵌入构建状态</button>{retryableCount ? <button className="h-10 rounded-md border px-4 disabled:opacity-50" disabled={disabled} onClick={onRetry} type="button">重试 {retryableCount} 个可恢复任务</button> : null}</div>
   </section>
 }
 
@@ -171,13 +171,22 @@ export function CatalogLifecyclePage({ accessToken, draftId, onSessionExpired }:
     }
   }
 
+  async function refreshEmbeddingStatus() {
+    if (!preview?.publication || submitting) return
+    try {
+      setEmbeddingStatus(await readCatalogEmbeddingStatus(token, preview.publication.id))
+    } catch (error) {
+      if (!handleSecurityError(error)) setNotice('暂时无法刷新嵌入构建状态，请稍后重试。')
+    }
+  }
+
   function submitSelectedLifecycle() {
     if (dialogAction && dialogAction !== 'retry_embeddings') void submit(dialogAction)
   }
 
   return <main className="mx-auto max-w-6xl space-y-6 p-8"><header><h1 className="text-[28px] font-semibold leading-9">营养目录审核与发布</h1><p className="mt-2 text-base text-muted-foreground">高风险命令始终需要服务端 diff、非空理由与确认；后端 RBAC 是唯一授权真相。</p></header>
     {notice ? <p aria-live="polite" className="rounded-md border p-4 text-sm" role="status">{notice}</p> : null}
-    {preview ? <><FieldDiffPreview preview={preview} />{embeddingStatus ? <EmbeddingStatusPanel disabled={submitting} onRetry={() => setDialogAction('retry_embeddings')} status={embeddingStatus} /> : null}<section aria-label="目录生命周期操作" className="flex flex-wrap gap-3"><button className="h-10 rounded-md border px-4 disabled:opacity-50" onClick={() => setDialogAction('review')} type="button">{actionCopy.review.button}</button><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" onClick={() => setDialogAction('publish')} type="button">{actionCopy.publish.button}</button><button className="h-10 rounded-md border px-4 disabled:opacity-50" disabled={!canDisqualify} onClick={() => setDialogAction('disqualify')} type="button">{actionCopy.disqualify.button}</button></section><AuditTimeline events={events} /></> : <p aria-live="polite" className="rounded-md border p-4 text-sm">正在读取服务端目录生命周期投影…</p>}
+    {preview ? <><FieldDiffPreview preview={preview} />{embeddingStatus ? <EmbeddingStatusPanel disabled={submitting} onRefresh={() => void refreshEmbeddingStatus()} onRetry={() => setDialogAction('retry_embeddings')} status={embeddingStatus} /> : null}<section aria-label="目录生命周期操作" className="flex flex-wrap gap-3"><button className="h-10 rounded-md border px-4 disabled:opacity-50" onClick={() => setDialogAction('review')} type="button">{actionCopy.review.button}</button><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" onClick={() => setDialogAction('publish')} type="button">{actionCopy.publish.button}</button><button className="h-10 rounded-md border px-4 disabled:opacity-50" disabled={!canDisqualify} onClick={() => setDialogAction('disqualify')} type="button">{actionCopy.disqualify.button}</button></section><AuditTimeline events={events} /></> : <p aria-live="polite" className="rounded-md border p-4 text-sm">正在读取服务端目录生命周期投影…</p>}
     <AlertDialog.Root onOpenChange={(open) => { if (!open && !submitting) setDialogAction(undefined) }} open={Boolean(dialogAction)}><AlertDialogContent aria-labelledby="catalog-lifecycle-dialog-title" className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto" initialFocus={cancelRef}>{dialogAction === 'retry_embeddings' ? <><AlertDialog.Title className="text-xl font-semibold" id="catalog-lifecycle-dialog-title">重新排队可恢复的嵌入任务？</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">这会以一个 publication 级命令重新排队仍有剩余尝试次数的失败任务；后端会记录理由和审计结果。</AlertDialog.Description><form className="mt-4 grid gap-2" onSubmit={form.handleSubmit(() => void submitEmbeddingRetry())}><label className="text-sm" htmlFor="catalog-lifecycle-reason">变更原因</label><textarea aria-describedby={form.formState.errors.reason ? 'catalog-lifecycle-reason-error' : undefined} aria-invalid={Boolean(form.formState.errors.reason)} className="min-h-24 rounded-md border bg-background p-3" id="catalog-lifecycle-reason" {...form.register('reason')} />{form.formState.errors.reason ? <p id="catalog-lifecycle-reason-error" role="alert">{form.formState.errors.reason.message}</p> : null}<div className="mt-4 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" disabled={submitting} ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} type="submit">{submitting ? '正在提交…' : '确认重新排队'}</button></div></form></> : selectedCopy ? <><AlertDialog.Title className="text-xl font-semibold" id="catalog-lifecycle-dialog-title">{selectedCopy.title}</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">{selectedCopy.consequence}</AlertDialog.Description>{preview ? <div className="mt-4"><FieldDiffPreview preview={preview} /></div> : null}<form className="mt-4 grid gap-2" onSubmit={form.handleSubmit(submitSelectedLifecycle)}><label className="text-sm" htmlFor="catalog-lifecycle-reason">变更原因</label><textarea aria-describedby={form.formState.errors.reason ? 'catalog-lifecycle-reason-error' : undefined} aria-invalid={Boolean(form.formState.errors.reason)} className="min-h-24 rounded-md border bg-background p-3" id="catalog-lifecycle-reason" {...form.register('reason')} />{form.formState.errors.reason ? <p id="catalog-lifecycle-reason-error" role="alert">{form.formState.errors.reason.message}</p> : null}<div className="mt-4 flex justify-end gap-3"><AlertDialog.Close className="h-10 rounded-md border px-4" disabled={submitting} ref={cancelRef} type="button">取消</AlertDialog.Close><button className="h-10 rounded-md bg-primary px-4 text-primary-foreground disabled:opacity-50" disabled={submitting} type="submit">{submitting ? '正在提交…' : selectedCopy.confirm}</button></div></form></> : null}</AlertDialogContent></AlertDialog.Root>
   </main>
 }

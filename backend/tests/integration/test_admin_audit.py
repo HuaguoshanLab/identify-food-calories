@@ -388,6 +388,38 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
     assert rejected_target.role == UserRole.USER.value
 
 
+def test_vector_build_cli_uses_database_admin_and_replays_idempotently(
+    db_session: Session, capsys: pytest.CaptureFixture[str]
+) -> None:
+    administrator = _user(role=UserRole.ADMIN.value)
+    regular_user = _user(role=UserRole.USER.value)
+    db_session.add_all([administrator, regular_user])
+    db_session.commit()
+
+    def session_factory() -> object:
+        return nullcontext(db_session)
+
+    command = [
+        "vector-build",
+        "--actor-user-id",
+        str(administrator.id),
+        "--reason",
+        "isolated E2E vector-space preparation",
+        "--idempotency-key",
+        "e2e-vector-build-cli-0001",
+    ]
+    assert admin_cli(command, session_factory=session_factory) == 0
+    first = capsys.readouterr().out.strip().split()
+    assert len(first) == 2
+    assert admin_cli(command, session_factory=session_factory) == 0
+    assert capsys.readouterr().out.strip().split() == first
+
+    assert admin_cli(
+        command[:2] + [str(regular_user.id)] + command[3:],
+        session_factory=session_factory,
+    ) == 2
+
+
 def test_role_and_audit_roll_back_together_when_persistence_commit_fails(
     db_session: Session,
 ) -> None:

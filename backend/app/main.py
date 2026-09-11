@@ -135,7 +135,7 @@ class PersistedAgentRuntimeFactory:
             ),
             now=self._retention_now,
         )
-        if embedding_provider is not None:
+        if embedding_provider is not None and self._settings.embedding_worker_enabled:
             await supervisor.start_embedding_worker(
                 worker=CatalogEmbeddingWorker(
                     session_factory=session_factory,

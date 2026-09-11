@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     embedding_period_cap_cny: Decimal | None = None
     embedding_timeout_seconds: float | None = None
     embedding_worker_poll_interval_seconds: int = 5
+    # The HTTP process normally owns the background worker.  Isolated E2E may
+    # start the same lifecycle in a short-lived sibling process to prove a
+    # restart changes the closed Fake outcome script without racing the UI app.
+    embedding_worker_enabled: bool = True
+    # Only the isolated test app can script an offline Fake worker outcome.
+    # Local and production deployments fail closed if this test seam is supplied.
+    test_embedding_outcomes: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -125,6 +132,15 @@ class Settings(BaseSettings):
             raise ConfigurationError("RETENTION_POLL_INTERVAL_SECONDS must not exceed 300")
         if not 0 < self.embedding_worker_poll_interval_seconds <= 300:
             raise ConfigurationError("EMBEDDING_WORKER_POLL_INTERVAL_SECONDS must be within (0, 300]")
+        if not self.embedding_worker_enabled and self.app_env != "test":
+            raise ConfigurationError("EMBEDDING_WORKER_ENABLED=false is only allowed in test")
+
+        if self.test_embedding_outcomes is not None:
+            if self.app_env != "test":
+                raise ConfigurationError("TEST_EMBEDDING_OUTCOMES is only allowed when APP_ENV=test")
+            outcomes = tuple(part.strip() for part in self.test_embedding_outcomes.split(","))
+            if not outcomes or any(part not in {"success", "permanent_failure"} for part in outcomes):
+                raise ConfigurationError("TEST_EMBEDDING_OUTCOMES accepts only success,permanent_failure")
 
         if self.app_env != "production":
             return self
@@ -326,6 +342,8 @@ def validate_test_database_configuration(settings: Settings) -> str:
         raise ConfigurationError("TEST_DATABASE_URL must use the postgresql+psycopg dialect")
     if not test_url.database or not test_url.database.endswith("_test"):
         raise ConfigurationError("TEST_DATABASE_URL database name must end with '_test'")
+    if test_url.host not in {"localhost", "127.0.0.1", "::1"}:
+        raise ConfigurationError("TEST_DATABASE_URL must target a loopback host")
 
     if normalize_database_url(settings.database_url) == normalize_database_url(
         settings.test_database_url

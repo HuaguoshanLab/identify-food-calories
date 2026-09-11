@@ -26,7 +26,13 @@ def create_embedding_provider(
     if app_env is None:
         raise ConfigurationError("APP_ENV is required to choose an embedding provider")
     if app_env == "test":
-        return FakeEmbeddingProvider()
+        provider = FakeEmbeddingProvider()
+        if settings is not None and settings.test_embedding_outcomes is not None:
+            # Settings validates both APP_ENV and the closed outcome vocabulary.
+            provider.queue_test_outcomes(
+                tuple(part.strip() for part in settings.test_embedding_outcomes.split(","))
+            )
+        return provider
     if provider_mode is None:
         raise ConfigurationError("EMBEDDING_PROVIDER_MODE must be explicitly configured")
     if app_env == "production" and provider_mode != "dashscope":

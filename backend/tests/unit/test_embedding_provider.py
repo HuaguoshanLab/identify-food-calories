@@ -88,6 +88,22 @@ def test_factory_uses_fake_in_test_without_credentials_or_network() -> None:
         create_embedding_provider(app_env="production", provider_mode="fake")
 
 
+def test_test_only_embedding_outcome_script_is_closed_and_offline() -> None:
+    scripted = Settings(
+        app_env="test", test_embedding_outcomes="success,permanent_failure"
+    )
+    provider = create_embedding_provider(scripted)
+    assert isinstance(provider, FakeEmbeddingProvider)
+    assert asyncio.run(provider.embed(_request())).input_count == 1
+    with pytest.raises(ProviderCallError) as failure:
+        asyncio.run(provider.embed(_request()))
+    assert failure.value.code == "E2E_SCRIPTED_FAILURE"
+    with pytest.raises(ValidationError, match="only allowed"):
+        Settings(app_env="local", test_embedding_outcomes="success")
+    with pytest.raises(ValidationError, match="accepts only"):
+        Settings(app_env="test", test_embedding_outcomes="success,network")
+
+
 def test_factory_is_fail_closed_but_allows_explicit_text_fallback() -> None:
     assert create_embedding_provider(app_env="local", provider_mode="disabled") is None
     with pytest.raises(ConfigurationError, match="Settings"):

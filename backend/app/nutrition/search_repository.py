@@ -12,7 +12,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy import Select, String, bindparam, case, cast, desc, func, select
+from sqlalchemy import Select, String, and_, bindparam, case, cast, desc, func, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, aliased
 
@@ -122,11 +122,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         return SqlAlchemyNutritionRepository._to_published_food(publication) if publication is not None else None
 
     def claim_due_build_embedding_job(self, *, due_at, now, lease_owner: str, lease_expires_at, vector_space_id: uuid.UUID | None = None, build_id: uuid.UUID | None = None):
-        """Lease one due job belonging to an immutable build manifest.
-
-        The JSONB containment predicate is deliberate: publication-triggered active
-        space jobs are not build jobs and must not be consumed by this worker.
-        """
+        """Lease one current build-manifest or active-space publication job."""
         manifest_item = func.jsonb_build_array(
             func.jsonb_build_object(
                 "publication_id", cast(CatalogEmbeddingJob.publication_id, String),
@@ -138,7 +134,10 @@ class SqlAlchemyHybridFoodSearchRepository:
             CatalogEmbeddingJob.status.in_(("pending", "leased")),
             CatalogEmbeddingJob.not_before <= due_at,
             (CatalogEmbeddingJob.status == "pending") | (CatalogEmbeddingJob.lease_expires_at <= now),
-            cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+            or_(
+                cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+                CatalogActiveVectorSpace.pointer_key.is_not(None),
+            ),
         ]
         if vector_space_id is not None:
             predicates.append(CatalogEmbeddingJob.vector_space_id == vector_space_id)
@@ -147,10 +146,14 @@ class SqlAlchemyHybridFoodSearchRepository:
         job = self._session.scalar(
             select(CatalogEmbeddingJob)
             .join(CatalogSearchName, CatalogSearchName.id == CatalogEmbeddingJob.name_id)
-            .join(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .outerjoin(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .outerjoin(CatalogActiveVectorSpace, and_(
+                CatalogActiveVectorSpace.vector_space_id == CatalogEmbeddingJob.vector_space_id,
+                CatalogActiveVectorSpace.pointer_key == "catalog",
+            ))
             .where(*predicates)
             .order_by(CatalogEmbeddingJob.not_before, CatalogEmbeddingJob.id)
-            .with_for_update(skip_locked=True)
+            .with_for_update(of=CatalogEmbeddingJob, skip_locked=True)
             .limit(1)
         )
         if job is None:
@@ -169,8 +172,8 @@ class SqlAlchemyHybridFoodSearchRepository:
         context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
         if context is None:
             return None
-        job, name, publication, build = context
-        if not self._is_live_build_member(job=job, name=name, publication=publication, build=build):
+        job, name, publication, build, active_space = context
+        if not self._is_live_job(job=job, name=name, publication=publication, build=build, active_space=active_space):
             self._cancel_stale_job(job, now)
             return None
         return name.normalized_name
@@ -182,8 +185,8 @@ class SqlAlchemyHybridFoodSearchRepository:
         context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
         if context is None:
             return False
-        job, name, publication, build = context
-        if not self._is_live_build_member(job=job, name=name, publication=publication, build=build):
+        job, name, publication, build, active_space = context
+        if not self._is_live_job(job=job, name=name, publication=publication, build=build, active_space=active_space):
             self._cancel_stale_job(job, now)
             return False
         embedding = self._session.scalar(
@@ -207,7 +210,8 @@ class SqlAlchemyHybridFoodSearchRepository:
         job.last_error_code = None
         job.updated_at = now
         self._session.flush()
-        self.reconcile_vector_space_build_completions(vector_space_id=build.vector_space_id, now=now)
+        if build is not None:
+            self.reconcile_vector_space_build_completions(vector_space_id=build.vector_space_id, now=now)
         return True
 
     def reconcile_vector_space_build_completions(self, *, vector_space_id: uuid.UUID, now, build_id: uuid.UUID | None = None) -> None:
@@ -229,7 +233,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         context = self._locked_build_job_context(job_id=job_id, lease_owner=lease_owner)
         if context is None:
             return False
-        job, _name, _publication, _build = context
+        job, _name, _publication, _build, _active_space = context
         job.last_error_code = error_code[:80]
         job.lease_owner = None
         job.lease_expires_at = None
@@ -253,38 +257,52 @@ class SqlAlchemyHybridFoodSearchRepository:
             )
         )
         row = self._session.execute(
-            select(CatalogEmbeddingJob, CatalogSearchName, CatalogPublication, CatalogVectorSpaceBuild)
+            select(CatalogEmbeddingJob, CatalogSearchName, CatalogPublication, CatalogVectorSpaceBuild, CatalogActiveVectorSpace)
             .join(CatalogSearchName, CatalogSearchName.id == CatalogEmbeddingJob.name_id)
             .join(CatalogPublication, CatalogPublication.id == CatalogEmbeddingJob.publication_id)
-            .join(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .outerjoin(CatalogVectorSpaceBuild, CatalogVectorSpaceBuild.vector_space_id == CatalogEmbeddingJob.vector_space_id)
+            .outerjoin(CatalogActiveVectorSpace, and_(
+                CatalogActiveVectorSpace.vector_space_id == CatalogEmbeddingJob.vector_space_id,
+                CatalogActiveVectorSpace.pointer_key == "catalog",
+            ))
             .where(
                 CatalogEmbeddingJob.id == job_id,
                 CatalogEmbeddingJob.status == "leased",
                 CatalogEmbeddingJob.lease_owner == lease_owner,
-                cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+                or_(
+                    cast(CatalogVectorSpaceBuild.snapshot_manifest, JSONB).op("@>")(manifest_item),
+                    CatalogActiveVectorSpace.pointer_key.is_not(None),
+                ),
             )
-            .with_for_update()
+            .with_for_update(of=CatalogEmbeddingJob)
         ).first()
         return row
 
-    def _is_live_build_member(self, *, job, name, publication, build) -> bool:
-        manifest_items = {
-            (item["publication_id"], item["name_id"], item["search_version_id"])
-            for item in build.snapshot_manifest
-        }
-        if (str(job.publication_id), str(job.name_id), str(name.search_version_id)) not in manifest_items:
-            return False
+    def _is_live_job(self, *, job, name, publication, build, active_space) -> bool:
+        """Recheck authority before I/O; active publication jobs never create build proof."""
         current_hash = self._session.scalar(
             select(CatalogSearchVersion.content_hash).where(
                 CatalogSearchVersion.id == name.search_version_id,
                 CatalogSearchVersion.publication_id == publication.id,
             )
         )
-        return (
+        current = (
             name.publication_id == publication.id
             and current_hash == publication.content_hash
             and self._latest_eligibility_status(job.publication_id) == "eligible"
         )
+        manifest_items = set() if build is None else {
+            (item["publication_id"], item["name_id"], item["search_version_id"])
+            for item in build.snapshot_manifest
+        }
+        if (str(job.publication_id), str(job.name_id), str(name.search_version_id)) not in manifest_items:
+            # A later public publication shares an already-active vector space
+            # with historical frozen builds. It has no build membership, so it
+            # must use current-qualified authority and cannot reconcile proof.
+            return active_space is not None and self._session.scalar(
+                self._current_qualified_statement().where(CatalogPublication.id == job.publication_id)
+            ) is not None
+        return current
 
     def _latest_eligibility_status(self, publication_id: uuid.UUID) -> str | None:
         return self._session.scalar(
@@ -399,6 +417,8 @@ class SqlAlchemyHybridFoodSearchRepository:
 
     @staticmethod
     def _relation_or_conservative_default(value: str | None) -> FoodRelation:
+        if value is None:
+            return FoodRelation.SAME_CLASS
         return {
             "name_variant": FoodRelation.NAME_VARIANT,
             "regional_preparation_variant": FoodRelation.REGIONAL_PREPARATION_VARIANT,
