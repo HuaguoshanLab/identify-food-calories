@@ -1489,23 +1489,17 @@ class AdminService:
         return Path(__file__).resolve().parents[2] / "evals" / "phase_06_3" / "release.json"
 
     def _load_phase063_release(self, path: Path | None) -> dict[str, object]:
-        """Validate committed evidence and recompute every source-file hash it names."""
+        """Validate committed activation evidence through the evaluator's strict contract.
 
-        from evals.phase_06_3.evaluate import EvaluationContractError, file_hash, verify_release
+        ``verify_release`` owns the release schema/evaluator versions and the
+        source-hash binding.  Duplicating those checks here made the admin path
+        drift from the evaluator after a contract version upgrade.
+        """
+
+        from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
 
         try:
             release = verify_release(path or self._phase063_release_path())
-            hashes = release["input_hashes"]
-            if not isinstance(hashes, dict):
-                raise EvaluationContractError("release input hashes are invalid")
-            root = Path(__file__).resolve().parents[2]
-            expected = {
-                "dataset_sha256": file_hash(root / "evals" / "phase_06_3" / "cases.jsonl"),
-                "evaluator_sha256": file_hash(root / "evals" / "phase_06_3" / "evaluate.py"),
-                "search_policy_sha256": file_hash(root / "app" / "nutrition" / "search.py"),
-            }
-            if release.get("schema_version") != "phase063-release.v1" or hashes != expected:
-                raise EvaluationContractError("release inputs no longer match the frozen source files")
             return release
         except (EvaluationContractError, KeyError, TypeError) as error:
             raise CatalogVectorSpaceActivationConflict("release evidence is not activation-valid") from error
