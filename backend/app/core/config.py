@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     embedding_period_cap_cny: Decimal | None = None
     embedding_timeout_seconds: float | None = None
     embedding_worker_poll_interval_seconds: int = 5
+    # The HTTP process normally owns the background worker.  Isolated E2E may
+    # start the same lifecycle in a short-lived sibling process to prove a
+    # restart changes the closed Fake outcome script without racing the UI app.
+    embedding_worker_enabled: bool = True
     # Only the isolated test app can script an offline Fake worker outcome.
     # Local and production deployments fail closed if this test seam is supplied.
     test_embedding_outcomes: str | None = None
@@ -128,6 +132,8 @@ class Settings(BaseSettings):
             raise ConfigurationError("RETENTION_POLL_INTERVAL_SECONDS must not exceed 300")
         if not 0 < self.embedding_worker_poll_interval_seconds <= 300:
             raise ConfigurationError("EMBEDDING_WORKER_POLL_INTERVAL_SECONDS must be within (0, 300]")
+        if not self.embedding_worker_enabled and self.app_env != "test":
+            raise ConfigurationError("EMBEDDING_WORKER_ENABLED=false is only allowed in test")
 
         if self.test_embedding_outcomes is not None:
             if self.app_env != "test":

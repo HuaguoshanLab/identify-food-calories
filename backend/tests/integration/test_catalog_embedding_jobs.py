@@ -28,6 +28,7 @@ from app.nutrition.search_models import (
     CatalogVectorSpaceActivationApproval,
 )
 from app.providers.embedding.fake import FakeEmbeddingProvider
+from app.providers.reasoning.dto import ProviderFailureKind
 
 
 def _vector(value: float = 0.25) -> tuple[float, ...]:
@@ -184,6 +185,12 @@ def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requ
         session.add(actor)
         actor_id = actor.id
         _install_active_space(session, now)
+        active_space = CatalogVectorSpace(id=uuid.uuid4(), embedding_model="active-worker", embedding_dimension=1024, adapter_version=f"active-{actor.id.hex}", retrieval_version="active-v1", created_at=now)
+        session.add(active_space)
+        session.flush()
+        pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert pointer is not None
+        pointer.vector_space_id = active_space.id
         session.commit()
         service = AdminService(
             repository=SqlAlchemyAdminRepository(session),
@@ -243,6 +250,49 @@ def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requ
         assert [row.status for row in rows].count("pending") == 1
         assert [row.status for row in rows].count("completed") == 1
         assert [row.status for row in rows].count("failed") == 1
+
+
+def test_active_publication_worker_retries_without_creating_build_evidence(test_engine) -> None:
+    """Activated publication jobs are worker-owned, but never manufacture frozen proof."""
+    from app.nutrition.index_worker import CatalogEmbeddingWorker
+
+    now = datetime.now(UTC)
+    with Session(test_engine) as session:
+        actor = _actor(now)
+        session.add(actor)
+        _install_active_space(session, now)
+        active_space = CatalogVectorSpace(id=uuid.uuid4(), embedding_model="active-worker", embedding_dimension=1024, adapter_version=f"active-{actor.id.hex}", retrieval_version="active-v1", created_at=now)
+        session.add(active_space)
+        session.flush()
+        pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+        assert pointer is not None
+        pointer.vector_space_id = active_space.id
+        active_space_id = active_space.id
+        session.commit()
+        service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback)
+        publication_id, _, _ = _publish(service, actor.id)
+        actor_id = actor.id
+
+    provider = FakeEmbeddingProvider()
+    provider.queue_result((_vector(),))
+    provider.queue_error(kind=ProviderFailureKind.PERMANENT, code="active_publication_failure")
+    provider.queue_result((_vector(),))
+    worker = CatalogEmbeddingWorker(session_factory=lambda: Session(test_engine), provider=provider, worker_id="active-publication-worker", vector_space_id=active_space_id, now=lambda: now)
+    assert [worker.run_once() for _ in range(3)] == ["completed", "failed", "completed"]
+    with Session(test_engine) as session:
+        service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback)
+        before = service.get_catalog_embedding_status(actor_user_id=actor_id, publication_id=publication_id)
+        assert before.status == "partial_failure"
+        assert session.scalar(select(CatalogVectorSpaceBuild).where(CatalogVectorSpaceBuild.vector_space_id == active_space_id)) is None
+        replay = service.retry_catalog_embedding_jobs(actor_user_id=actor_id, publication_id=publication_id, command=CatalogEmbeddingRetryCommand(reason="provider recovered", idempotency_key="active-publication-retry-0001"))
+        assert replay.reset_count == 1
+    recovered = FakeEmbeddingProvider()
+    recovered.queue_result((_vector(),))
+    assert CatalogEmbeddingWorker(session_factory=lambda: Session(test_engine), provider=recovered, worker_id="active-publication-recovery", vector_space_id=active_space_id, now=lambda: now).run_once() == "completed"
+    with Session(test_engine) as session:
+        status = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback).get_catalog_embedding_status(actor_user_id=actor_id, publication_id=publication_id)
+        assert status.status == "ready"
+        assert session.scalar(select(CatalogVectorSpaceBuild).where(CatalogVectorSpaceBuild.vector_space_id == active_space_id)) is None
 
 
 def test_vector_space_build_snapshots_current_eligible_names_and_replays_without_completion(db_session) -> None:

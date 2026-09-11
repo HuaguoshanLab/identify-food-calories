@@ -1,4 +1,4 @@
-import { execFile as execFileCallback } from 'node:child_process'
+import { execFile as execFileCallback, spawn, type ChildProcess } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
@@ -7,6 +7,13 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 const execFile = promisify(execFileCallback)
 const mailpitApi = `http://127.0.0.1:${process.env.E2E_ADMIN_MAILPIT_PORT ?? '8026'}/api/v1`
 const userFrontendUrl = `http://127.0.0.1:${process.env.E2E_ADMIN_USER_FRONTEND_PORT ?? '5183'}`
+const e2eDatabaseUrl = 'postgresql+psycopg://postgres:postgres@127.0.0.1:55433/food_agent_e2e_test'
+const e2eCliEnvironment = {
+  ...process.env,
+  APP_ENV: 'test',
+  DATABASE_URL: 'postgresql+psycopg://postgres:postgres@127.0.0.1:5432/food_agent_dev',
+  TEST_DATABASE_URL: e2eDatabaseUrl,
+}
 
 type Account = Readonly<{ email: string, password: string }>
 type MailpitMessage = Readonly<{ ID?: string, Text?: string, To?: Array<{ Address?: string }> }>
@@ -54,11 +61,82 @@ async function registerAndVerify(page: Page, request: APIRequestContext, account
 
 async function bootstrapFirstAdmin(account: Account) {
   const result = await execFile('../backend/.venv/bin/python', [
-    'tests/run_pg.py', '--env-file', '.env.test.example', '--', '.venv/bin/python', '-m', 'app.admin.cli',
+    '-m', 'app.admin.cli',
     'bootstrap', '--email', account.email, '--reason', 'Playwright verified first-admin bootstrap',
-  ], { cwd: '../backend' })
+  ], { cwd: '../backend', env: e2eCliEnvironment })
   expect(result.stderr).not.toContain(account.password)
   expect(result.stdout).toContain('admin role change recorded:')
+}
+
+async function adminUserId(page: Page, email: string) {
+  const users = page.waitForResponse((response) => response.url().includes('/api/v1/admin/users') && response.status() === 200)
+  await page.getByRole('link', { name: '管理员管理' }).click()
+  const body = await (await users).json() as { items: Array<{ id: string, email: string }> }
+  const user = body.items.find((item) => item.email === email)
+  if (!user) throw new Error('authenticated administrator is missing from the public admin users response')
+  return user.id
+}
+
+type VectorBuild = Readonly<{ buildId: string, vectorSpaceId: string }>
+
+async function createVectorBuild(actorUserId: string, suffix: string): Promise<VectorBuild> {
+  const result = await execFile('../backend/.venv/bin/python', [
+    '-m', 'app.admin.cli', 'vector-build', '--actor-user-id', actorUserId,
+    '--reason', 'isolated E2E evidence-bound activation preparation',
+    '--idempotency-key', `e2e-vector-build-${suffix}`,
+  ], { cwd: '../backend', env: e2eCliEnvironment })
+  const [buildId, vectorSpaceId] = result.stdout.trim().split(/\s+/)
+  if (!buildId || !vectorSpaceId) throw new Error('controlled vector-build CLI returned no build identifiers')
+  return { buildId, vectorSpaceId }
+}
+
+async function activateVectorBuild(actorUserId: string, build: VectorBuild, suffix: string) {
+  return execFile('../backend/.venv/bin/python', [
+    '-m', 'evals.phase_06_3.activate', '--actor-user-id', actorUserId,
+    '--build-id', build.buildId, '--vector-space-id', build.vectorSpaceId,
+    '--reason', 'isolated E2E activation after completion evidence',
+    '--idempotency-key', `e2e-vector-activation-${suffix}`,
+  ], { cwd: '../backend', env: e2eCliEnvironment })
+}
+
+async function startProductWorker(request: APIRequestContext, outcomes: string): Promise<ChildProcess> {
+  const child = spawn('../backend/.venv/bin/python', ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8005'], {
+    cwd: '../backend',
+    env: { ...e2eCliEnvironment, EMBEDDING_WORKER_ENABLED: 'true', EMBEDDING_WORKER_POLL_INTERVAL_SECONDS: '1', TEST_EMBEDDING_OUTCOMES: outcomes },
+    // Keep the product lifecycle's safe operational logs visible when a local
+    // E2E environment fails to start; the worker never logs controlled names.
+    stdio: 'inherit',
+  })
+  await expect.poll(async () => {
+    try {
+      return (await request.get('http://127.0.0.1:8005/api/v1/health')).status()
+    } catch {
+      return 0
+    }
+  }, { timeout: 15_000 }).toBe(200)
+  return child
+}
+
+async function stopProductWorker(child: ChildProcess) {
+  if (child.exitCode !== null) return
+  const stopped = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+  child.kill('SIGTERM')
+  await Promise.race([stopped, new Promise<void>((resolve) => setTimeout(resolve, 10_000))])
+  if (child.exitCode === null) child.kill('SIGKILL')
+}
+
+async function activateAfterCompletion(actorUserId: string, build: VectorBuild, suffix: string) {
+  let latestError: Error | undefined
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      await activateVectorBuild(actorUserId, build, suffix)
+      return
+    } catch (error) {
+      latestError = error instanceof Error ? error : new Error('activation command failed')
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+    }
+  }
+  throw latestError ?? new Error('activation did not observe worker completion evidence')
 }
 
 async function loginToAdmin(page: Page, account: Account, returnTo: string) {
@@ -353,6 +431,19 @@ test('admin embedding status and batch retry', async ({ browser, page, request }
   await registerAndVerify(page, request, admin)
   await bootstrapFirstAdmin(admin)
   await loginToAdmin(page, admin, '/admin/catalog')
+  const actorUserId = await adminUserId(page, admin.email)
+  await page.getByRole('link', { name: '营养目录', exact: true }).click()
+  // Stage 1: real product worker, then durable evidence-bound activation.
+  const build = await createVectorBuild(actorUserId, suffix)
+  const activationWorker = await startProductWorker(request, Array(128).fill('success').join(','))
+  try {
+    await activateAfterCompletion(actorUserId, build, suffix)
+  } finally {
+    await stopProductWorker(activationWorker)
+  }
+  // Stage 2: restart the same worker with the closed partial-failure script.
+  const publicationWorker = await startProductWorker(request, 'success,permanent_failure,success')
+  try {
   const draftId = await publishMultiNameCatalogEntry(page, suffix)
   await waitForVisibleEmbeddingStatus(page, '部分失败')
 
@@ -370,8 +461,10 @@ test('admin embedding status and batch retry', async ({ browser, page, request }
   await registerAndVerify(postPage, request, ordinaryPost)
   await changeRole(page, ordinaryGet.email, '设为管理员')
   await changeRole(page, ordinaryPost.email, '设为管理员')
-  await loginToAdmin(getPage, ordinaryGet, `/admin/catalog/${draftId}`)
-  await loginToAdmin(postPage, ordinaryPost, `/admin/catalog/${draftId}`)
+  await loginToAdmin(getPage, ordinaryGet, '/admin/catalog')
+  await loginToAdmin(postPage, ordinaryPost, '/admin/catalog')
+  await getPage.getByRole('link', { name: '详情', exact: true }).click()
+  await postPage.getByRole('link', { name: '详情', exact: true }).click()
   await expect(getPage.getByRole('region', { name: '嵌入构建状态' })).toBeVisible()
   await expect(postPage.getByRole('region', { name: '嵌入构建状态' })).toBeVisible()
 
@@ -391,6 +484,14 @@ test('admin embedding status and batch retry', async ({ browser, page, request }
   await getContext.close()
   await postContext.close()
 
+  // Role changes deliberately navigate the original administrator session to
+  // user management. Return through the SPA before exercising the visible
+  // retry control; otherwise this test is no longer operating the catalog UI.
+  await page.getByRole('link', { name: '营养目录', exact: true }).click()
+  await page.getByRole('link', { name: '详情', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/admin/catalog/${draftId}`))
+  await expect(status).toBeVisible()
+
   const retry = page.waitForResponse((response) => response.url().includes('/embedding-retries') && response.request().method() === 'POST' && response.status() === 200)
   await page.getByRole('button', { name: '重试 1 个可恢复任务' }).click()
   const dialog = page.getByRole('alertdialog', { name: '重新排队可恢复的嵌入任务？' })
@@ -404,4 +505,7 @@ test('admin embedding status and batch retry', async ({ browser, page, request }
   await page.getByRole('button', { name: '刷新嵌入构建状态' }).click()
   await expect(status).toContainText('完成 2')
   await expect(status.getByRole('row')).toHaveCount(3)
+  } finally {
+    await stopProductWorker(publicationWorker)
+  }
 })

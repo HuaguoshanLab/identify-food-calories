@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -17,6 +18,9 @@ from app.agent.retention import RetentionWorker
 from app.agent.service import AgentService, RetentionPolicy
 from app.core.tracing import DisabledTracingRuntime, TracingRuntime
 from app.images.service import ImageSafetyService
+
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingWorker(Protocol):
@@ -110,8 +114,10 @@ class PostgresLeaseSupervisor:
                 await asyncio.to_thread(worker.run_once)
             except Exception:
                 # Job-level failures are persisted by the worker. A broken provider or
-                # database connection must not take down HTTP fallback retrieval.
-                pass
+                # database connection must not take down HTTP fallback retrieval. Log
+                # no job payload, but retain the traceback needed to diagnose a worker
+                # that would otherwise silently leave durable jobs pending forever.
+                logger.exception("catalog embedding worker pass failed")
             try:
                 await asyncio.wait_for(
                     self._embedding_worker_stop.wait(), timeout=poll_interval.total_seconds()

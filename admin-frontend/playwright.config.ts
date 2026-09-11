@@ -44,9 +44,10 @@ export default defineConfig({
         CORS_ORIGINS: JSON.stringify([userFrontendUrl, adminFrontendUrl]),
         SMTP_HOST: '127.0.0.1',
         SMTP_PORT: '1026',
-        // Closed, test-only Fake script: two-name publication becomes partial
-        // failure, and the remaining success completes the explicit retry.
-        TEST_EMBEDDING_OUTCOMES: 'success,permanent_failure,success',
+        // The E2E spec starts the identical product lifecycle in short-lived
+        // sibling processes for each scripted stage. Keep this UI process idle
+        // so it cannot race those controlled worker restarts.
+        EMBEDDING_WORKER_ENABLED: 'false',
         EMBEDDING_WORKER_POLL_INTERVAL_SECONDS: '1',
       },
       url: `${backendOrigin}/api/v1/health`,
