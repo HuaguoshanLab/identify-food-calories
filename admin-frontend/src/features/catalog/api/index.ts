@@ -95,6 +95,33 @@ const catalogPublicationSchema = z.object({
 
 export type CatalogPublication = z.infer<typeof catalogPublicationSchema>
 
+const catalogEmbeddingJobSchema = z.object({
+  id: z.string().uuid(),
+  vector_space_id: z.string().uuid(),
+  status: z.enum(['pending', 'leased', 'completed', 'failed']),
+  attempt_count: z.number().int().nonnegative(),
+  max_attempts: z.number().int().positive(),
+  last_error_code: z.string().min(1).max(120).nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+}).strict()
+
+export const catalogEmbeddingStatusSchema = z.object({
+  publication_id: z.string().uuid(),
+  status: z.enum(['pending', 'processing', 'partial_failure', 'failed', 'ready']),
+  pending_count: z.number().int().nonnegative(),
+  processing_count: z.number().int().nonnegative(),
+  failed_count: z.number().int().nonnegative(),
+  completed_count: z.number().int().nonnegative(),
+  jobs: z.array(catalogEmbeddingJobSchema),
+}).strict()
+
+export type CatalogEmbeddingStatus = z.infer<typeof catalogEmbeddingStatusSchema>
+
+const catalogEmbeddingRetrySchema = catalogEmbeddingStatusSchema.extend({
+  reset_count: z.number().int().nonnegative(),
+}).strict()
+
 const auditDiffValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
 const auditEventSchema = z.object({
   id: z.string().uuid(),
@@ -195,6 +222,22 @@ export function readCatalogDraft(accessToken: string, draftId: string) {
     headers: requestHeaders(accessToken),
     method: 'GET',
   }).then(catalogDraftSchema.parse)
+}
+
+/** Safe job projections intentionally exclude controlled names, vectors and provider payloads. */
+export function readCatalogEmbeddingStatus(accessToken: string, publicationId: string) {
+  return sendCatalogRequest(`/catalog-publications/${publicationId}/embedding-status`, {
+    headers: requestHeaders(accessToken), method: 'GET',
+  }).then(catalogEmbeddingStatusSchema.parse)
+}
+
+/** Retries one publication command only; the server determines which finite-budget jobs can resume. */
+export function retryCatalogEmbeddingJobs(accessToken: string, publicationId: string, reason: string, idempotencyKey: string) {
+  return sendCatalogRequest(`/catalog-publications/${publicationId}/embedding-retries`, {
+    body: JSON.stringify(lifecycleReasonSchema.parse({ reason })),
+    headers: commandHeaders(accessToken, idempotencyKey),
+    method: 'POST',
+  }).then(catalogEmbeddingRetrySchema.parse)
 }
 
 /** A server-derived projection is mandatory; this client never generates a trusted diff. */
