@@ -2,7 +2,7 @@
 
 ## 职责
 
-`app/admin/` 提供管理员 RBAC probe、数据库权威角色检查、账号/固定角色只读投影、受审计的管理员晋升/降权、显式首管理员 CLI、管理员审计、营养目录草稿命令、发布后的受控 embedding job 聚合/批量重试及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
+`app/admin/` 提供管理员 RBAC probe、数据库权威角色检查、账号/固定角色只读投影、受审计的管理员晋升/降权、显式首管理员 CLI、管理员审计、营养目录草稿命令、发布后的受控 embedding job 聚合/批量重试、版本化关系证据及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
 
 ## 允许依赖
 
@@ -16,10 +16,10 @@
 |---|---|
 | `__init__.py` | Python 包标识 |
 | `models.py` | 角色提升、通用 append-only 审计、草稿/review/immutable publication、active pointer 与 eligibility history ORM 映射 |
-| `schemas.py` | probe、账号/角色/角色变更、最小审计 timeline、严格运行配置/草稿/生命周期命令、embedding job 安全 aggregate/retry projection 运行时契约 |
+| `schemas.py` | probe、账号/角色/角色变更、最小审计 timeline、严格运行配置/草稿/生命周期命令、embedding job 安全 aggregate/retry 与版本化关系证据运行时契约 |
 | `ports.py` | Service 所需 flush-only 草稿、review/publication、受控名称/job、候选目录引用、pointer 与最新 eligibility 持久化能力协议 |
 | `repository.py` | SQLAlchemy 查询、advisory lock、flush-only 审计、草稿/publication 生命周期、embedding job 与候选目录资格 adapter |
-| `service.py` | 数据库权威 RBAC、账号/角色查询、原子角色提升/降权、运行配置 optimistic version、命令审计、目录/候选生命周期及 publication-scoped embedding job retry；不信任客户端 diff。 |
+| `service.py` | 数据库权威 RBAC、账号/角色查询、原子角色提升/降权、运行配置 optimistic version、命令审计、目录/候选生命周期及 publication-scoped embedding job retry 与 append-only 关系证据；不信任客户端 diff。 |
 | `api.py` | `/api/v1/admin/probe`、`/users`、`/roles`、`/runtime-config`、`/audit`、草稿生命周期及候选 CSV/批量操作 HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |
 | `catalog_csv.py` | UTF-8 CSV 模板、500 条/1 MB 导入校验、错误行号与防公式执行导出；无 HTTP/数据库依赖 |

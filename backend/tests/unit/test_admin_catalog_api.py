@@ -46,6 +46,51 @@ class StubCatalogService:
             impact={"affected_catalog_items": 1, "description": "首次发布后，新分析将使用不可变版本。"},
         )
 
+    def get_catalog_embedding_status(self, *, publication_id: uuid.UUID, **_kwargs: object):
+        from app.admin.schemas import CatalogEmbeddingStatusResponse
+
+        return CatalogEmbeddingStatusResponse(
+            publication_id=publication_id,
+            status="pending",
+            pending_count=1,
+            processing_count=0,
+            failed_count=0,
+            completed_count=0,
+            jobs=[],
+        )
+
+    def retry_catalog_embedding_jobs(self, *, publication_id: uuid.UUID, **_kwargs: object):
+        from app.admin.schemas import CatalogEmbeddingRetryResponse
+
+        return CatalogEmbeddingRetryResponse(
+            **self.get_catalog_embedding_status(publication_id=publication_id).model_dump(),
+            reset_count=1,
+        )
+
+    def create_catalog_relation_evidence(self, *, command, **_kwargs: object):
+        source_publication_id = command.source_publication_id
+        target_publication_id = command.target_publication_id
+        from app.admin.schemas import CatalogRelationEvidenceResponse
+
+        return CatalogRelationEvidenceResponse(
+            id=uuid.uuid4(),
+            source_publication_id=source_publication_id,
+            target_publication_id=target_publication_id,
+            relation="name_variant",
+            status="active",
+        )
+
+    def revoke_catalog_relation_evidence(self, *, evidence_id: uuid.UUID, **_kwargs: object):
+        from app.admin.schemas import CatalogRelationEvidenceResponse
+
+        return CatalogRelationEvidenceResponse(
+            id=evidence_id,
+            source_publication_id=uuid.uuid4(),
+            target_publication_id=uuid.uuid4(),
+            relation="name_variant",
+            status="revoked",
+        )
+
 
 def _payload() -> dict[str, object]:
     return {
@@ -232,3 +277,66 @@ def test_csv_list_export_preview_import_deny_non_admin_over_http():
             assert client.get('/api/v1/admin/catalog-drafts' + path).status_code == 403
         assert client.post('/api/v1/admin/catalog-drafts/import-preview', json={'csv_text': 'test'}).status_code == 403
         assert client.post('/api/v1/admin/catalog-drafts/import', json={'csv_text': 'test', 'reason': 'test', 'confirm': True}, headers={'Idempotency-Key': 'csv-import-00000001'}).status_code == 403
+
+
+def test_catalog_embedding_control_plane_is_publication_scoped_and_safe() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    publication_id = uuid.uuid4()
+    with TestClient(app) as client:
+        status = client.get(f"/api/v1/admin/catalog-publications/{publication_id}/embedding-status")
+        missing_key = client.post(
+            f"/api/v1/admin/catalog-publications/{publication_id}/embedding-retries",
+            json={"reason": "provider recovered"},
+        )
+        retry = client.post(
+            f"/api/v1/admin/catalog-publications/{publication_id}/embedding-retries",
+            json={"reason": "provider recovered"},
+            headers={"Idempotency-Key": "embedding-retry-00000001"},
+        )
+    assert status.status_code == 200
+    assert status.json()["publication_id"] == str(publication_id)
+    assert {"pending_count", "processing_count", "failed_count", "completed_count", "jobs"} <= status.json().keys()
+    assert "display_name" not in status.json()
+    assert missing_key.status_code == 422
+    assert retry.status_code == 200
+    assert retry.json()["reset_count"] == 1
+
+
+def test_catalog_relation_evidence_requires_bounded_idempotent_admin_command() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    source_publication_id, target_publication_id = uuid.uuid4(), uuid.uuid4()
+    command = {
+        "source_publication_id": str(source_publication_id),
+        "source_name_id": str(uuid.uuid4()),
+        "target_publication_id": str(target_publication_id),
+        "target_name_id": str(uuid.uuid4()),
+        "relation": "name_variant",
+        "reason": "controlled synonym evidence",
+    }
+    with TestClient(app) as client:
+        missing_key = client.post("/api/v1/admin/catalog-relation-evidence", json=command)
+        created = client.post(
+            "/api/v1/admin/catalog-relation-evidence",
+            json=command,
+            headers={"Idempotency-Key": "relation-create-00000001"},
+        )
+        invalid = client.post(
+            "/api/v1/admin/catalog-relation-evidence",
+            json=command | {"relation": "made_up_relation"},
+            headers={"Idempotency-Key": "relation-create-00000002"},
+        )
+        revoked = client.post(
+            f"/api/v1/admin/catalog-relation-evidence/{uuid.uuid4()}/revocations",
+            json={"reason": "evidence superseded"},
+            headers={"Idempotency-Key": "relation-revoke-00000001"},
+        )
+    assert missing_key.status_code == 422
+    assert created.status_code == 201
+    assert created.json()["status"] == "active"
+    assert invalid.status_code == 422
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"

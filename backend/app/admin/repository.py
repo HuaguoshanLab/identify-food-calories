@@ -29,6 +29,7 @@ from app.planning.models import ManagedRecipeCandidate
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogEmbeddingJob,
+    CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
@@ -396,6 +397,53 @@ class SqlAlchemyAdminRepository:
             text("SELECT pg_advisory_xact_lock(hashtext(:publication_id))"),
             {"publication_id": f"embedding-retry:{publication_id}"},
         )
+
+    def get_catalog_search_name_for_publication(
+        self, *, name_id: uuid.UUID, publication_id: uuid.UUID
+    ) -> CatalogSearchName | None:
+        """Accept only a name derived from this immutable publication content version."""
+
+        return self._session.scalar(
+            select(CatalogSearchName)
+            .join(
+                CatalogSearchVersion,
+                CatalogSearchVersion.id == CatalogSearchName.search_version_id,
+            )
+            .join(
+                CatalogPublication,
+                CatalogPublication.id == CatalogSearchName.publication_id,
+            )
+            .where(
+                CatalogSearchName.id == name_id,
+                CatalogSearchName.publication_id == publication_id,
+                CatalogSearchVersion.publication_id == publication_id,
+                CatalogSearchVersion.content_hash == CatalogPublication.content_hash,
+            )
+        )
+
+    def get_catalog_search_name(self, name_id: uuid.UUID) -> CatalogSearchName | None:
+        return self._session.get(CatalogSearchName, name_id)
+
+    def get_catalog_relation_evidence(
+        self, evidence_id: uuid.UUID
+    ) -> CatalogSearchRelationEvidence | None:
+        return self._session.get(CatalogSearchRelationEvidence, evidence_id)
+
+    def get_catalog_relation_evidence_by_command_key(
+        self, command_key: str
+    ) -> CatalogSearchRelationEvidence | None:
+        return self._session.scalar(
+            select(CatalogSearchRelationEvidence).where(
+                CatalogSearchRelationEvidence.command_key == command_key
+            )
+        )
+
+    def add_catalog_relation_evidence(
+        self, evidence: CatalogSearchRelationEvidence
+    ) -> CatalogSearchRelationEvidence:
+        self._session.add(evidence)
+        self._session.flush()
+        return evidence
 
     def list_audit_events(
         self,

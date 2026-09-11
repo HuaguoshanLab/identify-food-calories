@@ -38,6 +38,12 @@ from app.admin.schemas import (
     CatalogLifecycleCommand,
     CatalogLifecyclePreviewResponse,
     CatalogPublicationResponse,
+    CatalogEmbeddingRetryCommand,
+    CatalogEmbeddingRetryResponse,
+    CatalogEmbeddingStatusResponse,
+    CatalogRelationEvidenceCommand,
+    CatalogRelationEvidenceResponse,
+    CatalogRelationEvidenceRevokeCommand,
     RuntimeConfigCommand,
     RuntimeConfigResponse,
     RecipeCandidateBulkCommand,
@@ -54,6 +60,8 @@ from app.admin.service import (
     AdminRunCursorInvalid,
     AdminService,
     CatalogDraftConflict,
+    CatalogEmbeddingRetryConflict,
+    CatalogRelationEvidenceConflict,
     RecipeCandidateConflict,
     RuntimeConfigConflict,
 )
@@ -691,6 +699,99 @@ def disqualify_catalog_publication(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="catalog publication not found",
         ) from error
+
+
+@router.get(
+    "/catalog-publications/{publication_id}/embedding-status",
+    response_model=CatalogEmbeddingStatusResponse,
+)
+def catalog_embedding_status(
+    publication_id: uuid.UUID,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogEmbeddingStatusResponse | JSONResponse:
+    try:
+        return admin_service.get_catalog_embedding_status(
+            actor_user_id=principal, publication_id=publication_id
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
+
+
+@router.post(
+    "/catalog-publications/{publication_id}/embedding-retries",
+    response_model=CatalogEmbeddingRetryResponse,
+)
+def retry_catalog_embedding_jobs(
+    publication_id: uuid.UUID,
+    command: CatalogEmbeddingRetryCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogEmbeddingRetryResponse | JSONResponse:
+    try:
+        return admin_service.retry_catalog_embedding_jobs(
+            actor_user_id=principal,
+            publication_id=publication_id,
+            command=command.model_copy(update={"idempotency_key": idempotency_key}),
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
+    except CatalogEmbeddingRetryConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="embedding retry conflict") from error
+
+
+@router.post(
+    "/catalog-relation-evidence",
+    response_model=CatalogRelationEvidenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_catalog_relation_evidence(
+    command: CatalogRelationEvidenceCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogRelationEvidenceResponse | JSONResponse:
+    try:
+        return admin_service.create_catalog_relation_evidence(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="relation publication version not found") from error
+    except CatalogRelationEvidenceConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="relation evidence conflict") from error
+
+
+@router.post(
+    "/catalog-relation-evidence/{evidence_id}/revocations",
+    response_model=CatalogRelationEvidenceResponse,
+)
+def revoke_catalog_relation_evidence(
+    evidence_id: uuid.UUID,
+    command: CatalogRelationEvidenceRevokeCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogRelationEvidenceResponse | JSONResponse:
+    try:
+        return admin_service.revoke_catalog_relation_evidence(
+            actor_user_id=principal,
+            evidence_id=evidence_id,
+            command=command,
+            command_key=idempotency_key,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog relation evidence not found") from error
+    except CatalogRelationEvidenceConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="relation evidence conflict") from error
 
 
 def _authentication_required() -> JSONResponse:
