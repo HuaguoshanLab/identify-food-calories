@@ -26,6 +26,13 @@ from app.admin.ports import QualifiedRecipeFoodReference
 from app.auth.models import User, UserRole
 from app.nutrition.models import FoodCatalogItem, NutritionCatalogVersion
 from app.planning.models import ManagedRecipeCandidate
+from app.nutrition.search_models import (
+    CatalogActiveVectorSpace,
+    CatalogEmbeddingJob,
+    CatalogSearchName,
+    CatalogSearchVersion,
+    CatalogVectorSpace,
+)
 
 
 class SqlAlchemyAdminRepository:
@@ -336,6 +343,59 @@ class SqlAlchemyAdminRepository:
         self._session.add(eligibility)
         self._session.flush()
         return eligibility
+
+    def list_active_catalog_vector_spaces(self) -> list[CatalogVectorSpace]:
+        return list(
+            self._session.scalars(
+                select(CatalogVectorSpace)
+                .join(
+                    CatalogActiveVectorSpace,
+                    CatalogActiveVectorSpace.vector_space_id == CatalogVectorSpace.id,
+                )
+                .order_by(CatalogVectorSpace.id)
+            )
+        )
+
+    def add_catalog_search_version(
+        self, version: CatalogSearchVersion
+    ) -> CatalogSearchVersion:
+        self._session.add(version)
+        self._session.flush()
+        return version
+
+    def add_catalog_search_names(
+        self, names: list[CatalogSearchName]
+    ) -> list[CatalogSearchName]:
+        self._session.add_all(names)
+        self._session.flush()
+        return names
+
+    def add_catalog_embedding_jobs(
+        self, jobs: list[CatalogEmbeddingJob]
+    ) -> list[CatalogEmbeddingJob]:
+        self._session.add_all(jobs)
+        self._session.flush()
+        return jobs
+
+    def list_catalog_embedding_jobs(
+        self, publication_id: uuid.UUID, *, for_update: bool = False
+    ) -> list[CatalogEmbeddingJob]:
+        statement = (
+            select(CatalogEmbeddingJob)
+            .where(CatalogEmbeddingJob.publication_id == publication_id)
+            .order_by(CatalogEmbeddingJob.id)
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return list(self._session.scalars(statement))
+
+    def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None:
+        # A publication-scoped transaction lock keeps a replay from resetting a job
+        # after a concurrent request already committed its audit outcome.
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:publication_id))"),
+            {"publication_id": f"embedding-retry:{publication_id}"},
+        )
 
     def list_audit_events(
         self,

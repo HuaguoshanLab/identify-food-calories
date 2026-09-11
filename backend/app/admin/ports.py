@@ -22,6 +22,12 @@ from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersio
 from app.auth.models import User
 from app.admin.schemas import AdminUserQuery, CatalogListQuery
 from app.planning.models import ManagedRecipeCandidate
+from app.nutrition.search_models import (
+    CatalogEmbeddingJob,
+    CatalogSearchName,
+    CatalogSearchVersion,
+    CatalogVectorSpace,
+)
 
 
 @dataclass(frozen=True)
@@ -136,6 +142,26 @@ class AdminRepository(Protocol):
     def add_catalog_eligibility(
         self, eligibility: CatalogPublicationEligibility
     ) -> CatalogPublicationEligibility: ...
+
+    def list_active_catalog_vector_spaces(self) -> list[CatalogVectorSpace]: ...
+
+    def add_catalog_search_version(
+        self, version: CatalogSearchVersion
+    ) -> CatalogSearchVersion: ...
+
+    def add_catalog_search_names(
+        self, names: list[CatalogSearchName]
+    ) -> list[CatalogSearchName]: ...
+
+    def add_catalog_embedding_jobs(
+        self, jobs: list[CatalogEmbeddingJob]
+    ) -> list[CatalogEmbeddingJob]: ...
+
+    def list_catalog_embedding_jobs(
+        self, publication_id: uuid.UUID, *, for_update: bool = False
+    ) -> list[CatalogEmbeddingJob]: ...
+
+    def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None: ...
 
     def list_audit_events(
         self,
