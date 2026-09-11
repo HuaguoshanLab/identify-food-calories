@@ -253,7 +253,7 @@ def test_vector_space_build_snapshots_current_eligible_names_and_replays_without
     )
     publication_id, _, _ = _publish(service, actor.id)
     command = CatalogVectorSpaceBuildCommand(
-        embedding_model="text-embedding-v4", embedding_dimension=1024, adapter_version="v2",
+        embedding_model="text-embedding-v4", embedding_dimension=1024, adapter_version=f"build-{actor.id.hex}",
         retrieval_version="hybrid-v1", reason="controlled catalog backfill", confirm=True,
     )
     build = service.create_catalog_vector_space_build(
@@ -278,6 +278,16 @@ def test_vector_space_build_snapshots_current_eligible_names_and_replays_without
         )
     ) is None
     assert len(list(db_session.scalars(select(CatalogEmbeddingJob).where(CatalogEmbeddingJob.vector_space_id == build.vector_space_id)))) == build.expected_name_count
+    follow_up = service.create_catalog_vector_space_build(
+        actor_user_id=actor.id,
+        command=command.model_copy(update={"reason": "same identity later snapshot"}),
+        command_key="vector-space-build-pg-0004",
+    )
+    assert follow_up.vector_space_id == build.vector_space_id
+    assert follow_up.expected_name_count == build.expected_name_count
+    assert len(list(db_session.scalars(select(CatalogEmbeddingJob).where(
+        CatalogEmbeddingJob.vector_space_id == build.vector_space_id
+    )))) == build.expected_name_count
     separate = service.create_catalog_vector_space_build(
         actor_user_id=actor.id,
         command=command.model_copy(update={"retrieval_version": "hybrid-v2"}),

@@ -1313,6 +1313,16 @@ class AdminService:
             reason=command.reason, command_key=normalized_key, retrieval_version=command.retrieval_version, snapshot_manifest=manifest,
             snapshot_hash=snapshot_hash, expected_name_count=len(names), requested_at=now,
         ))
+        # A vector space is intentionally reusable for its exact model/adapter/
+        # retrieval identity.  A later build may extend the immutable snapshot,
+        # but it must reuse existing per-name work rather than violate the
+        # business-key uniqueness or enqueue a second provider charge.
+        existing_job_keys = {
+            (job.publication_id, job.name_id)
+            for job in self._repository.list_catalog_embedding_jobs_for_vector_space(
+                space.id, name_ids=[name.id for name in names]
+            )
+        }
         self._repository.add_catalog_embedding_jobs([
             CatalogEmbeddingJob(
                 id=uuid.uuid4(), publication_id=name.publication_id, name_id=name.id,
@@ -1320,6 +1330,7 @@ class AdminService:
                 max_attempts=5, not_before=now, lease_owner=None, leased_at=None,
                 lease_expires_at=None, last_error_code=None, created_at=now, updated_at=now,
             ) for name in names
+            if (name.publication_id, name.id) not in existing_job_keys
         ])
         self._repository.add_audit_event(AdminAuditEvent(
             id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
