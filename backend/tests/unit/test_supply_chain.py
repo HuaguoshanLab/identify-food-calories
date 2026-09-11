@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,14 +15,38 @@ from validate_supply_chain import (
     SCANNER_IDENTITY,
     ValidationError,
     build_manifest_hash,
+    LOCK_HEADER,
+    LockValidationError,
+    _report_packages,
+    check_lock,
+    main,
     validate_evidence,
 )
-
-from lock_dependencies import LOCK_HEADER, LockValidationError, _report_packages, check_lock
 
 
 TIMESTAMP = datetime(2026, 8, 29, 0, 0, tzinfo=UTC).isoformat().replace("+00:00", "Z")
 HASH = "a" * 64
+PHASE_063_APPROVED_PACKAGES = {
+    ("pgvector", "pypi", "0.5.0"),
+    ("langfuse", "pypi", "4.14.0"),
+}
+
+
+def test_phase_063_packages_are_exact_and_in_their_intended_groups() -> None:
+    """Lock retrieval runtime support apart from dev-only experiment tooling."""
+
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    runtime_dependencies = set(pyproject["project"]["dependencies"])
+    dev_dependencies = set(pyproject["dependency-groups"]["dev"])
+
+    assert "pgvector==0.5.0" in runtime_dependencies
+    assert "langfuse==4.14.0" not in runtime_dependencies
+    assert dev_dependencies == {"langfuse==4.14.0"}
+    assert PHASE_063_APPROVED_PACKAGES <= set(APPROVED_PACKAGES)
+
+
+def test_default_cli_verifies_the_checked_in_evidence() -> None:
+    assert main([]) == 0
 
 
 def _manual_package(name: str, ecosystem: str, version: str) -> dict[str, str]:
