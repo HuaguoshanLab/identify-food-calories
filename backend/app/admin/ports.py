@@ -24,6 +24,7 @@ from app.admin.schemas import AdminUserQuery, CatalogListQuery
 from app.planning.models import ManagedRecipeCandidate
 from app.nutrition.search_models import (
     CatalogEmbeddingJob,
+    CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
     CatalogVectorSpace,
@@ -162,6 +163,24 @@ class AdminRepository(Protocol):
     ) -> list[CatalogEmbeddingJob]: ...
 
     def acquire_catalog_embedding_retry_lock(self, publication_id: uuid.UUID) -> None: ...
+
+    def get_catalog_search_name_for_publication(
+        self, *, name_id: uuid.UUID, publication_id: uuid.UUID
+    ) -> CatalogSearchName | None: ...
+
+    def get_catalog_search_name(self, name_id: uuid.UUID) -> CatalogSearchName | None: ...
+
+    def get_catalog_relation_evidence(
+        self, evidence_id: uuid.UUID
+    ) -> CatalogSearchRelationEvidence | None: ...
+
+    def get_catalog_relation_evidence_by_command_key(
+        self, command_key: str
+    ) -> CatalogSearchRelationEvidence | None: ...
+
+    def add_catalog_relation_evidence(
+        self, evidence: CatalogSearchRelationEvidence
+    ) -> CatalogSearchRelationEvidence: ...
 
     def list_audit_events(
         self,
