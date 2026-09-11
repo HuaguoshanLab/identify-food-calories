@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import argparse
 import sys
+import uuid
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.service import AdminRoleChangeDenied, AdminService
+from app.admin.service import AdminRoleChangeDenied, AdminService, CatalogVectorSpaceBuildConflict
+from app.admin.schemas import CatalogVectorSpaceBuildCommand
 from app.core.database import create_session_factory
 
 
@@ -36,7 +38,7 @@ def main(
                 audit = service.bootstrap_first_admin(
                     target_user_id=target.id, reason=arguments.reason
                 )
-            else:
+            elif arguments.command == "promote":
                 actor = repository.get_user_by_email(
                     _normalize_email(arguments.actor_email)
                 )
@@ -47,10 +49,26 @@ def main(
                     target_user_id=target.id,
                     reason=arguments.reason,
                 )
-        except AdminRoleChangeDenied as error:
+            else:
+                build = service.create_catalog_vector_space_build(
+                    actor_user_id=arguments.actor_user_id,
+                    command=CatalogVectorSpaceBuildCommand(
+                        embedding_model="phase063-fake-embedding-v1",
+                        embedding_dimension=1024,
+                        adapter_version="phase063-eval",
+                        retrieval_version="retrieval-06-3-v1",
+                        reason=arguments.reason,
+                        confirm=True,
+                    ),
+                    command_key=arguments.idempotency_key,
+                )
+        except (AdminRoleChangeDenied, CatalogVectorSpaceBuildConflict, PermissionError) as error:
             return _denied(str(error))
 
-    print(f"admin role change recorded: {audit.id}")
+    if arguments.command == "vector-build":
+        print(f"{build.id} {build.vector_space_id}")
+    else:
+        print(f"admin role change recorded: {audit.id}")
     return 0
 
 
@@ -66,6 +84,10 @@ def _parser() -> argparse.ArgumentParser:
     promote.add_argument("--actor-email", required=True, help="verified active admin email")
     promote.add_argument("--email", required=True, help="existing target account email")
     promote.add_argument("--reason", required=True, help="non-empty audit reason")
+    build = commands.add_parser("vector-build", help="freeze the fixed Phase 06.3 vector build through AdminService")
+    build.add_argument("--actor-user-id", type=uuid.UUID, required=True)
+    build.add_argument("--reason", required=True)
+    build.add_argument("--idempotency-key", required=True)
     return parser
 
 
