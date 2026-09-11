@@ -614,9 +614,11 @@ class CatalogEmbeddingRetryCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     reason: str = Field(min_length=1, max_length=500)
-    idempotency_key: str = Field(min_length=1, max_length=160)
+    # HTTP owns the required Idempotency-Key header; this field is populated by
+    # the route before the service begins its replay-safe transaction.
+    idempotency_key: str = Field(default="", max_length=160)
 
-    @field_validator("reason", "idempotency_key")
+    @field_validator("reason")
     @classmethod
     def normalize_required_value(cls, value: str) -> str:
         normalized = value.strip()
@@ -656,6 +658,59 @@ class CatalogEmbeddingStatusResponse(BaseModel):
 
 class CatalogEmbeddingRetryResponse(CatalogEmbeddingStatusResponse):
     reset_count: int = Field(ge=0)
+
+
+class CatalogRelationEvidenceCommand(BaseModel):
+    """A version-bound relation assertion over two controlled catalog names."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source_publication_id: uuid.UUID
+    source_name_id: uuid.UUID
+    target_publication_id: uuid.UUID
+    target_name_id: uuid.UUID
+    relation: Literal[
+        "name_variant", "regional_preparation_variant", "same_category_food"
+    ]
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_relation_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class CatalogRelationEvidenceRevokeCommand(BaseModel):
+    """A bounded explanation for an append-only relation revocation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_relation_revoke_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class CatalogRelationEvidenceResponse(BaseModel):
+    """Safe relation evidence projection; controlled names and audit payload stay private."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: uuid.UUID
+    source_publication_id: uuid.UUID
+    target_publication_id: uuid.UUID
+    relation: Literal[
+        "name_variant", "regional_preparation_variant", "same_category_food"
+    ]
+    status: Literal["active", "revoked"]
 
 
 class AdminRunQuery(BaseModel):

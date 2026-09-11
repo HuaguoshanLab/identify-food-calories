@@ -23,6 +23,7 @@ from app.admin.models import (
 )
 from app.nutrition.search_models import (
     CatalogEmbeddingJob,
+    CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
 )
@@ -77,6 +78,9 @@ from app.admin.schemas import (
     CatalogEmbeddingRetryCommand,
     CatalogEmbeddingRetryResponse,
     CatalogEmbeddingStatusResponse,
+    CatalogRelationEvidenceCommand,
+    CatalogRelationEvidenceResponse,
+    CatalogRelationEvidenceRevokeCommand,
     RuntimeConfigCommand,
     RuntimeConfigResponse,
     RecipeCandidateBulkCommand,
@@ -108,6 +112,9 @@ class CatalogDraftConflict(ValueError):
 
 
 CatalogEmbeddingRetryConflict = CatalogDraftConflict
+
+
+CatalogRelationEvidenceConflict = CatalogDraftConflict
 
 
 RecipeCandidateConflict = CatalogDraftConflict
@@ -1317,6 +1324,117 @@ class AdminService:
             publication_id, reset_count=reset_count
         )
 
+    def create_catalog_relation_evidence(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        command: CatalogRelationEvidenceCommand,
+        command_key: str,
+    ) -> CatalogRelationEvidenceResponse:
+        """Append a controlled, version-bound relation without changing eligibility."""
+
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        normalized_key = command_key.strip()
+        existing = self._repository.get_catalog_relation_evidence_by_command_key(
+            normalized_key
+        )
+        if existing is not None:
+            if not self._relation_command_matches(existing, actor.id, command):
+                raise CatalogRelationEvidenceConflict(
+                    "idempotency key was reused for a different relation command"
+                )
+            return self._relation_evidence_response(existing)
+
+        source = self._repository.get_catalog_search_name_for_publication(
+            name_id=command.source_name_id,
+            publication_id=command.source_publication_id,
+        )
+        target = self._repository.get_catalog_search_name_for_publication(
+            name_id=command.target_name_id,
+            publication_id=command.target_publication_id,
+        )
+        if source is None or target is None:
+            raise KeyError("relation names must belong to their current publications")
+        if source.id == target.id:
+            raise CatalogRelationEvidenceConflict("relation endpoints must differ")
+
+        evidence = self._repository.add_catalog_relation_evidence(
+            CatalogSearchRelationEvidence(
+                id=uuid.uuid4(),
+                source_name_id=source.id,
+                target_name_id=target.id,
+                relation=command.relation,
+                status="active",
+                actor_identifier=str(actor.id),
+                reason=command.reason,
+                command_key=normalized_key,
+                occurred_at=self._now(),
+            )
+        )
+        self._record_relation_audit(
+            actor_identifier=str(actor.id),
+            evidence=evidence,
+            action="catalog.relation_evidence.create",
+            before={"status": None},
+            after={"status": "active", "relation": evidence.relation},
+        )
+        self._commit_catalog_mutation()
+        return self._relation_evidence_response(evidence)
+
+    def revoke_catalog_relation_evidence(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        evidence_id: uuid.UUID,
+        command: CatalogRelationEvidenceRevokeCommand,
+        command_key: str,
+    ) -> CatalogRelationEvidenceResponse:
+        """Append a revocation record; historical relationship evidence remains intact."""
+
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        normalized_key = command_key.strip()
+        previous = self._repository.get_catalog_relation_evidence(evidence_id)
+        if previous is None:
+            raise KeyError("catalog relation evidence not found")
+        existing = self._repository.get_catalog_relation_evidence_by_command_key(
+            normalized_key
+        )
+        if existing is not None:
+            if (
+                existing.status != "revoked"
+                or existing.actor_identifier != str(actor.id)
+                or existing.reason != command.reason
+                or existing.source_name_id != previous.source_name_id
+                or existing.target_name_id != previous.target_name_id
+                or existing.relation != previous.relation
+            ):
+                raise CatalogRelationEvidenceConflict(
+                    "idempotency key was reused for a different relation revocation"
+                )
+            return self._relation_evidence_response(existing)
+        evidence = self._repository.add_catalog_relation_evidence(
+            CatalogSearchRelationEvidence(
+                id=uuid.uuid4(),
+                source_name_id=previous.source_name_id,
+                target_name_id=previous.target_name_id,
+                relation=previous.relation,
+                status="revoked",
+                actor_identifier=str(actor.id),
+                reason=command.reason,
+                command_key=normalized_key,
+                occurred_at=self._now(),
+            )
+        )
+        self._record_relation_audit(
+            actor_identifier=str(actor.id),
+            evidence=evidence,
+            action="catalog.relation_evidence.revoke",
+            before={"status": previous.status, "evidence_id": str(previous.id)},
+            after={"status": "revoked", "evidence_id": str(evidence.id)},
+        )
+        self._commit_catalog_mutation()
+        return self._relation_evidence_response(evidence)
+
     def disqualify_catalog_publication(
         self,
         *,
@@ -1724,6 +1842,69 @@ class AdminService:
             failed_count=counts["failed_count"],
             completed_count=counts["completed_count"],
             jobs=[self._embedding_job_response(job) for job in jobs],
+        )
+
+    def _relation_evidence_response(
+        self, evidence: CatalogSearchRelationEvidence
+    ) -> CatalogRelationEvidenceResponse:
+        source = self._repository.get_catalog_search_name(evidence.source_name_id)
+        target = self._repository.get_catalog_search_name(evidence.target_name_id)
+        if source is None or target is None:
+            # FK RESTRICT makes this unreachable for correctly migrated production data.
+            raise CatalogRelationEvidenceConflict("relation evidence endpoints are missing")
+        return CatalogRelationEvidenceResponse(
+            id=evidence.id,
+            source_publication_id=source.publication_id,
+            target_publication_id=target.publication_id,
+            relation=cast(
+                Literal[
+                    "name_variant",
+                    "regional_preparation_variant",
+                    "same_category_food",
+                ],
+                evidence.relation,
+            ),
+            status=cast(Literal["active", "revoked"], evidence.status),
+        )
+
+    @staticmethod
+    def _relation_command_matches(
+        evidence: CatalogSearchRelationEvidence,
+        actor_id: uuid.UUID,
+        command: CatalogRelationEvidenceCommand,
+    ) -> bool:
+        return (
+            evidence.status == "active"
+            and evidence.actor_identifier == str(actor_id)
+            and evidence.source_name_id == command.source_name_id
+            and evidence.target_name_id == command.target_name_id
+            and evidence.relation == command.relation
+            and evidence.reason == command.reason
+        )
+
+    def _record_relation_audit(
+        self,
+        *,
+        actor_identifier: str,
+        evidence: CatalogSearchRelationEvidence,
+        action: str,
+        before: dict[str, object],
+        after: dict[str, object],
+    ) -> None:
+        self._repository.add_audit_event(
+            AdminAuditEvent(
+                id=uuid.uuid4(),
+                actor_identifier=actor_identifier,
+                occurred_at=evidence.occurred_at,
+                action=action,
+                object_type="catalog_relation_evidence",
+                object_id=str(evidence.id),
+                reason=evidence.reason,
+                before_diff=before,
+                after_diff=after,
+                related_version=str(evidence.id),
+                command_key=f"relation-audit-{evidence.command_key}",
+            )
         )
 
     def _catalog_embedding_retry_response(
