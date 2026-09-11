@@ -41,6 +41,8 @@ from app.admin.schemas import (
     CatalogEmbeddingRetryCommand,
     CatalogEmbeddingRetryResponse,
     CatalogEmbeddingStatusResponse,
+    CatalogVectorSpaceBuildCommand,
+    CatalogVectorSpaceBuildResponse,
     CatalogRelationEvidenceCommand,
     CatalogRelationEvidenceResponse,
     CatalogRelationEvidenceRevokeCommand,
@@ -61,6 +63,7 @@ from app.admin.service import (
     AdminService,
     CatalogDraftConflict,
     CatalogEmbeddingRetryConflict,
+    CatalogVectorSpaceBuildConflict,
     CatalogRelationEvidenceConflict,
     RecipeCandidateConflict,
     RuntimeConfigConflict,
@@ -743,6 +746,29 @@ def retry_catalog_embedding_jobs(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
     except CatalogEmbeddingRetryConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="embedding retry conflict") from error
+
+
+@router.post(
+    "/vector-space-builds",
+    response_model=CatalogVectorSpaceBuildResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_catalog_vector_space_build(
+    command: CatalogVectorSpaceBuildCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogVectorSpaceBuildResponse | JSONResponse:
+    """Freeze a recoverable backfill manifest; activation remains a later command."""
+
+    try:
+        return admin_service.create_catalog_vector_space_build(
+            actor_user_id=principal, command=command, command_key=idempotency_key
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogVectorSpaceBuildConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 @router.post(

@@ -26,6 +26,8 @@ from app.nutrition.search_models import (
     CatalogSearchRelationEvidence,
     CatalogSearchName,
     CatalogSearchVersion,
+    CatalogVectorSpace,
+    CatalogVectorSpaceBuild,
 )
 from app.agent.models import AgentInvocation, AgentRun, AgentRuntimeConfigVersion
 from app.agent.ports import RuntimeConfigAdmission
@@ -78,6 +80,8 @@ from app.admin.schemas import (
     CatalogEmbeddingRetryCommand,
     CatalogEmbeddingRetryResponse,
     CatalogEmbeddingStatusResponse,
+    CatalogVectorSpaceBuildCommand,
+    CatalogVectorSpaceBuildResponse,
     CatalogRelationEvidenceCommand,
     CatalogRelationEvidenceResponse,
     CatalogRelationEvidenceRevokeCommand,
@@ -112,6 +116,9 @@ class CatalogDraftConflict(ValueError):
 
 
 CatalogEmbeddingRetryConflict = CatalogDraftConflict
+
+
+CatalogVectorSpaceBuildConflict = CatalogDraftConflict
 
 
 CatalogRelationEvidenceConflict = CatalogDraftConflict
@@ -1243,6 +1250,116 @@ class AdminService:
         if self._repository.get_catalog_publication(publication_id) is None:
             raise KeyError("catalog publication not found")
         return self._catalog_embedding_status(publication_id)
+
+    def create_catalog_vector_space_build(
+        self,
+        *,
+        actor_user_id: uuid.UUID,
+        command: CatalogVectorSpaceBuildCommand,
+        command_key: str,
+    ) -> CatalogVectorSpaceBuildResponse:
+        """Freeze current eligible names before workers are allowed to spend provider cost.
+
+        The build is deliberately separate from activation and completion evidence:
+        this command can only snapshot and enqueue deterministic database work.
+        """
+
+        normalized_key = command_key.strip()
+        if not normalized_key:
+            raise CatalogVectorSpaceBuildConflict("an idempotency key is required")
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_catalog_vector_space_build_lock()
+        existing = self._repository.get_catalog_vector_space_build_by_command_key(normalized_key)
+        if existing is not None:
+            response = self._vector_space_build_response(existing)
+            space = self._repository.get_catalog_vector_space(
+                embedding_model=command.embedding_model,
+                embedding_dimension=command.embedding_dimension,
+                adapter_version=command.adapter_version,
+                retrieval_version=command.retrieval_version,
+            )
+            if (
+                space is None or existing.vector_space_id != space.id
+                or existing.requested_by != str(actor.id) or existing.reason != command.reason
+                or existing.retrieval_version != command.retrieval_version
+            ):
+                raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different vector-space build")
+            return response
+
+        space = self._repository.get_catalog_vector_space(
+            embedding_model=command.embedding_model,
+            embedding_dimension=command.embedding_dimension,
+            adapter_version=command.adapter_version,
+            retrieval_version=command.retrieval_version,
+        )
+        now = self._now()
+        if space is None:
+            space = self._repository.add_catalog_vector_space(CatalogVectorSpace(
+                id=uuid.uuid4(), embedding_model=command.embedding_model,
+                embedding_dimension=command.embedding_dimension,
+                adapter_version=command.adapter_version, retrieval_version=command.retrieval_version, created_at=now,
+            ))
+        names = self._repository.list_current_eligible_catalog_search_names()
+        manifest = [
+            {"publication_id": str(name.publication_id), "name_id": str(name.id),
+             "search_version_id": str(name.search_version_id), "name_kind": name.name_kind}
+            for name in names
+        ]
+        snapshot_hash = hashlib.sha256(
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        build = self._repository.add_catalog_vector_space_build(CatalogVectorSpaceBuild(
+            id=uuid.uuid4(), vector_space_id=space.id, requested_by=str(actor.id),
+            reason=command.reason, command_key=normalized_key, retrieval_version=command.retrieval_version, snapshot_manifest=manifest,
+            snapshot_hash=snapshot_hash, expected_name_count=len(names), requested_at=now,
+        ))
+        self._repository.add_catalog_embedding_jobs([
+            CatalogEmbeddingJob(
+                id=uuid.uuid4(), publication_id=name.publication_id, name_id=name.id,
+                vector_space_id=space.id, status="pending", attempt_count=0,
+                max_attempts=5, not_before=now, lease_owner=None, leased_at=None,
+                lease_expires_at=None, last_error_code=None, created_at=now, updated_at=now,
+            ) for name in names
+        ])
+        self._repository.add_audit_event(AdminAuditEvent(
+            id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+            action="catalog.vector_space_build.create", object_type="catalog_vector_space_build",
+            object_id=str(build.id), reason=command.reason, before_diff={},
+            after_diff={"vector_space_id": str(space.id), "expected_name_count": len(names),
+                        "snapshot_hash": snapshot_hash, "retrieval_version": command.retrieval_version},
+            related_version=command.retrieval_version, command_key=f"vector-space-build-audit:{normalized_key}",
+        ))
+        try:
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return self._vector_space_build_response(build)
+
+    def _vector_space_build_response(self, build: CatalogVectorSpaceBuild) -> CatalogVectorSpaceBuildResponse:
+        name_ids = [uuid.UUID(item["name_id"]) for item in build.snapshot_manifest]
+        jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(build.vector_space_id, name_ids=name_ids)
+        counts = self._embedding_job_counts(jobs)
+        status: Literal["pending", "processing", "partial_failure", "ready"]
+        if counts["failed_count"]:
+            status = "partial_failure"
+        elif counts["completed_count"] == build.expected_name_count:
+            status = "ready"
+        elif counts["processing_count"]:
+            status = "processing"
+        else:
+            status = "pending"
+        actual = self._repository.get_catalog_vector_space_by_id(build.vector_space_id)
+        if actual is None:  # pragma: no cover - FK integrity protects this in PostgreSQL
+            raise CatalogVectorSpaceBuildConflict("vector space is missing")
+        return CatalogVectorSpaceBuildResponse(
+            id=build.id, vector_space_id=build.vector_space_id,
+            embedding_model=actual.embedding_model, embedding_dimension=actual.embedding_dimension,
+            adapter_version=actual.adapter_version, retrieval_version=build.retrieval_version,
+            snapshot_hash=build.snapshot_hash, expected_name_count=build.expected_name_count,
+            pending_count=counts["pending_count"],
+            failed_count=counts["failed_count"], completed_count=counts["completed_count"], status=status,
+        )
 
     def retry_catalog_embedding_jobs(
         self,

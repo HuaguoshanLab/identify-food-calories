@@ -2,7 +2,7 @@
 
 ## 职责
 
-`app/admin/` 提供管理员 RBAC probe、数据库权威角色检查、账号/固定角色只读投影、受审计的管理员晋升/降权、显式首管理员 CLI、管理员审计、营养目录草稿命令、发布后的受控 embedding job 聚合/批量重试、版本化关系证据及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
+`app/admin/` 提供管理员 RBAC probe、数据库权威角色检查、账号/固定角色只读投影、受审计的管理员晋升/降权、显式首管理员 CLI、管理员审计、营养目录草稿命令、发布后的受控 embedding job 聚合/批量重试、不可变向量空间 build/backfill、版本化关系证据及成品菜候选管理。它不包含后台页面、用户 H5 路由或前端权限判断。
 
 ## 允许依赖
 
@@ -16,14 +16,18 @@
 |---|---|
 | `__init__.py` | Python 包标识 |
 | `models.py` | 角色提升、通用 append-only 审计、草稿/review/immutable publication、active pointer 与 eligibility history ORM 映射 |
-| `schemas.py` | probe、账号/角色/角色变更、最小审计 timeline、严格运行配置/草稿/生命周期命令、embedding job 安全 aggregate/retry 与版本化关系证据运行时契约 |
+| `schemas.py` | probe、账号/角色/角色变更、最小审计 timeline、严格运行配置/草稿/生命周期命令、embedding job 与向量空间 build 的安全运行时契约、版本化关系证据 |
 | `ports.py` | Service 所需 flush-only 草稿、review/publication、受控名称/job、候选目录引用、pointer 与最新 eligibility 持久化能力协议 |
-| `repository.py` | SQLAlchemy 查询、advisory lock、flush-only 审计、草稿/publication 生命周期、embedding job 与候选目录资格 adapter |
-| `service.py` | 数据库权威 RBAC、账号/角色查询、原子角色提升/降权、运行配置 optimistic version、命令审计、目录/候选生命周期及 publication-scoped embedding job retry 与 append-only 关系证据；不信任客户端 diff。 |
+| `repository.py` | SQLAlchemy 查询、advisory lock、flush-only 审计、草稿/publication 生命周期、embedding job、向量 build 快照与候选目录资格 adapter |
+| `service.py` | 数据库权威 RBAC、账号/角色查询、原子角色提升/降权、运行配置 optimistic version、命令审计、目录/候选生命周期及向量 build、publication-scoped embedding job retry 与 append-only 关系证据；不信任客户端 diff。 |
 | `api.py` | `/api/v1/admin/probe`、`/users`、`/roles`、`/runtime-config`、`/audit`、草稿生命周期及候选 CSV/批量操作 HTTP 翻译 |
 | `cli.py` | 显式管理员 bootstrap/promote 命令 |
 | `catalog_csv.py` | UTF-8 CSV 模板、500 条/1 MB 导入校验、错误行号与防公式执行导出；无 HTTP/数据库依赖 |
 | `recipe_csv.py` | 管理成品菜候选的中文 CSV 模板、500 条/1 MB 行级校验和防公式导出；无 HTTP/数据库依赖 |
+
+## 向量空间构建
+
+`POST /vector-space-builds` 只接受数据库重新确认的 `admin`。命令固定模型、1024 维度、adapter 和 retrieval 版本，要求原因、确认与 `Idempotency-Key`。Service 在 advisory lock 保护的单事务中冻结所有当前 eligible publication 的 canonical/controlled alias ID、publication/content version 清单，计算稳定 hash，创建唯一的空间/任务并写审计。安全响应只给出 identity、hash 和任务计数，绝不返回受控名称、向量或 provider 内容；同键重放不会扩大快照或重复入队。该路由不写 completion evidence，也绝不切换 active pointer——worker 和后续 activation 流程分别拥有这些职责。
 
 ## 目录列表与 CSV
 

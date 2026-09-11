@@ -185,10 +185,11 @@ def test_hybrid_food_search_schema_contract(db_session) -> None:
     assert db_session.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')"))
 
     space_columns = _columns(db_session, "catalog_vector_spaces")
-    assert {"id", "embedding_model", "embedding_dimension", "adapter_version"} <= space_columns.keys()
+    assert {"id", "embedding_model", "embedding_dimension", "adapter_version", "retrieval_version"} <= space_columns.keys()
     space_constraints = _constraint_definitions(db_session, "catalog_vector_spaces")
     assert "embedding_dimension = 1024" in space_constraints
-    assert "embedding_model" in space_constraints and "adapter_version" in space_constraints
+    assert "embedding_model" in space_constraints and "adapter_version" in space_constraints and "retrieval_version" in space_constraints
+    assert "UNIQUE (embedding_model, embedding_dimension, adapter_version, retrieval_version)" in space_constraints
 
     active_columns = _columns(db_session, "catalog_active_vector_spaces")
     assert {"pointer_key", "vector_space_id", "advanced_at"} <= active_columns.keys()
@@ -215,7 +216,7 @@ def test_hybrid_food_search_schema_contract(db_session) -> None:
     assert "WHERE" in _index_definitions(db_session, "catalog_embedding_jobs")
 
     build_columns = _columns(db_session, "catalog_vector_space_builds")
-    assert {"vector_space_id", "requested_by", "reason", "command_key", "snapshot_manifest", "snapshot_hash", "expected_name_count"} <= build_columns.keys()
+    assert {"vector_space_id", "requested_by", "reason", "command_key", "retrieval_version", "snapshot_manifest", "snapshot_hash", "expected_name_count"} <= build_columns.keys()
     completion_columns = _columns(db_session, "catalog_vector_space_build_completions")
     assert {"build_id", "completed_at", "completed_name_count", "completion_hash"} <= completion_columns.keys()
     completion_constraints = _constraint_definitions(db_session, "catalog_vector_space_build_completions")

@@ -11,14 +11,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.schemas import CatalogDraftCreateCommand, CatalogEmbeddingRetryCommand, CatalogLifecycleCommand
-from app.admin.service import AdminService
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogEmbeddingRetryCommand, CatalogLifecycleCommand, CatalogVectorSpaceBuildCommand
+from app.admin.service import AdminPermissionDenied, AdminService
 from app.auth.models import User, UserRole
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogEmbeddingJob,
     CatalogSearchName,
     CatalogVectorSpace,
+    CatalogVectorSpaceBuild,
+    CatalogVectorSpaceBuildCompletion,
 )
 
 
@@ -91,6 +93,7 @@ def _install_active_space(session: Session, now: datetime) -> CatalogVectorSpace
         embedding_model="text-embedding-v4",
         embedding_dimension=1024,
         adapter_version="v1",
+        retrieval_version="hybrid-v1",
         created_at=now,
     )
     session.add(space)
@@ -228,3 +231,58 @@ def test_publication_retry_is_idempotent_for_partial_failure_and_concurrent_requ
         assert [row.status for row in rows].count("pending") == 1
         assert [row.status for row in rows].count("completed") == 1
         assert [row.status for row in rows].count("failed") == 1
+
+
+def test_vector_space_build_snapshots_current_eligible_names_and_replays_without_completion(db_session) -> None:
+    now = datetime.now(UTC)
+    actor = _actor(now)
+    user = User(
+        id=uuid.uuid4(), email=f"ordinary-{uuid.uuid4().hex}@example.test", password_hash="hash",
+        role=UserRole.USER.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now,
+    )
+    db_session.add_all([actor, user])
+    db_session.flush()
+    service = AdminService(
+        repository=SqlAlchemyAdminRepository(db_session), now=lambda: now,
+        commit=db_session.commit, rollback=db_session.rollback,
+    )
+    publication_id, _, _ = _publish(service, actor.id)
+    command = CatalogVectorSpaceBuildCommand(
+        embedding_model="text-embedding-v4", embedding_dimension=1024, adapter_version="v2",
+        retrieval_version="hybrid-v1", reason="controlled catalog backfill", confirm=True,
+    )
+    build = service.create_catalog_vector_space_build(
+        actor_user_id=actor.id, command=command, command_key="vector-space-build-pg-0001",
+    )
+    replay = service.create_catalog_vector_space_build(
+        actor_user_id=actor.id, command=command, command_key="vector-space-build-pg-0001",
+    )
+    assert replay.model_dump() == build.model_dump()
+    assert build.expected_name_count >= 3
+    assert build.pending_count == build.expected_name_count
+    assert build.status == "pending"
+    stored = db_session.scalar(select(CatalogVectorSpaceBuild).where(CatalogVectorSpaceBuild.id == build.id))
+    assert stored is not None
+    assert len(stored.snapshot_manifest) == build.expected_name_count
+    assert sum(item["publication_id"] == str(publication_id) for item in stored.snapshot_manifest) == 3
+    assert len(set(item["name_id"] for item in stored.snapshot_manifest)) == build.expected_name_count
+    assert db_session.scalar(select(CatalogVectorSpaceBuildCompletion).where(CatalogVectorSpaceBuildCompletion.build_id == build.id)) is None
+    assert db_session.scalar(
+        select(CatalogActiveVectorSpace).where(
+            CatalogActiveVectorSpace.vector_space_id == build.vector_space_id
+        )
+    ) is None
+    assert len(list(db_session.scalars(select(CatalogEmbeddingJob).where(CatalogEmbeddingJob.vector_space_id == build.vector_space_id)))) == build.expected_name_count
+    separate = service.create_catalog_vector_space_build(
+        actor_user_id=actor.id,
+        command=command.model_copy(update={"retrieval_version": "hybrid-v2"}),
+        command_key="vector-space-build-pg-0003",
+    )
+    assert separate.vector_space_id != build.vector_space_id
+    assert separate.retrieval_version == "hybrid-v2"
+    try:
+        service.create_catalog_vector_space_build(actor_user_id=user.id, command=command, command_key="vector-space-build-pg-0002")
+    except AdminPermissionDenied:
+        pass
+    else:  # pragma: no cover - guard is the assertion
+        raise AssertionError("ordinary user unexpectedly started a provider-costing build")
