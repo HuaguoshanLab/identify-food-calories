@@ -2,7 +2,7 @@
 
 ## 职责
 
-`phase_06_3/` 保存混合菜品检索的版本化、合成且可复算的冻结案例。它在检索实现之前锁定唯一精确 `PASS`、非精确 `ASK`、资格拒绝和故障降级的输入合同；不保存真实用户或 Provider 内容。
+`phase_06_3/` 保存混合菜品检索的版本化、合成且可复算的冻结案例。它在检索实现之前锁定唯一精确 `PASS`、非精确 `ASK`、资格拒绝和故障降级的输入合同；每案还比较 direct Tool、餐食分析图与饮食规划图的安全检索投影（动作、选中 ID、候选 ID 顺序和固定关系默认值），三者不一致即使调用次数相同也会使 release 失败。不保存真实用户或 Provider 内容。
 
 ## 允许依赖
 
@@ -15,7 +15,7 @@
 | 文件 | 职责 |
 |---|---|
 | `cases.jsonl` | 24 条以上的合成、顺序固定、hash 链绑定的检索案例。 |
-| `evaluate.py` | 严格校验 schema、顺序、类别覆盖、隐私 allowlist 与 hash 链的离线 loader。 |
+| `evaluate.py` | 严格校验 schema、顺序、类别覆盖、隐私 allowlist、hash 链和三入口检索语义一致性的离线 runner。 |
 | `activate.py` | 受控激活入口；actor UUID 或本地 email lookup 二选一，后者只解析 UUID；目标/原因/幂等键和 release 路径均由服务重新校验权限与证据。 |
 | `langfuse_publish.py` | 默认不运行的本地实验镜像；仅在 `--publish-langfuse` 下验证完整 PASS release 后导出严格 allowlist 投影。 |
 | `langfuse_retention.py` | 仅手工执行的 UTC 30 天详细实验 trace 删除与异步回查；结果只写 stdout JSON。 |
