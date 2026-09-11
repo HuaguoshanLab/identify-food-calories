@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import hashlib
+import json
 import threading
 import uuid
 
@@ -18,6 +20,7 @@ from app.auth.models import User, UserRole
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogEmbeddingJob,
+    CatalogSearchEmbedding,
     CatalogSearchName,
     CatalogVectorSpace,
     CatalogVectorSpaceBuild,
@@ -413,16 +416,52 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
             repository=SqlAlchemyAdminRepository(session), now=lambda: now,
             commit=session.commit, rollback=session.rollback,
         )
-        _publish(service, actor_id)
-        build = service.create_catalog_vector_space_build(
-            actor_user_id=actor_id,
-            command=CatalogVectorSpaceBuildCommand(
-                embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024,
-                adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1",
-                reason="activate tested frozen release", confirm=True,
-            ),
-            command_key=f"activation-build-{actor_id.hex}",
+        publication_id, _, _ = _publish(service, actor_id)
+        space = session.scalar(select(CatalogVectorSpace).where(
+            CatalogVectorSpace.embedding_model == "phase063-fake-embedding-v1",
+            CatalogVectorSpace.embedding_dimension == 1024,
+            CatalogVectorSpace.adapter_version == "phase063-eval",
+            CatalogVectorSpace.retrieval_version == "retrieval-06-3-v1",
+        ))
+        if space is None:
+            space = CatalogVectorSpace(
+                id=uuid.uuid4(), embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024,
+                adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1", created_at=now,
+            )
+            session.add(space)
+            session.flush()
+        names = list(session.scalars(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication_id)))
+        manifest = [
+            {"publication_id": str(name.publication_id), "name_id": str(name.id),
+             "search_version_id": str(name.search_version_id), "name_kind": name.name_kind}
+            for name in names
+        ]
+        snapshot_hash = hashlib.sha256(
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        build = CatalogVectorSpaceBuild(
+            id=uuid.uuid4(), vector_space_id=space.id, requested_by=str(actor_id),
+            reason="activation tested frozen release", command_key=f"activation-build-{actor_id.hex}",
+            retrieval_version="retrieval-06-3-v1", snapshot_manifest=manifest,
+            snapshot_hash=snapshot_hash, expected_name_count=len(manifest), requested_at=now,
         )
+        session.add(build)
+        session.add_all([
+            CatalogEmbeddingJob(
+                id=uuid.uuid4(), publication_id=name.publication_id, name_id=name.id,
+                vector_space_id=space.id, status="completed", attempt_count=1, max_attempts=5,
+                not_before=now, lease_owner=None, leased_at=None, lease_expires_at=None,
+                last_error_code=None, created_at=now, updated_at=now,
+            ) for name in names
+        ])
+        build_id = build.id
+        vector_space_id = space.id
+        session.add_all([
+            CatalogSearchEmbedding(
+                id=uuid.uuid4(), publication_id=name.publication_id, name_id=name.id,
+                vector_space_id=space.id, embedding=list(_vector()), status="ready", created_at=now,
+            ) for name in names
+        ])
         previous = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
         assert previous is not None
         previous_id = previous.vector_space_id
@@ -435,12 +474,12 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
         )
         with pytest.raises(AdminPermissionDenied):
             service.activate_vector_space(
-                actor_user_id=uuid.uuid4(), vector_space_id=build.vector_space_id, build_id=build.id,
+                actor_user_id=uuid.uuid4(), vector_space_id=vector_space_id, build_id=build_id,
                 reason="unknown actor", command_key=f"activation-unknown-{actor_id.hex}",
             )
         with pytest.raises(CatalogVectorSpaceActivationConflict):
             service.activate_vector_space(
-                actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+                actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
                 reason="incomplete build", command_key=f"activation-incomplete-{actor_id.hex}",
             )
         pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
@@ -448,15 +487,12 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
         session.rollback()
 
     provider = FakeEmbeddingProvider()
-    for _ in range(build.expected_name_count):
-        provider.queue_result((_vector(),))
     worker = CatalogEmbeddingWorker(
         session_factory=lambda: Session(test_engine), provider=provider,
-        worker_id="activation-worker", vector_space_id=build.vector_space_id, now=lambda: now,
+        worker_id="activation-worker", vector_space_id=vector_space_id, build_id=build_id, now=lambda: now,
     )
-    outcomes = [worker.run_once() for _ in range(build.expected_name_count)]
-    assert all(outcome in {"completed", "idle"} for outcome in outcomes)
     assert worker.run_once() == "idle"
+    assert provider.calls == []
 
     with Session(test_engine) as session:
         service = AdminService(
@@ -464,19 +500,19 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
             commit=session.commit, rollback=session.rollback,
         )
         approval = service.activate_vector_space(
-            actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+            actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
             reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
         )
         replay = service.activate_vector_space(
-            actor_user_id=actor_id, vector_space_id=build.vector_space_id, build_id=build.id,
+            actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
             reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
         )
         assert replay.id == approval.id
         pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
-        assert pointer is not None and pointer.vector_space_id == build.vector_space_id
+        assert pointer is not None and pointer.vector_space_id == vector_space_id
         assert pointer.vector_space_id != previous_id
         stored = session.scalar(select(CatalogVectorSpaceActivationApproval).where(CatalogVectorSpaceActivationApproval.id == approval.id))
-        assert stored is not None and stored.build_id == build.id
+        assert stored is not None and stored.build_id == build_id
         assert len(list(session.scalars(select(CatalogVectorSpaceActivationApproval).where(
             CatalogVectorSpaceActivationApproval.command_key == f"activation-pg-{actor_id.hex}"
         )))) == 1
