@@ -103,12 +103,18 @@ class NutritionService:
         except asyncio.TimeoutError:
             fallback_code = "embedding_timeout"
         except ProviderCallError as error:
-            if error.kind not in {
+            # An un-scripted Fake is the local/test-safe "semantic unavailable"
+            # sentinel.  Do not broaden this exception: a real provider rejection
+            # must remain fail-closed rather than being silently hidden as search.
+            if error.code == "FAKE_UNSCRIPTED_CALL":
+                fallback_code = "semantic_unavailable"
+            elif error.kind not in {
                 ProviderFailureKind.TRANSIENT,
                 ProviderFailureKind.OUTCOME_UNKNOWN,
             }:
                 raise
-            fallback_code = "embedding_unavailable"
+            else:
+                fallback_code = "embedding_unavailable"
         except (ConnectionError, ValueError):
             fallback_code = "semantic_unavailable"
 
