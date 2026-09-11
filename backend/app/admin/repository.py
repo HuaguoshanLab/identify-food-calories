@@ -394,11 +394,12 @@ class SqlAlchemyAdminRepository:
     def acquire_catalog_vector_space_build_lock(self) -> None:
         self._session.execute(text("SELECT pg_advisory_xact_lock(63021021)"))
 
-    def get_catalog_vector_space(self, *, embedding_model: str, embedding_dimension: int, adapter_version: str) -> CatalogVectorSpace | None:
+    def get_catalog_vector_space(self, *, embedding_model: str, embedding_dimension: int, adapter_version: str, retrieval_version: str) -> CatalogVectorSpace | None:
         return self._session.scalar(select(CatalogVectorSpace).where(
             CatalogVectorSpace.embedding_model == embedding_model,
             CatalogVectorSpace.embedding_dimension == embedding_dimension,
             CatalogVectorSpace.adapter_version == adapter_version,
+            CatalogVectorSpace.retrieval_version == retrieval_version,
         ))
 
     def get_catalog_vector_space_by_id(self, vector_space_id: uuid.UUID) -> CatalogVectorSpace | None:

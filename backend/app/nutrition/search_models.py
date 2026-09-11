@@ -29,16 +29,18 @@ class CatalogVectorSpace(Base):
 
     __tablename__ = "catalog_vector_spaces"
     __table_args__ = (
-        UniqueConstraint("embedding_model", "embedding_dimension", "adapter_version", name="uq_catalog_vector_spaces_identity"),
+        UniqueConstraint("embedding_model", "embedding_dimension", "adapter_version", "retrieval_version", name="uq_catalog_vector_spaces_identity"),
         CheckConstraint("embedding_dimension = 1024", name="ck_catalog_vector_spaces_dimension"),
         CheckConstraint("embedding_model = btrim(embedding_model) AND embedding_model <> ''", name="ck_catalog_vector_spaces_model"),
         CheckConstraint("adapter_version = btrim(adapter_version) AND adapter_version <> ''", name="ck_catalog_vector_spaces_adapter"),
+        CheckConstraint("retrieval_version = btrim(retrieval_version) AND retrieval_version <> ''", name="ck_catalog_vector_spaces_retrieval"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     embedding_model: Mapped[str] = mapped_column(String(120), nullable=False)
     embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
     adapter_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    retrieval_version: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -150,6 +152,7 @@ class CatalogVectorSpaceBuild(Base):
     requested_by: Mapped[str] = mapped_column(String(320), nullable=False)
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
     command_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    retrieval_version: Mapped[str] = mapped_column(String(80), nullable=False)
     snapshot_manifest: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False)
     snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expected_name_count: Mapped[int] = mapped_column(Integer, nullable=False)

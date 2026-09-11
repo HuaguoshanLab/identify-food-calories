@@ -93,6 +93,7 @@ def _install_active_space(session: Session, now: datetime) -> CatalogVectorSpace
         embedding_model="text-embedding-v4",
         embedding_dimension=1024,
         adapter_version="v1",
+        retrieval_version="hybrid-v1",
         created_at=now,
     )
     session.add(space)
@@ -272,6 +273,13 @@ def test_vector_space_build_snapshots_current_eligible_names_and_replays_without
         )
     ) is None
     assert len(list(db_session.scalars(select(CatalogEmbeddingJob).where(CatalogEmbeddingJob.vector_space_id == build.vector_space_id)))) == build.expected_name_count
+    separate = service.create_catalog_vector_space_build(
+        actor_user_id=actor.id,
+        command=command.model_copy(update={"retrieval_version": "hybrid-v2"}),
+        command_key="vector-space-build-pg-0003",
+    )
+    assert separate.vector_space_id != build.vector_space_id
+    assert separate.retrieval_version == "hybrid-v2"
     try:
         service.create_catalog_vector_space_build(actor_user_id=user.id, command=command, command_key="vector-space-build-pg-0002")
     except AdminPermissionDenied:

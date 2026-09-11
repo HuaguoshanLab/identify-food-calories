@@ -1271,19 +1271,17 @@ class AdminService:
         self._repository.acquire_catalog_vector_space_build_lock()
         existing = self._repository.get_catalog_vector_space_build_by_command_key(normalized_key)
         if existing is not None:
-            response = self._vector_space_build_response(existing, command.retrieval_version)
+            response = self._vector_space_build_response(existing)
             space = self._repository.get_catalog_vector_space(
                 embedding_model=command.embedding_model,
                 embedding_dimension=command.embedding_dimension,
                 adapter_version=command.adapter_version,
-            )
-            audit = self._repository.get_audit_event_by_command_key(
-                f"vector-space-build-audit:{normalized_key}"
+                retrieval_version=command.retrieval_version,
             )
             if (
                 space is None or existing.vector_space_id != space.id
                 or existing.requested_by != str(actor.id) or existing.reason != command.reason
-                or audit is None or audit.related_version != command.retrieval_version
+                or existing.retrieval_version != command.retrieval_version
             ):
                 raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different vector-space build")
             return response
@@ -1292,13 +1290,14 @@ class AdminService:
             embedding_model=command.embedding_model,
             embedding_dimension=command.embedding_dimension,
             adapter_version=command.adapter_version,
+            retrieval_version=command.retrieval_version,
         )
         now = self._now()
         if space is None:
             space = self._repository.add_catalog_vector_space(CatalogVectorSpace(
                 id=uuid.uuid4(), embedding_model=command.embedding_model,
                 embedding_dimension=command.embedding_dimension,
-                adapter_version=command.adapter_version, created_at=now,
+                adapter_version=command.adapter_version, retrieval_version=command.retrieval_version, created_at=now,
             ))
         names = self._repository.list_current_eligible_catalog_search_names()
         manifest = [
@@ -1311,7 +1310,7 @@ class AdminService:
         ).hexdigest()
         build = self._repository.add_catalog_vector_space_build(CatalogVectorSpaceBuild(
             id=uuid.uuid4(), vector_space_id=space.id, requested_by=str(actor.id),
-            reason=command.reason, command_key=normalized_key, snapshot_manifest=manifest,
+            reason=command.reason, command_key=normalized_key, retrieval_version=command.retrieval_version, snapshot_manifest=manifest,
             snapshot_hash=snapshot_hash, expected_name_count=len(names), requested_at=now,
         ))
         self._repository.add_catalog_embedding_jobs([
@@ -1335,9 +1334,9 @@ class AdminService:
         except Exception:
             self._rollback()
             raise
-        return self._vector_space_build_response(build, command.retrieval_version)
+        return self._vector_space_build_response(build)
 
-    def _vector_space_build_response(self, build: CatalogVectorSpaceBuild, retrieval_version: str) -> CatalogVectorSpaceBuildResponse:
+    def _vector_space_build_response(self, build: CatalogVectorSpaceBuild) -> CatalogVectorSpaceBuildResponse:
         name_ids = [uuid.UUID(item["name_id"]) for item in build.snapshot_manifest]
         jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(build.vector_space_id, name_ids=name_ids)
         counts = self._embedding_job_counts(jobs)
@@ -1356,7 +1355,7 @@ class AdminService:
         return CatalogVectorSpaceBuildResponse(
             id=build.id, vector_space_id=build.vector_space_id,
             embedding_model=actual.embedding_model, embedding_dimension=actual.embedding_dimension,
-            adapter_version=actual.adapter_version, retrieval_version=retrieval_version,
+            adapter_version=actual.adapter_version, retrieval_version=build.retrieval_version,
             snapshot_hash=build.snapshot_hash, expected_name_count=build.expected_name_count,
             pending_count=counts["pending_count"],
             failed_count=counts["failed_count"], completed_count=counts["completed_count"], status=status,

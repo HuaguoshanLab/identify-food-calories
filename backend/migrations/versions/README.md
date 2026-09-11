@@ -37,3 +37,4 @@
 
 - `0021_diet_plans.py`：独立日计划与版本快照、用户日期及运行去重约束。
 - `0025_hybrid_food_search.py`：`pg_trgm`、内容派生搜索版本、隔离的 1024 维 vector-space、受控关系证据、有限租约 job，以及 build/activation 不可变审计证据。
+- `0026_vector_space_retrieval_identity.py`：将 retrieval version 作为非空、可回滚的 vector-space/build 身份字段；既有 0025 数据明确回填为当时唯一部署的 `hybrid-v1`，再将 identity unique 扩展为 model/dimension/adapter/retrieval。
