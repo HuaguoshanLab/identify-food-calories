@@ -105,6 +105,25 @@ def test_evaluator_exposes_hash_bound_real_postgresql_release_contract() -> None
     assert hasattr(evaluate, "verify_release")
 
 
+def test_admin_activation_reuses_strict_evaluator_release_contract() -> None:
+    """Admin activation must accept the evaluator's current hash-bound version.
+
+    The service deliberately delegates schema, evaluator-version, and source-hash
+    checks to ``verify_release`` so a future evaluator version cannot leave a
+    stale, weaker copy in the activation path.
+    """
+
+    from app.admin.service import AdminService
+    from evals.phase_06_3.evaluate import RELEASE_SCHEMA_VERSION
+
+    release = AdminService._load_phase063_release(
+        object(), BACKEND_ROOT / "evals/phase_06_3/release.json"
+    )
+
+    assert release["schema_version"] == RELEASE_SCHEMA_VERSION
+    assert release["decision"] == "PASS"
+
+
 def test_release_verification_rejects_any_hash_or_metric_tampering(tmp_path: Path) -> None:
     from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
 
