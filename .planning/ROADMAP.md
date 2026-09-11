@@ -327,6 +327,46 @@ Plans:
 4. 管理员可查看模型运行、失败节点、工具耗时和费用，不暴露原图、密钥或思维链。
 5. README 包含最终架构图、状态图、时序图、调试方式和面试深挖题。
 
+### Phase 06.3: 混合菜品检索：精确别名、模糊文本与 pgvector 语义召回，安全返回受控候选 (INSERTED)
+
+**Goal:** 受控菜品目录以唯一 canonical/alias 精确匹配优先；无唯一精确结果时，通过确定性 PostgreSQL 模糊文本与隔离的 pgvector 语义空间召回最多 3 个当前合格、版本明确、可解释的候选，并在餐食分析和饮食规划中一律要求确认；语义故障安全降级，异步索引可审计，最终发布结论只由冻结确定性评测产生。
+**Requirements**: HFS-01, HFS-02, HFS-03, HFS-04, HFS-05, HFS-06, HFS-07, HFS-08, HFS-09
+**Depends on:** Phase 6
+**Plans:** 21 plans
+
+Plans:
+- [ ] 06.3-01-PLAN.md — 锁定 pgvector 与 dev-only Langfuse 供应链依赖
+- [ ] 06.3-02-PLAN.md — 建立严格 1024 维 Embedding DTO、Protocol 与离线 Fake
+- [ ] 06.3-03-PLAN.md — 接入 DashScope Adapter、Provider 配置与安全工厂
+- [ ] 06.3-04-PLAN.md — 建立 pg_trgm、关系证据、向量构建快照与激活证据 schema
+- [ ] 06.3-05-PLAN.md — 锁定唯一精确、非精确 ASK、关系分层与安全 discriminator DTO
+- [ ] 06.3-06-PLAN.md — 实现共享 current-qualified exact/trigram/pgvector 查询与当前版本关系证据投影
+- [ ] 06.3-07-PLAN.md — 扩展 NutritionService 精确短路、安全降级与 Phoenix 最小化追踪
+- [ ] 06.3-08-PLAN.md — 实现 publication aggregate、多 job 状态和幂等批量重试合同
+- [ ] 06.3-09-PLAN.md — 暴露 DB-RBAC 聚合状态、批量重试与版本化关系证据管理 API
+- [ ] 06.3-10-PLAN.md — 对 Plan 21 不可变快照执行有限租约索引并写独立完成证据
+- [ ] 06.3-11-PLAN.md — 将索引 Worker 接入受监督 FastAPI lifespan
+- [ ] 06.3-12-PLAN.md — 在现有后台目录页显示聚合/job 状态并批量重试
+- [ ] 06.3-13-PLAN.md — 接入共享异步 Tool、安全 State 与单例 Phoenix runtime 生命周期
+- [ ] 06.3-14-PLAN.md — 实现双图一致 ASK、clarification、resume 与 parity
+- [ ] 06.3-15-PLAN.md — 冻结 24+ 合成案例及严格 hash/隐私合同
+- [ ] 06.3-16-PLAN.md — 通过真实 PostgreSQL 与双 Graph 入口生成确定性发布报告
+- [ ] 06.3-17-PLAN.md — 校验 Plan 21 快照和 Plan 10 完成证据后原子激活目标空间
+- [ ] 06.3-18-PLAN.md — 接入隔离 Compose 与显式 allowlist Langfuse 镜像
+- [ ] 06.3-19-PLAN.md — 实现 30 天对称清理与临时 stdout/JSON purge 报告
+- [ ] 06.3-20-PLAN.md — 完成中文教学、真实 Playwright 门禁和内置浏览器验收
+- [ ] 06.3-21-PLAN.md — 建立管理员专用、快照绑定且可恢复的向量空间构建命令
+
+**Success Criteria:**
+
+1. 唯一当前合格 canonical/alias 精确查询（包括“米饭”）只选择对应条目并直接 `PASS`；任何文本或向量非精确结果均为 `ASK`，绝不自动选择。
+2. 无唯一精确结果时最多返回 3 个无重复、可靠且关系标签可理解的当前合格候选；五个锁定相关表达的目标进入 Top 3，不要求第一，不以低质量候选凑数。
+3. 餐食分析与饮食规划通过同一 Tool/Service 对相同查询产生相同候选顺序、关系标签和 `PASS/ASK`，确认后按 `food_id + catalog_version` 权威重读。
+4. 精确、模糊文本和向量通道都实时排除失格、撤销、旧版本和不可计算条目；不同模型/维度的向量空间不能混搜，新空间仅在完整索引且冻结评测通过后原子切换。
+5. Embedding/向量查询故障不影响唯一精确或文本 `ASK`；发布立即让精确/文本生效，索引任务有限重试，管理员状态/重试由后端 RBAC、幂等键和审计保护。
+6. Git 中至少 24 条去标识化冻结案例产生可复现 PASS/FAIL，`exact_match_precision=1.0`、`non_exact_auto_select_count=0`、锁定 `top3_recall=1.0`、`ineligible_leak_count=0`、`fallback_success=1.0`、`deterministic_order=1.0`、双流程 parity `=1.0`。
+7. Phoenix 继续承担生产最小化追踪；本地 Langfuse 只通过独立 Compose 和显式 `--publish-langfuse` 镜像安全字段，成功/失败记录同等保留 30 天，离线或未配置时不改变确定性验收。
+
 ### Phase 06.2: System Admin：系统管理与角色治理 (INSERTED)
 
 **Goal:** 管理员可在独立后台查看账号、审计地授予或撤销管理员角色，并清楚理解现有固定角色的权限边界。
