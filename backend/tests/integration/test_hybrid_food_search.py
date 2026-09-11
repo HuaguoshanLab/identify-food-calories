@@ -20,6 +20,7 @@ from app.nutrition.search_models import (
     CatalogSearchEmbedding,
     CatalogSearchName,
     CatalogSearchVersion,
+    CatalogVectorSpace,
 )
 
 
@@ -83,6 +84,47 @@ def _index_name(db_session, publication: CatalogPublication, normalized_name: st
     return name
 
 
+def _install_active_vector_space(db_session) -> CatalogVectorSpace:
+    """Arrange the independently-approved retrieval precondition for vector SQL.
+
+    Fresh application initialization intentionally has no active vector pointer:
+    activation requires a completed immutable build plus frozen release evidence.
+    This retrieval-focused test therefore creates only the derived active-space
+    fixture; activation proof itself belongs to ``test_catalog_embedding_jobs``.
+    """
+
+    existing = db_session.scalar(
+        select(CatalogVectorSpace)
+        .join(
+            CatalogActiveVectorSpace,
+            CatalogActiveVectorSpace.vector_space_id == CatalogVectorSpace.id,
+        )
+        .where(CatalogActiveVectorSpace.pointer_key == "catalog")
+    )
+    if existing is not None:
+        return existing
+    now = datetime.now(UTC)
+    space = CatalogVectorSpace(
+        id=uuid.uuid4(),
+        embedding_model="test-hybrid-embedding",
+        embedding_dimension=1024,
+        adapter_version="test-v1",
+        retrieval_version="hybrid-v1",
+        created_at=now,
+    )
+    db_session.add(space)
+    db_session.flush()
+    db_session.add(
+        CatalogActiveVectorSpace(
+            pointer_key="catalog",
+            vector_space_id=space.id,
+            advanced_at=now,
+        )
+    )
+    db_session.flush()
+    return space
+
+
 def test_hybrid_search_repository_exposes_an_authoritative_adapter() -> None:
     """Plan 06 owns the real-PostgreSQL retrieval adapter, not a service-side fallback."""
 
@@ -141,12 +183,9 @@ def test_text_and_vector_candidates_only_read_current_eligible_index_rows(db_ses
     name_value = f"番茄炒蛋-{uuid.uuid4().hex}"
     publication = _publish(db_session, canonical_name=name_value, aliases=["西红柿炒鸡蛋"])
     name = _index_name(db_session, publication, name_value)
-    active_space = db_session.scalar(
-        select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog")
-    )
-    assert active_space is not None
+    active_space = _install_active_vector_space(db_session)
     db_session.add(CatalogSearchEmbedding(
-        publication_id=publication.id, name_id=name.id, vector_space_id=active_space.vector_space_id,
+        publication_id=publication.id, name_id=name.id, vector_space_id=active_space.id,
         embedding=[1.0, *([0.0] * 1023)], status="ready", created_at=datetime.now(UTC),
     ))
     db_session.flush()
