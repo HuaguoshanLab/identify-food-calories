@@ -59,6 +59,22 @@ def _release_copy(tmp_path: Path) -> Path:
     return destination
 
 
+def _write_rehashed_release(path: Path, payload: dict[str, object]) -> None:
+    evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
+    payload["evidence_hash"] = hashlib.sha256(
+        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _make_contract_fail(payload: dict[str, object]) -> None:
+    payload["decision"] = "FAIL"
+    payload["cases"][0]["assertions"]["action"] = False
+    payload["metrics"]["action_pass_rate"] = round(
+        sum(case["assertions"]["action"] for case in payload["cases"]) / len(payload["cases"]), 4
+    )
+
+
 def _all_values(value: object) -> list[str]:
     if isinstance(value, dict):
         return [*map(str, value.keys()), *[item for nested in value.values() for item in _all_values(nested)]]
@@ -70,12 +86,8 @@ def _all_values(value: object) -> list[str]:
 def test_publish_mirrors_pass_and_fail_cases_with_only_safe_projection(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
-    payload["cases"][0]["action"] = "FAIL"
-    evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
-    payload["evidence_hash"] = hashlib.sha256(
-        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    release.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _make_contract_fail(payload)
+    _write_rehashed_release(release, payload)
     original = release.read_bytes()
     client = _FakeLangfuse()
 
@@ -90,7 +102,8 @@ def test_publish_mirrors_pass_and_fail_cases_with_only_safe_projection(tmp_path:
     assert len(client.scores) == sum(
         len(case["assertions"]) for case in payload["cases"]
     )
-    assert {"PASS", "FAIL"} <= {payload["metadata"]["action"] for payload, _ in client.observations}
+    assert {"PASS", "ASK"} <= {payload["metadata"]["action"] for payload, _ in client.observations}
+    assert "FAIL" in {score["value"] for score in client.scores}
     exported = _all_values(client.observations) + _all_values(client.scores)
     # Safe aggregate score names may contain words such as ``meal_graph``; this
     # assertion instead proves no human payload from the frozen report leaks.
@@ -128,12 +141,8 @@ def test_publish_rejects_sensitive_or_unknown_fields_before_client_creation(tmp_
 def test_publish_mirrors_hash_bound_fail_release_and_preserves_report_bytes(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
-    payload["decision"] = "FAIL"
-    evidence = {key: value for key, value in payload.items() if key != "evidence_hash"}
-    payload["evidence_hash"] = hashlib.sha256(
-        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    release.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    _make_contract_fail(payload)
+    _write_rehashed_release(release, payload)
     original = release.read_bytes()
 
     client = _FakeLangfuse()
@@ -142,6 +151,27 @@ def test_publish_mirrors_hash_bound_fail_release_and_preserves_report_bytes(tmp_
     assert release.read_bytes() == original
     assert result.published_cases == 24
     assert all(payload["metadata"]["release_decision"] == "FAIL" for payload, _ in client.observations)
+
+
+def test_publish_rejects_rehashed_pass_with_false_assertion_before_client_creation(tmp_path: Path) -> None:
+    release = _release_copy(tmp_path)
+    payload = json.loads(release.read_text(encoding="utf-8"))
+    payload["cases"][0]["assertions"]["action"] = False
+    payload["metrics"]["action_pass_rate"] = round(
+        sum(case["assertions"]["action"] for case in payload["cases"]) / len(payload["cases"]), 4
+    )
+    _write_rehashed_release(release, payload)
+    called = False
+
+    def factory() -> _FakeLangfuse:
+        nonlocal called
+        called = True
+        return _FakeLangfuse()
+
+    with pytest.raises(LangfusePublishError, match="strict frozen allowlist contract"):
+        publish_release(release, client_factory=factory)
+
+    assert called is False
 
 
 class _FakeRetentionClient:
