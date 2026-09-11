@@ -204,7 +204,7 @@ class _RecordingNutritionTools:
         )
         self.calls: list[tuple[str, str]] = []
 
-    def search_food_catalog(self, request: object):
+    async def search_food_catalog(self, request: object):
         from app.nutrition.schemas import FoodSearchResult, NutritionAction
 
         query = request.query

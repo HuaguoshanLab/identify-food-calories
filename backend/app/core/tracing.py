@@ -40,6 +40,12 @@ ALLOWED_ATTRIBUTE_KEYS = frozenset(
         "cost.usd",
         "latency.ms",
         "thread.fingerprint",
+        "retrieval.version",
+        "match.channel",
+        "fallback.code",
+        "latency.bucket",
+        "index.health",
+        "index.version",
     }
 )
 
@@ -87,8 +93,8 @@ class TracedNutritionToolAdapter:
         self._delegate = delegate
         self._tracing = tracing
 
-    def search_food_catalog(self, request: object) -> Any:
-        return self._call("nutrition.search_food_catalog", "search_food_catalog", request)
+    async def search_food_catalog(self, request: object) -> Any:
+        return await self._acall("nutrition.search_food_catalog", "search_food_catalog", request)
 
     def calculate_nutrition(self, request: object) -> Any:
         return self._call("nutrition.calculate_nutrition", "calculate_nutrition", request)
@@ -103,6 +109,14 @@ class TracedNutritionToolAdapter:
             {"tool.name": method_name, "tool.version": "nutrition-tools-v1"},
         ):
             return method(request)
+
+    async def _acall(self, span_name: str, method_name: str, request: object) -> Any:
+        method = getattr(self._delegate, method_name)
+        with self._tracing.span(
+            span_name,
+            {"tool.name": method_name, "tool.version": "nutrition-tools-v1"},
+        ):
+            return await method(request)
 
 
 class AllowlistTracingRuntime:

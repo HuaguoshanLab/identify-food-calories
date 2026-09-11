@@ -47,7 +47,7 @@ class CapturedPreferenceSummary:
 class NutritionToolAdapter(Protocol):
     """The graph's complete nutrition authority; it never receives a Repository."""
 
-    def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult: ...
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult: ...
 
     def calculate_nutrition(
         self, request: NutritionCalculationInput
@@ -116,8 +116,8 @@ class NutritionServiceToolAdapter:
         self._context_service = context_service
         self._explicit_preference_capture_service = explicit_preference_capture_service
 
-    def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
-        return self._service.search_food_catalog(request)
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
+        return await self._service.search_food_catalog(request)
 
     def calculate_nutrition(
         self, request: NutritionCalculationInput
@@ -165,10 +165,10 @@ class SessionNutritionToolAdapter:
         session = self._session_factory()
         return session, NutritionService(repository=SqlAlchemyNutritionRepository(session))
 
-    def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
         session, service = self._service()
         try:
-            return service.search_food_catalog(request)
+            return await service.search_food_catalog(request)
         finally:
             session.close()
 

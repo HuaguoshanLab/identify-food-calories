@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from decimal import Decimal
 
-from app.nutrition.ports import NutritionRepository
+from app.core.tracing import DisabledTracingRuntime, TracingRuntime
+from app.nutrition.ports import HybridFoodSearchRepository, NutritionRepository
+from app.nutrition.search import fuse_food_search_evidence
 from app.nutrition.schemas import (
     MAX_CATALOG_CANDIDATES,
     FoodSearchInput,
@@ -17,6 +21,9 @@ from app.nutrition.schemas import (
     NutritionValues,
     QualifiedFood,
 )
+from app.providers.embedding.dto import EmbeddingRequest
+from app.providers.embedding.ports import EmbeddingProvider
+from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
 
 
 HUNDRED_GRAMS = Decimal("100")
@@ -24,6 +31,8 @@ MAX_ITEM_GRAMS = Decimal("2000")
 MAX_ENERGY_KCAL_PER_100G = Decimal("900")
 MAX_MACRO_G_PER_100G = Decimal("100")
 TOTAL_TOLERANCE = Decimal("0.000001")
+SEMANTIC_RECALL_LIMIT = 12
+EMBEDDING_TIMEOUT_SECONDS = 2.0
 
 
 def normalize_food_name(value: str) -> str:
@@ -35,27 +44,113 @@ def normalize_food_name(value: str) -> str:
 class NutritionService:
     """Deterministic catalog search, calculation and validation application service."""
 
-    def __init__(self, *, repository: NutritionRepository) -> None:
+    def __init__(
+        self,
+        *,
+        repository: NutritionRepository,
+        search_repository: HybridFoodSearchRepository | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+        tracing: TracingRuntime | None = None,
+    ) -> None:
         self._repository = repository
+        self._search_repository = search_repository
+        self._embedding_provider = embedding_provider
+        self._tracing = tracing or DisabledTracingRuntime()
 
-    def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
+        """Resolve one exact authority or return ASK-only hybrid candidates.
+
+        Query text and its vector are deliberately local variables: neither the
+        repository, provider Fake trace nor Phoenix receives a reusable payload.
+        """
+
         normalized_query = normalize_food_name(request.query)
+        if self._search_repository is None or self._embedding_provider is None:
+            return self._legacy_search(request, normalized_query)
+
+        exact_matches = self._search_repository.find_current_qualified_exact(
+            normalized_query=normalized_query
+        )
+        if len(exact_matches) == 1:
+            return self._trace_result(
+                self._pass_exact(request, exact_matches[0]),
+                channel="exact",
+                fallback_code="none",
+                started_at=time.monotonic(),
+            )
+
+        started_at = time.monotonic()
+        fallback_code = "none"
+        text_evidence = self._search_repository.find_text_candidates(
+            normalized_query=normalized_query, limit=SEMANTIC_RECALL_LIMIT
+        )
+        vector_evidence = []
+        try:
+            embedding = await asyncio.wait_for(
+                self._embedding_provider.embed(
+                    EmbeddingRequest(
+                        names=(normalized_query,),
+                        text_type="query",
+                        model_alias="hybrid-food-query-v1",
+                    )
+                ),
+                timeout=EMBEDDING_TIMEOUT_SECONDS,
+            )
+            query_vector = tuple(embedding.vectors[0].values)
+            vector_evidence = self._search_repository.find_vector_candidates(
+                query_vector=query_vector, limit=SEMANTIC_RECALL_LIMIT
+            )
+        except asyncio.TimeoutError:
+            fallback_code = "embedding_timeout"
+        except ProviderCallError as error:
+            if error.kind not in {
+                ProviderFailureKind.TRANSIENT,
+                ProviderFailureKind.OUTCOME_UNKNOWN,
+            }:
+                raise
+            fallback_code = "embedding_unavailable"
+        except (ConnectionError, ValueError):
+            fallback_code = "semantic_unavailable"
+
+        fused = fuse_food_search_evidence([*text_evidence, *vector_evidence])
+        rematerialized = tuple(
+            food
+            for candidate in fused.candidates
+            if (
+                food := self._search_repository.get_current_qualified_food(
+                    food_id=candidate.food_id,
+                    catalog_version=candidate.catalog_version,
+                )
+            )
+            is not None
+        )
+        result = FoodSearchResult(
+            action=NutritionAction.ASK,
+            query=request.query,
+            candidates=rematerialized,
+            safe_message="请从候选食物中选择最符合的一项。"
+            if rematerialized
+            else "目录中没有可直接计算的匹配项，请更换名称或排除该项。",
+        )
+        return self._trace_result(
+            result,
+            channel="text" if fallback_code != "none" else "text+vector",
+            fallback_code=fallback_code,
+            started_at=started_at,
+        )
+
+    def _legacy_search(self, request: FoodSearchInput, normalized_query: str) -> FoodSearchResult:
+        """Keep un-wired callers fail-safe until the lifespan factory injects hybrid ports."""
+
         candidates = self._repository.search_qualified_foods(
-            normalized_query=normalized_query,
-            limit=MAX_CATALOG_CANDIDATES,
+            normalized_query=normalized_query, limit=MAX_CATALOG_CANDIDATES
         )[:MAX_CATALOG_CANDIDATES]
         exact_matches = [
-            food
-            for food in candidates
+            food for food in candidates
             if normalized_query in {normalize_food_name(alias) for alias in food.aliases}
         ]
         if len(exact_matches) == 1:
-            return FoodSearchResult(
-                action=NutritionAction.PASS,
-                query=request.query,
-                selected_food=exact_matches[0],
-                safe_message="已匹配到受控营养目录条目。",
-            )
+            return self._pass_exact(request, exact_matches[0])
         if candidates:
             return FoodSearchResult(
                 action=NutritionAction.ASK,
@@ -68,6 +163,40 @@ class NutritionService:
             query=request.query,
             safe_message="目录中没有可直接计算的匹配项，请更换名称或排除该项。",
         )
+
+    @staticmethod
+    def _pass_exact(request: FoodSearchInput, food: QualifiedFood) -> FoodSearchResult:
+        return FoodSearchResult(
+            action=NutritionAction.PASS,
+            query=request.query,
+            selected_food=food,
+            safe_message="已匹配到受控营养目录条目。",
+        )
+
+    def _trace_result(
+        self,
+        result: FoodSearchResult,
+        *,
+        channel: str,
+        fallback_code: str,
+        started_at: float,
+    ) -> FoodSearchResult:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        with self._tracing.span(
+            "nutrition.hybrid_search",
+            {
+                "retrieval.version": "hybrid-food-retrieval-v1",
+                "match.channel": channel,
+                "fallback.code": fallback_code,
+                "latency.bucket": "under_2s" if elapsed_ms < 2000 else "over_2s",
+                "index.health": "degraded" if fallback_code != "none" else "ready",
+                "index.version": "active",
+                "status.code": result.action.value,
+                "tool.name": "search_food_catalog",
+                "tool.version": "nutrition-tools-v1",
+            },
+        ):
+            return result
 
     def calculate_nutrition(
         self, request: NutritionCalculationInput
