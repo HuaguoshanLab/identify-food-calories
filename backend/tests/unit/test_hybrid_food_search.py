@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from decimal import Decimal
 
 import pytest
@@ -14,10 +17,14 @@ from app.nutrition.schemas import (
     FoodRelation,
     FoodSearchCandidate,
     FoodSearchEvidence,
+    FoodSearchInput,
     NutritionValues,
     QualifiedFood,
 )
 from app.nutrition.search import fuse_food_search_evidence, project_food_search_candidate
+from app.nutrition.service import NutritionService
+from app.providers.embedding.fake import FakeEmbeddingProvider
+from app.providers.reasoning.dto import ProviderFailureKind
 
 
 def make_food(
@@ -202,3 +209,129 @@ def test_discriminator_projection_allows_absent_prepared_state_and_rejects_inter
                 "similarity_score": 0.9,
             }
         )
+
+
+class _HybridSearchRepository:
+    def __init__(self, *, exact: list[QualifiedFood], text: list[FoodSearchEvidence]) -> None:
+        self.exact = exact
+        self.text = text
+        self.vector_calls = 0
+        self.rematerialized: list[tuple[uuid.UUID, str]] = []
+
+    def find_current_qualified_exact(self, *, normalized_query: str) -> list[QualifiedFood]:
+        del normalized_query
+        return self.exact
+
+    def find_text_candidates(
+        self, *, normalized_query: str, limit: int
+    ) -> list[FoodSearchEvidence]:
+        del normalized_query, limit
+        return self.text
+
+    def find_vector_candidates(
+        self, *, query_vector: tuple[float, ...], limit: int
+    ) -> list[FoodSearchEvidence]:
+        del query_vector, limit
+        self.vector_calls += 1
+        return []
+
+    def get_current_qualified_food(
+        self, *, food_id: uuid.UUID, catalog_version: str
+    ) -> QualifiedFood | None:
+        self.rematerialized.append((food_id, catalog_version))
+        return next((hit.food for hit in self.text if hit.food.id == food_id), None)
+
+
+class _LegacyRepository:
+    def search_qualified_foods(self, *, normalized_query: str, limit: int) -> list[QualifiedFood]:
+        del normalized_query, limit
+        return []
+
+    def get_qualified_food(self, *, food_id: uuid.UUID, catalog_version: str) -> QualifiedFood | None:
+        del food_id, catalog_version
+        return None
+
+
+class _RecordingTracingRuntime:
+    def __init__(self) -> None:
+        self.spans: list[tuple[str, dict[str, object]]] = []
+
+    @contextmanager
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]:
+        self.spans.append((name, dict(attributes)))
+        yield
+
+    def scoped_hmac(self, value: str) -> str:
+        del value
+        return "not-used"
+
+    def flush(self) -> None:
+        return None
+
+    def shutdown(self) -> None:
+        return None
+
+
+def test_service_exact_short_circuits_before_embedding_or_vector_recall() -> None:
+    rice = make_food(name="米饭")
+    repository = _HybridSearchRepository(exact=[rice], text=[])
+    provider = FakeEmbeddingProvider()
+
+    result = asyncio.run(
+        NutritionService(
+            repository=_LegacyRepository(), search_repository=repository, embedding_provider=provider
+        ).search_food_catalog(FoodSearchInput(query="米饭"))
+    )
+
+    assert result.action.value == "PASS"
+    assert result.selected_food == rice
+    assert provider.calls == []
+    assert repository.vector_calls == 0
+
+
+def test_service_nonexact_stays_ask_and_safely_falls_back_to_text() -> None:
+    food = make_food(name="番茄炒蛋")
+    repository = _HybridSearchRepository(
+        exact=[], text=[evidence(food, relation=FoodRelation.NAME_VARIANT)]
+    )
+    provider = FakeEmbeddingProvider()
+    provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="TEMPORARY_UNAVAILABLE")
+
+    result = asyncio.run(
+        NutritionService(
+            repository=_LegacyRepository(), search_repository=repository, embedding_provider=provider
+        ).search_food_catalog(FoodSearchInput(query="西红柿炒鸡蛋"))
+    )
+
+    assert result.action.value == "ASK"
+    assert result.selected_food is None
+    assert tuple(candidate.canonical_name for candidate in result.candidates) == ("番茄炒蛋",)
+    assert provider.calls[0].input_count == 1
+    assert repository.vector_calls == 0
+
+
+def test_service_tracing_emits_only_payload_free_hybrid_signals() -> None:
+    rice = make_food(name="米饭")
+    tracing = _RecordingTracingRuntime()
+    result = asyncio.run(
+        NutritionService(
+            repository=_LegacyRepository(),
+            search_repository=_HybridSearchRepository(exact=[rice], text=[]),
+            embedding_provider=FakeEmbeddingProvider(),
+            tracing=tracing,
+        ).search_food_catalog(FoodSearchInput(query="米饭"))
+    )
+
+    assert result.action.value == "PASS"
+    name, attributes = tracing.spans[0]
+    assert name == "nutrition.hybrid_search"
+    assert {
+        "retrieval.version",
+        "match.channel",
+        "fallback.code",
+        "latency.bucket",
+        "index.health",
+        "index.version",
+    } <= set(attributes)
+    assert all("米饭" not in str(value) for value in attributes.values())
+    assert not {"query", "vector", "candidate", "user.id", "meal.text", "provider.payload"} & set(attributes)

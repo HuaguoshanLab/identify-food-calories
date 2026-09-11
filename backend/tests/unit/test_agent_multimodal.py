@@ -21,7 +21,7 @@ from app.providers.vision.fake import FakeVisionModelProvider
 
 
 class _UnusedTools:
-    def search_food_catalog(self, request: object) -> object:  # pragma: no cover - guard
+    async def search_food_catalog(self, request: object) -> object:  # pragma: no cover - guard
         raise AssertionError(f"missing grams must interrupt before catalog search: {request!r}")
 
     def calculate_nutrition(self, request: object) -> object:  # pragma: no cover - guard

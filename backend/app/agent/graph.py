@@ -191,17 +191,17 @@ class MealAnalysisGraph:
             observed = await self._observe_image(state)
             if observed.status is not AgentRuntimeStatus.ACCEPTED:
                 return self._finish_transition(observed, started_ms)
-            return self._finish_transition(self._resolve(observed), started_ms)
+            return self._finish_transition(await self._resolve(observed), started_ms)
         state = _begin_transition(state)
         if state.status is AgentRuntimeStatus.LIMIT_REACHED:
             return state
         if resumed:
-            return self._finish_transition(self._resolve(state), started_ms)
+            return self._finish_transition(await self._resolve(state), started_ms)
         if state.next_action is AgentNextAction.ASK_USER:
-            result = self._resolve(state)
+            result = await self._resolve(state)
             return self._finish_transition(result, started_ms)
         if state.next_action is AgentNextAction.REPORT:
-            result = self._resolve(state)
+            result = await self._resolve(state)
             return self._finish_transition(result, started_ms)
         if state.next_action is not AgentNextAction.PARSE or len(state.messages) != 1:
             return self._finish_transition(state.model_copy(
@@ -249,7 +249,7 @@ class MealAnalysisGraph:
             or field.item_id != recovered_grams[0]
             or field.field != "grams"
         )
-        return self._finish_transition(self._resolve(
+        return self._finish_transition(await self._resolve(
             parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
         ), started_ms)
 
@@ -502,7 +502,7 @@ class MealAnalysisGraph:
             }
         )
 
-    def _resolve(self, state: MealAgentState) -> MealAgentState:
+    async def _resolve(self, state: MealAgentState) -> MealAgentState:
         """Run deterministic tools only for new/dirty items and build one combined interrupt."""
 
         questions: list[ClarificationQuestion] = list(state.clarification_questions)
@@ -526,7 +526,7 @@ class MealAnalysisGraph:
             if selected_food_id is None or catalog_version is None:
                 if tool_calls >= 12:
                     return _limit_state(state)
-                search = self._tools.search_food_catalog(FoodSearchInput(query=item.search_query or item.normalized_name))
+                search = await self._tools.search_food_catalog(FoodSearchInput(query=item.search_query or item.normalized_name))
                 tool_calls += 1
                 summaries.append(_summary(item.item_id, "search", search.action.value, search))
                 if search.selected_food is None:

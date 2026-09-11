@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from decimal import Decimal
 
@@ -85,8 +86,10 @@ def test_unique_controlled_alias_is_selected_after_safe_normalization() -> None:
     selected_food = food()
     repository = FakeNutritionRepository([selected_food])
 
-    result = NutritionService(repository=repository).search_food_catalog(
-        FoodSearchInput(query="  米饭 ")
+    result = asyncio.run(
+        NutritionService(repository=repository).search_food_catalog(
+            FoodSearchInput(query="  米饭 ")
+        )
     )
 
     assert result.action is NutritionAction.PASS
@@ -98,9 +101,11 @@ def test_unique_controlled_alias_is_selected_after_safe_normalization() -> None:
 def test_ambiguous_search_exposes_at_most_three_qualified_candidates() -> None:
     candidates = [food(name=f"候选{i}", aliases=(f"候选{i}",)) for i in range(4)]
 
-    result = NutritionService(
-        repository=FakeNutritionRepository(candidates)
-    ).search_food_catalog(FoodSearchInput(query="米饭"))
+    result = asyncio.run(
+        NutritionService(repository=FakeNutritionRepository(candidates)).search_food_catalog(
+            FoodSearchInput(query="米饭")
+        )
+    )
 
     assert result.action is NutritionAction.ASK
     assert result.selected_food is None
