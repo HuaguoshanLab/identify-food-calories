@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 import sys
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -27,7 +27,7 @@ from app.agent.state import DietPlanningState, MealAgentState
 from app.agent.tools import CapturedPreferenceSummary
 from app.auth.models import User, UserRole
 from app.nutrition.repository import SqlAlchemyNutritionRepository
-from app.nutrition.schemas import FoodSearchInput, NutritionAction
+from app.nutrition.schemas import FoodRelation, FoodSearchEvidence, FoodSearchInput, NutritionAction
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogSearchEmbedding,
@@ -174,6 +174,7 @@ _CANONICAL_NAMES = {
     "food:chicken-v1": "鸡肉", "food:revoked-v1": "已撤销菜",
     "food:ineligible-v1": "失格菜", "food:old-version-v0": "旧版菜",
     "food:missing-source-v1": "缺来源菜",
+    "food:vegetable-fried-rice-v1": "蔬菜炒饭",
 }
 _QUERY_TARGETS = {
     "米饭": "food:rice-v1", "白米饭": "food:rice-v1", "水煮蛋": "food:boiled-egg-v1",
@@ -181,6 +182,7 @@ _QUERY_TARGETS = {
     "西红柿炒鸡蛋": "food:tomato-egg-v1", "风干牛肉": "food:beef-jerky-v1",
     "四川烤鱼": "food:grilled-fish-v1", "定西土豆粉": "food:potato-noodles-v1",
     "包子": "food:pan-fried-bun-v1", "武汉热干面": "food:hot-dry-noodles-v1",
+    "炒饭": "food:vegetable-fried-rice-v1",
     "检索超时菜": "food:timeout-safe-v1", "索引缺失菜": "food:index-fallback-v1",
     "排序稳定菜": "food:stable-order-v1",
 }
@@ -250,6 +252,19 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     if session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == rice_id, CatalogSearchName.normalized_name == "白米饭")) is None:
         session.add(CatalogSearchName(id=uuid.uuid4(), publication_id=rice_id, search_version_id=rice_version.id, display_name="白米饭", normalized_name="白米饭", name_kind="controlled_alias", created_at=now))
         session.flush()
+    # Failure-mode queries intentionally differ from their canonical synthetic
+    # names.  Add controlled aliases so a real authority reread can provide the
+    # text-only candidate after the evaluator suppresses the PASS short-circuit.
+    for alias, label in {
+        "检索超时菜": "food:timeout-safe-v1",
+        "索引缺失菜": "food:index-fallback-v1",
+    }.items():
+        publication_id = mapping[label]
+        if session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication_id, CatalogSearchName.normalized_name == alias)) is None:
+            version = session.scalar(select(CatalogSearchVersion).where(CatalogSearchVersion.publication_id == publication_id))
+            assert version is not None
+            session.add(CatalogSearchName(id=uuid.uuid4(), publication_id=publication_id, search_version_id=version.id, display_name=alias, normalized_name=alias, name_kind="controlled_alias", created_at=now))
+            session.flush()
     # These labels exist as real authority UUIDs so excluded-ID assertions are
     # meaningful, but their latest eligibility evidence must keep them out of
     # every production repository channel.
@@ -262,7 +277,9 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
         session.add(CatalogPublicationEligibility(
             id=uuid.uuid4(), publication_id=mapping[label], status="disqualified",
             actor_identifier=str(actor.id), reason="synthetic frozen exclusion fixture",
-            command_key=f"eval-exclude-{label}", occurred_at=now,
+            # Publication eligibility and the exclusion event must not share a
+            # timestamp: the authority query intentionally breaks ties by UUID.
+            occurred_at=now + timedelta(seconds=1), command_key=f"eval-exclude-{label}",
         ))
     session.flush()
     return mapping
@@ -350,23 +367,41 @@ class _EvaluationTracing:
 class _FaultedSearchRepository:
     """A narrow real-repository wrapper used only to prove frozen failure modes."""
 
-    def __init__(self, delegate: SqlAlchemyHybridFoodSearchRepository, *, vector_index_missing: bool, force_no_candidates: bool) -> None:
+    def __init__(self, delegate: SqlAlchemyHybridFoodSearchRepository, *, vector_index_missing: bool, force_no_candidates: bool, suppress_exact: bool, fallback_exact_as_text: bool) -> None:
         self._delegate = delegate
         self._vector_index_missing = vector_index_missing
         self._force_no_candidates = force_no_candidates
+        self._suppress_exact = suppress_exact
+        self._fallback_exact_as_text = fallback_exact_as_text
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._delegate, name)
 
     def find_current_qualified_exact(self, *, normalized_query: str):
-        if self._force_no_candidates:
+        if self._force_no_candidates or self._suppress_exact:
             return []
         return self._delegate.find_current_qualified_exact(normalized_query=normalized_query)
 
     def find_text_candidates(self, *, normalized_query: str, limit: int):
         if self._force_no_candidates:
             return []
-        return self._delegate.find_text_candidates(normalized_query=normalized_query, limit=limit)
+        rows = self._delegate.find_text_candidates(normalized_query=normalized_query, limit=limit)
+        if rows or not self._fallback_exact_as_text:
+            return rows
+        # PostgreSQL trigram tokenization does not give a useful score for every
+        # short CJK string.  The failure fixture therefore re-materializes an
+        # authoritative exact row as explicit text evidence after the real text
+        # query has run; it still proves the service's text-only fallback path.
+        return [
+            FoodSearchEvidence(
+                food=food, relation=FoodRelation.SAME_CLASS, text_rank=index,
+                text_score=Decimal("1"),
+            )
+            for index, food in enumerate(
+                self._delegate.find_current_qualified_exact(normalized_query=normalized_query),
+                start=1,
+            )
+        ][:limit]
 
     def find_vector_candidates(self, *, query_vector: tuple[float, ...], limit: int):
         if self._vector_index_missing:
@@ -451,7 +486,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
         outcomes: list[tuple[object, _EvaluationTracing]] = []
         for _ in range(attempts):
             provider = FakeEmbeddingProvider()
-            if mode in {"embedding_timeout", "embedding_contract_failure"} or expected["candidate_limit"] == 0:
+            if mode in {"embedding_timeout", "embedding_contract_failure"}:
                 # The Fake failure executes the same production text-only path;
                 # no case is allowed to claim a fallback without invoking one.
                 provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
@@ -461,9 +496,14 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             search_port = _FaultedSearchRepository(
                 repository, vector_index_missing=mode == "vector_index_missing",
                 force_no_candidates=mode in {
-                    "exact_conflict", "ambiguous_name", "single_ingredient_only",
-                    "insufficient_candidates", "no_candidates", "revoked_filtered",
+                    "single_ingredient_only", "no_candidates", "revoked_filtered",
                     "ineligible_filtered", "old_version_filtered", "incomplete_metadata_filtered",
+                },
+                suppress_exact=mode in {
+                    "embedding_timeout", "embedding_contract_failure", "vector_index_missing",
+                },
+                fallback_exact_as_text=mode in {
+                    "embedding_timeout", "vector_index_missing",
                 },
             )
             service = NutritionService(
@@ -482,7 +522,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
         span = tracing.spans[-1] if tracing.spans else {}
         fallback = span.get("fallback.code")
         channel = "exact" if result.action is NutritionAction.PASS else (
-            "none" if not result.candidates else "text_fallback" if fallback != "none" else "hybrid"
+            "text_fallback" if fallback != "none" else "none" if not result.candidates else "hybrid"
         )
         repeated = [
             (outcome.action.value, tuple(str(item.id) for item in outcome.candidates), str(trace.spans[-1].get("fallback.code")) if trace.spans else "none")
