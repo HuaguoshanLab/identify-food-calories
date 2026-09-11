@@ -103,6 +103,8 @@ class PlanningToolAdapter(Protocol):
         existing_meals: tuple[PlannedMeal, ...],
         affected_slot: MealSlot,
         feedback_intent: str,
+        selected_food_id: uuid.UUID | None = None,
+        selected_catalog_version: str | None = None,
         replan_count: int,
     ) -> MealCompositionResult: ...
 
@@ -312,6 +314,8 @@ class SessionNutritionToolAdapter:
         existing_meals: tuple[PlannedMeal, ...],
         affected_slot: MealSlot,
         feedback_intent: str,
+        selected_food_id: uuid.UUID | None = None,
+        selected_catalog_version: str | None = None,
         replan_count: int,
     ) -> MealCompositionResult:
         # PlanningService owns candidate eligibility; this adapter only preserves untouched slots.
@@ -326,6 +330,9 @@ class SessionNutritionToolAdapter:
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
                 exclude_recipe_ids=(current.recipe_id,),
+                required_food_id=selected_food_id,
+                required_catalog_version=selected_catalog_version,
+                required_slot=affected_slot,
             )
             if replacement_plan.action is not PlanValidationAction.PASS:
                 return replacement_plan

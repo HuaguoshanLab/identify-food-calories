@@ -268,6 +268,8 @@ class DietPlanningState(BaseModel):
     # Opaque hashes make capture replay-safe without retaining the user's freeform feedback.
     preference_capture_markers: tuple[str, ...] = Field(default=(), max_length=3)
     pending_adjustment_intent: Literal["lighter", "replace"] | None = None
+    pending_food_query: str | None = Field(default=None, min_length=1, max_length=200)
+    pending_food_candidates: tuple[StateCandidate, ...] = Field(default=(), max_length=MAX_STATE_CANDIDATES)
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=12)
     budget: AgentBudget = Field(default_factory=AgentBudget)
     next_action: DietPlanningAction = DietPlanningAction.READ_CONTEXT
