@@ -370,6 +370,21 @@ def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test
             command_key=f"vector-space-worker-reuse-{actor_id.hex}",
         )
         assert replay_build.vector_space_id == build.vector_space_id
+        replay_completion = session.scalar(select(CatalogVectorSpaceBuildCompletion).where(
+            CatalogVectorSpaceBuildCompletion.build_id == replay_build.id
+        ))
+        assert replay_completion is not None
+        # Simulate an interrupted prior reconciliation: all immutable rows are
+        # complete already, so an idle scoped worker must repair only evidence.
+        session.delete(replay_completion)
+        session.commit()
+
+    idle_worker = CatalogEmbeddingWorker(
+        session_factory=lambda: Session(test_engine), provider=FakeEmbeddingProvider(),
+        worker_id="worker-reconcile", vector_space_id=build.vector_space_id, now=lambda: now,
+    )
+    assert idle_worker.run_once() == "idle"
+    with Session(test_engine) as session:
         assert session.scalar(select(CatalogVectorSpaceBuildCompletion).where(
             CatalogVectorSpaceBuildCompletion.build_id == replay_build.id
         )) is not None

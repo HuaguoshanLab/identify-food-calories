@@ -327,7 +327,20 @@ class SqlAlchemyHybridFoodSearchRepository:
             )
         ).all()
         actual = {(str(publication_id), str(name_id)) for publication_id, name_id in rows}
-        if len(manifest) != build.expected_name_count or actual != expected:
+        jobs = self._session.execute(
+            select(CatalogEmbeddingJob.publication_id, CatalogEmbeddingJob.name_id, CatalogEmbeddingJob.status)
+            .where(
+                CatalogEmbeddingJob.vector_space_id == build.vector_space_id,
+                CatalogEmbeddingJob.name_id.in_(name_ids),
+            )
+        ).all()
+        completed_jobs = {(str(publication_id), str(name_id)) for publication_id, name_id, status in jobs if status == "completed"}
+        if (
+            len(manifest) != build.expected_name_count
+            or actual != expected
+            or len(jobs) != build.expected_name_count
+            or completed_jobs != expected
+        ):
             return
         completion = self._session.scalar(
             select(CatalogVectorSpaceBuildCompletion)
