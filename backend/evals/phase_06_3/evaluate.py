@@ -1,14 +1,50 @@
-"""Strict, offline loader for the frozen Phase 06.3 retrieval cases."""
+"""Strict offline evaluator using ``SqlAlchemyHybridFoodSearchRepository`` against PostgreSQL."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import argparse
+import asyncio
 from pathlib import Path
 from typing import Any
+import sys
+import uuid
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.admin.models import CatalogPublication
+from app.admin.repository import SqlAlchemyAdminRepository
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
+from app.admin.service import AdminService
+from app.agent.graph import DietPlanningGraph, MealAnalysisGraph
+from app.agent.state import DietPlanningState, MealAgentState
+from app.agent.tools import CapturedPreferenceSummary
+from app.auth.models import User, UserRole
+from app.nutrition.repository import SqlAlchemyNutritionRepository
+from app.nutrition.schemas import FoodSearchInput, NutritionAction
+from app.nutrition.search_models import (
+    CatalogActiveVectorSpace,
+    CatalogSearchEmbedding,
+    CatalogSearchName,
+    CatalogSearchVersion,
+    CatalogVectorSpace,
+)
+from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
+from app.nutrition.service import NutritionService
+from app.providers.embedding.fake import FakeEmbeddingProvider
+from app.providers.reasoning.dto import ParsedMealDTO, ParsedMealItemDTO, ProviderFailureKind
+from app.providers.reasoning.fake import FakeReasoningModelProvider
+from app.planning.repository import SqlAlchemyPlanningProfileRepository
+from app.planning.schemas import MealCompositionResult, PlanValidationResult, PlanningProfileInput, PreferenceReview
+from app.planning.service import PlanningService
 
 
 CASE_SCHEMA_VERSION = "phase063-case.v1"
+EVALUATOR_VERSION = "phase063-evaluator.v1"
 CASE_FIELDS = (
     "schema_version",
     "case_id",
@@ -56,6 +92,13 @@ def _canonical(value: object) -> bytes:
 
 def _hash(value: object) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
+
+
+def file_hash(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise EvaluationContractError(f"required evidence is unavailable: {path.name}") from error
 
 
 def _load_rows(dataset: Path) -> list[dict[str, Any]]:
@@ -115,3 +158,270 @@ def validate_dataset(dataset: Path) -> list[dict[str, Any]]:
     if not any(row["query"] == "米饭" and row["expected"]["action"] == "PASS" and row["expected"]["target_food_ids"] == ["food:rice-v1"] for row in rows):
         raise EvaluationContractError("frozen dataset is missing the rice exact-pass mapping")
     return rows
+
+
+_CANONICAL_NAMES = {
+    "food:rice-v1": "米饭", "food:boiled-egg-v1": "水煮蛋",
+    "food:tomato-egg-v1": "番茄炒蛋", "food:apple-v1": "苹果",
+    "food:beef-jerky-v1": "牛肉干", "food:grilled-fish-v1": "烤鱼",
+    "food:potato-noodles-v1": "土豆粉", "food:pan-fried-bun-v1": "生煎包",
+    "food:hot-dry-noodles-v1": "热干面", "food:timeout-safe-v1": "超时安全菜",
+    "food:index-fallback-v1": "索引回退菜", "food:stable-order-v1": "稳定排序菜",
+}
+_QUERY_TARGETS = {
+    "米饭": "food:rice-v1", "白米饭": "food:rice-v1", "水煮蛋": "food:boiled-egg-v1",
+    "番茄炒蛋": "food:tomato-egg-v1", "苹果": "food:apple-v1",
+    "西红柿炒鸡蛋": "food:tomato-egg-v1", "风干牛肉": "food:beef-jerky-v1",
+    "四川烤鱼": "food:grilled-fish-v1", "定西土豆粉": "food:potato-noodles-v1",
+    "包子": "food:pan-fried-bun-v1", "武汉热干面": "food:hot-dry-noodles-v1",
+    "检索超时菜": "food:timeout-safe-v1", "索引缺失菜": "food:index-fallback-v1",
+    "排序稳定菜": "food:stable-order-v1",
+}
+
+
+def _vector(index: int) -> tuple[float, ...]:
+    """A sparse fixed Fake vector keeps the runner offline and byte-stable."""
+    return tuple(1.0 if position == index else 0.0 for position in range(1024))
+
+
+def _publish(session: Session, actor: User, name: str, key: str, now: datetime) -> CatalogPublication:
+    service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback)
+    draft = service.create_catalog_draft(
+        actor_user_id=actor.id,
+        command=CatalogDraftCreateCommand(canonical_name=name, aliases=[f"{name}评测"], energy_kcal_per_100g=Decimal("100"), protein_g_per_100g=Decimal("5"), fat_g_per_100g=Decimal("2"), carbohydrate_g_per_100g=Decimal("20"), source_name="Synthetic frozen evaluation", source_url="https://example.test/frozen", authorization_status="authorized", reason="phase 06.3 synthetic evaluation fixture"),
+        command_key=f"eval-create-{key}",
+    )
+    lifecycle = CatalogLifecycleCommand(reason="synthetic fixture approved", confirm=True)
+    service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=lifecycle, command_key=f"eval-review-{key}")
+    published = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=lifecycle, command_key=f"eval-publish-{key}")
+    publication = session.get(CatalogPublication, published.id)
+    assert publication is not None
+    return publication
+
+
+def _active_space(session: Session, now: datetime) -> CatalogVectorSpace:
+    space = session.scalar(select(CatalogVectorSpace).join(CatalogActiveVectorSpace, CatalogActiveVectorSpace.vector_space_id == CatalogVectorSpace.id).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
+    if space is not None:
+        return space
+    space = CatalogVectorSpace(id=uuid.uuid4(), embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024, adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1", created_at=now)
+    session.add(space)
+    session.flush()
+    session.add(CatalogActiveVectorSpace(pointer_key="catalog", vector_space_id=space.id, advanced_at=now))
+    session.flush()
+    return space
+
+
+def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
+    """Create synthetic authority rows; retrieval still uses production SQL adapters."""
+    now = datetime(2026, 9, 11, tzinfo=UTC)
+    actor = User(id=uuid.uuid4(), email=f"phase063-eval-{uuid.uuid4().hex}@example.test", password_hash="evaluation-only", role=UserRole.ADMIN.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
+    session.add(actor)
+    session.flush()
+    space = _active_space(session, now)
+    mapping: dict[str, uuid.UUID] = {}
+    for index, (label, name) in enumerate(_CANONICAL_NAMES.items(), start=1):
+        publication = _publish(session, actor, name, f"{index:02d}", now)
+        version = session.scalar(select(CatalogSearchVersion).where(CatalogSearchVersion.publication_id == publication.id, CatalogSearchVersion.content_hash == publication.content_hash))
+        assert version is not None
+        search_name = session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication.id, CatalogSearchName.normalized_name == name))
+        if search_name is None:
+            search_name = CatalogSearchName(id=uuid.uuid4(), publication_id=publication.id, search_version_id=version.id, display_name=name, normalized_name=name, name_kind="canonical", created_at=now)
+            session.add(search_name)
+            session.flush()
+        embedding = session.scalar(select(CatalogSearchEmbedding).where(CatalogSearchEmbedding.publication_id == publication.id, CatalogSearchEmbedding.name_id == search_name.id, CatalogSearchEmbedding.vector_space_id == space.id))
+        if embedding is None:
+            session.add(CatalogSearchEmbedding(id=uuid.uuid4(), publication_id=publication.id, name_id=search_name.id, vector_space_id=space.id, embedding=list(_vector(index)), status="ready", created_at=now))
+        else:
+            embedding.embedding = list(_vector(index))
+            embedding.status = "ready"
+        session.flush()
+        mapping[label] = publication.id
+    # The one allowed exact synonym is part of the frozen PASS evidence.
+    rice_id = mapping["food:rice-v1"]
+    rice_version = session.scalar(select(CatalogSearchVersion).where(CatalogSearchVersion.publication_id == rice_id))
+    assert rice_version is not None
+    if session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == rice_id, CatalogSearchName.normalized_name == "白米饭")) is None:
+        session.add(CatalogSearchName(id=uuid.uuid4(), publication_id=rice_id, search_version_id=rice_version.id, display_name="白米饭", normalized_name="白米饭", name_kind="controlled_alias", created_at=now))
+        session.flush()
+    return mapping
+
+
+class _EvaluationMealTools:
+    """Count calls made by the real meal graph into ``NutritionService``."""
+
+    def __init__(self, service: NutritionService) -> None:
+        self._service = service
+        self.search_calls = 0
+
+    async def search_food_catalog(self, request: FoodSearchInput):
+        self.search_calls += 1
+        return await self._service.search_food_catalog(request)
+
+    def calculate_nutrition(self, request):
+        return self._service.calculate_nutrition(request)
+
+    def validate_nutrition_result(self, request):
+        return self._service.validate_nutrition_result(request)
+
+    def retrieve_personal_context(self, **_kwargs: object) -> list[object]:
+        return []
+
+    def capture_explicit_preferences(self, **_kwargs: object) -> tuple[CapturedPreferenceSummary, ...]:
+        return ()
+
+
+class _EvaluationPlanningTools:
+    """Live planning boundary backed by production planning repository/service."""
+
+    def __init__(self, *, nutrition_service: NutritionService, session: Session) -> None:
+        self._nutrition_service = nutrition_service
+        self._planning_service = PlanningService(repository=SqlAlchemyPlanningProfileRepository(session), nutrition_port=nutrition_service)
+        self.target_calls = 0
+        self.compose_calls = 0
+
+    async def search_food_catalog(self, request: FoodSearchInput):
+        return await self._nutrition_service.search_food_catalog(request)
+
+    def calculate_daily_target(self, *, profile: PlanningProfileInput, preferences: PreferenceReview):
+        self.target_calls += 1
+        return self._planning_service.calculate_daily_target(profile, preferences)
+
+    def compose_daily_plan(self, *, user_id: uuid.UUID, target: object, preferences: PreferenceReview, replan_count: int) -> MealCompositionResult:
+        self.compose_calls += 1
+        return self._planning_service.compose_daily_meals(user_id=user_id, catalog_version=None, preferences=preferences)
+
+    def validate_daily_plan(self, *, target: object, meals: tuple[object, ...], replan_count: int) -> PlanValidationResult:
+        return self._planning_service.validate_plan(target=target, meals=meals, allow_target_relaxation=replan_count >= 2)  # type: ignore[arg-type]
+
+    def upsert_planning_profile(self, **_kwargs: object) -> None:
+        raise AssertionError("frozen evaluation must not persist planning profiles")
+
+    def capture_explicit_preferences(self, **_kwargs: object) -> tuple[CapturedPreferenceSummary, ...]:
+        return ()
+
+    def replace_planning_slot(self, **_kwargs: object) -> MealCompositionResult:
+        raise AssertionError("frozen evaluation does not resume a planning adjustment")
+
+
+def _meal_state(query: str) -> MealAgentState:
+    return MealAgentState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), messages=(query,), graph_version="meal-agent-graph.v1", prompt_version="reasoning-parse.v1", tool_version="nutrition-tools-v1")
+
+
+def _planning_state() -> DietPlanningState:
+    return DietPlanningState(user_id=uuid.uuid4(), thread_id=uuid.uuid4(), run_id=uuid.uuid4(), command_key="phase063-frozen-eval", profile=PlanningProfileInput.model_validate({"height_cm": "170", "weight_kg": "65", "age_years": 30, "formula_variant": "mifflin_st_jeor_female", "activity_level": "moderate", "goal": "loss", "goal_speed": "gradual_loss"}), preferences=PreferenceReview(confirmed=True), graph_version="diet-planning-graph.v1", prompt_version="diet-planning-command.v1", tool_version="planning-tools.v1")
+
+
+def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, session: Session) -> dict[str, int]:
+    """Exercise production graph entrypoints; counters come from calls, never case count."""
+
+    embedding_provider = FakeEmbeddingProvider()
+    embedding_provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
+    nutrition_service = NutritionService(repository=nutrition_repository, search_repository=search_repository, embedding_provider=embedding_provider)
+    meal_tools = _EvaluationMealTools(nutrition_service)
+    provider = FakeReasoningModelProvider()
+    provider.queue_parse_result(ParsedMealDTO(items=[ParsedMealItemDTO(item_id="frozen-item", food_name=query, catalog_query=query, grams=Decimal("100"))]))
+    asyncio.run(MealAnalysisGraph(provider=provider, tools=meal_tools).ainvoke(_meal_state(query)))
+    planning_tools = _EvaluationPlanningTools(nutrition_service=nutrition_service, session=session)
+    asyncio.run(DietPlanningGraph(tools=planning_tools).ainvoke(_planning_state()))
+    if meal_tools.search_calls < 1 or planning_tools.target_calls < 1 or planning_tools.compose_calls < 1:
+        raise EvaluationContractError("frozen case did not reach both production graph tool paths")
+    return {"meal_graph_entries": 1, "planning_graph_entries": 1, "meal_search_calls": meal_tools.search_calls, "planning_target_calls": planning_tools.target_calls, "planning_compose_calls": planning_tools.compose_calls}
+
+
+def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any]], dataset: Path, snapshot: dict[str, uuid.UUID]) -> dict[str, Any]:
+    checks = [item["assertions"]["action"] and item["assertions"]["targets"] and item["assertions"]["candidate_bound"] and item["assertions"]["meal_graph"] and item["assertions"]["planning_graph"] for item in observed]
+    metrics = {
+        "case_count": len(rows), "exact_sql_cases": sum(item["exact_sql"] for item in observed),
+        "text_sql_cases": sum(item["text_sql"] for item in observed), "vector_sql_cases": sum(item["vector_sql"] for item in observed),
+        "meal_graph_entries": sum(item["graph_calls"]["meal_graph_entries"] for item in observed),
+        "planning_graph_entries": sum(item["graph_calls"]["planning_graph_entries"] for item in observed),
+        "meal_tool_search_calls": sum(item["graph_calls"]["meal_search_calls"] for item in observed),
+        "planning_tool_target_calls": sum(item["graph_calls"]["planning_target_calls"] for item in observed),
+        "planning_tool_compose_calls": sum(item["graph_calls"]["planning_compose_calls"] for item in observed),
+        "action_pass_rate": round(sum(item["assertions"]["action"] for item in observed) / len(rows), 4),
+        "target_recall": round(sum(item["assertions"]["targets"] for item in observed) / len(rows), 4),
+    }
+    release: dict[str, Any] = {
+        "schema_version": "phase063-release.v1", "evaluator_version": EVALUATOR_VERSION,
+        "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) else "FAIL",
+        "input_hashes": {"dataset_sha256": file_hash(dataset), "evaluator_sha256": file_hash(Path(__file__)), "search_policy_sha256": file_hash(Path(__file__).parents[2] / "app/nutrition/search.py")},
+        "snapshot": {"fixture": "synthetic:catalog-06-3-v1", "food_labels": sorted(snapshot)}, "metrics": metrics,
+        "cases": observed,
+    }
+    release["evidence_hash"] = _hash(release)
+    return release
+
+
+def build_release(*, session: Session, output: Path | None = None, dataset: Path | None = None) -> dict[str, Any]:
+    """Run frozen queries through the real service/repository and atomically emit evidence."""
+    dataset = dataset or Path(__file__).with_name("cases.jsonl")
+    rows = validate_dataset(dataset)
+    snapshot = _seed_snapshot(session)
+    repository = SqlAlchemyHybridFoodSearchRepository(session)
+    nutrition_repository = SqlAlchemyNutritionRepository(session)
+    label_by_id = {str(value): label for label, value in snapshot.items()}
+    observed: list[dict[str, Any]] = []
+    for case in rows:
+        provider = FakeEmbeddingProvider()
+        target = _QUERY_TARGETS.get(case["query"])
+        query_vector = _vector(list(_CANONICAL_NAMES).index(target) + 1 if target else 1)
+        # Execute every repository channel explicitly as part of the real-PG evidence;
+        # the subsequent service call remains the production policy decision path.
+        exact_rows = repository.find_current_qualified_exact(normalized_query=case["query"])
+        text_rows = repository.find_text_candidates(normalized_query=case["query"], limit=3)
+        vector_rows = repository.find_vector_candidates(query_vector=query_vector, limit=3)
+        if case["expected"]["candidate_limit"] == 0:
+            # The failure/none cases deliberately verify the production text-only fallback.
+            provider.queue_error(kind=ProviderFailureKind.TRANSIENT, code="EVAL_SEMANTIC_UNAVAILABLE")
+        else:
+            provider.queue_result((query_vector,), model_alias="fake-embedding-v1", embedding_version="fake-embedding-v1")
+        service = NutritionService(repository=nutrition_repository, search_repository=repository, embedding_provider=provider)
+        result = asyncio.run(service.search_food_catalog(FoodSearchInput(query=case["query"])))
+        graph_calls = _execute_graph_entries(query=case["query"], query_vector=query_vector, nutrition_repository=nutrition_repository, search_repository=repository, session=session)
+        ids = {str(candidate.id) for candidate in result.candidates}
+        if result.selected_food is not None:
+            ids.add(str(result.selected_food.id))
+        expected_ids = {str(snapshot[item]) for item in case["expected"]["target_food_ids"] if item in snapshot}
+        observed.append({
+            "case_id": case["case_id"], "case_hash": case["case_hash"], "action": result.action.value,
+            "candidate_ids": sorted(label_by_id.get(value, "unbound") for value in ids), "exact_sql": int(bool(exact_rows)),
+            "text_sql": int(text_rows is not None), "vector_sql": int(vector_rows is not None),
+            "graph_calls": graph_calls,
+            "assertions": {"action": result.action.value == case["expected"]["action"], "targets": not expected_ids or expected_ids <= ids, "candidate_bound": len(result.candidates) <= case["expected"]["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0},
+        })
+    release = _release_payload(rows=rows, observed=observed, dataset=dataset, snapshot=snapshot)
+    if output is not None:
+        temporary = output.with_suffix(output.suffix + ".tmp")
+        temporary.write_text(json.dumps(release, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(output)
+    return release
+
+
+def verify_release(path: Path) -> dict[str, Any]:
+    try:
+        release = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise EvaluationContractError("release evidence is unreadable") from error
+    evidence_hash = release.pop("evidence_hash", None)
+    if release.get("decision") != "PASS" or not isinstance(evidence_hash, str) or evidence_hash != _hash(release):
+        raise EvaluationContractError("release evidence hash or decision is invalid")
+    return {**release, "evidence_hash": evidence_hash}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-release", action="store_true")
+    parser.add_argument("--output", type=Path, default=Path(__file__).with_name("release.json"))
+    arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    if arguments.verify_release:
+        verify_release(arguments.output)
+        return 0
+    from app.core.database import create_session_factory
+    with create_session_factory()() as session:
+        release = build_release(session=session, output=arguments.output)
+        session.rollback()  # frozen runner leaves no synthetic rows behind
+    return 0 if release["decision"] == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

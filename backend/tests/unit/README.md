@@ -13,7 +13,7 @@
 
 | 文件 | 职责 |
 |---|---|
-| `test_phase063_eval_contract.py` | Phase 06.3 冻结检索案例的 schema、顺序/hash 链、类别覆盖与隐私 fail-closed 合同。 |
+| `test_phase063_eval_contract.py` | Phase 06.3 冻结检索案例的 schema、顺序/hash 链、类别覆盖、隐私 fail-closed，以及 hash-bound release evidence 拒绝篡改合同。 |
 | `test_embedding_provider.py` | Embedding Provider 的名称、批量、1024 维有限浮点、Fake 隐私边界，以及 DashScope/factory 的离线 fail-closed 合同。 |
 | `test_hybrid_food_search.py` | 锁定混合检索的精确短路、非精确 ASK、故障降级、追踪脱敏、可靠候选不凑满、分层融合/稳定去重及 D-04 安全 discriminator 投影。 |
 
