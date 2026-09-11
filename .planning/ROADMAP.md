@@ -332,10 +332,10 @@ Plans:
 **Goal:** 受控菜品目录以唯一 canonical/alias 精确匹配优先；无唯一精确结果时，通过确定性 PostgreSQL 模糊文本与隔离的 pgvector 语义空间召回最多 3 个当前合格、版本明确、可解释的候选，并在餐食分析和饮食规划中一律要求确认；语义故障安全降级，异步索引可审计，最终发布结论只由冻结确定性评测产生。
 **Requirements**: HFS-01, HFS-02, HFS-03, HFS-04, HFS-05, HFS-06, HFS-07, HFS-08, HFS-09
 **Depends on:** Phase 6
-**Plans:** 21 plans
+**Plans:** 2/21 plans executed
 
 Plans:
-- [ ] 06.3-01-PLAN.md — 锁定 pgvector 与 dev-only Langfuse 供应链依赖
+- [x] 06.3-01-PLAN.md — 锁定 pgvector 与 dev-only Langfuse 供应链依赖
 - [ ] 06.3-02-PLAN.md — 建立严格 1024 维 Embedding DTO、Protocol 与离线 Fake
 - [ ] 06.3-03-PLAN.md — 接入 DashScope Adapter、Provider 配置与安全工厂
 - [ ] 06.3-04-PLAN.md — 建立 pg_trgm、关系证据、向量构建快照与激活证据 schema
@@ -349,7 +349,7 @@ Plans:
 - [ ] 06.3-12-PLAN.md — 在现有后台目录页显示聚合/job 状态并批量重试
 - [ ] 06.3-13-PLAN.md — 接入共享异步 Tool、安全 State 与单例 Phoenix runtime 生命周期
 - [ ] 06.3-14-PLAN.md — 实现双图一致 ASK、clarification、resume 与 parity
-- [ ] 06.3-15-PLAN.md — 冻结 24+ 合成案例及严格 hash/隐私合同
+- [x] 06.3-15-PLAN.md — 冻结 24+ 合成案例及严格 hash/隐私合同
 - [ ] 06.3-16-PLAN.md — 通过真实 PostgreSQL 与双 Graph 入口生成确定性发布报告
 - [ ] 06.3-17-PLAN.md — 校验 Plan 21 快照和 Plan 10 完成证据后原子激活目标空间
 - [ ] 06.3-18-PLAN.md — 接入隔离 Compose 与显式 allowlist Langfuse 镜像
