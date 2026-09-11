@@ -84,7 +84,12 @@ def test_publish_mirrors_pass_and_fail_cases_with_only_safe_projection(tmp_path:
     assert result.published_cases == 24
     assert client.flushed is True
     assert len(client.observations) == 24
-    assert len(client.scores) == 24 * 5
+    # The mirror emits one categorical score for every frozen assertion.  Keep
+    # this coupled to the release contract rather than the superseded five-key
+    # assertion set, so adding a fail-closed check cannot silently drop a score.
+    assert len(client.scores) == sum(
+        len(case["assertions"]) for case in payload["cases"]
+    )
     assert {"PASS", "FAIL"} <= {payload["metadata"]["action"] for payload, _ in client.observations}
     exported = _all_values(client.observations) + _all_values(client.scores)
     # Safe aggregate score names may contain words such as ``meal_graph``; this
