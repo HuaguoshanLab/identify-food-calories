@@ -1,0 +1,52 @@
+# Explicit, local-only experiment mirror. It deliberately does not extend the
+# application Compose file, network, PostgreSQL database, or volumes.
+services:
+  langfuse-postgres:
+    image: postgres:16.8-alpine
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?copy .env.langfuse.example to .env.langfuse and replace placeholders}
+    volumes: [langfuse_postgres_data:/var/lib/postgresql/data]
+    networks: [langfuse_internal]
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.8.14-alpine
+    volumes: [langfuse_clickhouse_data:/var/lib/clickhouse]
+    networks: [langfuse_internal]
+
+  langfuse-minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: langfuse-local
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_ROOT_PASSWORD:?copy .env.langfuse.example to .env.langfuse and replace placeholders}
+    volumes: [langfuse_minio_data:/data]
+    networks: [langfuse_internal]
+
+  langfuse:
+    image: langfuse/langfuse:3.63.0
+    depends_on: [langfuse-postgres, langfuse-clickhouse, langfuse-minio]
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD:?missing}/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?missing}
+      SALT: ${LANGFUSE_SALT:?missing}
+      NEXTAUTH_URL: http://127.0.0.1:3001
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      S3_EVENT_UPLOAD_BUCKET: langfuse
+      S3_EVENT_UPLOAD_REGION: local
+      S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse-local
+      S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD:?missing}
+    ports: ["127.0.0.1:3001:3000"]
+    networks: [langfuse_internal]
+
+networks:
+  langfuse_internal:
+    internal: true
+
+volumes:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_minio_data:
