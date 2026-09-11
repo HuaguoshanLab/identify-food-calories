@@ -1,0 +1,188 @@
+"""Bounded DashScope adapter for normalized catalog names only."""
+
+from __future__ import annotations
+
+from decimal import Decimal, InvalidOperation
+from time import monotonic
+import httpx
+from pydantic import ValidationError
+
+from app.core.config import Settings
+from app.providers.embedding.dto import (
+    EMBEDDING_DIMENSION,
+    EmbeddingCallMetadataDTO,
+    EmbeddingRequest,
+    EmbeddingResult,
+    EmbeddingUsageDTO,
+    EmbeddingVectorDTO,
+)
+from app.providers.reasoning.dto import ProviderCallError, ProviderFailureKind
+
+
+DASHSCOPE_EMBEDDING_URL = (
+    "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
+)
+PINNED_MODEL = "text-embedding-v4"
+PINNED_ADAPTER_VERSION = "dashscope-text-embedding-v4-1024.v1"
+
+
+class DashScopeEmbeddingProvider:
+    """Call the pinned DashScope embedding endpoint without exposing vendor bodies."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        dimension: int,
+        timeout_seconds: float,
+        input_cny_per_m: Decimal,
+        single_call_cap_cny: Decimal,
+        period_cap_cny: Decimal,
+        price_snapshot_version: str,
+        adapter_version: str = PINNED_ADAPTER_VERSION,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        if not api_key.strip() or model != PINNED_MODEL or dimension != EMBEDDING_DIMENSION:
+            raise ValueError("DashScope model, dimension, and credentials are invalid")
+        if timeout_seconds != 1.5:
+            raise ValueError("DashScope embedding timeout must be exactly 1.5 seconds")
+        if adapter_version != PINNED_ADAPTER_VERSION or not price_snapshot_version.strip():
+            raise ValueError("DashScope adapter or price snapshot version is invalid")
+        if any(value <= 0 for value in (input_cny_per_m, single_call_cap_cny, period_cap_cny)):
+            raise ValueError("DashScope price and cost caps must be positive")
+        self._api_key = api_key
+        self._model = model
+        self._timeout_seconds = timeout_seconds
+        self._input_cny_per_m = input_cny_per_m
+        self._single_call_cap_cny = single_call_cap_cny
+        self._period_cap_cny = period_cap_cny
+        self._price_snapshot_version = price_snapshot_version
+        self._adapter_version = adapter_version
+        self._transport = transport
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> DashScopeEmbeddingProvider:
+        required = (
+            settings.dashscope_api_key,
+            settings.embedding_model,
+            settings.embedding_dimension,
+            settings.embedding_price_snapshot_version,
+            settings.embedding_input_cny_per_m,
+            settings.embedding_single_call_cap_cny,
+            settings.embedding_period_cap_cny,
+            settings.embedding_timeout_seconds,
+        )
+        if any(value is None for value in required):
+            raise ValueError("DashScope embedding Settings are incomplete")
+        assert settings.dashscope_api_key is not None
+        return cls(
+            api_key=settings.dashscope_api_key.get_secret_value(),
+            model=settings.embedding_model or "",
+            dimension=settings.embedding_dimension or 0,
+            timeout_seconds=settings.embedding_timeout_seconds or 0,
+            input_cny_per_m=settings.embedding_input_cny_per_m or Decimal("0"),
+            single_call_cap_cny=settings.embedding_single_call_cap_cny or Decimal("0"),
+            period_cap_cny=settings.embedding_period_cap_cny or Decimal("0"),
+            price_snapshot_version=settings.embedding_price_snapshot_version or "",
+            adapter_version=settings.embedding_adapter_version or PINNED_ADAPTER_VERSION,
+        )
+
+    async def embed(self, request: EmbeddingRequest) -> EmbeddingResult:
+        body = {
+            "model": self._model,
+            "input": {"texts": list(request.names)},
+            "parameters": {
+                "text_type": request.text_type,
+                "dimension": EMBEDDING_DIMENSION,
+                "output_type": "dense",
+            },
+        }
+        started = monotonic()
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(self._timeout_seconds), transport=self._transport
+                ) as client:
+                    response = await client.post(
+                        DASHSCOPE_EMBEDDING_URL,
+                        headers={"Authorization": f"Bearer {self._api_key}"},
+                        json=body,
+                    )
+            except httpx.TimeoutException as error:
+                raise ProviderCallError(
+                    kind=ProviderFailureKind.TRANSIENT, code="PROVIDER_TIMEOUT"
+                ) from error
+            except (httpx.NetworkError, httpx.ProtocolError) as error:
+                raise ProviderCallError(
+                    kind=ProviderFailureKind.OUTCOME_UNKNOWN, code="PROVIDER_OUTCOME_UNKNOWN"
+                ) from error
+
+            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                continue
+            if response.status_code >= 400:
+                raise ProviderCallError(
+                    kind=(ProviderFailureKind.TRANSIENT if response.status_code in {429, 500, 502, 503, 504} else ProviderFailureKind.PERMANENT),
+                    code=("PROVIDER_TRANSIENT_FAILURE" if response.status_code in {429, 500, 502, 503, 504} else "PROVIDER_REQUEST_REJECTED"),
+                )
+            try:
+                result = _result(
+                    document=response.json(), request=request, model=self._model,
+                    adapter_version=self._adapter_version,
+                    price_snapshot_version=self._price_snapshot_version,
+                    input_cny_per_m=self._input_cny_per_m,
+                    single_call_cap_cny=self._single_call_cap_cny,
+                    latency_ms=int((monotonic() - started) * 1000),
+                )
+            except (TypeError, ValueError, InvalidOperation, ValidationError) as error:
+                raise ProviderCallError(
+                    kind=ProviderFailureKind.PERMANENT, code="PROVIDER_SCHEMA_INVALID"
+                ) from error
+            return result
+        raise AssertionError("unreachable retry loop")
+
+
+def _result(
+    *, document: object, request: EmbeddingRequest, model: str, adapter_version: str,
+    price_snapshot_version: str, input_cny_per_m: Decimal, single_call_cap_cny: Decimal,
+    latency_ms: int,
+) -> EmbeddingResult:
+    if not isinstance(document, dict):
+        raise ValueError("response is not an object")
+    output = document.get("output")
+    usage = document.get("usage")
+    if not isinstance(output, dict) or not isinstance(usage, dict):
+        raise ValueError("response has no output or usage")
+    embeddings = output.get("embeddings")
+    if not isinstance(embeddings, list) or len(embeddings) != len(request.names):
+        raise ValueError("response embedding count is invalid")
+    vectors: list[EmbeddingVectorDTO] = []
+    for index, item in enumerate(embeddings):
+        if not isinstance(item, dict) or item.get("text_index") not in {None, index}:
+            raise ValueError("response embedding index is invalid")
+        raw_vector = item.get("embedding")
+        if not isinstance(raw_vector, list) or any(
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            for value in raw_vector
+        ):
+            raise ValueError("response embedding vector is invalid")
+        vectors.append(EmbeddingVectorDTO(values=tuple(float(value) for value in raw_vector)))
+    total_tokens = usage.get("total_tokens")
+    if not isinstance(total_tokens, int) or total_tokens < 0:
+        raise ValueError("response token usage is invalid")
+    cost = Decimal(total_tokens) * input_cny_per_m / Decimal("1000000")
+    if cost > single_call_cap_cny:
+        raise ProviderCallError(kind=ProviderFailureKind.PERMANENT, code="PROVIDER_COST_CAP_EXCEEDED")
+    request_id = document.get("request_id")
+    if not isinstance(request_id, str) or not request_id.strip() or len(request_id.strip()) > 128:
+        request_id = None
+    return EmbeddingResult(
+        input_count=len(request.names), vectors=tuple(vectors),
+        metadata=EmbeddingCallMetadataDTO(
+            model_alias=model,
+            embedding_version=f"{adapter_version}:{price_snapshot_version}",
+            provider_request_id=request_id,
+            usage=EmbeddingUsageDTO(input_tokens=total_tokens, total_tokens=total_tokens, cost_cny=cost),
+            latency_ms=latency_ms,
+        ),
+    )
