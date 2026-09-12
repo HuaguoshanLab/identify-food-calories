@@ -243,7 +243,10 @@ describe('PlanPage', () => {
     await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换成西红柿炒鸡蛋')
     await user.click(screen.getByRole('button', { name: '提交调整' }))
 
-    expect(await screen.findByRole('heading', { name: '请选择要替换的菜品' })).toBeInTheDocument()
+    const candidateHeading = await screen.findByRole('heading', { name: '请选择要替换的菜品' })
+    const submittedAdjustment = screen.getByRole('button', { name: '提交调整' })
+    expect(submittedAdjustment).toBeDisabled()
+    expect(submittedAdjustment.compareDocumentPosition(candidateHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     const option = screen.getByRole('radio', { name: /番茄炒蛋/ })
     expect(option).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('button', { name: '提交选择' })).toBeDisabled()
