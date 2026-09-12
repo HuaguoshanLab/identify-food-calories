@@ -88,6 +88,7 @@ function recoveryContent(code: string | null | undefined) {
   if (code === 'OUTCOME_UNKNOWN') return { title: '正在确认本次请求状态', body: '为避免重复收费，系统不会自动再次提交。', action: '发起新的分析' }
   if (code === 'LIMIT_REACHED') return { title: '本次分析达到运行上限', body: '请开始新的分析，或改为文字描述。', action: '开始新的分析' }
   if (code === 'VISION_ANALYSIS_FAILED') return { title: '图片未能识别', body: '你可以改用文字描述这餐。', action: '改为文字描述这餐' }
+  if (code === 'RUNTIME_FAILURE' || code === 'CHECKPOINT_PERSIST_FAILED') return { title: '分析服务暂时不可用', body: '这不是餐食描述错误，请稍后重新尝试。', action: '重新尝试' }
   return { title: '本次餐食分析未完成', body: '请检查餐食描述后重新尝试。', action: '检查餐食描述' }
 }
 

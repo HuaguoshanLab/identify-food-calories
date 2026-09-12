@@ -34,6 +34,7 @@ from app.agent.state import (
     state_codec_for_kind,
 )
 from app.agent.graph import AgentGraph
+from app.agent.runtime_errors import AgentRuntimeStageError
 from app.agent.schemas import DietPlanningStartCommand
 from app.agent.weight import parse_weight_grams
 from app.planning.ports import PlanningCompletionProjectionWriter
@@ -265,9 +266,15 @@ class AgentService:
             safe_summary=("正在读取本次资料与饮食偏好。" if graph_kind is AgentGraphKind.DIET_PLANNING else "分析任务正在运行。"),
         )
         try:
-            previous = await self._load_checkpoint(
-                checkpointer=checkpointer, thread_id=run.thread_id, graph_kind=graph_kind
-            )
+            try:
+                previous = await self._load_checkpoint(
+                    checkpointer=checkpointer, thread_id=run.thread_id, graph_kind=graph_kind
+                )
+            except Exception as error:
+                return await self._fail_run(
+                    run=run, user_id=user_id, code="RUNTIME_FAILURE",
+                    stage="checkpoint_load", error_class=type(error).__name__[:80],
+                )
             if resume_payload is None and input_text is None and image_reference is None and planning_command is None:
                 return await self._fail_run(
                     run=run, user_id=user_id, code="MISSING_AGENT_COMMAND"
@@ -329,9 +336,17 @@ class AgentService:
                 )
         except GraphRecursionError:
             return await self._fail_run(run=run, user_id=user_id, code="GRAPH_RECURSION_LIMIT")
-        except Exception:
+        except AgentRuntimeStageError as error:
+            return await self._fail_run(
+                run=run, user_id=user_id, code="RUNTIME_FAILURE",
+                stage=error.stage, error_class=error.error_class,
+            )
+        except Exception as error:
             # A failed provider/checkpoint call must never strand a run in "running".
-            return await self._fail_run(run=run, user_id=user_id, code="RUNTIME_FAILURE")
+            return await self._fail_run(
+                run=run, user_id=user_id, code="RUNTIME_FAILURE",
+                stage="graph_execution", error_class=type(error).__name__[:80],
+            )
         try:
             await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
         except Exception:
@@ -473,11 +488,16 @@ class AgentService:
         )
         return run
 
-    async def _fail_run(self, *, run: AgentRun, user_id: uuid.UUID, code: str) -> AgentRun:
+    async def _fail_run(
+        self, *, run: AgentRun, user_id: uuid.UUID, code: str,
+        stage: str | None = None, error_class: str | None = None,
+    ) -> AgentRun:
         """Persist a stable failure category without exposing library/provider exception text."""
 
         run.status = "failed"
         run.failure_code = code
+        run.failure_stage = stage
+        run.failure_class = error_class
         run.finished_at = self._now()
         run.updated_at = run.finished_at
         self._commit_or_rollback()

@@ -93,6 +93,8 @@ class AgentRun(Base):
         Numeric(12, 6), nullable=False, default=Decimal("0")
     )
     failure_code: Mapped[str | None] = mapped_column(String(80))
+    failure_stage: Mapped[str | None] = mapped_column(String(80))
+    failure_class: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

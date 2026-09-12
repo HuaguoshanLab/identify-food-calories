@@ -660,6 +660,28 @@ class CatalogEmbeddingRetryResponse(CatalogEmbeddingStatusResponse):
     reset_count: int = Field(ge=0)
 
 
+class CatalogSearchIndexBackfillCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+
+class CatalogSearchIndexBackfillResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    audit_id: uuid.UUID
+    publication_count: int = Field(ge=0)
+    name_count: int = Field(ge=0)
+    embedding_job_count: int = Field(ge=0)
+
+
 class CatalogVectorSpaceBuildCommand(BaseModel):
     """Pinned, auditable request to backfill a separate immutable vector space."""
 
@@ -811,6 +833,8 @@ class AdminRunDetailResponse(BaseModel):
     elapsed_ms: int = Field(ge=0)
     estimated_cost_usd: Decimal = Field(ge=0)
     failure_code: str | None
+    failure_stage: str | None = Field(default=None, max_length=80)
+    failure_class: str | None = Field(default=None, max_length=80)
     finished_at: datetime
     invocations: list["AdminRunInvocationResponse"] = Field(default_factory=list)
 

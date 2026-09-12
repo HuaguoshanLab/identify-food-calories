@@ -49,6 +49,7 @@ from app.providers.reasoning.dto import (
 from app.providers.reasoning.ports import ReasoningModelProvider
 from app.providers.vision.dto import VisionMealRequest, VisionMealResult
 from app.providers.vision.ports import VisionModelProvider
+from app.agent.runtime_errors import AgentRuntimeStageError
 
 
 GRAPH_VERSION = "meal-agent-graph.v1"
@@ -157,7 +158,12 @@ class MealAnalysisGraph:
             if callable(retrieve_context):
                 # Context is optional guidance and is deliberately collected before parsing. It
                 # cannot alter the deterministic Nutrition Service calls below.
-                hints = retrieve_context(user_id=state.user_id, query=state.messages[-1])
+                try:
+                    hints = retrieve_context(user_id=state.user_id, query=state.messages[-1])
+                except Exception as error:
+                    raise AgentRuntimeStageError.from_exception(
+                        stage="context_retrieval", error=error
+                    ) from None
                 state = state.model_copy(
                     update={
                         "context_hints": tuple(
@@ -269,11 +275,16 @@ class MealAnalysisGraph:
             return state
         if state.budget.tool_calls >= 12:
             return _limit_state(state)
-        captured = capture(
-            user_id=state.user_id,
-            run_id=state.run_id,
-            statement=state.messages[0],
-        )
+        try:
+            captured = capture(
+                user_id=state.user_id,
+                run_id=state.run_id,
+                statement=state.messages[0],
+            )
+        except Exception as error:
+            raise AgentRuntimeStageError.from_exception(
+                stage="preference_capture", error=error
+            ) from None
         safe_result = tuple((item.category, item.canonical_text) for item in captured)
         return state.model_copy(
             update={

@@ -41,6 +41,8 @@ from app.admin.schemas import (
     CatalogEmbeddingRetryCommand,
     CatalogEmbeddingRetryResponse,
     CatalogEmbeddingStatusResponse,
+    CatalogSearchIndexBackfillCommand,
+    CatalogSearchIndexBackfillResponse,
     CatalogVectorSpaceBuildCommand,
     CatalogVectorSpaceBuildResponse,
     CatalogRelationEvidenceCommand,
@@ -746,6 +748,25 @@ def retry_catalog_embedding_jobs(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="catalog publication not found") from error
     except CatalogEmbeddingRetryConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="embedding retry conflict") from error
+
+
+@router.post(
+    "/catalog-search-index-backfills",
+    response_model=CatalogSearchIndexBackfillResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def backfill_catalog_search_index(
+    command: CatalogSearchIndexBackfillCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogSearchIndexBackfillResponse | JSONResponse:
+    try:
+        return admin_service.backfill_catalog_search_index(actor_user_id=principal, command=command, command_key=idempotency_key)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogVectorSpaceBuildConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 @router.post(

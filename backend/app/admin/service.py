@@ -81,6 +81,8 @@ from app.admin.schemas import (
     CatalogEmbeddingJobResponse,
     CatalogEmbeddingRetryCommand,
     CatalogEmbeddingRetryResponse,
+    CatalogSearchIndexBackfillCommand,
+    CatalogSearchIndexBackfillResponse,
     CatalogEmbeddingStatusResponse,
     CatalogVectorSpaceBuildCommand,
     CatalogVectorSpaceBuildResponse,
@@ -1263,6 +1265,44 @@ class AdminService:
             raise KeyError("catalog publication not found")
         return self._catalog_embedding_status(publication_id)
 
+    def backfill_catalog_search_index(self, *, actor_user_id: uuid.UUID, command: CatalogSearchIndexBackfillCommand, command_key: str) -> CatalogSearchIndexBackfillResponse:
+        """Repair derived names from immutable active publication snapshots only."""
+        key = command_key.strip()
+        if not key:
+            raise CatalogVectorSpaceBuildConflict("an idempotency key is required")
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        audit_key = f"catalog-search-index-backfill:{key}"
+        self._repository.acquire_catalog_search_index_backfill_lock()
+        replay = self._repository.get_audit_event_by_command_key(audit_key)
+        if replay is not None:
+            if replay.action != "catalog.search_index.backfill" or replay.actor_identifier != str(actor.id) or replay.reason != command.reason:
+                raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different search-index backfill")
+            after = replay.after_diff
+            return CatalogSearchIndexBackfillResponse(audit_id=replay.id, publication_count=int(after["publication_count"]), name_count=int(after["name_count"]), embedding_job_count=int(after["embedding_job_count"]))
+        now = self._now()
+        spaces = self._repository.list_active_catalog_vector_spaces()
+        publications = names = jobs_count = 0
+        for publication in self._repository.list_current_qualified_catalog_publications():
+            version = self._repository.get_catalog_search_version(publication_id=publication.id, content_hash=publication.content_hash)
+            if version is None:
+                version = self._repository.add_catalog_search_version(CatalogSearchVersion(id=uuid.uuid4(), publication_id=publication.id, content_hash=publication.content_hash, created_at=now))
+            desired: dict[str, tuple[str, Literal["canonical", "controlled_alias"]]] = {}
+            for display_name, kind in [(str(publication.snapshot["canonical_name"]), "canonical"), *((str(alias), "controlled_alias") for alias in publication.snapshot["aliases"])]:
+                normalized = " ".join(display_name.casefold().split())
+                if normalized:
+                    desired.setdefault(normalized, (display_name, cast(Literal["canonical", "controlled_alias"], kind)))
+            existing = {row.normalized_name for row in self._repository.list_catalog_search_names_for_publication(publication.id)}
+            created = self._repository.add_catalog_search_names([CatalogSearchName(id=uuid.uuid4(), publication_id=publication.id, search_version_id=version.id, display_name=display, normalized_name=normalized, name_kind=kind, created_at=now) for normalized, (display, kind) in sorted(desired.items()) if normalized not in existing])
+            if created:
+                publications += 1
+                names += len(created)
+            new_jobs = [CatalogEmbeddingJob(id=uuid.uuid4(), publication_id=publication.id, name_id=name.id, vector_space_id=space.id, status="pending", attempt_count=0, max_attempts=5, not_before=now, lease_owner=None, leased_at=None, lease_expires_at=None, last_error_code=None, created_at=now, updated_at=now) for name in created for space in spaces]
+            self._repository.add_catalog_embedding_jobs(new_jobs)
+            jobs_count += len(new_jobs)
+        audit = self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now, action="catalog.search_index.backfill", object_type="catalog_search_index", object_id="current-qualified-publications", reason=command.reason, before_diff={}, after_diff={"publication_count": publications, "name_count": names, "embedding_job_count": jobs_count}, related_version="catalog-search-index.v1", command_key=audit_key))
+        self._commit_catalog_mutation()
+        return CatalogSearchIndexBackfillResponse(audit_id=audit.id, publication_count=publications, name_count=names, embedding_job_count=jobs_count)
+
     def create_catalog_vector_space_build(
         self,
         *,
@@ -2433,6 +2473,8 @@ class AdminService:
             elapsed_ms=run.elapsed_ms,
             estimated_cost_usd=run.estimated_cost_usd,
             failure_code=run.failure_code,
+            failure_stage=run.failure_stage,
+            failure_class=run.failure_class,
             finished_at=cast(datetime, run.finished_at),
             invocations=[
                 self._invocation_response(invocation) for invocation in invocations

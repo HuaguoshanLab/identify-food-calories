@@ -361,6 +361,21 @@ class SqlAlchemyAdminRepository:
             )
         )
 
+    def acquire_catalog_search_index_backfill_lock(self) -> None:
+        self._session.execute(text("SELECT pg_advisory_xact_lock(63021023)"))
+
+    def list_current_qualified_catalog_publications(self) -> list[CatalogPublication]:
+        from app.nutrition.repository import SqlAlchemyNutritionRepository
+        return list(self._session.scalars(
+            SqlAlchemyNutritionRepository.current_qualified_publication_statement().order_by(CatalogPublication.id)
+        ))
+
+    def get_catalog_search_version(self, *, publication_id: uuid.UUID, content_hash: str) -> CatalogSearchVersion | None:
+        return self._session.scalar(select(CatalogSearchVersion).where(
+            CatalogSearchVersion.publication_id == publication_id,
+            CatalogSearchVersion.content_hash == content_hash,
+        ))
+
     def add_catalog_search_version(
         self, version: CatalogSearchVersion
     ) -> CatalogSearchVersion:
@@ -374,6 +389,9 @@ class SqlAlchemyAdminRepository:
         self._session.add_all(names)
         self._session.flush()
         return names
+
+    def list_catalog_search_names_for_publication(self, publication_id: uuid.UUID) -> list[CatalogSearchName]:
+        return list(self._session.scalars(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication_id)))
 
     def add_catalog_embedding_jobs(
         self, jobs: list[CatalogEmbeddingJob]

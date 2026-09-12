@@ -77,6 +77,12 @@ class StubCatalogService:
             failed_count=0, completed_count=0, status="pending",
         )
 
+    def backfill_catalog_search_index(self, **_kwargs: object):
+        from app.admin.schemas import CatalogSearchIndexBackfillResponse
+        return CatalogSearchIndexBackfillResponse(
+            audit_id=uuid.uuid4(), publication_count=1, name_count=2, embedding_job_count=0,
+        )
+
     def create_catalog_relation_evidence(self, *, command, **_kwargs: object):
         source_publication_id = command.source_publication_id
         target_publication_id = command.target_publication_id
@@ -335,6 +341,20 @@ def test_vector_space_build_requires_admin_idempotency_and_pinned_identity() -> 
         ).status_code == 422
     assert response.status_code == 201
     assert response.json()["status"] == "pending"
+
+
+def test_catalog_search_index_backfill_requires_explicit_admin_command() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    payload = {"reason": "repair legacy derived search names", "confirm": True}
+    with TestClient(app) as client:
+        assert client.post("/api/v1/admin/catalog-search-index-backfills", json=payload).status_code == 422
+        assert client.post("/api/v1/admin/catalog-search-index-backfills", json={"reason": " ", "confirm": True}, headers={"Idempotency-Key": "index-backfill-0001"}).status_code == 422
+        response = client.post("/api/v1/admin/catalog-search-index-backfills", json=payload, headers={"Idempotency-Key": "index-backfill-0001"})
+    assert response.status_code == 201
+    assert response.json()["name_count"] == 2
+    assert "display_name" not in response.json()
 
 
 def test_catalog_relation_evidence_requires_bounded_idempotent_admin_command() -> None:
