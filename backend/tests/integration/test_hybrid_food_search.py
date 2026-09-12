@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy import select, text
 
-from app.admin.models import CatalogPublication
+from app.admin.models import CatalogDraft, CatalogPublication
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
 from app.admin.service import AdminService
@@ -148,6 +148,11 @@ def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_sessio
 
     from evals.phase_06_3 import evaluate
 
+    synthetic_drafts_before = db_session.scalar(
+        select(text("count(*)")).select_from(CatalogDraft).where(
+            CatalogDraft.source_name == "Synthetic frozen evaluation"
+        )
+    )
     output = tmp_path / "release.json"
     release = evaluate.build_release(session=db_session, output=output)
 
@@ -163,6 +168,15 @@ def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_sessio
     assert release["metrics"]["planning_tool_compose_calls"] >= release["metrics"]["planning_graph_entries"]
     assert all(case["assertions"]["meal_graph"] for case in release["cases"])
     assert all(case["assertions"]["planning_graph"] for case in release["cases"])
+    # The evaluator intentionally calls the production admin service, but its
+    # synthetic fixture must remain inside this test transaction.
+    db_session.rollback()
+    synthetic_drafts_after = db_session.scalar(
+        select(text("count(*)")).select_from(CatalogDraft).where(
+            CatalogDraft.source_name == "Synthetic frozen evaluation"
+        )
+    )
+    assert synthetic_drafts_after == synthetic_drafts_before
 
 
 def test_exact_and_confirmation_reread_use_current_qualified_publication(db_session) -> None:

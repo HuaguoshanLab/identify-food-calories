@@ -468,15 +468,15 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
         )
         publication_id, _, _ = _publish(service, actor_id)
         space = session.scalar(select(CatalogVectorSpace).where(
-            CatalogVectorSpace.embedding_model == "phase063-fake-embedding-v1",
+            CatalogVectorSpace.embedding_model == "text-embedding-v4",
             CatalogVectorSpace.embedding_dimension == 1024,
-            CatalogVectorSpace.adapter_version == "phase063-eval",
+            CatalogVectorSpace.adapter_version == "dashscope-text-embedding-v4-1024.v1",
             CatalogVectorSpace.retrieval_version == "retrieval-06-3-v1",
         ))
         if space is None:
             space = CatalogVectorSpace(
-                id=uuid.uuid4(), embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024,
-                adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1", created_at=now,
+                id=uuid.uuid4(), embedding_model="text-embedding-v4", embedding_dimension=1024,
+                adapter_version="dashscope-text-embedding-v4-1024.v1", retrieval_version="retrieval-06-3-v1", created_at=now,
             )
             session.add(space)
             session.flush()

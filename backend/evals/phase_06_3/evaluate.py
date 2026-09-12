@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import re
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.admin.models import CatalogPublication, CatalogPublicationEligibility
@@ -212,7 +212,9 @@ def _vector(index: int) -> tuple[float, ...]:
 
 
 def _publish(session: Session, actor: User, name: str, key: str, now: datetime) -> CatalogPublication:
-    service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.commit, rollback=session.rollback)
+    # This evaluator is allowed to exercise the real service boundary, but it
+    # must never let that service commit the caller's synthetic transaction.
+    service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.flush, rollback=session.rollback)
     draft = service.create_catalog_draft(
         actor_user_id=actor.id,
         command=CatalogDraftCreateCommand(canonical_name=name, aliases=[f"{name}评测"], energy_kcal_per_100g=Decimal("100"), protein_g_per_100g=Decimal("5"), fat_g_per_100g=Decimal("2"), carbohydrate_g_per_100g=Decimal("20"), source_name="Synthetic frozen evaluation", source_url="https://example.test/frozen", authorization_status="authorized", reason="phase 06.3 synthetic evaluation fixture"),
@@ -227,13 +229,33 @@ def _publish(session: Session, actor: User, name: str, key: str, now: datetime) 
 
 
 def _active_space(session: Session, now: datetime) -> CatalogVectorSpace:
-    space = session.scalar(select(CatalogVectorSpace).join(CatalogActiveVectorSpace, CatalogActiveVectorSpace.vector_space_id == CatalogVectorSpace.id).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
-    if space is not None:
-        return space
-    space = CatalogVectorSpace(id=uuid.uuid4(), embedding_model="phase063-fake-embedding-v1", embedding_dimension=1024, adapter_version="phase063-eval", retrieval_version="retrieval-06-3-v1", created_at=now)
-    session.add(space)
-    session.flush()
-    session.add(CatalogActiveVectorSpace(pointer_key="catalog", vector_space_id=space.id, advanced_at=now))
+    # Never reuse an arbitrary active production space: doing so lets its
+    # catalog rows leak into a synthetic evaluation.  Reuse only the exact
+    # certified identity when it already exists, otherwise create it.  The
+    # caller rolls this temporary pointer switch and every synthetic row back.
+    identity = {
+        "embedding_model": "text-embedding-v4",
+        "embedding_dimension": 1024,
+        "adapter_version": "dashscope-text-embedding-v4-1024.v1",
+        "retrieval_version": "retrieval-06-3-v1",
+    }
+    space = session.scalar(select(CatalogVectorSpace).where(
+        *(getattr(CatalogVectorSpace, field) == value for field, value in identity.items())
+    ))
+    if space is None:
+        space = CatalogVectorSpace(id=uuid.uuid4(), created_at=now, **identity)
+        session.add(space)
+        session.flush()
+    # A pre-existing production build may share the certified identity.  Its
+    # vectors must not affect synthetic ranking; this delete is transaction
+    # local and is restored by the unconditional rollback in ``main``.
+    session.execute(delete(CatalogSearchEmbedding).where(CatalogSearchEmbedding.vector_space_id == space.id))
+    pointer = session.get(CatalogActiveVectorSpace, "catalog")
+    if pointer is None:
+        session.add(CatalogActiveVectorSpace(pointer_key="catalog", vector_space_id=space.id, advanced_at=now))
+    else:
+        pointer.vector_space_id = space.id
+        pointer.advanced_at = now
     session.flush()
     return space
 
@@ -241,13 +263,32 @@ def _active_space(session: Session, now: datetime) -> CatalogVectorSpace:
 def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     """Create synthetic authority rows; retrieval still uses production SQL adapters."""
     now = datetime(2026, 9, 11, tzinfo=UTC)
+    # Command keys are database-unique even when an older evaluator crashed
+    # after committing audit evidence.  They are not part of the frozen report.
+    run_key = uuid.uuid4().hex
     actor = User(id=uuid.uuid4(), email=f"phase063-eval-{uuid.uuid4().hex}@example.test", password_hash="evaluation-only", role=UserRole.ADMIN.value, is_active=True, email_verified_at=now, created_at=now, updated_at=now)
     session.add(actor)
     session.flush()
     space = _active_space(session, now)
+    # The real repository has no "fixture only" filter.  Temporarily make all
+    # pre-existing publications ineligible so exact and text channels cannot
+    # mix local catalog rows with this synthetic fixture.  This is an uncommitted
+    # transaction-local isolation layer and is rolled back with the fixture.
+    existing_publication_ids = list(session.scalars(select(CatalogPublication.id)))
+    session.add_all(
+        CatalogPublicationEligibility(
+            id=uuid.uuid4(), publication_id=publication_id, status="disqualified",
+            actor_identifier="phase063-evaluation-isolation",
+            reason="transaction-local synthetic evaluation isolation",
+            occurred_at=now + timedelta(days=3650),
+            command_key=f"evaluation-isolation-{run_key}-{publication_id}",
+        )
+        for publication_id in existing_publication_ids
+    )
+    session.flush()
     mapping: dict[str, uuid.UUID] = {}
     for index, (label, name) in enumerate(_CANONICAL_NAMES.items(), start=1):
-        publication = _publish(session, actor, name, f"{index:02d}", now)
+        publication = _publish(session, actor, name, f"{run_key}-{index:02d}", now)
         version = session.scalar(select(CatalogSearchVersion).where(CatalogSearchVersion.publication_id == publication.id, CatalogSearchVersion.content_hash == publication.content_hash))
         assert version is not None
         search_name = session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication.id, CatalogSearchName.normalized_name == name))
@@ -283,7 +324,7 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     }
     relation_service = AdminService(
         repository=SqlAlchemyAdminRepository(session), now=lambda: now,
-        commit=session.commit, rollback=session.rollback,
+        commit=session.flush, rollback=session.rollback,
     )
     for query, (label, relation) in relation_cases.items():
         publication_id = mapping[label]

@@ -162,9 +162,14 @@ _CATALOG_LIFECYCLE_FIELDS: tuple[CatalogDraftDiffField, ...] = (
 )
 
 _PHASE063_RELEASE_SPACE = {
-    "embedding_model": "phase063-fake-embedding-v1",
+    # The evaluator remains deterministic and uses Fake vectors, but the
+    # release it certifies is deliberately the only production retrieval
+    # identity.  A completed build for this space proves that every frozen
+    # catalog name was actually sent through the configured DashScope adapter;
+    # the evaluator proves the policy around those vectors separately.
+    "embedding_model": "text-embedding-v4",
     "embedding_dimension": 1024,
-    "adapter_version": "phase063-eval",
+    "adapter_version": "dashscope-text-embedding-v4-1024.v1",
     "retrieval_version": "retrieval-06-3-v1",
 }
 
