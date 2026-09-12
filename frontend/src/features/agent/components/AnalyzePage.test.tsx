@@ -296,6 +296,38 @@ describe('AnalyzePage', () => {
     expect(screen.getByRole('button', { name: '生米饭' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('submits the offered catalog version with a selected food candidate', async () => {
+    const user = userEvent.setup()
+    const threadId = '11111111-1111-4111-8111-111111111111'
+    const candidate = { item_id: 'beef-1', food_id: '22222222-2222-4222-8222-222222222222', catalog_version: 'controlled-recipes.v2', label: '风干牛肉（not_specified）' }
+    const waiting = { thread_id: threadId, status: 'waiting', revision: 1, report: {
+      questions: [{ item_id: 'beef-1', field: 'food', message: '请选择候选食物。', candidates: [candidate] }],
+      understood_items: [{ item_id: 'beef-1', name: '牛肉干', grams: '100' }],
+    } }
+    const completed = { thread_id: threadId, status: 'completed', revision: 2, report: {
+      items: [{ item_id: 'beef-1', name: '风干牛肉', grams: '100', energy_kcal: '250.0' }], totals: { energy_kcal: '250.0' },
+    } }
+    let resumed = false
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/events')) return new Response('')
+      if (path.endsWith('/input')) {
+        expect(JSON.parse(JSON.parse(String(init?.body)).text)).toEqual({
+          answers: { 'beef-1': { candidate_id: candidate.food_id, catalog_version: candidate.catalog_version } },
+        })
+        resumed = true
+        return new Response(JSON.stringify({ thread_id: threadId, status: 'completed' }), { status: 202 })
+      }
+      return new Response(JSON.stringify(resumed ? completed : waiting), { status: path === '/agent/threads' ? 201 : 200 })
+    })
+    renderPage(request)
+    await useTextInput(user)
+    await user.type(screen.getByLabelText('餐食描述'), '牛肉干 100g')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await user.click(await screen.findByRole('button', { name: '风干牛肉（not_specified）' }))
+    await user.click(screen.getByRole('button', { name: '提交补充信息' }))
+    expect(await screen.findByText('估算总热量')).toBeInTheDocument()
+  })
+
   it('localizes known catalog candidate labels while preserving unknown labels', async () => {
     const user = userEvent.setup()
     const request = vi.fn(async () => new Response(JSON.stringify({

@@ -292,7 +292,13 @@ export function AnalyzePage() {
   function submitClarification() {
     const answers: Record<string, Record<string, string>> = {}
     for (const question of report?.questions ?? []) {
-      if (question.field === 'food' && selectedCandidates[question.item_id]) answers[question.item_id] = { candidate_id: selectedCandidates[question.item_id] }
+      if (question.field === 'food' && selectedCandidates[question.item_id]) {
+        const candidate = question.candidates.find(({ food_id }) => food_id === selectedCandidates[question.item_id])
+        // The backend validates this against the offered candidate.  Omitting the catalog
+        // version makes a valid selection an intentional no-op, because an ID alone is not
+        // stable across catalog publications.
+        if (candidate) answers[question.item_id] = { candidate_id: candidate.food_id, catalog_version: candidate.catalog_version }
+      }
       if (question.field === 'grams' && gramAnswers[question.item_id]?.trim()) answers[question.item_id] = { grams: gramAnswers[question.item_id].trim() }
     }
     if (Object.keys(answers).length !== (report?.questions?.length ?? 0)) { setFollowupError('请完成所有补充项；系统不会替你自动选择候选。'); return }
