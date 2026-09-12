@@ -13,12 +13,18 @@
 
 ## 本地运行
 
+先从仓库根目录启动依赖：`docker compose up -d --wait postgres postgres-test mailpit`。以下命令在 `backend/` 目录执行，要求已安装 uv；已有 `.env` 时保留原配置。
+
 ```bash
-cp .env.example .env
+[ -f .env ] || cp .env.example .env
 uv python install 3.12
 uv sync --extra dev --locked
+```
+
+先按下方说明编辑 `.env`，再继续：
+
+```bash
 uv run alembic upgrade head
-uv run python scripts/bootstrap_local_admin.py
 uv run python scripts/bootstrap_local_planning_data.py
 uv run python scripts/setup_local_checkpointer.py
 uv run uvicorn app.main:app --reload
@@ -26,7 +32,17 @@ uv run uvicorn app.main:app --reload
 
 运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
 
-`.env.example` 现在是可直接运行的本地最小配置：复制后只需在 `DEEPSEEK_API_KEY=` 后粘贴自己的 Key。它已固定项目支持的 `deepseek-v4-flash` 和成本快照；本地邮件继续由 Mailpit 接收，图片识别与长期记忆默认使用离线 Fake Provider。真实 Qwen 图片识别、Mem0 与生产环境不是“一把 Key”就能安全开启的功能，必须按各自 Provider 的部署契约显式配置。
+`.env.example` 当前开启 `REASONING_PROVIDER_MODE=deepseek`、`VISION_PROVIDER_MODE=qwen` 和 `EMBEDDING_PROVIDER_MODE=dashscope`，但不包含密钥。真实功能需要分别填写 `DEEPSEEK_API_KEY`、`QWEN_API_KEY` 和 `DASHSCOPE_API_KEY`，并确认对应模型、端点和价格快照适用于自己的服务配置。不能只填 DeepSeek Key 就认为图片识别和向量检索也可用。
+
+只需离线调试时，在 `.env` 中将 `REASONING_PROVIDER_MODE`、`VISION_PROVIDER_MODE`、`EMBEDDING_PROVIDER_MODE` 和 `MEMORY_PROVIDER_MODE` 均设为 `fake`；这不提供真实模型能力。长期记忆默认 Fake，真实 Mem0 需另行配置。保持 `APP_ENV=local` 和模板开发库地址。规划种子与 Checkpointer 初始化脚本不读取 `.env`，默认连接本地 `food_agent_dev`；请勿让应用连接到另一数据库。
+
+需要本地后台账号时，先在 `.env` 设置 `LOCAL_BOOTSTRAP_ADMIN_PASSWORD`（12–128 个字符），然后另开终端在 `backend/` 执行：
+
+```bash
+uv run python scripts/bootstrap_local_admin.py
+```
+
+使用 `admin@admin.com` 和自己设置的密码登录；重复执行不会重置已有管理员密码。
 
 `bootstrap_local_admin.py` 只会在 `APP_ENV=local`、loopback 主机和固定 `food_agent_dev` 数据库上幂等创建 `admin@admin.com` 管理员，并保留角色审计记录。它要求在每台电脑未提交的 `backend/.env` 设置 `LOCAL_BOOTSTRAP_ADMIN_PASSWORD`；仓库和 `.env.example` 不保存密码。`bootstrap_local_planning_data.py` 只会在同一受保护范围内幂等导入受控食材与三餐种子；它不会 reset 数据库或写入用户资料。缺少这一步时，饮食规划没有合格候选，不能生成餐单。`setup_local_checkpointer.py` 只会在同一受保护的本地范围内幂等创建 LangGraph 的短期 State 表；它不会 reset、迁移或写入业务数据。缺少这一步时，健康检查仍会通过，但首次 Agent 分析会失败。
 
@@ -38,7 +54,7 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 连接边界：开发库 `localhost:5432/food_agent_dev`，测试库 `localhost:55432/food_agent_test`，Mailpit SMTP `localhost:1025`，UI `http://localhost:8025`。生产配置会拒绝弱密钥、非 Secure Cookie、通配 CORS、本地 Mailpit 和缺失 SMTP 凭据。
 
-视觉模型默认关闭。只有在已人工核实 Model Studio 的区域、业务空间、模型可用性及数据处理条款后，才能在未提交的 `.env` 设置 `VISION_PROVIDER_MODE=qwen`、`QWEN_API_KEY`、业务空间的 `QWEN_BASE_URL`、模型和人民币价格快照。Qwen adapter 仅使用经过安全解码和元数据剥离后的短期图片引用；它不会记录图片、base64、prompt、完整模型输出或密钥。测试环境无条件使用 Fake Provider，不会触发付费模型调用。
+代码默认视觉模式为 Fake，但当前 `.env.example` 已显式开启 Qwen。只有在已人工核实 Model Studio 的区域、业务空间、模型可用性及数据处理条款后，才能在未提交的 `.env` 设置 `VISION_PROVIDER_MODE=qwen`、`QWEN_API_KEY`、业务空间的 `QWEN_BASE_URL`、模型和人民币价格快照。Qwen adapter 仅使用经过安全解码和元数据剥离后的短期图片引用；它不会记录图片、base64、prompt、完整模型输出或密钥。测试环境无条件使用 Fake Provider，不会触发付费模型调用。
 
 图片分析先通过认证的 `POST /api/v1/agent/threads/image` 创建空图片线程，再以 multipart `POST /api/v1/agent/threads/{thread_id}/images` 上传且必须带 `Idempotency-Key`；不需要伪造文字命令。服务端先验证线程所有权，再按 MIME、大小、像素和真实解码规则归一化图片；持久化层只保留 opaque locator、digest、尺寸、过期/删除状态与受控调用计量。视觉调用结束后立即删除临时文件；保留 worker 会重试清理过期或待删除的 handle。线程快照只额外提供安全 recovery code，绝不公开 Provider 原文。
 
@@ -107,7 +123,7 @@ Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013
 | `AGENTS.md` | 后端局部实现与测试约束 |
 | `ARCHITECTURE.md` | 后端模块地图、依赖方向、新代码落点和变更门禁 |
 | `.gitignore` | 本地环境、缓存与测试产物排除规则 |
-| `.env.example` | 可提交、可直接复制的本地最小环境模板；仅需填入 DeepSeek API Key，不包含真实密钥 |
+| `.env.example` | 可提交的本地环境模板；真实 Provider 需分别配置密钥，离线调试需改为 Fake |
 | `.env.test.example` | 真实 PostgreSQL 测试 child 的固定、互异开发哨兵与测试库环境合同 |
 | `pyproject.toml` | Python 包、运行依赖与测试配置 |
 | `uv.lock` | 由 uv 维护的 Python 3.12+ 完整依赖锁；安装必须使用 `uv sync --locked` |

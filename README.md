@@ -31,25 +31,57 @@ docker compose ps
 
 ## 启动、迁移与验收
 
-先启动本地依赖，再分别启动后端、用户端和独立后台。不要把测试库当成开发库；`postgres-test` 是自动化测试唯一允许清空的数据源。
+先安装 Docker Compose、uv 和 Node.js（>=22.12.0）。以下每个终端都从仓库根目录开始；后端和两个前端是持续运行的进程，需要分别保留终端。不要把测试库当成开发库；`postgres-test` 是自动化测试唯一允许清空的数据源。
+
+**终端 1：基础设施与后端。** 首次配置时复制模板；已有 `.env` 时保留原文件。
 
 ```bash
 docker compose up -d --wait postgres postgres-test mailpit
-
 cd backend
+[ -f .env ] || cp .env.example .env
 uv python install 3.12
 uv sync --extra dev --locked
+```
+
+继续前先编辑 `backend/.env`：模板当前开启 DeepSeek、Qwen 和 DashScope，必须分别配置对应密钥及可用的模型、端点与价格快照。若只需离线调试流程，将以下配置改为 `fake`；Fake 不提供真实模型识别或推理能力。
+
+```dotenv
+REASONING_PROVIDER_MODE=fake
+VISION_PROVIDER_MODE=fake
+EMBEDDING_PROVIDER_MODE=fake
+MEMORY_PROVIDER_MODE=fake
+```
+
+保留 `APP_ENV=local` 和模板中的本地开发数据库地址，然后在终端 1 的 `backend/` 目录继续：
+
+```bash
 uv run alembic upgrade head
+uv run python scripts/bootstrap_local_planning_data.py
+uv run python scripts/setup_local_checkpointer.py
 uv run uvicorn app.main:app --reload
+```
 
-cd ../frontend
-npm ci
-npm run dev
+两条初始化命令可重复执行：分别导入受控食材/菜谱和创建 LangGraph 短期状态表，不能用 Alembic 迁移代替。它们使用代码默认的本地开发库配置（不读取 `.env`），仅允许 loopback 上的 `food_agent_dev`；运行时数据库应与其保持一致。缺少初始化时，即使健康检查通过，分析或规划仍可能失败。
 
-cd ../admin-frontend
+需要本地管理员时，先在 `backend/.env` 设置 `LOCAL_BOOTSTRAP_ADMIN_PASSWORD`（12–128 个字符），再在 `backend/` 运行 `uv run python scripts/bootstrap_local_admin.py`，创建已验证的 `admin@admin.com`。此命令不会重置已有管理员密码；生产管理员流程见后端 README。
+
+**终端 2：用户端。** 从仓库根目录运行：
+
+```bash
+cd frontend
 npm ci
 npm run dev
 ```
+
+**终端 3：独立后台。** 从仓库根目录运行：
+
+```bash
+cd admin-frontend
+npm ci
+npm run dev
+```
+
+访问用户端 `http://127.0.0.1:5178`、后台 `http://127.0.0.1:5179`、后端健康检查 `http://127.0.0.1:8000/api/v1/health`；注册验证邮件在 `http://127.0.0.1:8025` 查看。后续启动保留 `.env`，执行迁移并启动三个服务；首次初始化和数据库重建后需执行上述初始化命令。
 
 测试迁移必须明确选择隔离库，随后再运行后端门禁；完整浏览器验收由 Playwright 管理 FastAPI、Vite、Mailpit 与测试数据库生命周期。
 
@@ -66,7 +98,7 @@ cd ../frontend
 npm run lint && npm run typecheck && npm run test && npm run test:e2e
 
 cd ../admin-frontend
-npm run typecheck && npm test && npm run build
+npm run typecheck && npm test && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build
 ```
 
 `frontend` 固定在 `http://127.0.0.1:5178`，后台固定在 `http://127.0.0.1:5179`，FastAPI 默认在 `http://127.0.0.1:8000`。Records 与独立后台均已有 guarded Playwright 配置：runner 启动专属 FastAPI/Vite/Mailpit/测试库栈，走真实页面与公开 API，且不接受数据库 seed、token/Cookie 注入、mock endpoint 或内部调用作为证据。可分别运行：

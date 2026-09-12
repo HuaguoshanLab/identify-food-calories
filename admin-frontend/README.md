@@ -34,7 +34,7 @@ cd admin-frontend
 npm ci
 npm test
 npm run typecheck
-npm run build
+VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build
 npm run test:e2e
 ```
 
@@ -55,7 +55,7 @@ npm test -- --run \
   src/features/runs/RunsPage.test.tsx \
   src/features/audit/AuditPage.test.tsx \
   src/features/overview/AdminOverviewPage.test.tsx
-npm run typecheck && npm run build
+npm run typecheck && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build
 ```
 
 ## 文件索引
