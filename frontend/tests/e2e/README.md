@@ -31,3 +31,7 @@ E2E 的前端与 CORS origin 固定为 `http://127.0.0.1:5178`；账号只可经
 Records runner 可用 `E2E_FRONTEND_PORT`、`E2E_BACKEND_PORT` 和 `E2E_RECORDS_ADMIN_FRONTEND_PORT`（默认 5178/8000/5185）覆盖端口。每次运行只经 `run_pg.py` 允许的 `food_agent_test` 清库、迁移及受控种子重建；它不复用 06-28 的进程、账号、数据库或 RuntimeConfig。首位管理员 CLI 只写审计角色提升，运行配置必须由 admin SPA 的公开 `POST /api/v1/admin/runtime-config` 创建；禁止 DB 直写、token/cookie 注入、内部调用、固定 sleep 与真实模型。
 
 - `plans.spec.ts`：通过公开后台准备运行配置，并验证时区确认、生成存档、刷新恢复、调整版本、历史与删除；使用 runner 的独立端口，不复用本地开发服务。
+
+- `recipe-choice.spec.ts`：真实公开 API 合成目录与菜谱；具体菜谱无默认选择、刷新恢复、管理员停用后重新选择、指定餐次替换及存档。使用授权测试管理员 recipe-choice-check@example.test，仅运行于隔离测试库。
+
+2026-09-12 验证：`E2E_FRONTEND_PORT=5190 E2E_BACKEND_PORT=8013 E2E_RECORDS_ADMIN_FRONTEND_PORT=5191 npm run test:e2e -- tests/e2e/recipe-choice.spec.ts` 通过（1 项）。覆盖无默认选择、刷新恢复、管理员停用后的重新确认、其他餐次保持不变与第 2 版存档。测试自行管理服务进程；合成数据仅位于隔离测试库。
