@@ -326,7 +326,7 @@ test('verified first admin uses public RuntimeConfig and catalog lifecycle; ordi
   await page.getByRole('link', { name: '概览' }).click()
   await expect(page.getByTestId('admin-shell')).toBeVisible()
   await page.getByRole('link', { name: '运行审计' }).click()
-  await expect(page.getByRole('heading', { name: '运行诊断' })).toBeVisible()
+  await expect(page.getByRole('table', { name: '终态运行列表' })).toBeVisible()
   expect(adminRequests).not.toHaveLength(0)
   expect(adminRequests.every((path) => path.startsWith('/api/v1/admin/'))).toBeTruthy()
   await expect(page.locator('body')).not.toContainText(admin.email)
