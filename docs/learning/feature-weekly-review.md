@@ -4,19 +4,21 @@
 
 后端先汇总一周正式记录，确认记录覆盖足够，再让文本模型给出有限的文字建议。统计数值与建议分开，模型不能重写事实。
 
-## 1. 核心能力
+## 1. 先看一个实际例子
 
-限制模型能看到的事实、能输出的建议类别与长度；检查内容是否越界；输入与版本一致时复用缓存，减少重复调用。
+小林查看一周复盘。假设该周记录覆盖 4 天、共 8 餐，满足当前门槛。后端先汇总这些事实，再让模型写少量受限建议；再次打开时尝试复用缓存。
 
-## 2. 业务背景
+这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
 
-如果一周只记了一顿饭，模型写出“你本周一直怎样吃”就是无依据推断。即便记录足够，也应先算统计，再让模型解释，而不是把原始历史随意丢给它。
+## 2. 为什么需要这样实现
 
-## 3. 整体执行流程
+记录不够时写整周结论会误导用户。即使记录足够，数值也应由后端先算好，模型只负责有限的文字解释。
+
+## 3. 一张图看懂全过程
 
 ```mermaid
 flowchart TD
-    N0["读取已结束周的正式记录"]
+    N0["读取指定统计周的正式记录"]
     N1["构造聚合事实并检查覆盖"]
     N0 --> N1
     N2["有可用缓存则复用"]
@@ -29,53 +31,132 @@ flowchart TD
     N4 --> N5
 ```
 
-流程图展示主线；失败、追问等分支在下面对应步骤中说明。
+图展示主线，失败与追问分支在第 5 节对照阅读。
 
-## 4. 关键代码与设计理由
+## 4. 跟着这个例子读代码
 
-### 4.1 记录不够就不调用模型
+以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-[service.py](../../backend/app/dashboard/service.py) 的 `get_public_weekly_review`：
+### 4.1 先判断数据足不足
+
+**收到什么**
+
+请求带用户与可选周开始日期。当前默认取本地当前周；显式指定历史周必须是已经结束的周一开始的自然周。
+
+**代码在哪里**
+
+[backend/app/dashboard/service.py](../../backend/app/dashboard/service.py) 的 `get_public_weekly_review`。
 
 ```python
+today, start = self._review_window(user_id=user_id, week_start=week_start)
+facts = self._facts(user_id=user_id, week_start=start)
+base = dict(
+    week_start=start,
+    week_end=start + timedelta(days=6),
+    coverage_days=facts.coverage_days,
+    meal_count=facts.meal_count,
+    totals=facts.totals,
+)
 if facts.coverage_days < 4 or facts.meal_count < 8:
-    return WeeklyReviewResponse(facts=facts, abstention_code="INSUFFICIENT_COVERAGE")
+    return WeeklyReviewPublicResponse(status="insufficient_coverage", suggestions=(), **base)
 ```
 
-这是当前项目的覆盖门槛。响应仍可包含已有统计，但不会因此强行生成建议。
+**为什么这样写**
 
-### 4.2 模型只接收最小事实
+先计算事实并检查覆盖，少于 4 天或 8 餐不请求模型。不能从一顿饭推断整周习惯。这里的门槛是项目政策，不是医学标准。
 
-[weekly_review_graph.py](../../backend/app/dashboard/weekly_review_graph.py) 的 `_request_from_facts` 用 DTO 校验事实，`ainvoke` 调 `generate_weekly_review`。最多两次调用，并有超时、预算和输出 token 检查；具体限制也受配置约束。
+**处理后变成什么，交给谁**
 
-该功能确实使用文本模型，与当前确定性餐单组合不同。请求不需要用户完整对话、图片或身体资料。
+本例通过，已有 coverage_days、meal_count 和 totals；下一步形成包含事实摘要和版本的缓存键。记录不够返回 insufficient_coverage，不强行编建议。
 
-### 4.3 语法合法还不够，内容也要过关
+> 语法小注：`**base` 把已验证的基础统计字段展开进响应。
 
-同文件 `validate_weekly_review_semantics` 检查建议类别必须来自允许事实，类别不能重复，文字不允许包含数字或禁用措辞：
+### 4.2 模型只解释经过校验的事实
+
+**收到什么**
+
+服务未找到可复用缓存，Graph 已构造并校验事实请求，检查启用与预算后进入调用循环。
+
+**代码在哪里**
+
+[backend/app/dashboard/weekly_review_graph.py](../../backend/app/dashboard/weekly_review_graph.py) 的 `WeeklyReviewGraph.ainvoke`。
 
 ```python
+async with asyncio.timeout(remaining):
+    result = await self._provider.generate_weekly_review(request)
+calls += 1
+cost += result.metadata.usage.cost_usd
+if result.metadata.usage.completion_tokens > 360 or cost > self._config.per_run_cost_cap_usd:
+    return self._abstain("BUDGET_DENIED", calls, facts_digest, metadata)
+validate_weekly_review_semantics(result.value, request.facts)
+```
+
+**为什么这样写**
+
+用剩余时间限制调用，累计次数和费用，返回后先校验语义。模型不能接管数据库统计，也不需要看整段聊天或身体资料。
+
+**处理后变成什么，交给谁**
+
+返回值通过结构与语义检查才形成建议；未知调用结果不盲目重试，格式或安全失败也只有有限修正机会。
+
+> 语法小注：`asyncio.timeout` 对等待设截止；monotonic 适合计算经过时间。
+
+### 4.3 不允许模型扩展事实或添加数字
+
+**收到什么**
+
+模型输出已符合字段结构，还需检查类别与文字内容。
+
+**代码在哪里**
+
+[backend/app/dashboard/weekly_review_graph.py](../../backend/app/dashboard/weekly_review_graph.py) 的 `validate_weekly_review_semantics`。
+
+```python
+if not facts.coverage_sufficient or output.disclaimer != _SAFE_DISCLAIMER:
+    raise ValueError("weekly review cannot produce advice")
+categories = [item.category for item in output.suggestions]
+if len(categories) != len(set(categories)) or not set(categories) <= set(facts.allowed_patterns):
+    raise ValueError("weekly review categories exceed deterministic facts")
 joined = " ".join(item.text for item in output.suggestions).casefold()
 if any(char.isdigit() for char in joined) or any(term in joined for term in _SAFETY_TERMS):
     raise ValueError("weekly review contains prohibited language")
 ```
 
-因此模型不能夹带自己编的热量数字。校验失败只允许有限修正；仍不合格时返回不生成建议的状态，不给用户展示未经检查的答案。
+**为什么这样写**
 
-### 4.4 缓存绑定事实和版本
+类别必须来自允许事实且不重复；文本含数字或禁用措辞会失败。合法 JSON 也可能胡编，结构校验不是最后一道检查。
 
-`WeeklyReviewCacheKey` 包含用户、周开始日期、事实摘要以及图、提示词、结构和运行配置版本。事实变了或版本变了，需要新的结果；不是只看“这周曾经生成过”就永久复用。
+**处理后变成什么，交给谁**
 
-## 5. 难懂语法
+合格建议由服务缓存并返回；不合格最终可能 safety_abstain。缓存绑定用户、周、事实及版本，输入变化不能复用旧结论。
 
-DTO 是一份规定字段的传输结构。`facts_digest` 是事实内容的摘要，用于判断输入是否变化。`set` 去重，可检查类别是否重复或超出允许集合。
+> 语法小注：`set(categories)` 去重，集合包含关系限制允许范围。
 
-## 6. 怎么验证、怎么继续读
+## 5. 换一种输入，会走哪条路
 
-读 [test_weekly_review_graph.py](../../backend/tests/dashboard/test_weekly_review_graph.py)、[test_weekly_review_cache_service.py](../../backend/tests/dashboard/test_weekly_review_cache_service.py) 与 [test_weekly_review_eval.py](../../backend/tests/evals/test_weekly_review_eval.py)。它们检查拒绝、预算、缓存与输出限制；不能据此宣称真实建议总是有用。
+| 情况 | 判断与处理 | 应观察的结果 |
+|---|---|---|
+| 覆盖不足 | 直接返回不足状态 | 不调用模型 |
+| 同事实同版本 | 读取缓存 | 减少重复调用 |
+| 模型编数字 | 语义校验拒绝 | 不展示未经校验文本 |
 
-读完试着回答：**为什么让模型只写文字建议，还要专门检查它有没有编数字？**
+## 6. 自己验证一次
 
----
+在仓库根目录执行现有测试，使用后端已安装的测试环境：
 
-本文解释当前代码行为；代码块为源码节选，省略外围逻辑，不能单独运行。示例用于讲解，不代表真实模型必然输出相同结果。测试执行范围见总目录。
+```bash
+cd backend
+.venv/bin/python -m pytest tests/dashboard/test_weekly_review_graph.py tests/dashboard/test_weekly_review_cache_service.py -q
+```
+
+对照覆盖、缓存命中和安全拒绝，观察模型调用次数与返回状态。替身建议合格不代表真实模型建议始终有效。
+
+本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+## 7. 读完应该能回答什么
+
+1. 哪些事实是代码算的？
+2. 为什么 JSON 合法仍要检查内容？
+3. 缓存为什么包含版本？
+
+源码阅读顺序：[dashboard/service.py](../../backend/app/dashboard/service.py) → [dashboard/weekly_review_graph.py](../../backend/app/dashboard/weekly_review_graph.py)。先跟本例函数走一遍，再展开旁支。

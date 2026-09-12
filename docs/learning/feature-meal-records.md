@@ -4,15 +4,17 @@
 
 用户确认保存后，后端从已完成的分析中取得报告，连同餐次、食用时间和营养快照写入正式餐食记录，供历史列表和统计使用。
 
-## 1. 核心能力
+## 1. 先看一个实际例子
 
-只保存本人可确认的完成报告；防止重复保存；保存当时的数值和版本，支持查看、修改部分信息及删除。
+小林完成分析后点“保存”，选择午餐和食用时间。他又点了一次保存。我们看一份分析怎样成为一条正式记录，并避免多记一餐。
 
-## 2. 业务背景
+这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
+
+## 2. 为什么需要这样实现
 
 “分析一下这张照片”不一定意味着用户真的吃了这顿饭。未经确认就记入摄入会污染统计。保存时也不能相信浏览器随意提交的一组热量数字。
 
-## 3. 整体执行流程
+## 3. 一张图看懂全过程
 
 ```mermaid
 flowchart TD
@@ -29,41 +31,135 @@ flowchart TD
     N4 --> N5
 ```
 
-流程图展示主线；失败、追问等分支在下面对应步骤中说明。
+图展示主线，失败与追问分支在第 5 节对照阅读。
 
-## 4. 关键代码与设计理由
+## 4. 跟着这个例子读代码
 
-### 4.1 从后端报告取数，不接收任意营养真相
+以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-位置：[service.py](../../backend/app/records/service.py) 的 `confirm_from_completed_run`。它先按用户读取完成运行，再取得对应事件中的报告：
+### 4.1 先找到本人完成的运行并去重
+
+**收到什么**
+
+API 传入可信用户 ID、thread_id、保存命令键及餐次时间；基础时间校验在这段之前。
+
+**代码在哪里**
+
+[backend/app/records/service.py](../../backend/app/records/service.py) 的 `confirm_from_completed_run`。
 
 ```python
+by_command = self._repository.get_record_for_command_for_user(
+    command_key=command_key, user_id=user_id, include_deleted=True
+)
+run = self._repository.get_completed_run_for_thread_for_user(
+    thread_id=thread_id, user_id=user_id, for_update=True
+)
+if run is None:
+    raise MealRecordConfirmationUnavailable("completed report is unavailable")
+if by_command is not None:
+    if by_command.source_run_id != run.id:
+        raise MealRecordCommandConflict("save idempotency key payload mismatch")
+    return by_command
+existing = self._repository.get_record_for_source_run_for_user(
+    source_run_id=run.id, user_id=user_id, include_deleted=True
+)
+if existing is not None:
+    return existing
+```
+
+**为什么这样写**
+
+按命令键检查重放，再按来源运行去重。同键对应不同运行会冲突，不能随便复用保存键。
+
+**处理后变成什么，交给谁**
+
+已有记录就直接返回；没有则继续读取该运行的完成报告。小林第二次点击不会因此增加一餐。
+
+> 语法小注：`for_update=True` 请求锁定相关记录，帮助事务内协调。
+
+### 4.2 从后端报告生成正式快照
+
+**收到什么**
+
+拿到完成事件，报告来自后端，不是浏览器任意上传的一组热量。
+
+**代码在哪里**
+
+[backend/app/records/service.py](../../backend/app/records/service.py) 的 `confirm_from_completed_run`。
+
+```python
+event = self._repository.get_completed_report_for_run_for_user(
+    run_id=run.id, user_id=user_id
+)
 report = event.payload.get("report") if event is not None else None
 snapshot = self._validated_snapshot(report)
 ```
 
-`_validated_snapshot` 检查报告能否成为正式记录。后续建立 `MealRecord` 和各个 `MealRecordItem`，保存菜名、克数、数值以及目录版本。
+**为什么这样写**
 
-### 4.2 重复点击不会制造两顿饭
+_validated_snapshot 检查能否保存。记录同时绑定来源运行、餐次、食用时间、时区和版本，以后能解释这份数值怎么算出来的。
 
-同函数先查 `command_key`，再查 `source_run_id`。同一保存请求或同一运行已有记录时返回原记录；同键对应不同运行会报冲突。这是“幂等”：重复相同操作，结果不重复增加。
+**处理后变成什么，交给谁**
 
-### 4.3 餐次、时间和统计日期各有意义
+构建待保存 MealRecord；随后填入营养总量与各食物项。即便目录后来更新，也保留本次确认快照。
 
-`meal_slot` 表示早餐、午餐等餐次；`consumed_at` 是食用时间；`consumed_local_date` 是按确认时区换算的本地日期。实际校验在同文件 `_validate_meal_slot`、`_validate_consumed_at`。
+> 语法小注：`consumed_local_date` 是按用户提交时区换算后的日期，不是直接取服务器日期。
 
-`get_record`、`update_record`、`delete_record` 都带用户身份。旧快照不会因为目录更新自动改成另一套数值，否则昨天的历史会悄悄变化。
+### 4.3 提交后才能作为历史记录
 
-## 5. 难懂语法
+**收到什么**
 
-`enumerate(snapshot["items"])` 同时取得食物项的位置和内容。快照就是“把保存时认可的结果固定下来”，不等于复制整个临时对话。
+记录对象和各子项已构建完，尚需数据库事务保存。
 
-## 6. 怎么验证、怎么继续读
+**代码在哪里**
 
-读 [test_record_service.py](../../backend/tests/records/test_record_service.py) 的保存、重复请求和归属测试；实际数据库见 [test_meal_records.py](../../backend/tests/integration/test_meal_records.py)。下一篇：[长期记忆](feature-memory.md)。
+[backend/app/records/service.py](../../backend/app/records/service.py) 的 `confirm_from_completed_run`。
 
-读完试着回答：**为什么保存正式餐食时不能直接拿前端提交的热量入库？**
+```python
+try:
+    saved = self._repository.add_record(record)
+    self._commit()
+    return saved
+except Exception:
+    self._rollback()
+    raise
+```
 
----
+**为什么这样写**
 
-本文解释当前代码行为；代码块为源码节选，省略外围逻辑，不能单独运行。示例用于讲解，不代表真实模型必然输出相同结果。测试执行范围见总目录。
+add_record 和 commit 成功才返回正式结果；失败回滚。否则界面可能显示保存成功却无法在历史找到。
+
+**处理后变成什么，交给谁**
+
+返回 saved，历史与看板按用户读取它。查看、修改和删除继续使用 get_record、update_record、delete_record 的归属检查。
+
+> 语法小注：`except Exception` 不是忽略错误，回滚后还会 raise 交给上层。
+
+## 5. 换一种输入，会走哪条路
+
+| 情况 | 判断与处理 | 应观察的结果 |
+|---|---|---|
+| 运行未完成 | 拒绝确认 | 不创建记录 |
+| 同运行重复保存 | 复用记录 | 不重复统计 |
+| 目录后续改变 | 旧记录仍用快照 | 历史数值不悄悄重算 |
+
+## 6. 自己验证一次
+
+在仓库根目录执行现有测试，使用后端已安装的测试环境：
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/records/test_record_service.py -q
+```
+
+检查保存后的来源 ID、餐次与时间；重复调用后记录数量应不增加。真实数据库事务需另外集成测试。
+
+本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+## 7. 读完应该能回答什么
+
+1. 为什么分析不自动等于吃过？
+2. 去重用了哪两个身份？
+3. 为什么保存目录版本和快照？
+
+源码阅读顺序：[records/service.py](../../backend/app/records/service.py)。先跟本例函数走一遍，再展开旁支。

@@ -4,15 +4,17 @@
 
 将“0.5斤”“0.1kg”等明确重量转为克数。它不估计“一大碗”有多重，也不解析所有自然语言数量表达。
 
-## 1. 核心能力
+## 1. 先看一个实际例子
 
-支持代码白名单中的克、千克/公斤、市斤和市两，拒绝无效单位、负数和超限结果。
+小林在重量输入框填写“0.5斤”。后端应得到 250g。我们再用“3kg”和“100ml”看为什么不能只取数字。
 
-## 2. 业务背景
+这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
+
+## 2. 为什么需要这样实现
 
 只提取“100kg”里的数字 100，会误当成 100g。必须完整匹配单位，不能只抽取数字。
 
-## 3. 整体执行流程
+## 3. 一张图看懂全过程
 
 ```mermaid
 flowchart TD
@@ -29,39 +31,126 @@ flowchart TD
     N4 --> N5
 ```
 
-流程图展示主线；失败、追问等分支在下面对应步骤中说明。
+图展示主线，失败与追问分支在第 5 节对照阅读。
 
-## 4. 关键代码与设计理由
+## 4. 跟着这个例子读代码
 
-### 4.1 完整匹配比提取数字重要
+以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-[weight.py](../../backend/app/agent/weight.py) 的 `parse_weight_grams`：
+### 4.1 检查类型，并完整匹配
+
+**收到什么**
+
+输入可以是支持的字符串或数值，本例为 0.5斤。
+
+**代码在哪里**
+
+[backend/app/agent/weight.py](../../backend/app/agent/weight.py) 的 `parse_weight_grams`。
 
 ```python
+message = "请输入有效重量，例如 100g、0.1kg 或 2两；仅支持克、千克/公斤、市斤、市两。"
+if isinstance(value, bool) or not isinstance(value, (str, int, float, Decimal)):
+    raise InvalidWeightInput(message)
 raw = str(value).strip()
 match = _WEIGHT.fullmatch(raw) if len(raw) <= 80 else None
 if match is None:
     raise InvalidWeightInput(message)
 ```
 
-`100ml` 和 `100g左右` 不符合这个解析器的完整输入。“半斤”当前也不能直接通过，应该填 `0.5斤`。
+**为什么这样写**
 
-### 4.2 换算之后再检查上限
+必须完整匹配数字和单位。若只抽数字，100ml 会被错误当克数，100kg 可能被截成 100g。布尔值先排除。
 
-单位表中斤乘 500、两乘 50、kg 乘 1000；之后检查结果是否在 `(0, 2000]`。因此 2kg 可通过、3kg 被拒绝。
+**处理后变成什么，交给谁**
 
-[graph.py](../../backend/app/agent/graph.py) 的 `_decimal_answer` 接入它。合法重量只表示能计算，不代表重量符合照片里的实际份量。
+匹配得到数字 0.5 和单位 斤；不匹配则抛出固定的友好错误。半斤等中文数字当前不支持。
 
-## 5. 难懂语法
+> 语法小注：`fullmatch` 要求整串输入匹配，不能多出“左右”等内容。
 
-`fullmatch` 要求整串文字全部匹配。`re.IGNORECASE` 让 KG 与 kg 等价。Python 中布尔值与整数有继承关系，代码先排除 `bool`，避免把 True 当成数字。
+### 4.2 单位换算之后检查上限
 
-## 6. 怎么验证、怎么继续读
+**收到什么**
 
-读 [test_weight_input.py](../../backend/tests/unit/test_weight_input.py) 的换算、超限、非法单位和布尔值用例。适合直接运行单元测试。
+已经得到数值和单位；单位表中市斤为 500g，kg 为 1000g。
 
-读完试着回答：**为什么不能把 100ml 里的 100 当成 100g？**
+**代码在哪里**
 
----
+[backend/app/agent/weight.py](../../backend/app/agent/weight.py) 的 `parse_weight_grams`。
 
-本文解释当前代码行为；代码块为源码节选，省略外围逻辑，不能单独运行。示例用于讲解，不代表真实模型必然输出相同结果。测试执行范围见总目录。
+```python
+with localcontext() as context:
+    context.prec = 100
+    grams = Decimal(match[1]) * _GRAMS_PER_UNIT[(match[2] or "").lower()]
+if not Decimal("0") < grams <= MAX_MEAL_WEIGHT_GRAMS:
+    raise InvalidWeightInput("换算后的单项重量必须大于 0 且不超过 2000 克，请更正后提交。")
+```
+
+**为什么这样写**
+
+先乘单位倍率，再检查结果大于零且不超过 2000g。否则 3kg 的数字 3 看似很小，却越过实际克数上限。
+
+**处理后变成什么，交给谁**
+
+0.5×500=250g 返回给调用方；3kg 换成 3000g 被拒绝。这个函数只解析明确重量，不估计照片份量。
+
+> 语法小注：`localcontext` 临时调整 Decimal 精度，不影响调用者全局设置。
+
+### 4.3 恢复流程消费解析结果
+
+**收到什么**
+
+用户通过当前问题提交重量，_decimal_answer 调用统一重量解析。
+
+**代码在哪里**
+
+[backend/app/agent/graph.py](../../backend/app/agent/graph.py) 的 `_apply_resume`。
+
+```python
+if question.field == "grams":
+    grams = _decimal_answer(answer.get("grams"))
+    if grams is None:
+        return state
+    changed[item_id] = item.model_copy(
+        update={"grams": grams, "input_version": _next_version(item.input_version), "is_dirty": True}
+    )
+    continue
+```
+
+**为什么这样写**
+
+无法解析就返回原状态；合法结果才写入食物项并提高版本。不能把输入失败变成零克。
+
+**处理后变成什么，交给谁**
+
+本例食物项 grams=250 且 is_dirty=True，下一步查目录并计算。输入合法并不证明用户真的吃了这个重量。
+
+> 语法小注：`_next_version` 让后端区分修改前后的输入版本。
+
+## 5. 换一种输入，会走哪条路
+
+| 情况 | 判断与处理 | 应观察的结果 |
+|---|---|---|
+| 0.5斤 | 换算 250g | 通过 |
+| 3kg | 换算后超限 | 拒绝 |
+| 100ml 或 半斤 | 完整匹配失败 | 提示支持的输入格式 |
+
+## 6. 自己验证一次
+
+在仓库根目录执行现有测试，使用后端已安装的测试环境：
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/unit/test_weight_input.py -q
+```
+
+观察单位换算后的克数以及拒绝案例。对照同样的数字使用 g 和 kg，理解上限为什么放在换算之后。
+
+本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+## 7. 读完应该能回答什么
+
+1. 为什么先换算再校验？
+2. None 与 0 克有什么不同？
+3. 重量合法能证明实际份量准确吗？
+
+源码阅读顺序：[agent/weight.py](../../backend/app/agent/weight.py) → [agent/graph.py](../../backend/app/agent/graph.py)。先跟本例函数走一遍，再展开旁支。

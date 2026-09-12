@@ -4,15 +4,17 @@
 
 把完成的餐单保存为按日期组织的正式计划，并记录后续调整产生的版本，供今日计划、历史和详情读取。
 
-## 1. 核心能力
+## 1. 先看一个实际例子
 
-把长期计划与短期 Agent 状态分开；同一运行不重复存档；调整生成新版本，删除后阻止旧运行把它意外恢复。
+小林生成今天的餐单，随后调整晚餐，历史里应有两个版本。如果完成回调重复执行，不能凭空再多一个版本。
 
-## 2. 业务背景
+这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
+
+## 2. 为什么需要这样实现
 
 用户一周后想看当时计划，不能依赖随时可能清理的对话状态。同时，一次生成任务被重试，也不应该在历史中多出一份相同计划。
 
-## 3. 整体执行流程
+## 3. 一张图看懂全过程
 
 ```mermaid
 flowchart TD
@@ -29,43 +31,147 @@ flowchart TD
     N4 --> N5
 ```
 
-流程图展示主线；失败、追问等分支在下面对应步骤中说明。
+图展示主线，失败与追问分支在第 5 节对照阅读。
 
-## 4. 关键代码与设计理由
+## 4. 跟着这个例子读代码
 
-### 4.1 正式保存和完成状态共用事务
+以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-[archive_service.py](../../backend/app/planning/archive_service.py) 的 `record_completion` 开头：
+### 4.1 先按运行去重并确定归属
+
+**收到什么**
+
+Agent 完成流程带用户、线程、运行与报告交给存档服务。
+
+**代码在哪里**
+
+[backend/app/planning/archive_service.py](../../backend/app/planning/archive_service.py) 的 `record_completion`。
 
 ```python
 self.repo.lock_owner(command.user_id)
 self.check_admission(user_id=command.user_id, thread_id=command.thread_id)
 if self.repo.by_run(command.user_id, command.run_id) is not None:
     return
+time_zone = self.repo.time_zone(command.user_id)
+assert time_zone is not None
+plan = self.repo.by_thread(command.user_id, command.thread_id)
+if plan is None:
+    day = command.started_at.astimezone(ZoneInfo(time_zone)).date()
+    deleted_at = self.repo.latest_deletion(command.user_id, day)
+    if deleted_at is not None and command.started_at <= deleted_at:
+        raise PlanArchiveConflict("生成期间这天的计划已被删除，请重新生成。")
+    plan = self.repo.by_date(command.user_id, day)
 ```
 
-先串行化该用户的写入，再检查是否已保存此运行。方法末尾只 `flush`，最终由 AgentService 提交，避免出现“运行说完成，但计划未保存”的半套结果。
+**为什么这样写**
 
-### 4.2 同一计划的新结果追加版本
+先锁用户协调写入，同一 run 已存在就返回。按线程优先找到计划，必要时按开始时间和统计时区找日期，并检查删除墓碑。
 
-`record_completion` 按线程和日期定位计划，新计划版本从 1 开始，已有计划递增 `current_version`。版本记录保存完整报告、重算总量以及公式、图、工具和菜谱来源信息。
+**处理后变成什么，交给谁**
 
-日期根据开始时间与用户时区归属，不是简单取服务器当前日期；已有线程计划保持自己的归属。
+第一次生成找到当天计划或准备新建；同一完成重放不新增。旧任务不能把用户已删除的计划重新带回来。
 
-### 4.3 删除也参与并发判断
+> 语法小注：`astimezone(...).date()` 先转换时区再取日期。
 
-同方法检查删除时间。如果旧生成任务开始在删除之前，不能在删除后重新把计划写回来。`today`、`history`、`detail` 和 `delete` 构成读取与管理入口，API 在 [archive_api.py](../../backend/app/planning/archive_api.py)。
+### 4.2 已有计划追加版本
 
-## 5. 难懂语法
+**收到什么**
 
-`astimezone(ZoneInfo(time_zone)).date()` 把时间转换为指定时区，再取日期。`flush` 送出数据库修改但未最终提交；`commit` 才结束事务。
+上一阶段确定 plan 是否已经存在。
 
-## 6. 怎么验证、怎么继续读
+**代码在哪里**
 
-读 [test_plan_archive.py](../../backend/tests/planning/test_plan_archive.py) 的重复运行、版本、日期与删除用例。纯服务测试不能代替数据库锁与并发验收。
+[backend/app/planning/archive_service.py](../../backend/app/planning/archive_service.py) 的 `record_completion`。
 
-读完试着回答：**为什么正式计划不能只放在 Checkpoint 里？**
+```python
+now = self.now()
+if plan is None:
+    plan = DietPlan(
+        id=uuid.uuid4(),
+        user_id=command.user_id,
+        plan_date=command.started_at.astimezone(ZoneInfo(time_zone)).date(),
+        time_zone=time_zone,
+        current_version=1,
+        created_at=now,
+        updated_at=now,
+    )
+    self.repo.add_plan(plan)
+else:
+    plan.current_version += 1
+    plan.updated_at = now
+```
 
----
+**为什么这样写**
 
-本文解释当前代码行为；代码块为源码节选，省略外围逻辑，不能单独运行。示例用于讲解，不代表真实模型必然输出相同结果。测试执行范围见总目录。
+新计划从版本 1 开始，已有计划提高版本号。调整后的报告保存为新版本，而不是把旧报告覆盖到无法追溯。
+
+**处理后变成什么，交给谁**
+
+第一次生成 v1，晚餐调整完成变成 v2。后面按新报告重算总量并保存来源信息。
+
+### 4.3 保存完整报告，提交交给调用方
+
+**收到什么**
+
+新版本号、报告、总量和来源信息已准备好。
+
+**代码在哪里**
+
+[backend/app/planning/archive_service.py](../../backend/app/planning/archive_service.py) 的 `record_completion`。
+
+```python
+self.repo.add_version(
+    DietPlanVersion(
+        id=uuid.uuid4(),
+        user_id=command.user_id,
+        plan_id=plan.id,
+        version=plan.current_version,
+        source_run_id=command.run_id,
+        source_thread_id=command.thread_id,
+        report=command.report.model_dump(mode="json", exclude_none=True),
+        totals=totals.model_dump(mode="json"),
+        provenance=provenance,
+        created_at=now,
+    )
+)
+self.repo.flush()
+```
+
+**为什么这样写**
+
+版本记录绑定来源 run 和 thread；这里只 flush，让 Agent 的运行完成状态与正式存档一起 commit。否则可能运行成功但计划没保存。
+
+**处理后变成什么，交给谁**
+
+版本持久化到同一事务，成功提交后 today/history/detail 可读取。正式计划不依赖临时 Checkpoint 长期保留。
+
+> 语法小注：`model_dump(mode="json")` 把结构转成可序列化数据，不能与任意原始用户输入混用。
+
+## 5. 换一种输入，会走哪条路
+
+| 情况 | 判断与处理 | 应观察的结果 |
+|---|---|---|
+| 同 run 重放 | 直接返回 | 版本不增加 |
+| 新调整完成 | 版本递增 | 旧版仍可追溯 |
+| 旧任务晚于删除写回 | 检查墓碑 | 拒绝复活旧计划 |
+
+## 6. 自己验证一次
+
+在仓库根目录执行现有测试，使用后端已安装的测试环境：
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/planning/test_plan_archive.py -q
+```
+
+观察相同 run 与不同 run 对版本号的影响，再检查日期与删除冲突。真实数据库锁需要另行集成验证。
+
+本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+## 7. 读完应该能回答什么
+
+1. 为什么不能只保存 Checkpoint？
+2. 什么时候版本应该增加？
+3. 为什么由调用方 commit？
+
+源码阅读顺序：[planning/archive_service.py](../../backend/app/planning/archive_service.py)。先跟本例函数走一遍，再展开旁支。

@@ -4,15 +4,17 @@
 
 用户说“晚餐换清淡一点”，系统识别要改的餐次，在原计划基础上换候选，再校验全天。没有指明餐次或菜名不确定时先追问。
 
-## 1. 核心能力
+## 1. 先看一个实际例子
 
-保留已有目标和其他餐次，处理指定餐次的替换、候选确认及有限次数调整。
+小林要把晚餐换成另一道菜。目录已确认菜名，但这个菜有两份不同重量或做法的菜谱。现在必须再选具体菜谱，才能只换晚餐而保留早餐午餐。
 
-## 2. 业务背景
+这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
 
-用户只是想换晚餐，如果把整天重做，满意的早餐午餐也会变化。但只换晚餐不检查整日总量，又可能破坏原有目标。
+## 2. 为什么需要这样实现
 
-## 3. 整体执行流程
+菜名只确定营养目录来源，份量和做法属于具体菜谱选择。用户想换一餐，既不能默默采用任意份量，也不能把其他餐次一起改掉。
+
+## 3. 一张图看懂全过程
 
 ```mermaid
 flowchart TD
@@ -29,42 +31,147 @@ flowchart TD
     N4 --> N5
 ```
 
-流程图展示主线；失败、追问等分支在下面对应步骤中说明。
+图展示主线，失败与追问分支在第 5 节对照阅读。
 
-## 4. 关键代码与设计理由
+## 4. 跟着这个例子读代码
 
-### 4.1 当前反馈识别是一组规则
+以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-[graph.py](../../backend/app/agent/graph.py) 的 `_apply_adjustment`：
+### 4.1 先找到需要修改的餐次
+
+**收到什么**
+
+恢复请求带反馈文字；状态已有目标、原餐单和累计调整次数。
+
+**代码在哪里**
+
+[backend/app/agent/graph.py](../../backend/app/agent/graph.py) 的 `DietPlanningGraph._apply_adjustment`。
 
 ```python
-intent = "lighter" if "清淡" in feedback else "replace"
-slot = _slot_from_feedback(feedback)
-food_query = _food_query_from_feedback(feedback)
+if isinstance(feedback, str) and 1 <= len(feedback) <= 500:
+    intent = "lighter" if "清淡" in feedback else "replace"
+    slot = _slot_from_feedback(feedback)
+    food_query = _food_query_from_feedback(feedback)
+    current = self._capture_adjustment_preferences(current, feedback)
+    current = current.model_copy(
+        update={
+            "pending_adjustment_intent": intent,
+            "pending_adjustment_slot": slot,
+            "pending_food_query": food_query,
+            "pending_food_candidates": (),
+            "pending_recipe_candidates": (),
+        }
+    )
+    if slot is None:
+        return current.model_copy(
+            update={
+                "status": AgentRuntimeStatus.WAITING_INPUT,
+                "next_action": DietPlanningAction.NEEDS_INPUT,
+                "report": {
+                    "stage": "needs_input",
+                    "message": "请选择要调整的餐次。",
+                    "input_choices": [meal.slot.value for meal in current.meals],
+                },
+            }
+        )
 ```
 
-当前通过关键词和辅助解析函数判断意图，不是调用模型理解任意复杂指令。没有找到餐次时列出可调整餐次供选择，不能假定所有自然语言说法都支持。
+**为什么这样写**
 
-### 4.2 指定菜品也要经过候选确认
+用现有规则解析餐次、清淡或替换意图及菜名，保存 pending 字段。未指出餐次先追问，不随便改整日。
 
-同函数保存 `pending_food_query` 和候选，恢复时核对 ID、版本并重新检索。它与餐食分析共用[菜品检索](feature-food-search.md)边界，不能因为用户确认过一次就永远信任旧候选。
+**处理后变成什么，交给谁**
 
-### 4.3 局部修改，整日校验
+本例定位晚餐，并记住待查询菜名。后续目录检索遵守非精确候选确认；当前规则并非任意复杂自然语言理解器。
 
-[tools.py](../../backend/app/agent/tools.py) 的 `replace_planning_slot` 执行替换；图再调用校验工具。计数达到上限返回需要修改输入或新建计划的状态。
+> 语法小注：`pending_*` 表示还没完成的选择，追问后仍要保留。
 
-`RELAX` 仍是有标识的放宽结果，不是静默通过；原计划的排除项和健康范围检查不能被“换清淡”绕开。
+### 4.2 菜名确定后，筛选具体菜谱
 
-## 5. 难懂语法
+**收到什么**
 
-`resume.get("feedback")` 从回答字典读取字段，没有就得到空值。`pending_*` 保存尚未完成的调整意图，避免追问后丢失“到底想改什么”。
+已确认 food_id 和版本、目标餐次是晚餐、原菜谱需排除。
 
-## 6. 怎么验证、怎么继续读
+**代码在哪里**
 
-读 [test_diet_planning_graph.py](../../backend/tests/unit/test_diet_planning_graph.py) 的调整、餐次追问和次数上限；领域候选测试见 [test_managed_recipe_candidates.py](../../backend/tests/planning/test_managed_recipe_candidates.py)。
+[backend/app/planning/service.py](../../backend/app/planning/service.py) 的 `list_replacement_recipes`。
 
-读完试着回答：**为什么换一道菜之后还要检查全天，而不只看这道菜？**
+```python
+if not preferences.confirmed:
+    return ()
+candidates = (
+    item for item in self._repository.list_managed_recipe_candidates(catalog_version=None)
+    if item.nutrition_item_id == food_id and item.catalog_version == catalog_version
+    and item.meal_slot is affected_slot and item.id not in exclude_recipe_ids
+    and self._build_managed_meal(item, preferences) is not None
+)
+return tuple(sorted(candidates, key=lambda item: str(item.id)))[:20]
+```
 
----
+**为什么这样写**
 
-本文解释当前代码行为；代码块为源码节选，省略外围逻辑，不能单独运行。示例用于讲解，不代表真实模型必然输出相同结果。测试执行范围见总目录。
+同一道菜可能有不同份量与做法。代码按目录身份、餐次、排除项及可重算资格筛选，排序后限量返回，不能把菜名选择当最终份量选择。
+
+**处理后变成什么，交给谁**
+
+返回候选菜谱；图在多候选时进入 recipe_clarification。选择后还会核对 recipe_id 与 revision，过期选择需重选。
+
+> 语法小注：生成器先过滤，`sorted` 固定顺序，切片限制候选数量。
+
+### 4.3 只替换目标餐次，然后校验整日
+
+**收到什么**
+
+领域服务已给出合法 replacement_plan，待替换晚餐确定。
+
+**代码在哪里**
+
+[backend/app/agent/tools.py](../../backend/app/agent/tools.py) 的 `SessionNutritionToolAdapter.replace_planning_slot`。
+
+```python
+replacement = next(meal for meal in replacement_plan.meals if meal.slot is affected_slot)
+return MealCompositionResult(
+    action=PlanValidationAction.PASS,
+    meals=tuple(replacement if meal.slot is affected_slot else meal for meal in existing_meals),
+    safe_message="已替换指定餐次并保留其余餐次。",
+)
+```
+
+**为什么这样写**
+
+从替换方案里只取受影响餐次，其余沿用原对象，避免顺手改动用户满意的早餐午餐。随后图仍调用 validate_daily_plan 校验整日。
+
+**处理后变成什么，交给谁**
+
+得到保留其他餐次的新餐单。通过或有明确标识的放宽才能呈现结果；不能仅因替换成功就跳过整日约束。
+
+> 语法小注：`replacement if ... else meal` 按餐次选择新旧值。
+
+## 5. 换一种输入，会走哪条路
+
+| 情况 | 判断与处理 | 应观察的结果 |
+|---|---|---|
+| 没说改哪餐 | 列出餐次选择 | 先不替换 |
+| 同菜多个菜谱 | 再次确认份量与做法 | 不是直接选第一份 |
+| 菜谱版本变化 | 重读拒绝旧选择 | 重新确认 |
+
+## 6. 自己验证一次
+
+在仓库根目录执行现有测试，使用后端已安装的测试环境：
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/unit/test_diet_planning_graph.py tests/planning/test_managed_recipe_candidates.py -q
+```
+
+重点观察同一菜品多个菜谱、过期 revision 和非目标餐次保持不变的用例。测试以当前候选规则为准，不推导真实模型理解能力。
+
+本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+## 7. 读完应该能回答什么
+
+1. 为什么确认菜名后还要确认菜谱？
+2. 怎样保证早餐午餐不变？
+3. 为什么换完晚餐还要校验全天？
+
+源码阅读顺序：[agent/graph.py](../../backend/app/agent/graph.py) → [planning/service.py](../../backend/app/planning/service.py) → [agent/tools.py](../../backend/app/agent/tools.py)。先跟本例函数走一遍，再展开旁支。
