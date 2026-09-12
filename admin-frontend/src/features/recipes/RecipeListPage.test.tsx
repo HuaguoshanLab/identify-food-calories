@@ -56,6 +56,8 @@ describe('RecipeListPage', () => {
     }))
     setup()
     await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
+    expect(screen.getByRole('region', { name: '菜谱候选表格' })).toHaveClass('overflow-auto', 'lg:flex-1')
+    expect(screen.getByRole('columnheader', { name: '目录菜品' }).closest('thead')).toHaveClass('sticky', 'top-0')
     expect(screen.getByText('已选 1 条')).toBeVisible()
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByRole('checkbox', { name: '选择 宫保鸡丁' })
