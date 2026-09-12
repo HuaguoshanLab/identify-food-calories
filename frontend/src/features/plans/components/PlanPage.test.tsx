@@ -263,6 +263,80 @@ describe('PlanPage', () => {
     expect(screen.queryByRole('heading', { name: '请选择要替换的菜品' })).not.toBeInTheDocument()
   })
 
+  it('waits for a specific recipe and submits only its identity and revision', async () => {
+    const user = userEvent.setup()
+    const foodId = '44444444-4444-4444-8444-444444444444'
+    const clarification = {
+      stage: 'food_clarification', message: '请选择要用于替换的受控菜品。',
+      candidates: [{
+        item_id: 'planning-substitution', food_id: foodId, catalog_version: 'catalog-v1', label: '番茄炒蛋（熟制）',
+        canonical_label: '番茄炒蛋', relation_label: 'name_variant', prepared_state: '熟制', portion_hints: [], source_name: '受控营养目录',
+      }],
+    }
+    const recipes = { stage: 'recipe_clarification', schema_version: 'recipe-choices.v1', message: '请选择份量和做法。', candidates: [
+      { recipe_id: '55555555-5555-4555-8555-555555555555', revision: 2, food_id: foodId, catalog_version: 'catalog-v1', display_name: '烤鱼', meal_slot: 'lunch', portion_grams: '180', portion_description: '小份', method_tags: ['烤'], flavour_tags: ['清淡'] },
+      { recipe_id: '66666666-6666-4666-8666-666666666666', revision: 3, food_id: foodId, catalog_version: 'catalog-v1', display_name: '烤鱼', meal_slot: 'lunch', portion_grams: '250', portion_description: '大份', method_tags: ['烤'], flavour_tags: ['麻辣'] },
+    ] }
+    let snapshot: object = report
+    const inputBodies: unknown[] = []
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
+        inputBodies.push(JSON.parse(String(init?.body)))
+        snapshot = inputBodies.length === 1 ? clarification : inputBodies.length === 2 ? recipes : adjustedReport
+        return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: inputBodies.length < 3 ? 'waiting' : 'completed' }))
+      }
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: snapshot === clarification || snapshot === recipes ? 'waiting' : 'completed', revision: inputBodies.length + 1, report: snapshot }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByText('170 cm')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await screen.findByRole('heading', { name: '今日饮食计划' })
+    await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换成西红柿炒鸡蛋')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+
+    const candidateHeading = await screen.findByRole('heading', { name: '请选择要替换的菜品' })
+    const submittedAdjustment = screen.getByRole('button', { name: '提交调整' })
+    expect(submittedAdjustment).toBeDisabled()
+    expect(submittedAdjustment.compareDocumentPosition(candidateHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    const option = screen.getByRole('radio', { name: /番茄炒蛋/ })
+    expect(option).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('button', { name: '提交选择' })).toBeDisabled()
+    expect(screen.queryByText(foodId)).not.toBeInTheDocument()
+
+    await user.click(option)
+    await user.click(screen.getByRole('button', { name: '提交选择' }))
+    const recipeHeading = await screen.findByRole('heading', { name: '请选择具体菜谱' })
+    expect(screen.getByRole('button', { name: '提交调整' }).compareDocumentPosition(recipeHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    const recipeButton = screen.getByRole('button', { name: '确认菜谱并替换' })
+    expect(recipeButton).toBeDisabled()
+    const large = screen.getByRole('radio', { name: /大份/ })
+    expect(large).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /小份/ })).not.toBeChecked()
+    expect(screen.getByLabelText('告诉我们想换什么')).toBeDisabled()
+    expect(screen.getByText('燕麦鸡蛋早餐')).toBeInTheDocument()
+    expect(screen.getByText('三文鱼蔬菜晚餐')).toBeInTheDocument()
+    await user.click(large)
+    expect(recipeButton).toBeEnabled()
+    await user.click(recipeButton)
+
+
+    expect(inputBodies).toEqual([
+      { kind: 'description', text: '午餐换成西红柿炒鸡蛋' },
+      { kind: 'description', text: JSON.stringify({ candidate_id: foodId, catalog_version: 'catalog-v1' }) },
+      { kind: 'description', text: JSON.stringify({ recipe_id: recipes.candidates[1].recipe_id, recipe_revision: 3 }) },
+    ])
+    expect(await screen.findByText('清淡豆腐菌菇午餐')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '请选择要替换的菜品' })).not.toBeInTheDocument()
+  })
+
   it('contains ambiguous selection, makes permitted relaxation transparent, and never exposes raw feedback or internal IDs', async () => {
     const user = userEvent.setup()
     const ambiguous = { stage: 'needs_input', message: '请选择要调整的餐次。', input_choices: ['breakfast', 'lunch', 'dinner'] }

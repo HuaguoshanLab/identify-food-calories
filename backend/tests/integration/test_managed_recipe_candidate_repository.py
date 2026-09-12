@@ -6,7 +6,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 import uuid
 
+import pytest
+from sqlalchemy import delete, select, update
+from sqlalchemy.orm import Session
+
 from app.nutrition.models import FoodCatalogItem, NutritionCatalog, NutritionCatalogVersion, NutritionSource
+from app.nutrition.repository import SqlAlchemyNutritionRepository
+from app.nutrition.service import NutritionService
 from app.admin.models import (
     CatalogActivePublication,
     CatalogDraft,
@@ -17,6 +23,8 @@ from app.admin.models import (
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.planning.models import ManagedRecipeCandidate
 from app.planning.repository import SqlAlchemyPlanningProfileRepository
+from app.planning.schemas import MealSlot, PlanValidationAction, PreferenceReview
+from app.planning.service import PlanningService
 
 
 def _catalog_item(db_session, *, qualified: bool = True, complete_nutrients: bool = True) -> FoodCatalogItem:
@@ -133,3 +141,184 @@ def test_admin_lookup_collapses_exact_duplicate_published_nutrition_records(db_s
     assert resolved[0].id == min(
         first.catalog_publication_id, second.catalog_publication_id, key=str
     )
+
+
+def _planning_service(session: Session) -> PlanningService:
+    return PlanningService(
+        repository=SqlAlchemyPlanningProfileRepository(session),
+        nutrition_port=NutritionService(repository=SqlAlchemyNutritionRepository(session)),
+    )
+
+
+def _replaceable(service: PlanningService, identity, *, exclusions=(), exclude_recipe_ids=()):
+    return service.keep_replaceable_food_identities(
+        identities=(identity,), affected_slot=MealSlot.LUNCH,
+        exclude_recipe_ids=exclude_recipe_ids,
+        preferences=PreferenceReview(confirmed=True, exclusions=exclusions),
+    )
+
+
+@pytest.mark.parametrize("condition", [
+    "no_recipe", "wrong_slot", "disabled", "deleted", "stale_version",
+    "disqualified", "retired_publication", "excluded_food", "current_recipe",
+])
+def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, condition) -> None:
+    recipe = _published_candidate(db_session)
+    identity = (recipe.catalog_publication_id, recipe.nutrition_catalog_version)
+    service = _planning_service(db_session)
+    assert _replaceable(service, identity) == (identity,)
+
+    exclusions = ()
+    excluded_ids = ()
+    if condition == "no_recipe":
+        db_session.delete(recipe)
+    elif condition == "wrong_slot":
+        recipe.meal_slot = "breakfast"
+    elif condition == "disabled":
+        recipe.status = "disabled"
+    elif condition == "deleted":
+        recipe.deleted_at = datetime.now(UTC)
+    elif condition == "stale_version":
+        recipe.nutrition_catalog_version = "admin-publication-stale"
+    elif condition == "disqualified":
+        db_session.add(CatalogPublicationEligibility(
+            id=uuid.uuid4(), publication_id=identity[0], status="disqualified",
+            actor_identifier="test", reason="test revocation",
+            command_key=f"revoke-{uuid.uuid4().hex}", occurred_at=datetime.now(UTC),
+        ))
+    elif condition == "retired_publication":
+        db_session.execute(delete(CatalogActivePublication).where(
+            CatalogActivePublication.publication_id == identity[0]
+        ))
+    elif condition == "excluded_food":
+        exclusions = (recipe.catalog_food_name,)
+    elif condition == "current_recipe":
+        excluded_ids = (recipe.id,)
+    db_session.flush()
+
+    assert _replaceable(service, identity, exclusions=exclusions, exclude_recipe_ids=excluded_ids) == ()
+    if condition == "no_recipe":
+        # A valid nutrition hit alone does not make a planning replacement usable.
+        assert SqlAlchemyNutritionRepository(db_session).get_qualified_food(
+            food_id=identity[0], catalog_version=identity[1]
+        ) is not None
+
+
+def _additional_recipe(session, original, slot):
+    recipe = ManagedRecipeCandidate(
+        id=uuid.uuid4(), catalog_publication_id=original.catalog_publication_id,
+        catalog_food_name=original.catalog_food_name,
+        nutrition_catalog_version=original.nutrition_catalog_version,
+        meal_slot=slot, portion_grams=Decimal("100"), portion_description="一份",
+        method_tags="蒸", flavour_tags="清淡", status="enabled", revision=1,
+        created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+    )
+    session.add(recipe)
+    session.flush()
+    return recipe
+
+
+def test_multiple_recipes_keep_one_food_candidate_and_recompute_selected_portion(db_session) -> None:
+    first = _published_candidate(db_session)
+    alternate = _additional_recipe(db_session, first, "lunch")
+    _additional_recipe(db_session, first, "breakfast")
+    _additional_recipe(db_session, first, "dinner")
+    service = _planning_service(db_session)
+    identity = (first.catalog_publication_id, first.nutrition_catalog_version)
+
+    assert _replaceable(service, identity) == (identity,)
+    assert _replaceable(service, identity, exclude_recipe_ids=(first.id,)) == (identity,)
+    result = service.compose_daily_meals(
+        catalog_version=None, preferences=PreferenceReview(confirmed=True),
+        exclude_recipe_ids=(first.id,), required_food_id=identity[0],
+        required_catalog_version=identity[1], required_slot=MealSlot.LUNCH,
+    )
+
+    assert result.action is PlanValidationAction.PASS
+    lunch = next(meal for meal in result.meals if meal.slot is MealSlot.LUNCH)
+    assert lunch.recipe_id == alternate.id
+    assert lunch.portion_grams == Decimal("100")
+    assert lunch.nutrients.energy_kcal == Decimal("130")
+
+
+def test_admin_disable_between_candidate_offer_and_confirmation_is_reread(test_engine) -> None:
+    """Two committed connections model an admin update while selection is pending."""
+    with Session(test_engine) as setup:
+        recipe = _published_candidate(setup)
+        _additional_recipe(setup, recipe, "breakfast")
+        _additional_recipe(setup, recipe, "dinner")
+        recipe_id = recipe.id
+        identity = (recipe.catalog_publication_id, recipe.nutrition_catalog_version)
+        publication = setup.get(CatalogPublication, identity[0])
+        draft_id, review_id = publication.draft_id, publication.review_id
+        setup.commit()
+
+    try:
+        with Session(test_engine) as reader:
+            service = _planning_service(reader)
+            arguments = dict(
+                catalog_version=None, preferences=PreferenceReview(confirmed=True),
+                required_food_id=identity[0], required_catalog_version=identity[1],
+                required_slot=MealSlot.LUNCH,
+            )
+            assert _replaceable(service, identity) == (identity,)
+            assert service.compose_daily_meals(**arguments).action is PlanValidationAction.PASS
+            with Session(test_engine) as administrator:
+                administrator.execute(update(ManagedRecipeCandidate).where(
+                    ManagedRecipeCandidate.id == recipe_id
+                ).values(status="disabled", revision=2, updated_at=datetime.now(UTC)))
+                administrator.commit()
+
+            assert _replaceable(service, identity) == ()
+            result = service.compose_daily_meals(**arguments)
+            assert result.action is PlanValidationAction.REPLAN
+            assert result.meals == ()
+    finally:
+        # Committed fixtures need explicit, ID-scoped cleanup across both connections.
+        with Session(test_engine) as cleanup:
+            cleanup.execute(delete(ManagedRecipeCandidate).where(
+                ManagedRecipeCandidate.catalog_publication_id == identity[0]
+            ))
+            cleanup.execute(delete(CatalogActivePublication).where(CatalogActivePublication.draft_id == draft_id))
+            cleanup.execute(delete(CatalogPublicationEligibility).where(
+                CatalogPublicationEligibility.publication_id == identity[0]
+            ))
+            cleanup.execute(delete(CatalogPublication).where(CatalogPublication.id == identity[0]))
+            cleanup.execute(delete(CatalogDraftReview).where(CatalogDraftReview.id == review_id))
+            cleanup.execute(delete(CatalogDraft).where(CatalogDraft.id == draft_id))
+            cleanup.commit()
+            assert cleanup.scalar(select(ManagedRecipeCandidate.id).where(
+                ManagedRecipeCandidate.catalog_publication_id == identity[0]
+            )) is None
+
+
+def test_explicit_recipe_selection_is_version_bound_and_never_falls_back(db_session):
+    first = _published_candidate(db_session)
+    chosen = _additional_recipe(db_session, first, "lunch")
+    _additional_recipe(db_session, first, "breakfast")
+    _additional_recipe(db_session, first, "dinner")
+    service = _planning_service(db_session)
+    arguments = dict(
+        catalog_version=None, preferences=PreferenceReview(confirmed=True),
+        required_food_id=first.catalog_publication_id,
+        required_catalog_version=first.nutrition_catalog_version,
+        required_slot=MealSlot.LUNCH, required_recipe_id=chosen.id,
+        required_recipe_revision=chosen.revision,
+    )
+    offered = service.list_replacement_recipes(
+        food_id=first.catalog_publication_id, catalog_version=first.nutrition_catalog_version,
+        affected_slot=MealSlot.LUNCH, exclude_recipe_ids=(), preferences=PreferenceReview(confirmed=True),
+    )
+    assert {item.id for item in offered} == {first.id, chosen.id}
+    result = service.compose_daily_meals(**arguments)
+    assert result.action is PlanValidationAction.PASS
+    assert next(meal for meal in result.meals if meal.slot is MealSlot.LUNCH).recipe_id == chosen.id
+    chosen.revision += 1
+    db_session.flush()
+    assert service.compose_daily_meals(**arguments).action is PlanValidationAction.NEEDS_INPUT
+    arguments["required_recipe_revision"] = chosen.revision
+    chosen.status = "disabled"
+    db_session.flush()
+    refused = service.compose_daily_meals(**arguments)
+    assert refused.action is PlanValidationAction.NEEDS_INPUT
+    assert refused.meals == ()

@@ -576,6 +576,20 @@ class AgentService:
             }:
                 if state.status is AgentRuntimeStatus.COMPLETED:
                     return {"feedback": text}
+                if state.pending_recipe_candidates:
+                    try:
+                        candidate = json.loads(text)
+                    except json.JSONDecodeError:
+                        return None
+                    if (
+                        isinstance(candidate, dict)
+                        and set(candidate) == {"recipe_id", "recipe_revision"}
+                        and isinstance(candidate.get("recipe_id"), str)
+                        and type(candidate.get("recipe_revision")) is int
+                        and candidate["recipe_revision"] >= 1
+                    ):
+                        return candidate
+                    return None
                 if state.pending_food_candidates:
                     try:
                         candidate = json.loads(text)
@@ -589,7 +603,9 @@ class AgentService:
                     ):
                         return candidate
                     return None
-                return {"slot": text.casefold()}
+                if state.report and state.report.get("input_choices"):
+                    return {"slot": text.casefold()}
+                return {"feedback": text}
             return None
         try:
             candidate = json.loads(text)

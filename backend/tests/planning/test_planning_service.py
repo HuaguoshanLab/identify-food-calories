@@ -573,3 +573,21 @@ def test_composition_rejects_nonqualified_catalog_food_and_never_uses_stored_rec
     assert result.safe_message == "没有同时满足受控来源、审核、目录资格和三餐槽位的候选。"
     with pytest.raises(ValidationError):
         ControlledRecipe.model_validate({**recipe.model_dump(), "stored_total": {"energy_kcal": "1"}})
+
+
+def test_explicit_recipe_selection_never_falls_back_after_revision_changes() -> None:
+    foods = [qualified_food(name=f"候选{slot.value}", energy="200") for slot in REQUIRED_MEAL_SLOTS]
+    candidates = [managed_candidate(slot=slot, food=food) for slot, food in zip(REQUIRED_MEAL_SLOTS, foods, strict=True)]
+    selected = candidates[1].model_copy(update={"id": uuid.uuid4(), "portion_grams": Decimal("210")})
+    repository = FakePlanningRepository(candidates=[*candidates, selected])
+    service = PlanningService(repository=repository, nutrition_port=RecipeNutritionPort(foods))
+    arguments = dict(catalog_version=None, preferences=confirmed_preferences(), required_food_id=selected.nutrition_item_id,
+                     required_catalog_version=selected.catalog_version, required_slot=MealSlot.LUNCH,
+                     required_recipe_id=selected.id, required_recipe_revision=selected.revision)
+    result = service.compose_daily_meals(**arguments)
+    assert result.action is PlanValidationAction.PASS
+    assert result.meals[1].recipe_id == selected.id
+    repository.candidates[-1] = selected.model_copy(update={"revision": 2})
+    stale = service.compose_daily_meals(**arguments)
+    assert stale.action is PlanValidationAction.NEEDS_INPUT
+    assert stale.meals == ()

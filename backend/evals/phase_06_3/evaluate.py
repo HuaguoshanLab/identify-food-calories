@@ -42,7 +42,8 @@ from app.providers.embedding.fake import FakeEmbeddingProvider
 from app.providers.reasoning.dto import ParsedMealDTO, ParsedMealItemDTO, ProviderFailureKind
 from app.providers.reasoning.fake import FakeReasoningModelProvider
 from app.planning.repository import SqlAlchemyPlanningProfileRepository
-from app.planning.schemas import MealCompositionResult, PlanValidationResult, PlanningProfileInput, PreferenceReview
+from app.planning.schemas import MealCompositionResult, MealSlot, PlanValidationResult, PlanningProfileInput, PreferenceReview
+from app.planning.models import ManagedRecipeCandidate
 from app.planning.service import PlanningService
 
 
@@ -211,13 +212,13 @@ def _vector(index: int) -> tuple[float, ...]:
     return tuple(1.0 if position == index else 0.0 for position in range(1024))
 
 
-def _publish(session: Session, actor: User, name: str, key: str, now: datetime) -> CatalogPublication:
+def _publish(session: Session, actor: User, name: str, key: str, now: datetime, *, planning_baseline: bool = False) -> CatalogPublication:
     # This evaluator is allowed to exercise the real service boundary, but it
     # must never let that service commit the caller's synthetic transaction.
     service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.flush, rollback=session.rollback)
     draft = service.create_catalog_draft(
         actor_user_id=actor.id,
-        command=CatalogDraftCreateCommand(canonical_name=name, aliases=[f"{name}评测"], energy_kcal_per_100g=Decimal("100"), protein_g_per_100g=Decimal("5"), fat_g_per_100g=Decimal("2"), carbohydrate_g_per_100g=Decimal("20"), source_name="Synthetic frozen evaluation", source_url="https://example.test/frozen", authorization_status="authorized", reason="phase 06.3 synthetic evaluation fixture"),
+        command=CatalogDraftCreateCommand(canonical_name=name, aliases=[f"{name}评测"], energy_kcal_per_100g=Decimal("100"), protein_g_per_100g=Decimal("5"), fat_g_per_100g=Decimal("3.333333") if planning_baseline else Decimal("2"), carbohydrate_g_per_100g=Decimal("12.5") if planning_baseline else Decimal("20"), source_name="Synthetic frozen evaluation", source_url="https://example.test/frozen", authorization_status="authorized", reason="phase 06.3 synthetic evaluation fixture"),
         command_key=f"eval-create-{key}",
     )
     lifecycle = CatalogLifecycleCommand(reason="synthetic fixture approved", confirm=True)
@@ -380,6 +381,20 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
             occurred_at=now + timedelta(seconds=1), command_key=f"eval-exclude-{label}",
         ))
     session.flush()
+    # Three calculable meals are required before the current graph accepts an
+    # adjustment. Isolate the planning pool in the same rolled-back transaction.
+    session.execute(delete(ManagedRecipeCandidate))
+    for slot in ("breakfast", "lunch", "dinner"):
+        baseline = _publish(session, actor, f"评测基准餐-{slot}", f"{run_key}-{slot}", now, planning_baseline=True)
+        session.add(ManagedRecipeCandidate(
+            id=uuid.uuid4(), catalog_publication_id=baseline.id,
+            catalog_food_name=baseline.snapshot["canonical_name"],
+            nutrition_catalog_version="admin-publication-v1", meal_slot=slot,
+            portion_grams=Decimal("650"), portion_description="合成评测份量",
+            method_tags="评测", flavour_tags="清淡", status="enabled", revision=1,
+            created_at=now, updated_at=now,
+        ))
+    session.flush()
     return mapping
 
 
@@ -444,6 +459,12 @@ class _EvaluationPlanningTools:
 
     def replace_planning_slot(self, **_kwargs: object) -> MealCompositionResult:
         raise AssertionError("frozen evaluation does not resume a planning adjustment")
+
+    def keep_replaceable_food_identities(self, *, identities, affected_slot: MealSlot, current_recipe_id: uuid.UUID, preferences: PreferenceReview):
+        return self._planning_service.keep_replaceable_food_identities(
+            identities=identities, affected_slot=affected_slot,
+            exclude_recipe_ids=(current_recipe_id,), preferences=preferences,
+        )
 
 
 class _EvaluationTracing:
@@ -604,12 +625,14 @@ def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], mode:
         session=session,
     )
     planning_graph = DietPlanningGraph(tools=planning_tools)
-    # The fixture has no recipe rows, so its ordinary planning run intentionally
-    # reaches the bounded replan terminal.  Replay the typed adjustment from a
-    # fresh valid planning state to exercise the planning graph's actual shared
-    # search-tool branch instead of treating a terminal report as a search result.
-    asyncio.run(planning_graph.ainvoke(_planning_state()))
-    asyncio.run(planning_graph.ainvoke(_planning_state(), resume={"food_query": query}))
+    completed = asyncio.run(planning_graph.ainvoke(_planning_state()))
+    if completed.status.value != "completed" or completed.target is None or len(completed.meals) != 3:
+        raise EvaluationContractError("frozen planning fixture did not produce an adjustable three-meal plan")
+    adjusted = asyncio.run(planning_graph.ainvoke(completed, resume={"feedback": f"午餐换成{query}"}))
+    # The frozen search foods deliberately have no recipes. Shared tool output
+    # must agree, while planning must reject them at its additional recipe gate.
+    if adjusted.pending_food_candidates or adjusted.meals != completed.meals:
+        raise EvaluationContractError("frozen planning search bypassed recipe eligibility")
     if (meal_tools.search_calls != 1 or len(planning_tools.search_results) != 1
             or planning_tools.target_calls < 1 or planning_tools.compose_calls < 1):
         raise EvaluationContractError(

@@ -83,6 +83,7 @@ def _all_values(value: object) -> list[str]:
     return [str(value)]
 
 
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_publish_mirrors_pass_and_fail_cases_with_only_safe_projection(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
@@ -120,6 +121,7 @@ def test_publish_mirrors_pass_and_fail_cases_with_only_safe_projection(tmp_path:
         "base64", "prompt", "provider_response", "vector", "secret", "thought", "unknown",
     ],
 )
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_publish_rejects_sensitive_or_unknown_fields_before_client_creation(tmp_path: Path, field: str) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
@@ -138,6 +140,7 @@ def test_publish_rejects_sensitive_or_unknown_fields_before_client_creation(tmp_
     assert called is False
 
 
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_publish_mirrors_hash_bound_fail_release_and_preserves_report_bytes(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))
@@ -153,6 +156,7 @@ def test_publish_mirrors_hash_bound_fail_release_and_preserves_report_bytes(tmp_
     assert all(payload["metadata"]["release_decision"] == "FAIL" for payload, _ in client.observations)
 
 
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_publish_rejects_rehashed_pass_with_false_assertion_before_client_creation(tmp_path: Path) -> None:
     release = _release_copy(tmp_path)
     payload = json.loads(release.read_text(encoding="utf-8"))

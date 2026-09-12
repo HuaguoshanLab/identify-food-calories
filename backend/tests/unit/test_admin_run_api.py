@@ -29,7 +29,8 @@ class StubRunService:
                 id=uuid.uuid4(), status="failed", graph_version="agent-v1",
                 model_provider="deepseek", model_version="deepseek-v4-flash", graph_steps=2,
                 model_calls=1, tool_calls=1, elapsed_ms=20, estimated_cost_usd=Decimal("0.000100"),
-                failure_code="TIMEOUT", finished_at=datetime(2026, 9, 3, tzinfo=UTC),
+                failure_code="TIMEOUT", failure_stage="model", failure_class="timeout",
+                finished_at=datetime(2026, 9, 3, tzinfo=UTC),
             )],
             next_cursor=None,
         )
@@ -59,7 +60,10 @@ def test_run_endpoints_return_only_allowlisted_ledger_fields() -> None:
     assert set(payload) == {
         "id", "status", "graph_version", "model_provider", "model_version", "graph_steps",
         "model_calls", "tool_calls", "elapsed_ms", "estimated_cost_usd", "failure_code", "finished_at", "invocations",
+        "failure_stage", "failure_class",
     }
+    assert payload["failure_stage"] == "model"
+    assert payload["failure_class"] == "timeout"
     forbidden = {"email", "raw", "image", "body", "state", "reasoning", "key", "endpoint"}
     assert forbidden.isdisjoint(" ".join(payload).lower())
 

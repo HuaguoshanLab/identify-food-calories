@@ -42,6 +42,34 @@ def test_code_eval_hashes_the_real_provider_runtime_path() -> None:
     assert {"provider_factory", "deepseek_adapter", "runtime"} <= set(hashes)
 
 
+@pytest.fixture
+def historical_implementation_baseline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test historical score aggregation without certifying today's implementation.
+
+    Keep the evidence bytes and validator intact; only these scoring tests view
+    the source baseline recorded by the historical run. Production verification
+    must still reject any source drift.
+    """
+    from evals import evaluate_phase2
+
+    payload = json.loads(Path("evals/phase2-code-eval.json").read_text(encoding="utf-8"))
+    hashes = payload["implementation_hashes"]
+    monkeypatch.setattr(evaluate_phase2, "_implementation_hashes", lambda _: dict(hashes))
+
+
+def test_code_eval_rejects_source_drift(monkeypatch: pytest.MonkeyPatch) -> None:
+    from evals import evaluate_phase2
+
+    evidence = Path("evals/phase2-code-eval.json")
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    hashes = dict(payload["implementation_hashes"])
+    hashes["runtime"] = "0" * 64 if hashes["runtime"] != "0" * 64 else "1" * 64
+    monkeypatch.setattr(evaluate_phase2, "_implementation_hashes", lambda _: hashes)
+
+    with pytest.raises(evaluate_phase2.EvaluationContractError, match="implementation hash is stale"):
+        evaluate_phase2.verify_code_eval(dataset=_dataset(), result=evidence)
+
+
 def test_release_failure_fixtures_cover_each_required_gate() -> None:
     from evals.evaluate_phase2 import REQUIRED_FAILURE_FIXTURES, load_failure_fixtures
 
@@ -167,7 +195,9 @@ def test_signoff_rejects_review_that_does_not_match_stable_roster_role(
         _validate_signoff_without_machine_evidence(monkeypatch, tmp_path, payload)
 
 
-def test_release_recomputes_metrics_from_hash_bound_pairs(tmp_path: Path) -> None:
+def test_release_recomputes_metrics_from_hash_bound_pairs(
+    tmp_path: Path, historical_implementation_baseline: None
+) -> None:
     from evals.release_phase2 import build_release, verify_release
 
     dataset = _dataset()
@@ -205,7 +235,9 @@ def test_release_recomputes_metrics_from_hash_bound_pairs(tmp_path: Path) -> Non
     assert verify_release(release_path)["decision"] == "PASS"
 
 
-def test_release_fails_closed_for_constant_real_medium_pairs(tmp_path: Path) -> None:
+def test_release_fails_closed_for_constant_real_medium_pairs(
+    tmp_path: Path, historical_implementation_baseline: None
+) -> None:
     from evals.evaluate_phase2 import EvaluationContractError
     from evals.release_phase2 import build_release, verify_release
 

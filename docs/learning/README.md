@@ -1,33 +1,114 @@
-# Learning
+# 功能学习总目录
 
-## 职责
+这里按“用户能做什么”学习项目，重点看 **AI 怎样与后端协作**：接收输入、理解意图、调用工具、追问、保存结果，再利用历史信息提供下一次服务。
 
-`docs/learning/` 将可运行代码解释为可追踪的学习材料：从 React 交互到 FastAPI、服务事务、数据库与测试证据。
+本目录负责提供功能入口和阅读顺序。功能文档解释业务背景、执行流程和关键代码；只引用仓库内真实代码，不把规划目标当成已经验证的能力，也不保存凭证或用户隐私。
 
-## 允许依赖
+## 从哪里开始
 
-- 只链接仓库内真实存在的代码路径和可重复执行的命令。
-- 解释安全设计理由与调试线索，不暴露可用于登录的值。
-- 不把规划中的未来能力写成已经交付的事实。
+先读 **01 登录注册**，理解后端如何识别用户；再沿着 **03 文字餐食分析 → 04 图片识别 → 05 菜品检索 → 06 营养计算 → 07 追问恢复** 学习 AI 主线。随后看餐食保存、长期记忆和饮食规划，理解一次对话如何变成可以长期使用的产品。
 
-## 文件索引
+**21 篇功能文档均已按新结构编写。** 导航全部进入独立功能文档。原有阶段文档移至 docs/after/ 作为历史参考；学习主线以本目录的新文档为入口。
 
-| 文件 | 职责 |
+## 先分清 AI 和后端分别做什么
+
+| 环节 | 当前实现 |
 |---|---|
-| `01-auth-and-backend-foundation.md` | Phase 1 认证、权限、事务和测试链教学指南 |
-| `02-phase-1-code-walkthrough.md` | 从 React 页面追踪到 FastAPI、Service、Repository 与 PostgreSQL 的 Phase 1 代码导读 |
-| `phase-02-agent-core.md` | Phase 2 文字餐食 Agent 的认证→API→ledger→LangGraph→确定性营养工具→PostgreSQL/SSE 链路、测试证据、失败发布门与常见错误。 |
-| `phase-03-multimodal-meal-analysis.md` | Phase 3 图片安全、Qwen/Fake Vision Provider、图与确定性营养边界、删除链、冻结评测、浏览器证据和常见错误。 |
-| `04-meal-records-and-long-term-memory.md` | Phase 4 显式餐食保存、Graph typed tool 直接偏好写入、ledger/outbox 删除竞争、来源分离检索、公开 Mailpit/CORS A/B 与浏览器验收教学。 |
-| `05-diet-planning-adjustments.md` | Phase 5 规划同线程局部替换、显式记忆捕获、safe SSE 投影、RELAX 边界和三次恢复上限。 |
-| `05-diet-planning-subgraph.md` | Phase 5 资料复核、确定性目标、受控三餐、独立 checkpoint、个人资料删除、Phase 4 偏好权威性、安全 SSE 与跨层测试教学。 |
-| `phase-06-dashboard-read-api.md` | Phase 6 以餐食快照、窄完成计划投影、签名 cursor 和真实 PostgreSQL 证据构建 dashboard 读 API 的教学说明。 |
-| `06-dashboard-admin.md` | Phase 6 统计窗口、受控周复盘、独立后台，以及目录表格与 CSV 原子导入/幂等/导出的教学说明。 |
-| `06.1-recipe-candidate-pool.md` | 菜谱候选与营养目录的职责边界、CSV 导入/审计、候选轮换、可选加餐及跨层验证。 |
-| `06.2-system-admin-role-governance.md` | 系统管理导航、管理员升降权、只读角色目录、幂等审计与实时 RBAC 的跨层教学。 |
-| `phase-06.3-hybrid-food-search.md` | 受控目录的精确优先/非精确确认、混合检索、异步 embedding、证据绑定激活、Phoenix/Langfuse 与全链路验收。 |
-| `06.3-vector-retrieval-management.md` | 向量构建、失败重试、服务端激活门禁与 DashScope 评测发布边界。 |
-| `meal-weight-input.md` | 独立重量解析、单位转换、输入拒绝与同会话追问恢复的中文教学。 |
-| `meal-slot-records.md` | 餐次确认、时间补录、历史兼容、请求链路与跨层测试教学。 |
+| 理解餐食文字 | 文本 Provider 提取结构化食物项，后端校验格式 |
+| 看餐食图片 | 视觉 Provider 识别食物与份量线索 |
+| 查相似菜品 | Embedding 提供相似表达线索，后端融合候选，用户确认非精确结果 |
+| 算营养与目标 | 后端按目录、公式和规则计算 |
+| 生成与调整餐单 | 当前主要由后端规则组合、替换和校验；不能描述成模型自由生成 |
+| 恢复对话 | 自定义状态机推进，应用服务手动读写 LangGraph Checkpoint |
+| 每周复盘 | 后端先汇总事实，再让模型输出受限建议 |
+| 保存偏好 | 有限规则提取明确表达，本地账本控制归属与可见性，Mem0 保存受控副本 |
 
-| `daily-plan-archive.md` | 今日计划正式存档、事务与并发、历史版本、日期、删除与跨层验证。 |
+## 功能导航
+
+| 顺序 | 功能与入口 | 要学懂的问题 | 文档状态 |
+|---|---|---|---|
+| 01 | [登录注册与登录状态](feature-auth.md) | 后端如何确认你是谁，给 AI 会话建立用户归属？ | 已按功能编写 |
+| 02 | [密码找回与账号管理](feature-account-recovery.md) | 忘记密码、管理登录设备时，后端如何处理？ | 已按功能编写 |
+| 03 | [文字餐食分析](feature-text-analysis.md) | 一句“我吃了什么”，如何进入 Agent 并得到结果？ | 已按功能编写 |
+| 04 | [食物图片上传与识别](feature-image-analysis.md) | 图片怎样检查并交给视觉模型，识别结果如何进入分析？ | 已按功能编写 |
+| 05 | [菜品检索与候选确认](feature-food-search.md) | 用户的叫法如何对应到可计算的菜品，何时需要确认？ | 已按功能编写 |
+| 06 | [营养计算与结果校验](feature-nutrition.md) | 为什么热量由工具计算，模型不能随意写数值？ | 已按功能编写 |
+| 07 | [信息追问与对话恢复](feature-clarification.md) | 信息不够时如何暂停，回复后如何继续？ | 已按功能编写 |
+| 08 | [重量输入与单位转换](feature-weight.md) | “0.5斤”这样的输入怎样转成可计算的克数？ | 已按功能编写 |
+| 09 | [餐食确认、餐次与历史记录](feature-meal-records.md) | 分析结果如何成为正式记录？ | 已按功能编写 |
+| 10 | [长期饮食偏好记忆](feature-memory.md) | 如何记住“不吃香菜”，又允许用户修改和删除？ | 已按功能编写 |
+| 11 | [个人资料与饮食目标](feature-profile-targets.md) | 用户资料如何形成可校验的每日目标？ | 已按功能编写 |
+| 12 | [生成一日餐单](feature-daily-planning.md) | 如何从受控菜谱组合餐单并检查约束？ | 已按功能编写 |
+| 13 | [餐单局部调整](feature-plan-adjustment.md) | 用户说“换一道菜”后，如何在已有计划上继续处理？ | 已按功能编写 |
+| 14 | [餐单存档与历史版本](feature-plan-archive.md) | 完成的计划如何长期保存、按日期查找？ | 已按功能编写 |
+| 15 | [摄入统计与历史看板](feature-dashboard.md) | 如何把已确认记录变成今日与本周统计？ | 已按功能编写 |
+| 16 | [AI 每周饮食复盘](feature-weekly-review.md) | 怎样先算好事实，再让模型给出受限的文字解释？ | 已按功能编写 |
+| 17 | [后台营养目录维护](feature-catalog-admin.md) | 管理员怎样维护供 AI 工具使用的数据？ | 已按功能编写 |
+| 18 | [菜谱候选池管理](feature-recipe-pool.md) | 餐单可选的菜从哪里来，如何启用和停用？ | 已按功能编写 |
+| 19 | [向量索引构建与管理](feature-vector-index.md) | 菜品如何准备好供语义检索使用，失败后怎么办？ | 已按功能编写 |
+| 20 | [管理员权限与审计](feature-admin-permissions.md) | 谁能修改后台数据，操作如何留下记录？ | 已按功能编写 |
+| 21 | [模型配置与运行记录](feature-runtime-operations.md) | 如何查看模型运行和失败信息，管理运行配置？ | 已按功能编写 |
+
+## 后续维护规则
+
+每个阶段或功能变更完成后，更新本目录中受影响的功能文档；新功能才新增独立文档，并同步上方导航。不要按 Phase 新建教程，也不要把已归档的阶段文件搬回本目录。具体合同见[项目规范](../../AGENTS.md)与[GSD 项目说明](../../.planning/PROJECT.md)。
+
+## 每篇功能文档的阅读结构
+
+1. **开头概述**：这是什么功能，用户用它做什么。
+2. **核心能力**：解决什么问题，产生什么结果。
+3. **业务背景**：用具体场景解释为什么要写这些代码。
+4. **整体执行流程**：简单画出输入、处理步骤和输出。
+5. **关键代码**：提供文件链接和函数名，只贴主逻辑并解释设计理由。
+6. **难懂语法**：单独解释，不打断主流程。
+7. **验证方法**：去哪些测试看证据，哪些结论还没有验证。
+
+模型接口、测试替身、状态保存、超时和重试等内容放在相关功能中讲解；第一次出现时先解释用途，再介绍术语。
+
+## 本次验证记录（2026-09-12）
+
+本次修改学习文档，没有修改业务实现。已检查 21 篇功能文档与目录的本地链接；新增 20 篇中的 Python 节选逐段与当前源码比对。
+
+选取 24 个相关测试文件运行，共 **293 项通过、3 项失败**。覆盖文字与图片处理、检索、营养计算、追问恢复、记忆、餐食保存、目标与餐单、看板、周复盘、后台配置与权限等离线路径；不代表所有功能已完成实际页面或集成验收。
+
+失败集中在 `backend/tests/admin/test_catalog_lifecycle_service.py`：`FakeLifecycleRepository` 缺少 `add_catalog_search_version`，目录发布进入索引任务准备时抛出 `AttributeError`。因此本次不能确认该文件中的发布生命周期验证通过，本文只解释已核对的源码行为。
+
+本次未运行真实 PostgreSQL 集成测试、真实模型评测、邮件端到端测试或浏览器交互。第一篇此前单独运行的 15 项认证服务测试通过，不计入本次 296 项结果。
+
+<details>
+<summary>本次执行的测试文件（相对 backend/）</summary>
+
+```text
+tests/unit/test_weight_input.py
+tests/unit/test_nutrition.py
+tests/unit/test_runtime_foundation.py
+tests/unit/test_agent_multimodal.py
+tests/unit/test_image_safety.py
+tests/unit/test_hybrid_food_search.py
+tests/unit/test_agent_memory_context.py
+tests/unit/test_diet_planning_graph.py
+tests/records/test_record_service.py
+tests/memory/test_memory_service.py
+tests/planning/test_planning_service.py
+tests/planning/test_planning_profile_service.py
+tests/planning/test_managed_recipe_candidates.py
+tests/planning/test_plan_archive.py
+tests/dashboard/test_dashboard_service.py
+tests/dashboard/test_weekly_review_graph.py
+tests/dashboard/test_weekly_review_cache_service.py
+tests/admin/test_catalog_draft_service.py
+tests/admin/test_catalog_lifecycle_service.py
+tests/admin/test_runtime_config_service.py
+tests/unit/test_admin_user_management_api.py
+tests/unit/test_admin_rbac_api.py
+tests/unit/test_admin_run_api.py
+tests/unit/test_embedding_provider.py
+```
+
+在已安装测试依赖的 backend 环境中，将上列文件路径作为 `python -m pytest` 的参数可复查同一批测试。单独复查重量解析可运行 `python -m pytest tests/unit/test_weight_input.py -q`。此处仅运行离线测试，不需要加载生产凭证。
+
+</details>
+
+## 旧文档归档
+
+原有阶段及补充专题文档已迁至 [docs/after/](../after/README.md)。本目录只保留按功能组织的新学习文档。

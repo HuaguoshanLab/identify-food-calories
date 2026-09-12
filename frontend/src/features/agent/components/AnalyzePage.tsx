@@ -102,13 +102,11 @@ function MacroComposition({ totals }: { totals: Record<string, string> }) {
   const energy = Number(totals.energy_kcal) || 0
   const values = macroSegments.map((macro) => ({ ...macro, value: Number(totals[macro.key]) || 0 }))
   const macroEnergy = values.reduce((sum, macro) => sum + macro.value * macro.factor, 0)
-  let offset = 0
-  const segments = values.map((macro) => {
-    const share = macroEnergy > 0 ? macro.value * macro.factor / macroEnergy * 100 : 0
-    const segment = { ...macro, share, offset }
-    offset += share
-    return segment
-  })
+  const shares = values.map((macro) => ({ ...macro, share: macroEnergy > 0 ? macro.value * macro.factor / macroEnergy * 100 : 0 }))
+  const segments = shares.map((macro, index) => ({
+    ...macro,
+    offset: shares.slice(0, index).reduce((sum, previous) => sum + previous.share, 0),
+  }))
 
   return <Card aria-label="营养素构成" className="gap-3 py-3 [--card-spacing:--spacing(3)]"><CardHeader className="pb-1"><h2 className="text-base font-semibold leading-6">营养素构成</h2></CardHeader><CardContent className="space-y-3"><div className="relative mx-auto size-40" role="img" aria-label={`总热量 ${energy} kcal；营养素估算供能占比：${segments.map((segment) => `${segment.label} ${segment.share.toFixed(1)}%`).join('，')}`}><svg aria-hidden="true" className="size-full -rotate-90" viewBox="0 0 200 200"><circle cx="100" cy="100" fill="none" r="72" stroke="var(--muted)" strokeWidth="26" />{segments.filter((segment) => segment.share > 0).map((segment) => <circle cx="100" cy="100" fill="none" key={segment.key} pathLength="100" r="72" stroke={segment.color} strokeDasharray={`${Math.max(0, segment.share - Math.min(1.2, segment.share / 2))} 100`} strokeDashoffset={-segment.offset} strokeWidth="26" />)}</svg><div aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center gap-0.5"><span className="text-[13px] font-medium text-muted-foreground">总热量</span><span className="tabular-nums text-xl font-bold leading-6">{energy}</span><span className="text-[13px] text-muted-foreground">kcal</span></div></div><dl className="grid grid-cols-3 gap-2 text-center">{segments.map((segment) => <div key={segment.key}><dt className="flex items-center justify-center gap-1 text-[13px] font-semibold"><span aria-hidden="true" className="size-2 rounded-full" style={{ backgroundColor: segment.color }} />{segment.label}</dt><dd className="mt-0.5 tabular-nums text-[13px] font-semibold text-muted-foreground">{segment.value.toFixed(1)}g</dd></div>)}</dl></CardContent></Card>
 }

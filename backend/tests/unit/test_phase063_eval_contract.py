@@ -105,6 +105,7 @@ def test_evaluator_exposes_hash_bound_real_postgresql_release_contract() -> None
     assert hasattr(evaluate, "verify_release")
 
 
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_admin_activation_reuses_strict_evaluator_release_contract() -> None:
     """Admin activation must accept the evaluator's current hash-bound version.
 
@@ -134,6 +135,7 @@ def test_release_verification_rejects_any_hash_or_metric_tampering(tmp_path: Pat
         verify_release(release)
 
 
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_release_verification_rejects_graph_output_drift_even_when_call_counts_match(tmp_path: Path) -> None:
     """A graph invocation count is not evidence that its retrieval semantics agree."""
 
@@ -165,6 +167,7 @@ def _write_rehashed_release(path: Path, payload: dict[str, object]) -> None:
 
 
 @pytest.mark.parametrize("mutation", ["top_level", "case_field", "non_hex", "current_source_hash"])
+@pytest.mark.usefixtures("historical_phase063_sources")
 def test_release_verification_rejects_schema_and_current_source_binding_drift(tmp_path: Path, mutation: str) -> None:
     from evals.phase_06_3.evaluate import EvaluationContractError, verify_release
 

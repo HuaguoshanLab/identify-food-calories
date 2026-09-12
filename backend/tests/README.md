@@ -17,8 +17,8 @@
 | `conftest.py` | 测试数据库保护、迁移与事务回滚 fixtures |
 | `run_pg.py` | 只从显式 test env 文件载入变量、拒绝不安全测试目标后才启动 PostgreSQL child 的唯一 wrapper |
 | `architecture/` | README、目录索引与架构边界的自动化合同 |
-| `unit/` | 不依赖外部服务的快速单元测试，包括 Records 公开 IANA 400/409 与 Dashboard current/history HTTP 安全契约。 |
-| `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试 |
+| `unit/` | 不依赖外部服务的快速单元测试，包括 Records 公开 IANA 400/409 与 Dashboard current/history HTTP 安全契约；conftest 提供显式历史评测基线，不认证当前源码。 |
+| `integration/` | 使用隔离真实 PostgreSQL 的 migration 与 Repository 合约测试；菜谱调整覆盖目录资格过滤、同菜品多菜谱与展示后禁用的两连接复核。 |
 | `auth/` | 注册、验证码、登录与会话的 Service/API 安全协议测试 |
 | `agent/` | Agent 安全流式阶段映射的契约测试；重量命令测试位于 `unit/test_weight_input.py`。 |
 | `accounts/` | 密码恢复 Service/API、Mailpit 与 PostgreSQL 事务证据 |

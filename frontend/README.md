@@ -61,7 +61,7 @@ Promptfoo 的真实 Provider 评测需要 Phase 02-17 单独的人类费用授�
 
 Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit，再从 `backend/` 通过 `.env.test.example` 和 `tests/run_pg.py` 启动唯一初始化器。初始化器只使用 guard 返回的测试 URL，固定执行安全 reset、迁移、Checkpointer setup、seed apply，再启动 FastAPI；`DATABASE_URL` 始终保留开发哨兵，`TEST_DATABASE_URL` 始终保留隔离库。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
 
-图片 E2E 使用真实登录、文件选择和公开 multipart API；页面只显示“估算重量”、partial 或安全恢复动作，不展示 Provider 原文、图片字节或内部图状态。冻结评测与一次真实浏览器验证的证据边界见 [`../docs/learning/phase-03-multimodal-meal-analysis.md`](../docs/learning/phase-03-multimodal-meal-analysis.md)。
+图片 E2E 使用真实登录、文件选择和公开 multipart API；页面只显示“估算重量”、partial 或安全恢复动作，不展示 Provider 原文、图片字节或内部图状态。冻结评测与一次真实浏览器验证的证据边界见 [`../docs/after/phase-03-multimodal-meal-analysis.md`](../docs/after/phase-03-multimodal-meal-analysis.md)。
 
 ## 文件索引
 

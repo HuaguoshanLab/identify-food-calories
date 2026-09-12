@@ -1,4 +1,5 @@
-import { analysisStageCopy, SafeProgressStages } from '@/features/agent/components/SafeProgressStages'
+import { analysisStageCopy } from '@/features/agent/api/stream'
+import { SafeProgressStages } from '@/features/agent/components/SafeProgressStages'
 import type { SafePlanningStage } from '../api/stream'
 
 const planningStageCopy = {

@@ -17,13 +17,11 @@ export function PlanOverview({ report }: { report: PlanReport }) {
   const range = report.target.energy_kcal
   // 环形面积仅表示三大营养素的估算供能比例；中心热量始终使用后端餐单能量合计。
   const macroEnergy = macros.reduce((sum, macro) => sum + totals[macro.field] * macro.factor, 0)
-  let offset = 0
-  const segments = macros.map((macro) => {
-    const share = macroEnergy > 0 ? totals[macro.field] * macro.factor / macroEnergy * 100 : 0
-    const segment = { ...macro, share, offset }
-    offset += share
-    return segment
-  })
+  const shares = macros.map((macro) => ({ ...macro, share: macroEnergy > 0 ? totals[macro.field] * macro.factor / macroEnergy * 100 : 0 }))
+  const segments = shares.map((macro, index) => ({
+    ...macro,
+    offset: shares.slice(0, index).reduce((sum, previous) => sum + previous.share, 0),
+  }))
 
   return <section aria-labelledby="plan-overview-title" className="space-y-3">
     <h2 className="text-base font-semibold leading-6" id="plan-overview-title">每日目标概览</h2>

@@ -127,4 +127,4 @@ Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013
 
 ### 正式餐单存档
 
-`planning/archive_*` 提供 `/api/v1/planning/plans`（历史）、`/today`、`/{id}?version=N` 和 DELETE。运行完成与餐单版本同事务保存；迁移 `0021` 新增两张表。日期沿用确认的统计时区，旧临时结果不自动补存。详见 [教学文档](../docs/learning/daily-plan-archive.md)。
+`planning/archive_*` 提供 `/api/v1/planning/plans`（历史）、`/today`、`/{id}?version=N` 和 DELETE。运行完成与餐单版本同事务保存；迁移 `0021` 新增两张表。日期沿用确认的统计时区，旧临时结果不自动补存。详见 [教学文档](../docs/after/daily-plan-archive.md)。

@@ -19,6 +19,7 @@ PlanPage 的主标题和路由聚焦统一由固定 TabHeader 管理，不在内
 |---|---|
 | `ProfileGoalForm.tsx` | 完整资料/偏好复核、显式保存意图与严格启动命令。 |
 | `ProfileGoalForm.test.tsx` | 可见表单、公开请求和服务端字段错误合同。 |
+| `RecipeCandidateChoice.tsx` | 具体菜谱单选卡片，展示份量和做法，显式确认替换。 |
 | `PlanPage.tsx` | AppShell 计划根页、profile/memory 只读 Query owner 与安全快照接线。 |
 | `PlanPage.test.tsx` | 预填、零静默写入、三餐受控结果和拒绝边界合同。 |
 | `PlanOverview.tsx` | 四项目标区间、计划值及文本状态概览。 |

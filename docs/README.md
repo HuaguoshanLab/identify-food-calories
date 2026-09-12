@@ -14,11 +14,7 @@
 
 | 路径 | 职责 |
 |---|---|
-| `learning/` | 从前端开发者视角解释后端认证、餐次记录与工程基础 |
-| `learning/phase-02-agent-core.md` | 可追问文字餐食 Agent、确定性营养边界、Checkpoint/ledger、SSE、评测和调试的中文教学文档。 |
-| `learning/phase-03-multimodal-meal-analysis.md` | 多模态图片安全、Vision Provider、确定性营养、删除链、冻结评测与真实浏览器证据。 |
-| `learning/phase-06-dashboard-read-api.md` | 看板餐食快照、完成计划资格投影、签名 keyset cursor 与真实 PostgreSQL 测试证据。 |
+| [learning/README.md](learning/README.md) | 按功能组织的 AI 与后端学习总目录；21 篇独立功能文档 |
+| [after/README.md](after/README.md) | 原有阶段及补充专题学习文档归档，保留历史资料 |
 | `ui/` | 用户 H5 的跨阶段 UI 基座与组件契约 |
 | `verification/` | 可复现实机与浏览器验收记录；只记录路径、角色与可观察结果，不记录账号、密码、令牌或用户数据。 |
-
-- `learning/daily-plan-archive.md`：正式餐单存档、版本与删除的中文教学。

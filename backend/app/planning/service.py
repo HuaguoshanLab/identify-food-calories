@@ -21,6 +21,7 @@ from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
     MealSlot,
+    ManagedRecipeCandidate,
     REQUIRED_MEAL_SLOTS,
     FormulaVariant,
     PlanValidationAction,
@@ -217,6 +218,8 @@ class PlanningService:
         required_food_id: uuid.UUID | None = None,
         required_catalog_version: str | None = None,
         required_slot: MealSlot | None = None,
+        required_recipe_id: uuid.UUID | None = None,
+        required_recipe_revision: int | None = None,
     ) -> MealCompositionResult:
         """Select one fully qualified candidate per stable slot and recompute every ingredient."""
 
@@ -225,6 +228,16 @@ class PlanningService:
                 action=PlanValidationAction.NEEDS_INPUT,
                 safe_message="请先确认本次要使用的忌口和口味偏好。",
             )
+        if required_recipe_id is not None:
+            if required_food_id is None or required_catalog_version is None or required_slot is None or required_recipe_revision is None:
+                return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="指定菜谱信息不完整，请重新选择。")
+            options = self.list_replacement_recipes(
+                food_id=required_food_id, catalog_version=required_catalog_version,
+                affected_slot=required_slot, exclude_recipe_ids=exclude_recipe_ids,
+                preferences=preferences,
+            )
+            if not any(item.id == required_recipe_id and item.revision == required_recipe_revision for item in options):
+                return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="所选菜谱已变更或停用，请重新选择。")
         if (required_food_id is None) != (required_catalog_version is None):
             return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="指定菜品版本无效，请重新选择。")
         if required_food_id is not None:
@@ -234,6 +247,8 @@ class PlanningService:
             if qualified.action is not NutritionAction.PASS:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="所选菜品已不再可用，请重新选择。")
         candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
+        if required_recipe_id is not None:
+            candidates = [item for item in candidates if item.meal_slot is not required_slot or (item.id == required_recipe_id and item.revision == required_recipe_revision)]
         if candidates:
             recent_recipe_ids = () if user_id is None else getattr(
                 self._repository, "list_recent_recipe_ids", lambda **_: ()
@@ -283,6 +298,21 @@ class PlanningService:
             meals=tuple(meals),
             safe_message="三餐营养值已由合格目录条目和受控克数重新计算。",
         )
+
+    def list_replacement_recipes(
+        self, *, food_id: uuid.UUID, catalog_version: str, affected_slot: MealSlot,
+        exclude_recipe_ids: tuple[uuid.UUID, ...], preferences: PreferenceReview,
+    ) -> tuple[ManagedRecipeCandidate, ...]:
+        """Offer bounded, stable, currently usable recipes for one confirmed food."""
+        if not preferences.confirmed:
+            return ()
+        candidates = (
+            item for item in self._repository.list_managed_recipe_candidates(catalog_version=None)
+            if item.nutrition_item_id == food_id and item.catalog_version == catalog_version
+            and item.meal_slot is affected_slot and item.id not in exclude_recipe_ids
+            and self._build_managed_meal(item, preferences) is not None
+        )
+        return tuple(sorted(candidates, key=lambda item: str(item.id)))[:20]
 
     def keep_replaceable_food_identities(
         self,

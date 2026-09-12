@@ -443,9 +443,16 @@ def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test
         )) is not None
 
 
-def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(test_engine) -> None:
+def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(test_engine, tmp_path) -> None:
     """An approval is durable evidence; it is never inferred from a CLI claim."""
     from app.nutrition.index_worker import CatalogEmbeddingWorker
+    from evals.phase_06_3.evaluate import build_release, verify_release
+
+    release_path = tmp_path / "release.json"
+    with Session(test_engine) as evaluation_session:
+        build_release(session=evaluation_session, output=release_path)
+        evaluation_session.rollback()
+    verify_release(release_path)
 
     now = datetime.now(UTC)
     with Session(test_engine) as session:
@@ -526,11 +533,13 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
             service.activate_vector_space(
                 actor_user_id=uuid.uuid4(), vector_space_id=vector_space_id, build_id=build_id,
                 reason="unknown actor", command_key=f"activation-unknown-{actor_id.hex}",
+                release_path=release_path,
             )
         with pytest.raises(CatalogVectorSpaceActivationConflict):
             service.activate_vector_space(
                 actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
                 reason="incomplete build", command_key=f"activation-incomplete-{actor_id.hex}",
+                release_path=release_path,
             )
         pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))
         assert pointer is not None and pointer.vector_space_id == previous_id
@@ -552,10 +561,12 @@ def test_activation_requires_complete_hash_bound_build_and_replays_idempotently(
         approval = service.activate_vector_space(
             actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
             reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
+            release_path=release_path,
         )
         replay = service.activate_vector_space(
             actor_user_id=actor_id, vector_space_id=vector_space_id, build_id=build_id,
             reason="frozen release passed", command_key=f"activation-pg-{actor_id.hex}",
+            release_path=release_path,
         )
         assert replay.id == approval.id
         pointer = session.scalar(select(CatalogActiveVectorSpace).where(CatalogActiveVectorSpace.pointer_key == "catalog"))

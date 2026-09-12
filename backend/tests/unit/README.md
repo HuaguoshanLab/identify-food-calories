@@ -13,6 +13,7 @@
 
 | 文件 | 职责 |
 |---|---|
+| `conftest.py` | 显式 opt-in 的 Phase 06.3 历史报告源码基线，仅供离线格式、脱敏与语义单测；不替代当前源码的真实 PostgreSQL 评测。 |
 | `test_phase063_eval_contract.py` | Phase 06.3 冻结检索案例的 schema、顺序/hash 链、类别覆盖、隐私 fail-closed，以及 hash-bound release evidence 拒绝篡改合同。 |
 | `test_embedding_provider.py` | Embedding Provider 的名称、批量、1024 维有限浮点、Fake 隐私边界，以及 DashScope/factory 的离线 fail-closed 合同。 |
 | `test_hybrid_food_search.py` | 锁定混合检索的精确短路、非精确 ASK、故障降级、追踪脱敏、可靠候选不凑满、分层融合/稳定去重及 D-04 安全 discriminator 投影。 |
@@ -29,7 +30,8 @@
 | `test_weight_input.py` | 独立重量解析、受支持单位/精度/范围，以及纯文本与 JSON 补充输入使用同一换算合同 |
 | `test_nutrition.py` | 用内存 fake repository 锁定受控营养查询、Decimal 计算和确定性校验动作 |
 | `test_eval_dataset.py` | 验证 24 个 Phase 2 冻结语义案例、分类门与 append-only hash 链 |
-| `test_phase2_eval_contract.py` | 验证机器评测证据拒绝静态期望冒充，以及发布失败夹具覆盖 |
+| `test_phase2_eval_contract.py` | 验证机器评测证据拒绝静态期望冒充与源码漂移；评分聚合单测显式使用历史源码基线，不认证当前实现，也不改写冻结证据。 |
+| `test_admin_run_api.py` | 后台运行列表、详情与指标的公开字段白名单，包括失败阶段、失败类别及筛选参数边界。 |
 | `test_nutrition_importer.py` | 验证离线 FDC manifest hash、资格边界与幂等 import 语义 |
 | `test_agent_api_contract.py` | 锁定六个公开 Agent operation 的认证与统一 501 sentinel 合同 |
 | `test_image_safety.py` | 锁定图片真实解码、metadata 剥离、私有临时存储与到期删除边界。 |

@@ -29,6 +29,18 @@ const planningFoodCandidateSchema = z.object({
 export const foodClarificationReportSchema = z.object({
   stage: z.literal('food_clarification'), message: z.string().min(1).max(500), candidates: z.array(planningFoodCandidateSchema).min(1).max(3),
 }).strict()
+export const recipeClarificationReportSchema = z.object({
+  stage: z.literal('recipe_clarification'), schema_version: z.literal('recipe-choices.v1'),
+  message: z.string().min(1).max(500),
+  candidates: z.array(z.object({
+    recipe_id: z.string().uuid(), revision: z.number().int().positive(),
+    food_id: z.string().uuid(), catalog_version: z.string().min(1).max(80),
+    display_name: z.string().min(1).max(200), meal_slot: slotSchema,
+    portion_grams: decimalSchema, portion_description: z.string().min(1).max(120),
+    method_tags: z.array(z.string()), flavour_tags: z.array(z.string()),
+  }).strict()).min(1).max(20),
+}).strict()
+export type RecipeClarificationReport = z.infer<typeof recipeClarificationReportSchema>
 export const safeSnapshotSchema = z.object({ thread_id: z.string().uuid(), status: z.enum(['waiting', 'partial', 'completed', 'retryable', 'terminal', 'deletion_pending']), revision: z.number().int().nonnegative(), report: z.unknown().optional(), recovery_code: z.string().min(1).max(80).nullable().optional() }).strict()
 
 export type PlanMeal = z.infer<typeof planMealSchema>

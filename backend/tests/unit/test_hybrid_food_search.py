@@ -311,8 +311,8 @@ def test_service_nonexact_stays_ask_and_safely_falls_back_to_text() -> None:
     assert repository.vector_calls == 0
 
 
-def test_local_default_unscripted_fake_degrades_nonexact_search_to_text_only() -> None:
-    """The default local provider must not turn a normal ASK into an HTTP 500."""
+def test_local_unscripted_fake_degrades_nonexact_search_to_text_only() -> None:
+    """An explicitly selected local Fake must safely degrade without live configuration."""
 
     from app.providers.embedding.factory import create_embedding_provider
 
@@ -320,7 +320,7 @@ def test_local_default_unscripted_fake_degrades_nonexact_search_to_text_only() -
     repository = _HybridSearchRepository(
         exact=[], text=[evidence(food, relation=FoodRelation.NAME_VARIANT)]
     )
-    settings = Settings(app_env="local")
+    settings = Settings(app_env="local", embedding_provider_mode="fake", _env_file=None)
     provider = create_embedding_provider(settings)
     assert isinstance(provider, FakeEmbeddingProvider)
 

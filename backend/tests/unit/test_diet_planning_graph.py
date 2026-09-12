@@ -18,6 +18,7 @@ from app.nutrition.schemas import FoodRelation, FoodSearchCandidate, FoodSearchR
 from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
+    ManagedRecipeCandidate,
     MealSlot,
     PlanValidationAction,
     PlanValidationResult,
@@ -99,6 +100,8 @@ class FakePlanningTools(PlanningToolAdapter):
         self.replacement_calls: list[tuple[MealSlot, str]] = []
         self.selected_food_calls: list[tuple[uuid.UUID | None, str | None]] = []
         self.replaceable_food_identities: set[tuple[uuid.UUID, str]] | None = None
+        self.recipe_options: tuple[ManagedRecipeCandidate, ...] | None = None
+        self.selected_recipe_calls = []
         self.search_result: FoodSearchResult | None = None
         self._composition_action = composition_action
         self._validation_action = validation_action
@@ -120,6 +123,16 @@ class FakePlanningTools(PlanningToolAdapter):
         if self.replaceable_food_identities is None:
             return identities
         return tuple(identity for identity in identities if identity in self.replaceable_food_identities)
+
+    def list_replacement_recipes(self, *, food_id, catalog_version, affected_slot, **_kwargs):
+        if self.recipe_options is not None:
+            return self.recipe_options
+        return (ManagedRecipeCandidate(
+            id=uuid.uuid5(food_id, "recipe"), nutrition_item_id=food_id,
+            catalog_version=catalog_version, display_name="测试烤鱼", meal_slot=affected_slot,
+            portion_grams=Decimal("180"), portion_description="一份", method_tags=("烤",),
+            flavour_tags=("清淡",), status="enabled", revision=1,
+        ),)
 
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
@@ -189,10 +202,13 @@ class FakePlanningTools(PlanningToolAdapter):
         feedback_intent: str,
         selected_food_id: uuid.UUID | None = None,
         selected_catalog_version: str | None = None,
+        selected_recipe_id: uuid.UUID | None = None,
+        selected_recipe_revision: int | None = None,
         replan_count: int,
     ) -> MealCompositionResult:
         self.replacement_calls.append((affected_slot, feedback_intent))
         self.selected_food_calls.append((selected_food_id, selected_catalog_version))
+        self.selected_recipe_calls.append((selected_recipe_id, selected_recipe_revision))
         replacement = _meal(MealSlot.LUNCH, "清淡鸡丝午餐")
         return MealCompositionResult(
             action=PlanValidationAction.PASS,
@@ -482,3 +498,76 @@ def test_relaxation_projection_contains_only_energy_or_macro_range_details() -> 
     relaxation = adjusted.report["adjustment"]["relaxation"]
     assert relaxation["metric"] in {"energy_kcal", "carbohydrate_g", "protein_g", "fat_g"}
     assert set(relaxation) == {"metric", "original_range", "plan_value", "deviation", "reason"}
+
+
+def _recipe_waiting_state():
+    tools = FakePlanningTools()
+    food_id = uuid.uuid4()
+    candidate = FoodSearchCandidate(food_id=food_id, canonical_name="烤鱼", catalog_version="catalog-v1", source_name="测试目录", relation=FoodRelation.NAME_VARIANT)
+    tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="烤鱼", selected_food=None, candidates=(candidate,), safe_message="选择")
+    first = tools.list_replacement_recipes(food_id=food_id, catalog_version="catalog-v1", affected_slot=MealSlot.LUNCH)[0]
+    second = first.model_copy(update={"id": uuid.uuid4(), "portion_grams": Decimal("200"), "method_tags": ("蒸",)})
+    tools.recipe_options = (first, second)
+    graph = DietPlanningGraph(tools=tools)
+    original = asyncio.run(graph.ainvoke(_state()))
+    food_wait = asyncio.run(graph.ainvoke(original, resume={"feedback": "午餐换成烤鱼"}))
+    recipe_wait = asyncio.run(graph.ainvoke(food_wait, resume={"candidate_id": str(food_id), "catalog_version": "catalog-v1"}))
+    return tools, original, recipe_wait
+
+
+def test_multiple_recipes_wait_without_composition_then_restore_and_replace_selected_recipe():
+    tools, original, waiting = _recipe_waiting_state()
+    assert waiting.report["stage"] == "recipe_clarification"
+    assert len(waiting.pending_recipe_candidates) == 2
+    assert waiting.meals == original.meals
+    assert waiting.preferences == original.preferences
+    assert waiting.replan_count == original.replan_count
+    assert tools.replacement_calls == []
+    restored = DietPlanningState.model_validate_json(waiting.model_dump_json())
+    chosen = restored.pending_recipe_candidates[1]
+    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(restored, resume={"recipe_id": str(chosen.recipe_id), "recipe_revision": chosen.revision}))
+    assert tools.selected_recipe_calls == [(chosen.recipe_id, chosen.revision)]
+    assert completed.meals[0] == original.meals[0]
+    assert completed.meals[2] == original.meals[2]
+    assert completed.preferences == original.preferences
+    assert completed.replan_count == original.replan_count + 1
+    assert completed.pending_recipe_candidates == ()
+
+
+@pytest.mark.parametrize("change", ["unknown", "revision", "disabled", "updated"])
+def test_recipe_selection_rejects_unoffered_or_changed_recipe(change):
+    tools, original, waiting = _recipe_waiting_state()
+    chosen = waiting.pending_recipe_candidates[0]
+    payload = {"recipe_id": str(chosen.recipe_id), "recipe_revision": chosen.revision}
+    if change == "unknown":
+        payload["recipe_id"] = str(uuid.uuid4())
+    elif change == "revision":
+        payload["recipe_revision"] = 99
+    elif change == "disabled":
+        tools.recipe_options = ()
+    else:
+        tools.recipe_options = (tools.recipe_options[0].model_copy(update={"revision": 2}),)
+    result = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(waiting, resume=payload))
+    assert tools.replacement_calls == []
+    assert result.meals == original.meals
+    assert result.replan_count == original.replan_count
+    if change == "updated":
+        assert result.pending_recipe_candidates[0].revision == 2
+    if change == "disabled":
+        assert result.pending_recipe_candidates == ()
+        assert result.report["stage"] == "needs_input"
+
+
+def test_recipe_selection_text_contract_rejects_internal_fields_and_boolean_revision(monkeypatch):
+    _, _, waiting = _recipe_waiting_state()
+    async def load(**_kwargs):
+        return waiting
+    monkeypatch.setattr(AgentService, "_load_checkpoint", staticmethod(load))
+    service = AgentService(repository=object())
+    chosen = waiting.pending_recipe_candidates[0]
+    payload = {"recipe_id": str(chosen.recipe_id), "recipe_revision": chosen.revision}
+    def parse(value):
+        return asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=json.dumps(value), graph_kind=AgentGraphKind.DIET_PLANNING))
+    assert parse(payload) == payload
+    assert parse({**payload, "food_id": str(chosen.food_id)}) is None
+    assert parse({**payload, "recipe_revision": True}) is None

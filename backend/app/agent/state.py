@@ -243,6 +243,22 @@ class MealAgentState(BaseModel):
         return self
 
 
+class StateRecipeCandidate(BaseModel):
+    """Version-bound recipe offer, separate from domain and provider DTOs."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    recipe_id: uuid.UUID
+    revision: int = Field(ge=1)
+    food_id: uuid.UUID
+    catalog_version: str = Field(min_length=1, max_length=80)
+    display_name: str = Field(min_length=1, max_length=200)
+    meal_slot: MealSlot
+    portion_grams: Decimal = Field(gt=0, le=Decimal("2000"))
+    portion_description: str = Field(min_length=1, max_length=120)
+    method_tags: tuple[str, ...]
+    flavour_tags: tuple[str, ...]
+
+
 class DietPlanningState(BaseModel):
     """Planning-only checkpoint state with no meal-analysis/provider fields.
 
@@ -271,6 +287,7 @@ class DietPlanningState(BaseModel):
     pending_adjustment_slot: "MealSlot | None" = None
     pending_food_query: str | None = Field(default=None, min_length=1, max_length=200)
     pending_food_candidates: tuple[StateCandidate, ...] = Field(default=(), max_length=MAX_STATE_CANDIDATES)
+    pending_recipe_candidates: tuple[StateRecipeCandidate, ...] = Field(default=(), max_length=20)
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=12)
     budget: AgentBudget = Field(default_factory=AgentBudget)
     next_action: DietPlanningAction = DietPlanningAction.READ_CONTEXT

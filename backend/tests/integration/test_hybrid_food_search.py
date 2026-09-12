@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -158,6 +160,14 @@ def test_eval_snapshot_runs_real_postgresql_channels_and_emits_release(db_sessio
 
     assert release["decision"] == "PASS"
     assert output.is_file()
+    assert evaluate.verify_release(output)["evidence_hash"] == release["evidence_hash"]
+    # Prove current-source binding independently of offline historical fixtures.
+    changed_sources = dict(release["input_hashes"])
+    changed_sources["evaluator_sha256"] = "0" * 64
+    with monkeypatch.context() as changed_code:
+        changed_code.setattr(evaluate, "_release_input_hashes", lambda: changed_sources)
+        with pytest.raises(evaluate.EvaluationContractError, match="current frozen sources"):
+            evaluate.verify_release(output)
     assert release["metrics"]["exact_sql_cases"] > 0
     assert release["metrics"]["text_sql_cases"] > 0
     assert release["metrics"]["vector_sql_cases"] > 0

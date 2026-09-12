@@ -83,7 +83,7 @@ E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND
 
 `records-dashboard.spec.ts` 在 Shanghai 和 Los Angeles Chromium 时区上下文中观察 records-owned 统计时区确认先于看板读取；`records-weekly-review.spec.ts` 覆盖同一公开前置后的低覆盖安全投影；`admin-management.spec.ts` 覆盖管理员管理路径。它们是跨栈自动化证据，不替代 Codex 内置浏览器验收，也不宣称 UTC/DST/周一起点的精确数学；后者由确定性单元/API 测试负责，详见验收记录。
 
-Phase 06.3 的混合菜品检索、受控索引构建和激活命令见 [`docs/learning/phase-06.3-hybrid-food-search.md`](docs/learning/phase-06.3-hybrid-food-search.md)。release 不依赖 Langfuse 或付费 Provider：必须在真实 PostgreSQL 上运行完整测试及 `evaluate.py --verify-release`。只有 hash-bound PASS 证据、数据库管理员身份和明确 immutable build 同时存在时，才可按 `activate.py --help` 请求原子激活；不要猜测或复制生产参数。
+Phase 06.3 的混合菜品检索、受控索引构建和激活命令见 [`docs/after/phase-06.3-hybrid-food-search.md`](docs/after/phase-06.3-hybrid-food-search.md)。release 不依赖 Langfuse 或付费 Provider：必须在真实 PostgreSQL 上运行完整测试及 `evaluate.py --verify-release`。只有 hash-bound PASS 证据、数据库管理员身份和明确 immutable build 同时存在时，才可按 `activate.py --help` 请求原子激活；不要猜测或复制生产参数。
 
 Phase 06.3 的 GitHub CI 门禁定义在 [`.github/workflows/phase-063-frozen-retrieval.yml`](.github/workflows/phase-063-frozen-retrieval.yml)。它只启动 `postgres-test`，并固定执行：受保护初始化与 seed → 在 CI 临时目录生成 release → `--verify-release` → 相关真实 PostgreSQL 集成测试。需要本地复现时，在已启动 `postgres-test` 的前提下，从 `backend/` 依次运行：
 
@@ -192,7 +192,7 @@ cd backend
   --output evals/phase03-release.json
 ```
 
-详见 [`docs/learning/phase-03-multimodal-meal-analysis.md`](docs/learning/phase-03-multimodal-meal-analysis.md)。
+详见 [`docs/after/phase-03-multimodal-meal-analysis.md`](docs/after/phase-03-multimodal-meal-analysis.md)。
 
 ## 文件索引
 
@@ -214,4 +214,4 @@ cd backend
 
 ### 今日计划存档
 
-成功生成的三餐自动保存到 PostgreSQL，计划页刷新后恢复今日餐单；历史入口可查看旧版本并删除整日计划。个人身体资料仍由用户显式选择保存，计划不会直接计入实际摄入。升级执行 `cd backend && .venv/bin/python -m alembic upgrade head`。设计与验证方法见 [中文教学](docs/learning/daily-plan-archive.md)。
+成功生成的三餐自动保存到 PostgreSQL，计划页刷新后恢复今日餐单；历史入口可查看旧版本并删除整日计划。个人身体资料仍由用户显式选择保存，计划不会直接计入实际摄入。升级执行 `cd backend && .venv/bin/python -m alembic upgrade head`。设计与验证方法见 [中文教学](docs/after/daily-plan-archive.md)。

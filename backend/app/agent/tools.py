@@ -28,6 +28,7 @@ from app.planning.schemas import (
     CONTROLLED_RECIPE_VERSION,
     DailyTarget,
     MealCompositionResult,
+    ManagedRecipeCandidate,
     PlanValidationAction,
     PlanValidationResult,
     PlanningProfileInput,
@@ -83,6 +84,11 @@ class PlanningToolAdapter(Protocol):
         preferences: PreferenceReview,
     ) -> tuple[tuple[uuid.UUID, str], ...]: ...
 
+    def list_replacement_recipes(
+        self, *, food_id: uuid.UUID, catalog_version: str, affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID, preferences: PreferenceReview,
+    ) -> tuple[ManagedRecipeCandidate, ...]: ...
+
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
     ) -> TargetCalculationResult: ...
@@ -114,6 +120,8 @@ class PlanningToolAdapter(Protocol):
         feedback_intent: str,
         selected_food_id: uuid.UUID | None = None,
         selected_catalog_version: str | None = None,
+        selected_recipe_id: uuid.UUID | None = None,
+        selected_recipe_revision: int | None = None,
         replan_count: int,
     ) -> MealCompositionResult: ...
 
@@ -333,6 +341,19 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    def list_replacement_recipes(
+        self, *, food_id: uuid.UUID, catalog_version: str, affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID, preferences: PreferenceReview,
+    ) -> tuple[ManagedRecipeCandidate, ...]:
+        session, service = self._planning_service()
+        try:
+            return service.list_replacement_recipes(
+                food_id=food_id, catalog_version=catalog_version, affected_slot=affected_slot,
+                exclude_recipe_ids=(current_recipe_id,), preferences=preferences,
+            )
+        finally:
+            session.close()
+
     def replace_planning_slot(
         self,
         *,
@@ -344,6 +365,8 @@ class SessionNutritionToolAdapter:
         feedback_intent: str,
         selected_food_id: uuid.UUID | None = None,
         selected_catalog_version: str | None = None,
+        selected_recipe_id: uuid.UUID | None = None,
+        selected_recipe_revision: int | None = None,
         replan_count: int,
     ) -> MealCompositionResult:
         # PlanningService owns candidate eligibility; this adapter only preserves untouched slots.
@@ -361,6 +384,8 @@ class SessionNutritionToolAdapter:
                 required_food_id=selected_food_id,
                 required_catalog_version=selected_catalog_version,
                 required_slot=affected_slot,
+                required_recipe_id=selected_recipe_id,
+                required_recipe_revision=selected_recipe_revision,
             )
             if replacement_plan.action is not PlanValidationAction.PASS:
                 return replacement_plan

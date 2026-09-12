@@ -25,4 +25,4 @@ async function read(response: Response): Promise<WeeklyReviewResponse> { if (!re
 export async function getWeeklyReview(request: AuthenticatedRequest): Promise<WeeklyReviewResponse> { return read(await request('/dashboard/weekly-review')) }
 export async function refreshWeeklyReview(request: AuthenticatedRequest): Promise<WeeklyReviewResponse> { return read(await request('/dashboard/weekly-review/refresh', { method: 'POST' })) }
 /** Historical review is explicit and remains separate from the current-window request/key. */
-export async function getCompletedWeeklyReview(request: AuthenticatedRequest, weekStart: CompletedWeekStart): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review?week_start=${encodeURIComponent(weekStart)}`)) }
+export async function getCompletedWeeklyReview(request: AuthenticatedRequest, weekStart: CompletedWeekStart): Promise<WeeklyReviewResponse> { return read(await request(`/dashboard/weekly-review?week_start=${encodeURIComponent(completedWeekStartSchema.parse(weekStart))}`)) }

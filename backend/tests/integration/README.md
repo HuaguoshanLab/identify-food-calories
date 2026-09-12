@@ -16,6 +16,7 @@
 
 | 文件 | 职责 |
 |---|---|
+| `test_managed_recipe_candidate_repository.py` | 真实目录与菜谱资格、指定餐次/忌口/当前菜谱过滤、多菜谱单菜品候选与份量重算；两连接验证展示后禁用、确认时重读拒绝。 |
 | `test_auth_migration.py` | auth migration head 空库重建、约束与 Repository flush-only 合约 |
 | `test_agent_migration.py` | 0003↔0006 往返、Agent/Nutrition metadata（含 catalog hash、图片与视觉调用 metadata）逐表约束与零 seed 的真实 PostgreSQL 证据 |
 | `test_auth_database_protocols.py` | 0001→0002 往返、约束/savepoint 与并发登录限流的真实 PostgreSQL 证据 |

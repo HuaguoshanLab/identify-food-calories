@@ -26,6 +26,7 @@ from app.agent.state import (
     StateToolSummary,
     StateContextHint,
     StateCandidate,
+    StateRecipeCandidate,
     StateVisionMetadata,
     DietPlanningAction,
     DietPlanningState,
@@ -1065,6 +1066,7 @@ class DietPlanningGraph:
                     "pending_adjustment_slot": slot,
                     "pending_food_query": food_query,
                     "pending_food_candidates": (),
+                    "pending_recipe_candidates": (),
                 }
             )
             if slot is None:
@@ -1079,7 +1081,7 @@ class DietPlanningGraph:
                         },
                     }
                 )
-        elif current.pending_food_candidates:
+        elif current.pending_food_candidates or current.pending_recipe_candidates:
             # Candidate identity is validated below against both the offered checkpoint
             # projection and a fresh catalog read before it can affect composition.
             pass
@@ -1101,7 +1103,21 @@ class DietPlanningGraph:
 
         selected_food_id = None
         selected_catalog_version = None
-        if current.pending_food_candidates:
+        selected_recipe_id = None
+        selected_recipe_revision = None
+        if current.pending_recipe_candidates:
+            offered = next((item for item in current.pending_recipe_candidates
+                            if str(item.recipe_id) == resume.get("recipe_id")
+                            and item.revision == resume.get("recipe_revision")), None)
+            if offered is None:
+                return current
+            options = self._recipe_options(current, offered.food_id, offered.catalog_version, slot, current_meal.recipe_id)
+            fresh = next((item for item in options if item.recipe_id == offered.recipe_id), None)
+            if fresh != offered:
+                return self._recipe_clarification(current, options, "菜谱已变更或停用，请重新选择。")
+            selected_food_id, selected_catalog_version = offered.food_id, offered.catalog_version
+            selected_recipe_id, selected_recipe_revision = offered.recipe_id, offered.revision
+        elif current.pending_food_candidates:
             candidate_id = resume.get("candidate_id")
             catalog_version = resume.get("catalog_version")
             candidate = next(
@@ -1224,6 +1240,12 @@ class DietPlanningGraph:
                         "report": {"stage": "needs_input", "message": "目录中没有可用于替换的菜品，请更换名称。"},
                     }
                 )
+        if selected_food_id is not None and selected_recipe_id is None:
+            options = self._recipe_options(current, selected_food_id, selected_catalog_version, slot, current_meal.recipe_id)
+            if len(options) != 1:
+                return self._recipe_clarification(current, options, "同一菜品有多种菜谱，请确认份量和做法。")
+            selected_recipe_id, selected_recipe_revision = options[0].recipe_id, options[0].revision
+        current = current.model_copy(update={"pending_recipe_candidates": ()})
         composition = self._tools.replace_planning_slot(
             user_id=current.user_id,
             target=target,
@@ -1233,6 +1255,8 @@ class DietPlanningGraph:
             feedback_intent=intent,
             selected_food_id=selected_food_id,
             selected_catalog_version=selected_catalog_version,
+            selected_recipe_id=selected_recipe_id,
+            selected_recipe_revision=selected_recipe_revision,
             replan_count=current.replan_count,
         )
         current = self._record_tool(current, "replace_planning_slot", composition.action.value, composition)
@@ -1265,11 +1289,36 @@ class DietPlanningGraph:
                 "pending_adjustment_slot": None,
                 "pending_food_query": None,
                 "pending_food_candidates": (),
+                "pending_recipe_candidates": (),
                 "next_action": DietPlanningAction.COMPLETE,
                 "status": AgentRuntimeStatus.COMPLETED,
                 "report": report,
             }
         )
+
+    def _recipe_options(self, state, food_id, catalog_version, slot, current_recipe_id):
+        return tuple(StateRecipeCandidate(
+            recipe_id=item.id, revision=item.revision, food_id=item.nutrition_item_id,
+            catalog_version=item.catalog_version, display_name=item.display_name,
+            meal_slot=item.meal_slot, portion_grams=item.portion_grams,
+            portion_description=item.portion_description,
+            method_tags=item.method_tags, flavour_tags=item.flavour_tags,
+        ) for item in self._tools.list_replacement_recipes(
+            food_id=food_id, catalog_version=catalog_version, affected_slot=slot,
+            current_recipe_id=current_recipe_id, preferences=state.preferences,
+        ))
+
+    @staticmethod
+    def _recipe_clarification(state, options, message):
+        report = {
+            "stage": "recipe_clarification", "schema_version": "recipe-choices.v1",
+            "message": message, "candidates": [item.model_dump(mode="json") for item in options],
+        } if options else {"stage": "needs_input", "message": "该菜品已没有可用菜谱，请重新输入调整要求。"}
+        return state.model_copy(update={
+            "pending_recipe_candidates": options, "pending_food_candidates": (),
+            "pending_food_query": None, "status": AgentRuntimeStatus.WAITING_INPUT,
+            "next_action": DietPlanningAction.NEEDS_INPUT, "report": report,
+        })
 
     def _capture_adjustment_preferences(self, state: DietPlanningState, feedback: str) -> DietPlanningState:
         marker = hashlib.sha256(feedback.encode("utf-8")).hexdigest()
@@ -1294,7 +1343,7 @@ class DietPlanningGraph:
 
     @staticmethod
     def _adjustment_limit(state: DietPlanningState) -> DietPlanningState:
-        return state.model_copy(update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": DietPlanningAction.NEEDS_INPUT, "pending_adjustment_intent": None, "pending_adjustment_slot": None, "pending_food_query": None, "pending_food_candidates": (), "report": {"stage": "needs_input", "code": "LIMIT_REACHED", "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。"}})
+        return state.model_copy(update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": DietPlanningAction.NEEDS_INPUT, "pending_adjustment_intent": None, "pending_adjustment_slot": None, "pending_food_query": None, "pending_food_candidates": (), "pending_recipe_candidates": (), "report": {"stage": "needs_input", "code": "LIMIT_REACHED", "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。"}})
 
     def _call_profile_upsert(self, state: DietPlanningState) -> DietPlanningState:
         if state.budget.tool_calls >= 12:
