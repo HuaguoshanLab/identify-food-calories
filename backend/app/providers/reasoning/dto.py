@@ -5,10 +5,18 @@ from __future__ import annotations
 from decimal import Decimal
 from enum import StrEnum
 from datetime import date
+import re
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 
 SafeIdentifier = Annotated[
@@ -54,7 +62,7 @@ class ProviderCallMetadataDTO(ProviderDTO):
     provider_request_id: SafeIdentifier | None = None
     usage: ProviderUsageDTO
     latency_ms: int = Field(ge=0)
-    prompt_version: SafeIdentifier = "reasoning-parse.v1"
+    prompt_version: SafeIdentifier = "reasoning-parse.v2"
     schema_version: SafeIdentifier = "reasoning-provider.v1"
 
 
@@ -67,6 +75,31 @@ class ParsedMealItemDTO(ProviderDTO):
     grams: Decimal | None = Field(default=None, gt=Decimal("0"), le=Decimal("2000"))
     preparation: SafeText | None = None
     catalog_query: SafeText | None = None
+
+    @model_validator(mode="after")
+    def reject_or_discard_internal_item_references(self) -> "ParsedMealItemDTO":
+        """Keep provider bookkeeping IDs out of the user-visible retrieval contract.
+
+        ``item_id`` only identifies an item within one graph invocation.  It is never a
+        food description and must not become a catalog lookup key.  A polluted
+        ``food_name`` is not recoverable without guessing, so reject it.  A polluted
+        optional query can safely fall back to the validated food name instead.
+        """
+
+        if _is_internal_item_reference(self.food_name, self.item_id):
+            raise ValueError("food_name must not be an internal item identifier")
+        if self.catalog_query is not None and _is_internal_item_reference(
+            self.catalog_query, self.item_id
+        ):
+            self.catalog_query = None
+        return self
+
+
+def _is_internal_item_reference(value: str, item_id: str) -> bool:
+    normalized = value.strip().casefold()
+    return normalized == item_id.strip().casefold() or bool(
+        re.fullmatch(r"(?:item|food)[_-]?\d+", normalized)
+    )
 
 
 class MissingMealFieldDTO(ProviderDTO):
@@ -84,7 +117,7 @@ class ParseMealRequest(ProviderDTO):
     """Transient parse input. Call ledgers must store only its hash, never this body."""
 
     meal_description: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
-    prompt_version: SafeIdentifier = "reasoning-parse.v1"
+    prompt_version: SafeIdentifier = "reasoning-parse.v2"
     schema_version: SafeIdentifier = "reasoning-provider.v1"
 
 

@@ -33,6 +33,14 @@ from app.providers.reasoning.dto import (
 LOGGER = logging.getLogger(__name__)
 DEEPSEEK_RESPONSES_URL = "https://api.deepseek.com/responses"
 MAX_OUTPUT_TOKENS = 800
+PARSE_MEAL_INSTRUCTIONS = (
+    "Return only JSON matching the supplied JSON schema. Do not include reasoning, "
+    "nutrition values, or text outside JSON. For every item, item_id is an internal "
+    "short identifier only. food_name must be the actual food name from the user's "
+    "description, never item_id, item_1, food_1, or another placeholder. catalog_query "
+    "is optional; when present it must be a food-name query and must never be an internal "
+    "item identifier or placeholder."
+)
 
 
 class DeepSeekReasoningModelProvider:
@@ -67,6 +75,7 @@ class DeepSeekReasoningModelProvider:
             operation="parse_meal",
             user_text=request.meal_description,
             schema=ParsedMealDTO,
+            instructions=PARSE_MEAL_INSTRUCTIONS,
         )
         try:
             return ParseMealResult(value=ParsedMealDTO.model_validate(payload), metadata=metadata)

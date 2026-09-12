@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import inspect
+import json
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -103,6 +104,70 @@ def test_deepseek_provider_retries_only_safe_transient_response_and_validates_js
         asyncio.run(invalid_schema.parse_meal(ParseMealRequest(meal_description="米饭 100 克")))
     assert schema_error.value.kind is ProviderFailureKind.PERMANENT
     assert schema_error.value.code == "PROVIDER_SCHEMA_INVALID"
+
+
+def test_deepseek_parse_rejects_internal_item_id_as_food_name_and_sends_contract() -> None:
+    """A provider placeholder must never reach catalog search as a user food name."""
+
+    import httpx
+
+    from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
+    from app.providers.reasoning.dto import ParseMealRequest, ProviderCallError
+
+    captured_instructions: list[str] = []
+
+    def placeholder_response(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured_instructions.append(body["instructions"])
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"items":[{"item_id":"item_1","food_name":"item_1",'
+                                    '"catalog_query":"item_1","grams":"100"}]}'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+                "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            },
+        )
+
+    provider = DeepSeekReasoningModelProvider(
+        api_key="test-key",
+        model="deepseek-v4-flash",
+        timeout_seconds=20,
+        price_snapshot={"input_usd_per_m": "1", "output_usd_per_m": "2"},
+        transport=httpx.MockTransport(placeholder_response),
+    )
+
+    with pytest.raises(ProviderCallError) as error:
+        asyncio.run(provider.parse_meal(ParseMealRequest(meal_description="米饭 100g")))
+
+    assert error.value.code == "PROVIDER_SCHEMA_INVALID"
+    assert captured_instructions and "food_name must be the actual food name" in captured_instructions[0]
+    assert "item_id is an internal" in captured_instructions[0]
+
+
+def test_parsed_meal_item_uses_food_name_when_optional_query_is_internal_id() -> None:
+    """A valid model observation keeps retrieval on the validated food name."""
+
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    item = ParsedMealItemDTO(
+        item_id="item_1", food_name="米饭", catalog_query="item_1", grams=Decimal("100")
+    )
+
+    assert item.catalog_query is None
 
 
 def test_production_deepseek_config_fails_closed_without_complete_model_price_snapshot() -> None:
@@ -473,6 +538,23 @@ def test_graph_recovers_one_explicit_gram_value_omitted_by_provider() -> None:
         ('calculate', '11111111-1111-4111-8111-111111111111'),
         ('validate', '11111111-1111-4111-8111-111111111111'),
     ]
+
+
+def test_graph_never_sends_an_internal_item_id_to_catalog_search() -> None:
+    """A stale optional query must fall back to the actual normalized food name."""
+
+    from app.providers.reasoning.dto import ParsedMealItemDTO
+
+    graph, _provider, tools = _graph_with_items(
+        ParsedMealItemDTO(
+            item_id="item_1", food_name="米饭", catalog_query="item_1", grams=Decimal("100")
+        )
+    )
+
+    completed = asyncio.run(graph.ainvoke(_initial_state("米饭 100g")))
+
+    assert completed.status.value == "completed"
+    assert tools.calls[0] == ("search", "米饭")
 
 
 def test_graph_uses_an_audited_catalog_portion_without_hardcoding_its_name() -> None:
