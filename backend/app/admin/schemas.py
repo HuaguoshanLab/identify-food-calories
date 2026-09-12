@@ -106,6 +106,7 @@ class AdminAuditEventResponse(BaseModel):
 
     id: uuid.UUID
     actor_identifier: str
+    actor_label: str = Field(min_length=1, max_length=320)
     occurred_at: datetime
     action: str
     object_type: str

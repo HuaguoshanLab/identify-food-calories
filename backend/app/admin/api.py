@@ -250,9 +250,7 @@ def list_audit(
 
     try:
         admin_service.require_role(user_id=principal, required_role=UserRole.ADMIN)
-        filters = query.model_dump()
-        filters["actor_identifier"] = filters.pop("actor")
-        return admin_service.list_audit_events(**filters)
+        return admin_service.list_audit_events(**query.model_dump())
     except AdminPermissionDenied:
         return _forbidden()
     except AdminAuditCursorInvalid as error:

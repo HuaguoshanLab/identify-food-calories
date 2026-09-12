@@ -21,7 +21,7 @@ class StubAuditService:
     def list_audit_events(self, **_kwargs: object) -> AdminAuditPageResponse:
         return AdminAuditPageResponse(
             items=[AdminAuditEventResponse(
-                id=uuid.uuid4(), actor_identifier="admin-id", occurred_at=datetime(2026, 9, 2, tzinfo=UTC),
+                id=uuid.uuid4(), actor_identifier="admin-id", actor_label="管理员", occurred_at=datetime(2026, 9, 2, tzinfo=UTC),
                 action="catalog.publish", object_type="catalog_version", object_id="catalog-v1",
                 reason="approved", before={"status": "review"}, after={"status": "published"},
                 related_version="catalog-v1", command_key="publish-00000001",
@@ -38,6 +38,6 @@ def test_audit_endpoint_requires_current_role_and_returns_minimal_projection() -
         response = client.get("/api/v1/admin/audit?limit=1&action=catalog.publish&actor=admin-id")
     assert response.status_code == 200
     assert set(response.json()["items"][0]) == {
-        "id", "actor_identifier", "occurred_at", "action", "object_type", "object_id",
+        "id", "actor_identifier", "actor_label", "occurred_at", "action", "object_type", "object_id",
         "reason", "before", "after", "related_version", "command_key",
     }

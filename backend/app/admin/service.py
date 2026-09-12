@@ -498,7 +498,7 @@ class AdminService:
         action: str | None = None,
         object_type: str | None = None,
         object_id: str | None = None,
-        actor_identifier: str | None = None,
+        actor: str | None = None,
         reason: str | None = None,
         occurred_after: datetime | None = None,
         occurred_before: datetime | None = None,
@@ -512,7 +512,7 @@ class AdminService:
             action=action,
             object_type=object_type,
             object_id=object_id,
-            actor_identifier=actor_identifier,
+            actor_identifier=self._audit_actor_identifier(actor),
             reason=reason,
             occurred_after=occurred_after,
             occurred_before=occurred_before,
@@ -2529,11 +2529,31 @@ class AdminService:
             raise AdminRoleChangeDenied("audit diff values must be scalar")
         return dict(value)
 
-    @staticmethod
-    def _audit_response(event: AdminAuditEvent) -> AdminAuditEventResponse:
+    def _audit_actor_identifier(self, actor: str | None) -> str | None:
+        """Accept an administrator email while keeping old opaque-ID filters valid."""
+
+        if actor is None or actor.startswith("system:"):
+            return actor
+        user = self._repository.get_user_by_email(actor.casefold())
+        return str(user.id) if user is not None else actor
+
+    def _audit_actor_label(self, actor_identifier: str) -> str:
+        """Resolve the label at the admin-only projection boundary, never in the client."""
+
+        if actor_identifier == "system:bootstrap":
+            return "系统初始化"
+        try:
+            actor_id = uuid.UUID(actor_identifier)
+        except ValueError:
+            return "管理员"
+        user = self._repository.get_user_by_id(actor_id)
+        return user.email if user is not None else "已删除的管理员"
+
+    def _audit_response(self, event: AdminAuditEvent) -> AdminAuditEventResponse:
         return AdminAuditEventResponse(
             id=event.id,
             actor_identifier=event.actor_identifier,
+            actor_label=self._audit_actor_label(event.actor_identifier),
             occurred_at=event.occurred_at,
             action=event.action,
             object_type=event.object_type,
