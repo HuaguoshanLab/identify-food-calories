@@ -81,6 +81,8 @@ describe('AuditPage', () => {
     renderAuditPage()
 
     const table = await screen.findByRole('table', { name: '操作审计时间线' })
+    expect(table).toHaveClass('table-fixed')
+    expect(table.querySelectorAll('col')).toHaveLength(7)
     expect(within(table).getAllByText('admin@example.test')).toHaveLength(2)
     expect(within(table).getByText('更新运行策略')).toBeVisible()
     expect(within(table).getByText('运行策略版本（已记录）')).toBeVisible()
