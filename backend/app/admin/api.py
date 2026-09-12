@@ -45,6 +45,12 @@ from app.admin.schemas import (
     CatalogSearchIndexBackfillResponse,
     CatalogVectorSpaceBuildCommand,
     CatalogVectorSpaceBuildResponse,
+    CatalogVectorSpaceBuildPageResponse,
+    CatalogVectorSpaceBuildRetryCommand,
+    CatalogVectorSpaceBuildRetryResponse,
+    CatalogVectorSpaceBuildStatusResponse,
+    CatalogVectorSpaceActivationCommand,
+    CatalogVectorSpaceActivationResponse,
     CatalogRelationEvidenceCommand,
     CatalogRelationEvidenceResponse,
     CatalogRelationEvidenceRevokeCommand,
@@ -66,6 +72,7 @@ from app.admin.service import (
     CatalogDraftConflict,
     CatalogEmbeddingRetryConflict,
     CatalogVectorSpaceBuildConflict,
+    CatalogVectorSpaceActivationConflict,
     CatalogRelationEvidenceConflict,
     RecipeCandidateConflict,
     RuntimeConfigConflict,
@@ -790,6 +797,68 @@ def create_catalog_vector_space_build(
         return _forbidden()
     except CatalogVectorSpaceBuildConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+
+
+@router.get("/vector-space-builds", response_model=CatalogVectorSpaceBuildPageResponse)
+def list_catalog_vector_space_builds(
+    principal: AuthenticatedPrincipal, admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogVectorSpaceBuildPageResponse | JSONResponse:
+    try:
+        return admin_service.list_catalog_vector_space_builds(actor_user_id=principal)
+    except AdminPermissionDenied:
+        return _forbidden()
+
+
+@router.get("/vector-space-builds/{build_id}", response_model=CatalogVectorSpaceBuildStatusResponse)
+def get_catalog_vector_space_build(
+    build_id: uuid.UUID, principal: AuthenticatedPrincipal, admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogVectorSpaceBuildStatusResponse | JSONResponse:
+    try:
+        return admin_service.get_catalog_vector_space_build_status(actor_user_id=principal, build_id=build_id)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="vector-space build not found") from error
+
+
+@router.post("/vector-space-builds/{build_id}/retries", response_model=CatalogVectorSpaceBuildRetryResponse)
+def retry_catalog_vector_space_build(
+    build_id: uuid.UUID, command: CatalogVectorSpaceBuildRetryCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogVectorSpaceBuildRetryResponse | JSONResponse:
+    try:
+        return admin_service.retry_catalog_vector_space_build(
+            actor_user_id=principal, build_id=build_id, command=command, command_key=idempotency_key,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="vector-space build not found") from error
+    except CatalogVectorSpaceBuildConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+
+
+@router.post("/vector-space-builds/{vector_space_id}/activations", response_model=CatalogVectorSpaceActivationResponse)
+def activate_catalog_vector_space(
+    vector_space_id: uuid.UUID, command: CatalogVectorSpaceActivationCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+) -> CatalogVectorSpaceActivationResponse | JSONResponse:
+    try:
+        approval = admin_service.activate_vector_space(
+            actor_user_id=principal, vector_space_id=vector_space_id, build_id=command.build_id,
+            reason=command.reason, command_key=idempotency_key,
+        )
+        return CatalogVectorSpaceActivationResponse(
+            vector_space_id=vector_space_id, build_id=approval.build_id, approved_at=approval.approved_at,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except CatalogVectorSpaceActivationConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="vector-space activation is not ready") from error
 
 
 @router.post(

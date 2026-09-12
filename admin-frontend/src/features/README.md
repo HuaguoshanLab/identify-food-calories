@@ -22,5 +22,6 @@
 | `runs/` | 终态运行指标、签名游标列表与最小诊断详情；目录索引见 `runs/README.md`。 |
 | `overview/` | 固定 UTC 24 小时终态运行指标及到 runs 审计的过滤深链接；目录索引见 `overview/README.md`。 |
 | `system/` | 全部账号最小化列表、固定角色说明和受审计管理员角色变更；目录索引见 `system/README.md`。 |
+| `vector-retrieval/` | 冻结向量空间构建、状态、失败重试与服务端准入后的显式激活。 |
 
 后续每个 capability 目录首次创建时，必须同次加入本级 README，并在此表登记其职责和公开依赖边界。

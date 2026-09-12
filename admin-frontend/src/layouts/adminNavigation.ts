@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, ClipboardList, Gauge, History, Salad, Settings2, ShieldCheck, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, Gauge, History, Salad, Settings2, ShieldCheck, Users, Waypoints } from 'lucide-react'
 
 export type AdminNavigationItem = Readonly<{
   icon: LucideIcon
@@ -32,6 +32,7 @@ export const adminNavigation: readonly AdminNavigationGroup[] = [
     items: [
       { icon: Salad, label: '营养目录', to: '/admin/catalog' },
       { icon: BookOpen, label: '菜谱管理', to: '/admin/recipes' },
+      { icon: Waypoints, label: '向量检索', to: '/admin/vector-retrieval' },
     ],
   },
   {

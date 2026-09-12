@@ -454,6 +454,13 @@ class SqlAlchemyAdminRepository:
         self._session.flush()
         return build
 
+    def list_catalog_vector_space_builds(self) -> list[CatalogVectorSpaceBuild]:
+        return list(self._session.scalars(
+            select(CatalogVectorSpaceBuild).order_by(
+                CatalogVectorSpaceBuild.requested_at.desc(), CatalogVectorSpaceBuild.id.desc()
+            )
+        ))
+
     def list_catalog_embedding_jobs_for_vector_space(self, vector_space_id: uuid.UUID, *, name_ids: list[uuid.UUID]) -> list[CatalogEmbeddingJob]:
         if not name_ids:
             return []

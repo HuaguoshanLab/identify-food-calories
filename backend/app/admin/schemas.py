@@ -722,6 +722,67 @@ class CatalogVectorSpaceBuildResponse(BaseModel):
     status: Literal["pending", "processing", "partial_failure", "ready"]
 
 
+class CatalogVectorSpaceBuildStatusResponse(CatalogVectorSpaceBuildResponse):
+    """Safe operational projection for the vector-space control plane."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    requested_at: datetime
+    is_active: bool
+    # This is server-derived.  The browser never decides whether a build may move
+    # the active pointer.
+    activation_ready: bool
+
+
+class CatalogVectorSpaceBuildPageResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: list[CatalogVectorSpaceBuildStatusResponse]
+
+
+class CatalogVectorSpaceBuildRetryCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class CatalogVectorSpaceBuildRetryResponse(CatalogVectorSpaceBuildStatusResponse):
+    reset_count: int = Field(ge=0)
+
+
+class CatalogVectorSpaceActivationCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    build_id: uuid.UUID
+    reason: str = Field(min_length=1, max_length=500)
+    confirm: Literal[True]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reason must not be blank")
+        return normalized
+
+
+class CatalogVectorSpaceActivationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    vector_space_id: uuid.UUID
+    build_id: uuid.UUID
+    approved_at: datetime
+
+
 class CatalogRelationEvidenceCommand(BaseModel):
     """A version-bound relation assertion over two controlled catalog names."""
 

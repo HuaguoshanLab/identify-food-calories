@@ -86,6 +86,10 @@ from app.admin.schemas import (
     CatalogEmbeddingStatusResponse,
     CatalogVectorSpaceBuildCommand,
     CatalogVectorSpaceBuildResponse,
+    CatalogVectorSpaceBuildPageResponse,
+    CatalogVectorSpaceBuildRetryCommand,
+    CatalogVectorSpaceBuildRetryResponse,
+    CatalogVectorSpaceBuildStatusResponse,
     CatalogRelationEvidenceCommand,
     CatalogRelationEvidenceResponse,
     CatalogRelationEvidenceRevokeCommand,
@@ -1427,6 +1431,89 @@ class AdminService:
             pending_count=counts["pending_count"],
             failed_count=counts["failed_count"], completed_count=counts["completed_count"], status=status,
         )
+
+    def list_catalog_vector_space_builds(self, *, actor_user_id: uuid.UUID) -> CatalogVectorSpaceBuildPageResponse:
+        """Return operational counts only; manifests and provider data stay server-side."""
+
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        active_ids = {space.id for space in self._repository.list_active_catalog_vector_spaces()}
+        return CatalogVectorSpaceBuildPageResponse(items=[
+            self._vector_space_build_status(build, is_active=build.vector_space_id in active_ids)
+            for build in self._repository.list_catalog_vector_space_builds()
+        ])
+
+    def get_catalog_vector_space_build_status(
+        self, *, actor_user_id: uuid.UUID, build_id: uuid.UUID
+    ) -> CatalogVectorSpaceBuildStatusResponse:
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        build = self._repository.get_catalog_vector_space_build_for_activation(build_id)
+        if build is None:
+            raise KeyError("vector-space build not found")
+        active_ids = {space.id for space in self._repository.list_active_catalog_vector_spaces()}
+        return self._vector_space_build_status(build, is_active=build.vector_space_id in active_ids)
+
+    def _vector_space_build_status(
+        self, build: CatalogVectorSpaceBuild, *, is_active: bool
+    ) -> CatalogVectorSpaceBuildStatusResponse:
+        response = self._vector_space_build_response(build)
+        activation_ready = False
+        if response.status == "ready":
+            try:
+                space = self._repository.get_catalog_vector_space_by_id(build.vector_space_id)
+                if space is not None and all(getattr(space, field) == value for field, value in _PHASE063_RELEASE_SPACE.items()):
+                    self._load_phase063_release(None)
+                    self._validate_activation_build(build=build, vector_space_id=build.vector_space_id)
+                    activation_ready = True
+            except CatalogVectorSpaceActivationConflict:
+                # Do not reveal evaluator internals through a read endpoint.
+                activation_ready = False
+        return CatalogVectorSpaceBuildStatusResponse(
+            **response.model_dump(), requested_at=build.requested_at,
+            is_active=is_active, activation_ready=activation_ready,
+        )
+
+    def retry_catalog_vector_space_build(
+        self, *, actor_user_id: uuid.UUID, build_id: uuid.UUID,
+        command: CatalogVectorSpaceBuildRetryCommand, command_key: str,
+    ) -> CatalogVectorSpaceBuildRetryResponse:
+        """Retry only failed, budget-remaining jobs in one frozen build snapshot."""
+
+        key = command_key.strip()
+        if not key:
+            raise CatalogVectorSpaceBuildConflict("an idempotency key is required")
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        self._repository.acquire_catalog_vector_space_build_lock()
+        build = self._repository.get_catalog_vector_space_build_for_activation(build_id)
+        if build is None:
+            raise KeyError("vector-space build not found")
+        audit_key = f"vector-space-build-retry:{key}"
+        existing = self._repository.get_audit_event_by_command_key(audit_key)
+        if existing is not None:
+            if (existing.action != "catalog.vector_space_build.retry" or existing.object_id != str(build.id)
+                    or existing.actor_identifier != str(actor.id) or existing.reason != command.reason):
+                raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different vector-space retry")
+            status = self._vector_space_build_status(build, is_active=False)
+            return CatalogVectorSpaceBuildRetryResponse(**status.model_dump(), reset_count=int(existing.after_diff["reset_count"]))
+        name_ids = [uuid.UUID(item["name_id"]) for item in build.snapshot_manifest]
+        jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(build.vector_space_id, name_ids=name_ids)
+        before = self._embedding_job_counts(jobs)
+        now = self._now()
+        retryable = [job for job in jobs if job.status == "failed" and job.attempt_count < job.max_attempts]
+        for job in retryable:
+            job.status, job.not_before = "pending", now
+            job.lease_owner = job.leased_at = job.lease_expires_at = None
+            job.last_error_code, job.updated_at = None, now
+        after = self._embedding_job_counts(jobs)
+        self._repository.add_audit_event(AdminAuditEvent(
+            id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+            action="catalog.vector_space_build.retry", object_type="catalog_vector_space_build",
+            object_id=str(build.id), reason=command.reason, before_diff=before,
+            after_diff={**after, "reset_count": len(retryable)}, related_version=build.retrieval_version,
+            command_key=audit_key,
+        ))
+        self._commit_catalog_mutation()
+        status = self._vector_space_build_status(build, is_active=False)
+        return CatalogVectorSpaceBuildRetryResponse(**status.model_dump(), reset_count=len(retryable))
 
     def activate_vector_space(
         self,

@@ -77,6 +77,26 @@ class StubCatalogService:
             failed_count=0, completed_count=0, status="pending",
         )
 
+    def list_catalog_vector_space_builds(self, **_kwargs: object):
+        from app.admin.schemas import CatalogVectorSpaceBuildPageResponse, CatalogVectorSpaceBuildStatusResponse
+        return CatalogVectorSpaceBuildPageResponse(items=[CatalogVectorSpaceBuildStatusResponse(
+            **self.create_catalog_vector_space_build().model_dump(),
+            requested_at="2026-09-12T00:00:00Z", is_active=False, activation_ready=False,
+        )])
+
+    def get_catalog_vector_space_build_status(self, **_kwargs: object):
+        return self.list_catalog_vector_space_builds().items[0]
+
+    def retry_catalog_vector_space_build(self, **_kwargs: object):
+        from app.admin.schemas import CatalogVectorSpaceBuildRetryResponse
+        return CatalogVectorSpaceBuildRetryResponse(
+            **self.get_catalog_vector_space_build_status().model_dump(), reset_count=1,
+        )
+
+    def activate_vector_space(self, *, vector_space_id: uuid.UUID, build_id: uuid.UUID, **_kwargs: object):
+        from types import SimpleNamespace
+        return SimpleNamespace(build_id=build_id, approved_at="2026-09-12T00:00:00Z")
+
     def backfill_catalog_search_index(self, **_kwargs: object):
         from app.admin.schemas import CatalogSearchIndexBackfillResponse
         return CatalogSearchIndexBackfillResponse(
@@ -341,6 +361,30 @@ def test_vector_space_build_requires_admin_idempotency_and_pinned_identity() -> 
         ).status_code == 422
     assert response.status_code == 201
     assert response.json()["status"] == "pending"
+
+
+def test_vector_space_control_plane_exposes_safe_status_retry_and_activation_contracts() -> None:
+    app = create_app(runtime_factory=NoopAgentRuntimeFactory())
+    app.dependency_overrides[get_authenticated_principal] = lambda: uuid.uuid4()
+    app.dependency_overrides[get_admin_service] = StubCatalogService
+    build_id, space_id = uuid.uuid4(), uuid.uuid4()
+    command = {"reason": "upstream recovered", "confirm": True}
+    with TestClient(app) as client:
+        listed = client.get("/api/v1/admin/vector-space-builds")
+        retried = client.post(
+            f"/api/v1/admin/vector-space-builds/{build_id}/retries", json=command,
+            headers={"Idempotency-Key": "vector-space-retry-0001"},
+        )
+        activated = client.post(
+            f"/api/v1/admin/vector-space-builds/{space_id}/activations",
+            json={"build_id": str(build_id), **command},
+            headers={"Idempotency-Key": "vector-space-activate-0001"},
+        )
+    assert listed.status_code == 200
+    assert {"requested_at", "activation_ready", "is_active"} <= listed.json()["items"][0].keys()
+    assert "snapshot_manifest" not in listed.json()["items"][0]
+    assert retried.status_code == 200 and retried.json()["reset_count"] == 1
+    assert activated.status_code == 200 and activated.json()["vector_space_id"] == str(space_id)
 
 
 def test_catalog_search_index_backfill_requires_explicit_admin_command() -> None:
