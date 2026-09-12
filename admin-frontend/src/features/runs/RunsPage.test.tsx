@@ -11,7 +11,7 @@ const apiBase = '/api/v1/admin'
 const runId = '2864a3fc-766f-4ae3-b43a-bfa3077e1a4d'
 
 const metrics = {
-  terminal_count: 12,
+  terminal_count: 101,
   failure_ratio: '0.25',
   p50_elapsed_ms: 210,
   p95_elapsed_ms: 890,
@@ -67,8 +67,13 @@ describe('RunsPage', () => {
     renderRunsPage()
 
     expect(await screen.findByText('终态运行数')).toBeVisible()
+    expect(screen.getByLabelText('UTC 起始')).toHaveAttribute('type', 'date')
+    expect(screen.getByLabelText('UTC 结束')).toHaveAttribute('type', 'date')
+    expect(screen.getByRole('navigation', { name: '运行分页' })).toHaveTextContent('1/ 3')
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await waitFor(() => expect(requestedUrls.some((url) => new URL(url).searchParams.get('cursor') === 'opaque-run-cursor-0001')).toBe(true))
+    expect(screen.getByRole('navigation', { name: '运行分页' })).toHaveTextContent('2/ 3')
+    expect(screen.getByRole('button', { name: '上一页' })).toBeEnabled()
 
     await user.selectOptions(screen.getByLabelText('运行状态'), 'failed')
     await waitFor(() => {
