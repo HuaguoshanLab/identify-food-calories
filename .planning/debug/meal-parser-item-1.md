@@ -17,8 +17,8 @@ updated: 2026-09-12
 
 ## Current Focus
 
-- hypothesis: confirmed — 解析 Provider 的结构化输出允许将 `item_id`/占位符放入 `food_name` 或 `catalog_query`，图层将其直接传给目录检索。
-- next_action: resolved — prompt v2、DTO 合同与图层回归已阻断内部 ID 作为检索词。
+- hypothesis: confirmed — 存在两个独立问题：解析 Provider 可污染检索字段；即使后端正确保存 `unaccounted_items` 的内部 item_id，前端仍直接渲染该 ID。
+- next_action: resolved — prompt v2/DTO 防护已阻断错误检索；前端将未匹配 ID 映射为 understood_items 中的用户可读名称，缺失映射使用安全通用文案。
 
 ## Evidence
 
@@ -38,9 +38,16 @@ updated: 2026-09-12
   source: regression-test
   finding: v2 合同拒绝 item_1 作为 food_name；若仅可选 catalog_query 被污染，则清空该字段并由图层以已校验的 food_name“米饭”检索。28 passed，1 PostgreSQL 测试因未通过 run_pg.py 而按设计跳过。
 
+- timestamp: 2026-09-12
+  source: code-and-browser
+  finding: MealAnalysisGraph 设计上在 unaccounted_items 保存 item_id，_build_report 同时返回 understood_items。AnalyzePage 曾直接 join unaccounted_items，导致 UI 泄露 item_1。刷新真实本地线程后，页面显示“未匹配菜品：辣椒炒肉”，未显示内部 ID。
+- timestamp: 2026-09-12
+  source: frontend-regression-test
+  finding: AnalyzePage 测试覆盖 item_1 映射到“米饭”且页面无 item_1，以及缺失映射显示“未能匹配的餐品”。15 个分析页组件测试和 TypeScript 类型检查通过。
+
 ## Resolution
 
-- root_cause: DeepSeek 解析提示词与 ParsedMealItemDTO 都未区分内部 item_id 和用户食物名，MealAnalysisGraph 又直接优先使用 catalog_query。
-- fix: 升级解析提示词为 v2；拒绝 item_id/占位符作为 food_name；丢弃被内部 ID 污染的可选 catalog_query，使检索安全回退到已校验 food_name。
-- verification: MockTransport 覆盖真实 DeepSeek Responses 解析边界，图运行时断言目录搜索收到“米饭”而不是 item_1；相关测试、Ruff、diff check 通过。
-- files_changed: backend/app/providers/reasoning/dto.py; backend/app/providers/reasoning/deepseek.py; backend/app/agent/service.py; backend/tests/unit/test_runtime_foundation.py
+- root_cause: DeepSeek 解析提示词与 ParsedMealItemDTO 未区分内部 item_id 和用户食物名，图层又优先使用 catalog_query；此外，后端合法的 unaccounted_items=item_id 被 AnalyzePage 直接拼接展示。
+- fix: 升级解析提示词为 v2；拒绝 item_id/占位符作为 food_name；丢弃被内部 ID 污染的可选 catalog_query；前端由 understood_items 映射未匹配 ID 到名称，映射失败只显示安全通用文本。
+- verification: MockTransport 覆盖真实 DeepSeek Responses 解析边界；图运行时断言目录搜索收到“米饭”；15 个分析页组件测试、TypeScript 类型检查通过；真实本地分析页刷新后显示用户可读“辣椒炒肉”而非内部 ID。全仓 lint 未通过，4 项为既有无关错误。
+- files_changed: backend/app/providers/reasoning/dto.py; backend/app/providers/reasoning/deepseek.py; backend/app/agent/service.py; backend/tests/unit/test_runtime_foundation.py; frontend/src/features/agent/components/AnalyzePage.tsx; frontend/src/features/agent/components/AnalyzePage.test.tsx

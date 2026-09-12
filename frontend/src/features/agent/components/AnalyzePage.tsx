@@ -50,6 +50,9 @@ type AnalysisReport = {
   context_references?: string[]
 }
 
+const SAFE_UNACCOUNTED_ITEM_LABEL = '未能匹配的餐品'
+const INTERNAL_ITEM_IDENTIFIER = /^(?:item|food)[_-]?\d+$/i
+
 function displayFoodName(name: string): string {
   return CONTROLLED_FOOD_DISPLAY_NAMES[name.trim().toLocaleLowerCase()] ?? name
 }
@@ -58,6 +61,21 @@ function displayFoodCandidate(label: string): string {
   const name = label.replace(/(?:（[^）]+）|\([^)]+\))$/, '').trim()
   const localizedName = displayFoodName(name)
   return localizedName === name ? label : localizedName
+}
+
+function displayUnaccountedItems(
+  itemIds: readonly string[] | undefined,
+  understoodItems: AnalysisReport['understood_items'],
+): string {
+  if (!itemIds?.length) return '请补充菜品和份量'
+  const namesById = new Map(understoodItems?.map((item) => [item.item_id, item.name]))
+  return itemIds.map((itemId) => {
+    const name = namesById.get(itemId)?.trim()
+    if (!name || name === itemId || INTERNAL_ITEM_IDENTIFIER.test(name)) {
+      return SAFE_UNACCOUNTED_ITEM_LABEL
+    }
+    return displayFoodName(name)
+  }).join('、')
 }
 
 async function safeErrorMessage(response: Response, fallback: string): Promise<string> {
@@ -339,7 +357,7 @@ export function AnalyzePage() {
       {progressStage ? <SafeProgressStages onRetry={retryAnalysis} stage={progressStage} /> : <Alert aria-live="polite" role="status"><RefreshCw aria-hidden="true" className={isBusy ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} /><AlertTitle>{progress || '等待分析'}</AlertTitle><AlertDescription>阶段状态只显示安全摘要，最终结果以报告卡片为准。</AlertDescription></Alert>}
       {recovery ? <Alert variant={recoveryCode === 'OUTCOME_UNKNOWN' ? 'default' : 'destructive'}><CircleAlert aria-hidden="true" /><AlertTitle>{recovery.title}</AlertTitle><AlertDescription className="space-y-3"><p>{recovery.body}</p>{recoveryCode === 'OUTCOME_UNKNOWN' ? <Button className="h-11 w-full" onClick={startNewImageAnalysis} type="button" variant="outline">{recovery.action}</Button> : <Button className="h-11 w-full" onClick={focusTextFallback} type="button" variant="outline">{recovery.action}</Button>}</AlertDescription></Alert> : null}
       {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} aria-describedby="meal-weight-help" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<p className="text-[13px] text-muted-foreground" id="meal-weight-help">数字默认克；支持 g、kg、克、公斤、千克、公克、斤、市斤、两、市两。1 市斤＝500 克，1 市两＝50 克；每项最多 2000 克。</p>{followupError ? <p className="text-sm text-destructive" role="alert">{followupError}</p> : null}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
-      {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{report.unaccounted_items?.join('、') || '请查看待补充项'}。</> : <>未匹配菜品：{report.unaccounted_items?.join('、') || '请补充菜品和份量'}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}
+      {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{displayUnaccountedItems(report.unaccounted_items, report.understood_items)}。</> : <>未匹配菜品：{displayUnaccountedItems(report.unaccounted_items, report.understood_items)}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}
       {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <div className="space-y-4">
         <Card aria-label="估算总热量" className="gap-3 py-3 [--card-spacing:--spacing(3)]"><CardContent className="px-4"><p className="text-sm font-medium text-muted-foreground">{report.is_partial ? '已计入项目的估算总热量' : '估算总热量'}</p><p className="mt-0.5 flex items-baseline gap-1 tabular-nums"><span className="text-3xl font-bold leading-9 text-foreground">{report.totals.energy_kcal}</span><span className="text-[13px] font-medium text-muted-foreground">kcal</span></p><p className="mt-1 text-[13px] leading-5 text-muted-foreground">数值由受控营养目录计算，实际份量可能有偏差。</p></CardContent></Card>
         <Card aria-label="食物明细"><CardHeader className="pb-2"><h2 className="text-base font-semibold leading-6">食物明细</h2></CardHeader><CardContent className="space-y-2">{report.items?.map((item) => {

@@ -185,7 +185,10 @@ describe('AnalyzePage', () => {
     const request = vi.fn(async () => new Response(JSON.stringify({
       thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
       report: {
-        items: [], unaccounted_items: ['目录外菜品'], is_partial: true,
+        items: [],
+        understood_items: [{ item_id: 'item-1', name: '目录外菜品', grams: '100' }],
+        unaccounted_items: ['item-1'],
+        is_partial: true,
         totals: { energy_kcal: '0.0', protein_g: '0.0', fat_g: '0.0', carbohydrate_g: '0.0' },
       },
     }), { status: 201 }))
@@ -199,6 +202,47 @@ describe('AnalyzePage', () => {
     expect(screen.getByText(/未匹配菜品：目录外菜品。/)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '营养分析报告' })).not.toBeInTheDocument()
     expect(screen.queryByText('合计 0.0 kcal')).not.toBeInTheDocument()
+  })
+
+  it('maps an unaccounted internal item id to its understood food name', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
+      report: {
+        items: [],
+        understood_items: [{ item_id: 'item_1', name: '米饭', grams: '100' }],
+        unaccounted_items: ['item_1'],
+        is_partial: true,
+        totals: { energy_kcal: '0.0', protein_g: '0.0', fat_g: '0.0', carbohydrate_g: '0.0' },
+      },
+    }), { status: 201 }))
+    renderPage(request)
+    await useTextInput(user)
+
+    await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+
+    expect(await screen.findByText(/未匹配菜品：米饭。/)).toBeInTheDocument()
+    expect(screen.queryByText('item_1', { exact: false })).not.toBeInTheDocument()
+  })
+
+  it('uses a safe label when an unaccounted item cannot be mapped', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      thread_id: '11111111-1111-4111-8111-111111111111', status: 'completed', revision: 1,
+      report: {
+        items: [], unaccounted_items: ['item_1'], is_partial: true,
+        totals: { energy_kcal: '0.0', protein_g: '0.0', fat_g: '0.0', carbohydrate_g: '0.0' },
+      },
+    }), { status: 201 }))
+    renderPage(request)
+    await useTextInput(user)
+
+    await user.type(screen.getByLabelText('餐食描述'), '米饭 100 克')
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+
+    expect(await screen.findByText(/未匹配菜品：未能匹配的餐品。/)).toBeInTheDocument()
+    expect(screen.queryByText('item_1', { exact: false })).not.toBeInTheDocument()
   })
 
   it('requires confirmation before closing the stream, cache, and thread after deletion', async () => {
