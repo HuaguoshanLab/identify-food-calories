@@ -21,9 +21,18 @@ export const planReportSchema = z.object({
   if (!['breakfast,lunch,dinner', 'breakfast,lunch,dinner,snack'].includes(report.meals.map((meal) => meal.slot).join(','))) context.addIssue({ code: 'custom', message: 'meal slots must remain ordered' })
 })
 export const needsInputReportSchema = z.object({ stage: z.literal('needs_input'), message: z.string().min(1).max(500), code: z.literal('LIMIT_REACHED').optional(), input_choices: z.array(slotSchema).min(3).max(4).optional() }).strict()
+const planningFoodCandidateSchema = z.object({
+  item_id: z.literal('planning-substitution'), food_id: z.string().uuid(), catalog_version: z.string().min(1).max(80),
+  label: z.string().min(1).max(320), canonical_label: z.string().min(1).max(200).nullable(), relation_label: z.string().min(1).max(80).nullable(),
+  prepared_state: z.string().min(1).max(120).nullable(), portion_hints: z.array(z.string().min(1).max(120)).max(8), source_name: z.string().min(1).max(120).nullable(),
+}).strict()
+export const foodClarificationReportSchema = z.object({
+  stage: z.literal('food_clarification'), message: z.string().min(1).max(500), candidates: z.array(planningFoodCandidateSchema).min(1).max(3),
+}).strict()
 export const safeSnapshotSchema = z.object({ thread_id: z.string().uuid(), status: z.enum(['waiting', 'partial', 'completed', 'retryable', 'terminal', 'deletion_pending']), revision: z.number().int().nonnegative(), report: z.unknown().optional(), recovery_code: z.string().min(1).max(80).nullable().optional() }).strict()
 
 export type PlanMeal = z.infer<typeof planMealSchema>
 export type PlanReport = z.infer<typeof planReportSchema>
 export type PlanRangeStatus = z.infer<typeof planAdjustmentSchema>["range_status"]
 export type PlanRelaxation = z.infer<typeof relaxationSchema>
+export type FoodClarificationReport = z.infer<typeof foodClarificationReportSchema>

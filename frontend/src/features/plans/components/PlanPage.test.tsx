@@ -208,6 +208,58 @@ describe('PlanPage', () => {
     expect(screen.queryByText('provider 不应显示')).not.toBeInTheDocument()
   })
 
+  it('shows catalog candidates without auto-selection and resumes with only the chosen identity', async () => {
+    const user = userEvent.setup()
+    const foodId = '44444444-4444-4444-8444-444444444444'
+    const clarification = {
+      stage: 'food_clarification', message: '请选择要用于替换的受控菜品。',
+      candidates: [{
+        item_id: 'planning-substitution', food_id: foodId, catalog_version: 'catalog-v1', label: '番茄炒蛋（熟制）',
+        canonical_label: '番茄炒蛋', relation_label: 'name_variant', prepared_state: '熟制', portion_hints: [], source_name: '受控营养目录',
+      }],
+    }
+    let snapshot: object = report
+    const inputBodies: unknown[] = []
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
+        inputBodies.push(JSON.parse(String(init?.body)))
+        snapshot = inputBodies.length === 1 ? clarification : adjustedReport
+        return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: inputBodies.length === 1 ? 'waiting' : 'completed' }))
+      }
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: snapshot === clarification ? 'waiting' : 'completed', revision: inputBodies.length + 1, report: snapshot }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+
+    await screen.findByText('170 cm')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await screen.findByRole('heading', { name: '今日饮食计划' })
+    await user.type(screen.getByLabelText('告诉我们想换什么'), '午餐换成西红柿炒鸡蛋')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+
+    expect(await screen.findByRole('heading', { name: '请选择要替换的菜品' })).toBeInTheDocument()
+    const option = screen.getByRole('radio', { name: /番茄炒蛋/ })
+    expect(option).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('button', { name: '提交选择' })).toBeDisabled()
+    expect(screen.queryByText(foodId)).not.toBeInTheDocument()
+
+    await user.click(option)
+    await user.click(screen.getByRole('button', { name: '提交选择' }))
+
+    expect(inputBodies).toEqual([
+      { kind: 'description', text: '午餐换成西红柿炒鸡蛋' },
+      { kind: 'description', text: JSON.stringify({ candidate_id: foodId, catalog_version: 'catalog-v1' }) },
+    ])
+    expect(await screen.findByText('清淡豆腐菌菇午餐')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '请选择要替换的菜品' })).not.toBeInTheDocument()
+  })
+
   it('contains ambiguous selection, makes permitted relaxation transparent, and never exposes raw feedback or internal IDs', async () => {
     const user = userEvent.setup()
     const ambiguous = { stage: 'needs_input', message: '请选择要调整的餐次。', input_choices: ['breakfast', 'lunch', 'dinner'] }

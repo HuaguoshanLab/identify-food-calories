@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from app.planning.schemas import DailyTarget, PlannedMeal, PlanningProfileInput, PreferenceReview
+from app.planning.schemas import DailyTarget, MealSlot, PlannedMeal, PlanningProfileInput, PreferenceReview
 
 
 STATE_VERSION = "meal-agent-state.v3"
@@ -268,6 +268,7 @@ class DietPlanningState(BaseModel):
     # Opaque hashes make capture replay-safe without retaining the user's freeform feedback.
     preference_capture_markers: tuple[str, ...] = Field(default=(), max_length=3)
     pending_adjustment_intent: Literal["lighter", "replace"] | None = None
+    pending_adjustment_slot: "MealSlot | None" = None
     pending_food_query: str | None = Field(default=None, min_length=1, max_length=200)
     pending_food_candidates: tuple[StateCandidate, ...] = Field(default=(), max_length=MAX_STATE_CANDIDATES)
     tool_summaries: tuple[StateToolSummary, ...] = Field(default=(), max_length=12)

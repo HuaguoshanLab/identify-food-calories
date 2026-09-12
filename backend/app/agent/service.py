@@ -574,7 +574,22 @@ class AgentService:
             if isinstance(state, DietPlanningState) and state.status in {
                 AgentRuntimeStatus.COMPLETED, AgentRuntimeStatus.WAITING_INPUT
             }:
-                return {"feedback": text} if state.status is AgentRuntimeStatus.COMPLETED else {"slot": text.casefold()}
+                if state.status is AgentRuntimeStatus.COMPLETED:
+                    return {"feedback": text}
+                if state.pending_food_candidates:
+                    try:
+                        candidate = json.loads(text)
+                    except json.JSONDecodeError:
+                        return None
+                    if (
+                        isinstance(candidate, dict)
+                        and set(candidate) == {"candidate_id", "catalog_version"}
+                        and isinstance(candidate.get("candidate_id"), str)
+                        and isinstance(candidate.get("catalog_version"), str)
+                    ):
+                        return candidate
+                    return None
+                return {"slot": text.casefold()}
             return None
         try:
             candidate = json.loads(text)

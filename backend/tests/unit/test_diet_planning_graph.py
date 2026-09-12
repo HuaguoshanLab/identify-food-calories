@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from decimal import Decimal
 
@@ -10,7 +11,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent.graph import DietPlanningGraph
-from app.agent.state import DietPlanningAction, DietPlanningState, MealAgentState
+from app.agent.service import AgentService
+from app.agent.state import AgentGraphKind, DietPlanningAction, DietPlanningState, MealAgentState
 from app.agent.tools import PlanningToolAdapter
 from app.nutrition.schemas import FoodRelation, FoodSearchCandidate, FoodSearchResult, NutritionAction
 from app.planning.schemas import (
@@ -341,15 +343,41 @@ def test_nonexact_planning_substitution_waits_then_passes_only_offered_identity(
     )
     tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="西红柿炒鸡蛋", selected_food=None, candidates=(food,), safe_message="选择")
     original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
-    waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成番茄炒蛋", "food_query": "西红柿炒鸡蛋"}))
+    waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成西红柿炒鸡蛋"}))
 
     assert waiting.status.value == "waiting_input"
+    assert waiting.pending_adjustment_slot is MealSlot.LUNCH
+    assert waiting.pending_food_query == "西红柿炒鸡蛋"
     assert waiting.pending_food_candidates[0].food_id == food_id
     assert "score" not in str(waiting.report)
-    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(waiting, resume={"feedback": "午餐换成番茄炒蛋", "candidate_id": str(food_id), "catalog_version": "catalog-v1"}))
+    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(waiting, resume={"candidate_id": str(food_id), "catalog_version": "catalog-v1"}))
 
     assert completed.status.value == "completed"
     assert tools.selected_food_calls[-1] == (food_id, "catalog-v1")
+
+
+def test_planning_text_adapter_accepts_only_an_offered_candidate_identity(monkeypatch) -> None:
+    tools = FakePlanningTools()
+    food_id = uuid.uuid4()
+    food = FoodSearchCandidate(
+        food_id=food_id, canonical_name="番茄炒蛋", catalog_version="catalog-v1", prepared_state="熟制",
+        source_name="测试目录", relation=FoodRelation.NAME_VARIANT,
+    )
+    tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="西红柿炒鸡蛋", selected_food=None, candidates=(food,), safe_message="选择")
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+    waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成西红柿炒鸡蛋"}))
+
+    async def load(**_kwargs):
+        return waiting
+
+    monkeypatch.setattr(AgentService, "_load_checkpoint", staticmethod(load))
+    service = AgentService(repository=object())
+    text = json.dumps({"candidate_id": str(food_id), "catalog_version": "catalog-v1"})
+    payload = asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=text, graph_kind=AgentGraphKind.DIET_PLANNING))
+    invalid = asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=json.dumps({"candidate_id": str(food_id), "catalog_version": "catalog-v1", "score": 1}), graph_kind=AgentGraphKind.DIET_PLANNING))
+
+    assert payload == {"candidate_id": str(food_id), "catalog_version": "catalog-v1"}
+    assert invalid is None
 
 
 def test_ambiguous_feedback_requires_a_closed_three_slot_choice_and_invalid_resume_is_noop() -> None:

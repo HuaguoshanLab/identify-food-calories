@@ -1049,54 +1049,29 @@ class DietPlanningGraph:
     async def _apply_adjustment(self, state: DietPlanningState, resume: dict[str, object]) -> DietPlanningState:
         if state.replan_count >= 3:
             return self._adjustment_limit(state)
-        selected_food_id = None
-        selected_catalog_version = None
-        if state.pending_food_candidates:
-            candidate_id = resume.get("candidate_id")
-            catalog_version = resume.get("catalog_version")
-            candidate = next(
-                (entry for entry in state.pending_food_candidates if str(entry.food_id) == candidate_id), None
-            )
-            if candidate is None or catalog_version != candidate.catalog_version or state.pending_food_query is None:
-                return state
-            search = await self._tools.search_food_catalog(FoodSearchInput(query=state.pending_food_query))
-            current = next(
-                (food for food in search.candidates if food.food_id == candidate.food_id and food.catalog_version == candidate.catalog_version),
-                search.selected_food if search.selected_food is not None and search.selected_food.id == candidate.food_id and search.selected_food.catalog_version == candidate.catalog_version else None,
-            )
-            if current is None:
-                return state.model_copy(update={"pending_food_candidates": (), "pending_food_query": None, "status": AgentRuntimeStatus.WAITING_INPUT, "next_action": DietPlanningAction.NEEDS_INPUT, "report": {"stage": "needs_input", "message": "所选菜品已不再可用，请重新输入菜名。"}})
-            selected_food_id, selected_catalog_version = current.food_id, current.catalog_version
-            state = state.model_copy(update={"pending_food_candidates": (), "pending_food_query": None})
-        else:
-            query = resume.get("food_query")
-            if isinstance(query, str) and query.strip():
-                search = await self._tools.search_food_catalog(FoodSearchInput(query=query.strip()))
-                if search.selected_food is not None:
-                    selected_food_id, selected_catalog_version = search.selected_food.id, search.selected_food.catalog_version
-                elif search.candidates:
-                    candidates = tuple(
-                        StateCandidate(item_id="planning-substitution", food_id=food.food_id, catalog_version=food.catalog_version, label=f"{food.canonical_name}（{food.prepared_state}）" if food.prepared_state is not None else food.canonical_name, canonical_label=food.canonical_name, relation_label=food.relation.value, prepared_state=food.prepared_state, portion_hints=food.portion_hints, source_name=food.source_name)
-                        for food in search.candidates
-                    )
-                    return state.model_copy(update={"pending_food_query": query.strip(), "pending_food_candidates": candidates, "status": AgentRuntimeStatus.WAITING_INPUT, "next_action": DietPlanningAction.NEEDS_INPUT, "report": {"stage": "food_clarification", "message": "请选择要用于替换的受控菜品。", "candidates": [candidate.model_dump(mode="json") for candidate in candidates]}})
-                else:
-                    return state.model_copy(update={"status": AgentRuntimeStatus.WAITING_INPUT, "next_action": DietPlanningAction.NEEDS_INPUT, "report": {"stage": "needs_input", "message": "目录中没有可用于替换的菜品，请更换名称。"}})
         feedback = resume.get("feedback")
         selected_slot = resume.get("slot")
-        intent: str | None = None
-        slot: MealSlot | None = None
         current = state
+        intent = current.pending_adjustment_intent
+        slot = current.pending_adjustment_slot
         if isinstance(feedback, str) and 1 <= len(feedback) <= 500:
             intent = "lighter" if "清淡" in feedback else "replace"
             slot = _slot_from_feedback(feedback)
+            food_query = _food_query_from_feedback(feedback)
             current = self._capture_adjustment_preferences(current, feedback)
+            current = current.model_copy(
+                update={
+                    "pending_adjustment_intent": intent,
+                    "pending_adjustment_slot": slot,
+                    "pending_food_query": food_query,
+                    "pending_food_candidates": (),
+                }
+            )
             if slot is None:
                 return current.model_copy(
                     update={
                         "status": AgentRuntimeStatus.WAITING_INPUT,
                         "next_action": DietPlanningAction.NEEDS_INPUT,
-                        "pending_adjustment_intent": intent,
                         "report": {
                             "stage": "needs_input",
                             "message": "请选择要调整的餐次。",
@@ -1104,18 +1079,96 @@ class DietPlanningGraph:
                         },
                     }
                 )
+        elif current.pending_food_candidates:
+            # Candidate identity is validated below against both the offered checkpoint
+            # projection and a fresh catalog read before it can affect composition.
+            pass
         elif (
             isinstance(selected_slot, str)
-            and current.pending_adjustment_intent is not None
+            and intent is not None
             and selected_slot in {meal.slot.value for meal in current.meals}
         ):
-            intent = current.pending_adjustment_intent
             slot = MealSlot(selected_slot)
+            current = current.model_copy(update={"pending_adjustment_slot": slot})
         else:
             return state
         target = current.target
         if target is None or len(current.meals) not in (3, 4) or slot is None or intent is None:
             return state
+
+        selected_food_id = None
+        selected_catalog_version = None
+        if current.pending_food_candidates:
+            candidate_id = resume.get("candidate_id")
+            catalog_version = resume.get("catalog_version")
+            candidate = next(
+                (entry for entry in current.pending_food_candidates if str(entry.food_id) == candidate_id), None
+            )
+            if candidate is None or catalog_version != candidate.catalog_version or current.pending_food_query is None:
+                return state
+            search = await self._tools.search_food_catalog(FoodSearchInput(query=current.pending_food_query))
+            candidate_is_current = any(
+                food.food_id == candidate.food_id and food.catalog_version == candidate.catalog_version
+                for food in search.candidates
+            ) or (
+                search.selected_food is not None
+                and search.selected_food.id == candidate.food_id
+                and search.selected_food.catalog_version == candidate.catalog_version
+            )
+            if not candidate_is_current:
+                return current.model_copy(
+                    update={
+                        "pending_food_candidates": (),
+                        "pending_food_query": None,
+                        "status": AgentRuntimeStatus.WAITING_INPUT,
+                        "next_action": DietPlanningAction.NEEDS_INPUT,
+                        "report": {"stage": "needs_input", "message": "所选菜品已不再可用，请重新输入菜名。"},
+                    }
+                )
+            selected_food_id = candidate.food_id
+            selected_catalog_version = candidate.catalog_version
+            current = current.model_copy(update={"pending_food_candidates": (), "pending_food_query": None})
+        elif current.pending_food_query:
+            search = await self._tools.search_food_catalog(FoodSearchInput(query=current.pending_food_query))
+            if search.selected_food is not None:
+                selected_food_id = search.selected_food.id
+                selected_catalog_version = search.selected_food.catalog_version
+                current = current.model_copy(update={"pending_food_query": None})
+            elif search.candidates:
+                candidates = tuple(
+                    StateCandidate(
+                        item_id="planning-substitution",
+                        food_id=food.food_id,
+                        catalog_version=food.catalog_version,
+                        label=f"{food.canonical_name}（{food.prepared_state}）" if food.prepared_state is not None else food.canonical_name,
+                        canonical_label=food.canonical_name,
+                        relation_label=food.relation.value,
+                        prepared_state=food.prepared_state,
+                        portion_hints=food.portion_hints,
+                        source_name=food.source_name,
+                    )
+                    for food in search.candidates
+                )
+                return current.model_copy(
+                    update={
+                        "pending_food_candidates": candidates,
+                        "status": AgentRuntimeStatus.WAITING_INPUT,
+                        "next_action": DietPlanningAction.NEEDS_INPUT,
+                        "report": {
+                            "stage": "food_clarification",
+                            "message": "请选择要用于替换的受控菜品。",
+                            "candidates": [candidate.model_dump(mode="json") for candidate in candidates],
+                        },
+                    }
+                )
+            else:
+                return current.model_copy(
+                    update={
+                        "status": AgentRuntimeStatus.WAITING_INPUT,
+                        "next_action": DietPlanningAction.NEEDS_INPUT,
+                        "report": {"stage": "needs_input", "message": "目录中没有可用于替换的菜品，请更换名称。"},
+                    }
+                )
         composition = self._tools.replace_planning_slot(
             user_id=current.user_id,
             target=target,
@@ -1154,6 +1207,9 @@ class DietPlanningGraph:
                 "meals": composition.meals,
                 "replan_count": next_count,
                 "pending_adjustment_intent": None,
+                "pending_adjustment_slot": None,
+                "pending_food_query": None,
+                "pending_food_candidates": (),
                 "next_action": DietPlanningAction.COMPLETE,
                 "status": AgentRuntimeStatus.COMPLETED,
                 "report": report,
@@ -1183,7 +1239,7 @@ class DietPlanningGraph:
 
     @staticmethod
     def _adjustment_limit(state: DietPlanningState) -> DietPlanningState:
-        return state.model_copy(update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": DietPlanningAction.NEEDS_INPUT, "pending_adjustment_intent": None, "report": {"stage": "needs_input", "code": "LIMIT_REACHED", "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。"}})
+        return state.model_copy(update={"status": AgentRuntimeStatus.LIMIT_REACHED, "next_action": DietPlanningAction.NEEDS_INPUT, "pending_adjustment_intent": None, "pending_adjustment_slot": None, "pending_food_query": None, "pending_food_candidates": (), "report": {"stage": "needs_input", "code": "LIMIT_REACHED", "message": "本次计划已达到三次调整上限；请新建计划或修改资料与目标。"}})
 
     def _call_profile_upsert(self, state: DietPlanningState) -> DietPlanningState:
         if state.budget.tool_calls >= 12:
@@ -1311,6 +1367,19 @@ def _slot_from_feedback(feedback: str) -> MealSlot | None:
         if any(label in feedback.casefold() for label in labels)
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _food_query_from_feedback(feedback: str) -> str | None:
+    """Extract only an explicitly requested replacement name from adjustment text."""
+
+    match = re.search(
+        r"(?:替换成|替换为|换成|换为|改成|改为|想吃)\s*([^,，。；;！？!?]+)",
+        feedback,
+    )
+    if match is None:
+        return None
+    query = re.sub(r"(?:吧|可以吗|行吗)$", "", match.group(1).strip()).strip()
+    return query if 1 <= len(query) <= 200 else None
 
 
 def _range_statuses(*, target: DailyTarget, meals: tuple[PlannedMeal, ...]) -> dict[str, str]:
