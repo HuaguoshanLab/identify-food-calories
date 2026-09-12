@@ -11,6 +11,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -61,6 +62,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -111,6 +113,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -161,6 +164,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -211,6 +215,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -261,6 +266,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -284,7 +290,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -294,7 +300,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -304,7 +310,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -323,6 +329,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -346,7 +353,7 @@
             "food:tomato-egg-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         },
@@ -356,7 +363,7 @@
             "food:tomato-egg-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         },
@@ -366,12 +373,12 @@
             "food:tomato-egg-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         }
       },
-      "text_sql": 0,
+      "text_sql": 1,
       "vector_sql": 1
     },
     {
@@ -385,6 +392,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -408,7 +416,7 @@
             "food:beef-jerky-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         },
@@ -418,7 +426,7 @@
             "food:beef-jerky-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         },
@@ -428,12 +436,12 @@
             "food:beef-jerky-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "名称相近"
           ],
           "selected_id": null
         }
       },
-      "text_sql": 0,
+      "text_sql": 1,
       "vector_sql": 1
     },
     {
@@ -447,6 +455,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -470,7 +479,7 @@
             "food:grilled-fish-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         },
@@ -480,7 +489,7 @@
             "food:grilled-fish-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         },
@@ -490,12 +499,12 @@
             "food:grilled-fish-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         }
       },
-      "text_sql": 0,
+      "text_sql": 1,
       "vector_sql": 1
     },
     {
@@ -509,6 +518,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -532,7 +542,7 @@
             "food:potato-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         },
@@ -542,7 +552,7 @@
             "food:potato-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         },
@@ -552,7 +562,7 @@
             "food:potato-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "地域/做法变体"
           ],
           "selected_id": null
         }
@@ -571,6 +581,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -594,7 +605,7 @@
             "food:pan-fried-bun-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -604,7 +615,7 @@
             "food:pan-fried-bun-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -614,12 +625,12 @@
             "food:pan-fried-bun-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
       },
-      "text_sql": 0,
+      "text_sql": 1,
       "vector_sql": 1
     },
     {
@@ -633,6 +644,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -656,7 +668,7 @@
             "food:hot-dry-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -666,7 +678,7 @@
             "food:hot-dry-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -676,7 +688,7 @@
             "food:hot-dry-noodles-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -695,6 +707,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -718,7 +731,7 @@
             "food:vegetable-fried-rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -728,7 +741,7 @@
             "food:vegetable-fried-rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -738,7 +751,7 @@
             "food:vegetable-fried-rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -757,6 +770,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -805,6 +819,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -828,7 +843,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -838,7 +853,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -848,7 +863,7 @@
             "food:rice-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -867,6 +882,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -915,6 +931,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -963,6 +980,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1011,6 +1029,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1059,6 +1078,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1107,6 +1127,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1130,7 +1151,7 @@
             "food:timeout-safe-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1140,7 +1161,7 @@
             "food:timeout-safe-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1150,7 +1171,7 @@
             "food:timeout-safe-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -1169,6 +1190,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1217,6 +1239,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1240,7 +1263,7 @@
             "food:index-fallback-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1250,7 +1273,7 @@
             "food:index-fallback-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1260,7 +1283,7 @@
             "food:index-fallback-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -1279,6 +1302,7 @@
         "flow_semantics": true,
         "meal_graph": true,
         "planning_graph": true,
+        "relations": true,
         "targets": true,
         "versions": true
       },
@@ -1302,7 +1326,7 @@
             "food:stable-order-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1312,7 +1336,7 @@
             "food:stable-order-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         },
@@ -1322,7 +1346,7 @@
             "food:stable-order-v1"
           ],
           "relation_labels": [
-            "目录候选"
+            "同类食物"
           ],
           "selected_id": null
         }
@@ -1332,11 +1356,11 @@
     }
   ],
   "decision": "PASS",
-  "evaluator_version": "phase063-evaluator.v2",
-  "evidence_hash": "69dd13e9063164e012b6ed11f504ce668e4c771984a2282d4698ca7f28af65a5",
+  "evaluator_version": "phase063-evaluator.v3",
+  "evidence_hash": "bd6c4718a25309989b462d29448cdddcdc2ca78e33b62c4220d86f8103164919",
   "input_hashes": {
     "dataset_sha256": "0f206658e40d79d289236c80520246368838cb17cdae53389f52f86170ccf82a",
-    "evaluator_sha256": "c405ead19f700b45702f3ff675d60f4dc2f5a1597cf3099988aa9dbac0a7e5eb",
+    "evaluator_sha256": "9ed7618ec29592a30e4cc9f0132eb61606736ccfdbef6a7b82c88259b638a2ed",
     "search_policy_sha256": "dca26399e483f6c6666fa148cc1b984c7c72e1a2ad8252e5f23af555a77cf76f"
   },
   "metrics": {
@@ -1349,11 +1373,16 @@
     "planning_graph_entries": 24,
     "planning_tool_compose_calls": 72,
     "planning_tool_target_calls": 24,
+    "relation_label_coverage": [
+      "同类食物",
+      "名称相近",
+      "地域/做法变体"
+    ],
     "target_recall": 1.0,
-    "text_sql_cases": 9,
+    "text_sql_cases": 13,
     "vector_sql_cases": 24
   },
-  "schema_version": "phase063-release.v2",
+  "schema_version": "phase063-release.v3",
   "snapshot": {
     "fixture": "synthetic:catalog-06-3-v1",
     "food_labels": [

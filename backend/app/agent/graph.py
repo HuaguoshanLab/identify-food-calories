@@ -35,6 +35,7 @@ from app.planning.schemas import DailyTarget, MealSlot, PlanValidationAction, Pl
 from app.images.schemas import ValidatedImageReference
 from app.nutrition.schemas import (
     FoodSearchInput,
+    FoodSearchCandidate,
     NutritionCalculationInput,
     NutritionValidationInput,
     QualifiedFood,
@@ -541,7 +542,7 @@ class MealAnalysisGraph:
                     and selected.id == selected_food_id
                     and selected.catalog_version == catalog_version
                 ) or any(
-                    candidate.id == selected_food_id and candidate.catalog_version == catalog_version
+                    candidate.food_id == selected_food_id and candidate.catalog_version == catalog_version
                     for candidate in search.candidates
                 )
                 if not still_offered:
@@ -568,7 +569,7 @@ class MealAnalysisGraph:
                     item.estimate_confidence is not None
                     and item.estimate_confidence < Decimal("0.7")
                 ):
-                    questions.append(_food_question(item, (search.selected_food,)))
+                    questions.append(_exact_food_question(item, search.selected_food))
                     updated.append(item.model_copy(update={"is_dirty": False, "nutrients": None}))
                     continue
                 selected_food_id = search.selected_food.id
@@ -800,19 +801,23 @@ def _grams_question(item: StateMealItem) -> ClarificationQuestion:
     )
 
 
-def _food_question(item: StateMealItem, candidates: tuple[QualifiedFood, ...]) -> ClarificationQuestion:
+def _food_question(
+    item: StateMealItem, candidates: tuple[FoodSearchCandidate, ...]
+) -> ClarificationQuestion:
     safe_candidates = tuple(
         StateCandidate(
             item_id=item.item_id,
-            food_id=candidate.id,
+            food_id=candidate.food_id,
             catalog_version=candidate.catalog_version,
-            label=f"{candidate.canonical_name}（{candidate.prepared_state}）",
+            label=(
+                f"{candidate.canonical_name}（{candidate.prepared_state}）"
+                if candidate.prepared_state is not None
+                else candidate.canonical_name
+            ),
             canonical_label=candidate.canonical_name,
-            relation_label="目录候选",
+            relation_label=candidate.relation.value,
             prepared_state=candidate.prepared_state,
-            portion_hints=tuple(
-                portion.description for portion in candidate.portions if portion.audited
-            )[:3],
+            portion_hints=candidate.portion_hints,
             source_name=candidate.source_name,
         )
         for candidate in candidates[:3]
@@ -822,6 +827,30 @@ def _food_question(item: StateMealItem, candidates: tuple[QualifiedFood, ...]) -
         field="food",
         message=f"请从“{item.normalized_name}”的候选食物中选择一项。",
         candidates=safe_candidates,
+    )
+
+
+def _exact_food_question(item: StateMealItem, food: QualifiedFood) -> ClarificationQuestion:
+    """Low-confidence exact confirmation does not invent a non-exact relation."""
+
+    return ClarificationQuestion(
+        item_id=item.item_id,
+        field="food",
+        message=f"请确认“{item.normalized_name}”是否为该受控目录条目。",
+        candidates=(
+            StateCandidate(
+                item_id=item.item_id,
+                food_id=food.id,
+                catalog_version=food.catalog_version,
+                label=f"{food.canonical_name}（{food.prepared_state}）",
+                canonical_label=food.canonical_name,
+                prepared_state=food.prepared_state,
+                portion_hints=tuple(
+                    portion.description for portion in food.portions if portion.audited
+                )[:3],
+                source_name=food.source_name,
+            ),
+        ),
     )
 
 
@@ -1021,12 +1050,12 @@ class DietPlanningGraph:
                 return state
             search = await self._tools.search_food_catalog(FoodSearchInput(query=state.pending_food_query))
             current = next(
-                (food for food in search.candidates if food.id == candidate.food_id and food.catalog_version == candidate.catalog_version),
+                (food for food in search.candidates if food.food_id == candidate.food_id and food.catalog_version == candidate.catalog_version),
                 search.selected_food if search.selected_food is not None and search.selected_food.id == candidate.food_id and search.selected_food.catalog_version == candidate.catalog_version else None,
             )
             if current is None:
                 return state.model_copy(update={"pending_food_candidates": (), "pending_food_query": None, "status": AgentRuntimeStatus.WAITING_INPUT, "next_action": DietPlanningAction.NEEDS_INPUT, "report": {"stage": "needs_input", "message": "所选菜品已不再可用，请重新输入菜名。"}})
-            selected_food_id, selected_catalog_version = current.id, current.catalog_version
+            selected_food_id, selected_catalog_version = current.food_id, current.catalog_version
             state = state.model_copy(update={"pending_food_candidates": (), "pending_food_query": None})
         else:
             query = resume.get("food_query")
@@ -1036,7 +1065,7 @@ class DietPlanningGraph:
                     selected_food_id, selected_catalog_version = search.selected_food.id, search.selected_food.catalog_version
                 elif search.candidates:
                     candidates = tuple(
-                        StateCandidate(item_id="planning-substitution", food_id=food.id, catalog_version=food.catalog_version, label=f"{food.canonical_name}（{food.prepared_state}）", canonical_label=food.canonical_name, relation_label="目录候选", prepared_state=food.prepared_state, source_name=food.source_name)
+                        StateCandidate(item_id="planning-substitution", food_id=food.food_id, catalog_version=food.catalog_version, label=f"{food.canonical_name}（{food.prepared_state}）" if food.prepared_state is not None else food.canonical_name, canonical_label=food.canonical_name, relation_label=food.relation.value, prepared_state=food.prepared_state, portion_hints=food.portion_hints, source_name=food.source_name)
                         for food in search.candidates
                     )
                     return state.model_copy(update={"pending_food_query": query.strip(), "pending_food_candidates": candidates, "status": AgentRuntimeStatus.WAITING_INPUT, "next_action": DietPlanningAction.NEEDS_INPUT, "report": {"stage": "food_clarification", "message": "请选择要用于替换的受控菜品。", "candidates": [candidate.model_dump(mode="json") for candidate in candidates]}})

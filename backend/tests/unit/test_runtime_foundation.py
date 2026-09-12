@@ -205,12 +205,27 @@ class _RecordingNutritionTools:
         self.calls: list[tuple[str, str]] = []
 
     async def search_food_catalog(self, request: object):
-        from app.nutrition.schemas import FoodSearchResult, NutritionAction
+        from app.nutrition.schemas import FoodRelation, FoodSearchCandidate, FoodSearchResult, NutritionAction
 
         query = request.query
         self.calls.append(('search', query))
         if query == 'ambiguous':
-            return FoodSearchResult(action=NutritionAction.ASK, query=query, candidates=(self.rice, self.egg), safe_message='choose')
+            return FoodSearchResult(
+                action=NutritionAction.ASK,
+                query=query,
+                candidates=tuple(
+                    FoodSearchCandidate(
+                        food_id=food.id,
+                        catalog_version=food.catalog_version,
+                        canonical_name=food.canonical_name,
+                        relation=FoodRelation.SAME_CLASS,
+                        prepared_state=food.prepared_state,
+                        source_name=food.source_name,
+                    )
+                    for food in (self.rice, self.egg)
+                ),
+                safe_message='choose',
+            )
         if query == 'unknown':
             return FoodSearchResult(action=NutritionAction.ASK, query=query, safe_message='unknown')
         food = self.egg if query == '鸡蛋' else self.rice
@@ -491,7 +506,7 @@ def test_graph_never_auto_selects_ambiguous_candidate_and_keeps_invalid_resume_w
     invalid = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'food-1': {'candidate_id': str(uuid.uuid4())}}}))
     assert invalid == waiting and len(provider.calls) == 1 and len(tools.calls) == 1
 
-    completed = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'food-1': {'candidate_id': str(question.candidates[0].food_id)}}}))
+    completed = asyncio.run(graph.ainvoke(waiting, resume={'answers': {'food-1': {'candidate_id': str(question.candidates[0].food_id), 'catalog_version': question.candidates[0].catalog_version}}}))
     assert completed.status.value == 'completed' and len(provider.calls) == 1
 
 
@@ -512,6 +527,7 @@ def test_graph_partial_and_correction_recalculate_only_dirty_item() -> None:
     assert corrected.status.value == 'completed'
     assert corrected.items[1].nutrients is None
     assert tools.calls[len(calls_before):] == [
+        ('search', '米饭'),
         ('calculate', '11111111-1111-4111-8111-111111111111'),
         ('validate', '11111111-1111-4111-8111-111111111111'),
     ]

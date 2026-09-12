@@ -158,22 +158,31 @@ class FoodSearchFusionResult(BaseModel):
 
 
 class FoodSearchResult(BaseModel):
+    """The resolved exact authority or safe non-exact candidate summaries.
+
+    Non-exact candidates retain the deterministic relation that explains why
+    they were offered.  They are not authority records and cannot calculate
+    nutrition without the later ID/version re-read.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     action: NutritionAction
     query: str
     selected_food: QualifiedFood | None = None
-    candidates: tuple[QualifiedFood, ...] = ()
+    candidates: tuple[FoodSearchCandidate, ...] = Field(
+        default=(), max_length=MAX_CATALOG_CANDIDATES
+    )
     safe_message: str
 
     @model_validator(mode="after")
     def enforces_resolution_contract(self) -> FoodSearchResult:
-        if len(self.candidates) > MAX_CATALOG_CANDIDATES:
-            raise ValueError("catalog candidates must not exceed the safe limit")
         if self.action is NutritionAction.PASS and self.selected_food is None:
             raise ValueError("a PASS search result requires one selected food")
         if self.action is not NutritionAction.PASS and self.selected_food is not None:
             raise ValueError("only PASS may select a food")
+        if self.action is NutritionAction.PASS and self.candidates:
+            raise ValueError("a PASS search result must not expose candidates")
         return self
 
 

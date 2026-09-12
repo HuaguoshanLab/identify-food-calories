@@ -12,7 +12,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy import Select, String, and_, bindparam, case, cast, desc, func, or_, select
+from sqlalchemy import Select, String, and_, bindparam, case, cast, desc, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, aliased
 
@@ -47,7 +47,16 @@ class SqlAlchemyHybridFoodSearchRepository:
         statement = (
             self._current_qualified_statement()
             .join(CatalogSearchName, CatalogSearchName.publication_id == CatalogPublication.id)
-            .where(CatalogSearchName.normalized_name == bindparam("normalized_query", normalized_query))
+            .where(
+                CatalogSearchName.normalized_name == bindparam("normalized_query", normalized_query),
+                # A relation source is deliberately a non-exact evidence term.
+                # It must enter deterministic hybrid ranking, never silently
+                # bypass confirmation merely because it is a controlled name.
+                ~exists().where(
+                    CatalogSearchRelationEvidence.source_name_id == CatalogSearchName.id,
+                    CatalogSearchRelationEvidence.status == "active",
+                ),
+            )
             .order_by(CatalogPublication.id)
         )
         return [SqlAlchemyNutritionRepository._to_published_food(row) for row in self._session.scalars(statement).unique()]
@@ -383,6 +392,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         """Use relation evidence only when both endpoints are current content versions."""
 
         source_name = aliased(CatalogSearchName)
+        target_name = aliased(CatalogSearchName)
         source_publication = aliased(CatalogPublication)
         source_version = aliased(CatalogSearchVersion)
         target_version = aliased(CatalogSearchVersion)
@@ -393,13 +403,17 @@ class SqlAlchemyHybridFoodSearchRepository:
             .join(source_name, source_name.id == CatalogSearchRelationEvidence.source_name_id)
             .join(source_publication, source_publication.id == source_name.publication_id)
             .join(source_version, source_version.id == source_name.search_version_id)
-            .join(target_version, target_version.id == CatalogSearchName.search_version_id)
+            .join(target_name, target_name.id == CatalogSearchRelationEvidence.target_name_id)
+            .join(target_version, target_version.id == target_name.search_version_id)
             .where(
-                CatalogSearchRelationEvidence.target_name_id == CatalogSearchName.id,
                 CatalogSearchRelationEvidence.status == "active",
-                source_name.normalized_name == bindparam("relation_query", normalized_query),
+                # Share the outer text-query bind.  A distinct bind silently
+                # loses the source term when the statement is executed by the
+                # normal repository path, degrading every governed relation.
+                source_name.normalized_name == bindparam("normalized_query", normalized_query),
                 source_publication.id.in_(select(source_current.c.id)),
-                CatalogSearchName.publication_id.in_(select(target_current.c.id)),
+                target_name.publication_id == CatalogSearchName.publication_id,
+                target_name.publication_id.in_(select(target_current.c.id)),
                 source_version.content_hash == source_publication.content_hash,
                 target_version.content_hash == CatalogPublication.content_hash,
             )
