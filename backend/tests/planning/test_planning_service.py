@@ -525,6 +525,35 @@ def test_daily_meal_candidates_have_public_d08_fields_and_catalog_recomputed_nut
     )
 
 
+def test_replaceable_food_identities_require_an_enabled_candidate_for_the_requested_slot() -> None:
+    breakfast_food = qualified_food(name="早餐候选", energy="100")
+    lunch_food = qualified_food(name="午餐候选", energy="150")
+    current_food = qualified_food(name="当前午餐", energy="120")
+    current = managed_candidate(slot=MealSlot.LUNCH, food=current_food)
+    repository = FakePlanningRepository(candidates=[
+        managed_candidate(slot=MealSlot.BREAKFAST, food=breakfast_food),
+        managed_candidate(slot=MealSlot.LUNCH, food=lunch_food),
+        current,
+    ])
+    service = PlanningService(
+        repository=repository,
+        nutrition_port=RecipeNutritionPort([breakfast_food, lunch_food, current_food]),
+    )
+
+    result = service.keep_replaceable_food_identities(
+        identities=(
+            (breakfast_food.id, breakfast_food.catalog_version),
+            (lunch_food.id, lunch_food.catalog_version),
+            (current_food.id, current_food.catalog_version),
+        ),
+        affected_slot=MealSlot.LUNCH,
+        exclude_recipe_ids=(current.id,),
+        preferences=confirmed_preferences(),
+    )
+
+    assert result == ((lunch_food.id, lunch_food.catalog_version),)
+
+
 def test_composition_rejects_nonqualified_catalog_food_and_never_uses_stored_recipe_total() -> None:
     food = qualified_food(name="未合格食材", energy="999")
     recipe = controlled_recipe(slot=MealSlot.BREAKFAST, food=food, name="不能使用的早餐")

@@ -284,6 +284,27 @@ class PlanningService:
             safe_message="三餐营养值已由合格目录条目和受控克数重新计算。",
         )
 
+    def keep_replaceable_food_identities(
+        self,
+        *,
+        identities: tuple[tuple[uuid.UUID, str], ...],
+        affected_slot: MealSlot,
+        exclude_recipe_ids: tuple[uuid.UUID, ...],
+        preferences: PreferenceReview,
+    ) -> tuple[tuple[uuid.UUID, str], ...]:
+        """Keep only catalog identities backed by a usable managed recipe for this slot."""
+
+        requested = set(identities)
+        eligible = {
+            (candidate.nutrition_item_id, candidate.catalog_version)
+            for candidate in self._repository.list_managed_recipe_candidates(catalog_version=None)
+            if candidate.meal_slot is affected_slot
+            and candidate.id not in exclude_recipe_ids
+            and (candidate.nutrition_item_id, candidate.catalog_version) in requested
+            and self._build_managed_meal(candidate, preferences) is not None
+        }
+        return tuple(identity for identity in identities if identity in eligible)
+
     def _compose_managed_candidates(
         self,
         candidates,

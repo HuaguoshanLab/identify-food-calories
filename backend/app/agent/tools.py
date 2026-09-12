@@ -74,6 +74,15 @@ class PlanningToolAdapter(Protocol):
 
     async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult: ...
 
+    def keep_replaceable_food_identities(
+        self,
+        *,
+        identities: tuple[tuple[uuid.UUID, str], ...],
+        affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID,
+        preferences: PreferenceReview,
+    ) -> tuple[tuple[uuid.UUID, str], ...]: ...
+
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
     ) -> TargetCalculationResult: ...
@@ -301,6 +310,25 @@ class SessionNutritionToolAdapter:
                 catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
+            )
+        finally:
+            session.close()
+
+    def keep_replaceable_food_identities(
+        self,
+        *,
+        identities: tuple[tuple[uuid.UUID, str], ...],
+        affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID,
+        preferences: PreferenceReview,
+    ) -> tuple[tuple[uuid.UUID, str], ...]:
+        session, service = self._planning_service()
+        try:
+            return service.keep_replaceable_food_identities(
+                identities=identities,
+                affected_slot=affected_slot,
+                exclude_recipe_ids=(current_recipe_id,),
+                preferences=preferences,
             )
         finally:
             session.close()

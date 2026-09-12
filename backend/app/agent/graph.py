@@ -1095,6 +1095,9 @@ class DietPlanningGraph:
         target = current.target
         if target is None or len(current.meals) not in (3, 4) or slot is None or intent is None:
             return state
+        current_meal = next((meal for meal in current.meals if meal.slot is slot), None)
+        if current_meal is None:
+            return state
 
         selected_food_id = None
         selected_catalog_version = None
@@ -1125,16 +1128,68 @@ class DietPlanningGraph:
                         "report": {"stage": "needs_input", "message": "所选菜品已不再可用，请重新输入菜名。"},
                     }
                 )
+            eligible_identities = self._tools.keep_replaceable_food_identities(
+                identities=((candidate.food_id, candidate.catalog_version),),
+                affected_slot=slot,
+                current_recipe_id=current_meal.recipe_id,
+                preferences=current.preferences,
+            )
+            if not eligible_identities:
+                return current.model_copy(
+                    update={
+                        "pending_food_candidates": (),
+                        "pending_food_query": None,
+                        "status": AgentRuntimeStatus.WAITING_INPUT,
+                        "next_action": DietPlanningAction.NEEDS_INPUT,
+                        "report": {"stage": "needs_input", "message": f"所选菜品没有支持{_slot_label(slot)}的已启用菜谱，请重新输入菜名。"},
+                    }
+                )
             selected_food_id = candidate.food_id
             selected_catalog_version = candidate.catalog_version
             current = current.model_copy(update={"pending_food_candidates": (), "pending_food_query": None})
         elif current.pending_food_query:
             search = await self._tools.search_food_catalog(FoodSearchInput(query=current.pending_food_query))
             if search.selected_food is not None:
-                selected_food_id = search.selected_food.id
-                selected_catalog_version = search.selected_food.catalog_version
+                eligible_identities = self._tools.keep_replaceable_food_identities(
+                    identities=((search.selected_food.id, search.selected_food.catalog_version),),
+                    affected_slot=slot,
+                    current_recipe_id=current_meal.recipe_id,
+                    preferences=current.preferences,
+                )
+                if not eligible_identities:
+                    return current.model_copy(
+                        update={
+                            "pending_food_query": None,
+                            "status": AgentRuntimeStatus.WAITING_INPUT,
+                            "next_action": DietPlanningAction.NEEDS_INPUT,
+                            "report": {"stage": "needs_input", "message": f"目录中存在该菜品，但没有支持{_slot_label(slot)}的已启用菜谱。请先在菜谱管理中新增或启用。"},
+                        }
+                    )
+                selected_food_id, selected_catalog_version = eligible_identities[0]
                 current = current.model_copy(update={"pending_food_query": None})
             elif search.candidates:
+                eligible_identities = set(
+                    self._tools.keep_replaceable_food_identities(
+                        identities=tuple((food.food_id, food.catalog_version) for food in search.candidates),
+                        affected_slot=slot,
+                        current_recipe_id=current_meal.recipe_id,
+                        preferences=current.preferences,
+                    )
+                )
+                eligible_candidates = tuple(
+                    food
+                    for food in search.candidates
+                    if (food.food_id, food.catalog_version) in eligible_identities
+                )
+                if not eligible_candidates:
+                    return current.model_copy(
+                        update={
+                            "pending_food_query": None,
+                            "status": AgentRuntimeStatus.WAITING_INPUT,
+                            "next_action": DietPlanningAction.NEEDS_INPUT,
+                            "report": {"stage": "needs_input", "message": f"没有找到支持{_slot_label(slot)}的已启用菜谱，请更换菜名或先在菜谱管理中新增。"},
+                        }
+                    )
                 candidates = tuple(
                     StateCandidate(
                         item_id="planning-substitution",
@@ -1147,7 +1202,7 @@ class DietPlanningGraph:
                         portion_hints=food.portion_hints,
                         source_name=food.source_name,
                     )
-                    for food in search.candidates
+                    for food in eligible_candidates
                 )
                 return current.model_copy(
                     update={
@@ -1380,6 +1435,15 @@ def _food_query_from_feedback(feedback: str) -> str | None:
         return None
     query = re.sub(r"(?:吧|可以吗|行吗)$", "", match.group(1).strip()).strip()
     return query if 1 <= len(query) <= 200 else None
+
+
+def _slot_label(slot: MealSlot) -> str:
+    return {
+        MealSlot.BREAKFAST: "早餐",
+        MealSlot.LUNCH: "午餐",
+        MealSlot.DINNER: "晚餐",
+        MealSlot.SNACK: "加餐",
+    }[slot]
 
 
 def _range_statuses(*, target: DailyTarget, meals: tuple[PlannedMeal, ...]) -> dict[str, str]:

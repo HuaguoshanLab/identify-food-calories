@@ -98,6 +98,7 @@ class FakePlanningTools(PlanningToolAdapter):
         self.capture_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
         self.replacement_calls: list[tuple[MealSlot, str]] = []
         self.selected_food_calls: list[tuple[uuid.UUID | None, str | None]] = []
+        self.replaceable_food_identities: set[tuple[uuid.UUID, str]] | None = None
         self.search_result: FoodSearchResult | None = None
         self._composition_action = composition_action
         self._validation_action = validation_action
@@ -106,6 +107,19 @@ class FakePlanningTools(PlanningToolAdapter):
         if self.search_result is None:
             raise AssertionError(f"unexpected planning food search: {request!r}")
         return self.search_result
+
+    def keep_replaceable_food_identities(
+        self,
+        *,
+        identities: tuple[tuple[uuid.UUID, str], ...],
+        affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID,
+        preferences: PreferenceReview,
+    ) -> tuple[tuple[uuid.UUID, str], ...]:
+        del affected_slot, current_recipe_id, preferences
+        if self.replaceable_food_identities is None:
+            return identities
+        return tuple(identity for identity in identities if identity in self.replaceable_food_identities)
 
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
@@ -378,6 +392,27 @@ def test_planning_text_adapter_accepts_only_an_offered_candidate_identity(monkey
 
     assert payload == {"candidate_id": str(food_id), "catalog_version": "catalog-v1"}
     assert invalid is None
+
+
+def test_planning_substitution_hides_catalog_hits_without_an_enabled_recipe_for_the_slot() -> None:
+    tools = FakePlanningTools()
+    food_id = uuid.uuid4()
+    food = FoodSearchCandidate(
+        food_id=food_id, canonical_name="辣椒炒肉", catalog_version="catalog-v1", prepared_state="熟制",
+        source_name="测试目录", relation=FoodRelation.SAME_CLASS,
+    )
+    tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="西红柿炒鸡蛋", selected_food=None, candidates=(food,), safe_message="选择")
+    tools.replaceable_food_identities = set()
+    original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+
+    waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成西红柿炒鸡蛋"}))
+
+    assert waiting.status.value == "waiting_input"
+    assert waiting.pending_food_candidates == ()
+    assert waiting.report == {
+        "stage": "needs_input",
+        "message": "没有找到支持午餐的已启用菜谱，请更换菜名或先在菜谱管理中新增。",
+    }
 
 
 def test_ambiguous_feedback_requires_a_closed_three_slot_choice_and_invalid_resume_is_noop() -> None:
