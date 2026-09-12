@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 import { AdminAuthProvider, useAdminAuth } from '@/auth/AdminAuthProvider'
 import { mswServer } from '@/test/setup'
-import { VectorRetrievalPage } from './VectorRetrievalPage'
+import { hasRunningVectorBuild, VectorRetrievalPage } from './VectorRetrievalPage'
 
 const id = '5d41f8f5-a892-48f3-ab62-12f0f4a9c80c'
 const buildId = '2d49e0d1-4ddb-4df2-b7ac-34993a625919'
@@ -43,4 +43,9 @@ it('403 时不显示构建数据', async () => {
   renderPage()
   expect(await screen.findByText('无后台访问权限')).toBeVisible()
   expect(screen.queryByText('text-embedding-v4')).not.toBeInTheDocument()
+})
+
+it('只在存在等待或处理中的构建时继续轮询', () => {
+  expect(hasRunningVectorBuild([{ ...build, failed_count: 0, completed_count: 2, status: 'ready', is_active: true }])).toBe(false)
+  expect(hasRunningVectorBuild([{ ...build, pending_count: 1, failed_count: 0, status: 'processing' }])).toBe(true)
 })
