@@ -42,8 +42,16 @@ describe('AuditPage', () => {
     renderAuditPage()
 
     await screen.findByRole('table', { name: '操作审计时间线' })
+    expect(screen.getByLabelText('UTC 起始')).toHaveAttribute('type', 'date')
+    expect(screen.getByLabelText('UTC 结束')).toHaveAttribute('type', 'date')
+    expect(screen.getByRole('navigation', { name: '操作审计分页' })).toHaveTextContent('1')
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await waitFor(() => expect(requests.some((url) => url.searchParams.get('cursor') === 'opaque-audit-cursor-0001')).toBe(true))
+    expect(screen.getByRole('navigation', { name: '操作审计分页' })).toHaveTextContent('2')
+    expect(screen.getByRole('button', { name: '上一页' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: '上一页' }))
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get('cursor')).toBeNull())
+    expect(screen.getByRole('navigation', { name: '操作审计分页' })).toHaveTextContent('1')
     await user.type(screen.getByLabelText('操作动作'), 'runtime_config.updated')
     await waitFor(() => {
       const current = requests.at(-1)
