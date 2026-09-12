@@ -165,6 +165,31 @@ class RuntimeConfigResponse(BaseModel):
     created_at: datetime
 
 
+class ModelServiceSummary(BaseModel):
+    """Non-secret operational facts for one configured model capability."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    capability: Literal["text_reasoning", "image_understanding", "food_similarity"]
+    provider_label: str = Field(min_length=1, max_length=80)
+    model_label: str = Field(min_length=1, max_length=128)
+    enabled: bool
+    configuration_source: Literal["admin_policy", "server_environment"]
+    timeout_seconds: Decimal = Field(gt=0, max_digits=6, decimal_places=2)
+    output_token_cap: int | None = Field(default=None, ge=1, le=100_000)
+    pixel_cap: int | None = Field(default=None, ge=1)
+    batch_cap: int | None = Field(default=None, ge=1, le=100)
+    vector_dimension: int | None = Field(default=None, ge=1, le=100_000)
+
+
+class ModelServicesResponse(BaseModel):
+    """Complete safe model-service inventory; never contains credentials or endpoints."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    services: tuple[ModelServiceSummary, ...] = Field(min_length=3, max_length=3)
+
+
 class AdminAuditQuery(BaseModel):
     """Bounded, read-only filters accepted by the audit timeline."""
 

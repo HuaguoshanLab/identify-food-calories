@@ -7,9 +7,11 @@ import { useAdminAuth } from '@/auth/AdminAuthProvider'
 
 import {
   RuntimeConfigApiError,
+  type ModelService,
   type RuntimeConfig,
   type RuntimeConfigFormValues,
   readRuntimeConfig,
+  readModelServices,
   runtimeConfigFormSchema,
   saveRuntimeConfig,
 } from './api'
@@ -40,21 +42,40 @@ function Field({ label, value }: Readonly<{ label: string, value: string | numbe
   return <div className="grid grid-cols-[12rem_1fr] gap-4 border-b py-2 text-sm"><dt className="text-muted-foreground">{label}</dt><dd className="admin-numeric">{value}</dd></div>
 }
 
-function ConfigDetails({ config }: Readonly<{ config: RuntimeConfig }>) {
-  return <section aria-label="当前运行配置" className="rounded-lg border bg-card p-5">
-    <h1 className="text-[28px] font-semibold leading-9">配置版本 v{config.version}</h1>
-    <p className="mt-2 text-sm text-muted-foreground">仅显示可审计的非密钥策略。密钥与服务端点只来自服务端环境，永不进入此页面。</p>
+const capabilityCopy = {
+  text_reasoning: { title: '文字饮食理解', description: '理解用户输入的餐食文字、修改要求，并生成受约束的周复盘建议。营养数值不由模型决定。' },
+  image_understanding: { title: '食物图片识别', description: '识别图片中的菜品、可见份量和置信度。识别结果仍要经过营养目录查询与确定性计算。' },
+  food_similarity: { title: '相似菜品检索', description: '把单个规范化菜名转换成向量，辅助在营养目录中寻找候选菜品，不生成营养数值。' },
+} as const
+
+function ServiceCard({ service, config }: Readonly<{ service: ModelService, config?: RuntimeConfig }>) {
+  const copy = capabilityCopy[service.capability]
+  return <article className="rounded-lg border bg-card p-5" aria-label={copy.title}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><h2 className="text-xl font-semibold">{copy.title}</h2><p className="mt-1 text-sm text-muted-foreground">{copy.description}</p></div>
+      <span className="rounded-full border px-3 py-1 text-sm">{service.enabled && (service.capability !== 'text_reasoning' || config?.enabled) ? '已启用' : '未启用'}</span>
+    </div>
     <dl className="mt-5">
-      <Field label="Provider" value={config.provider} /><Field label="模型别名" value={config.model_alias} />
-      <Field label="状态" value={config.enabled ? '已启用' : '已停用'} /><Field label="单次调用上限（USD）" value={config.single_call_cap_usd} />
-      <Field label="周期上限（USD）" value={config.period_cap_usd} /><Field label="输入价格（USD / 百万 token）" value={config.input_usd_per_m} />
-      <Field label="输出价格（USD / 百万 token）" value={config.output_usd_per_m} />
+      <Field label="模型服务商" value={service.provider_label} />
+      <Field label="使用模型" value={service.model_label} />
+      <Field label="单次最长等待" value={`${service.timeout_seconds} 秒`} />
+      {service.output_token_cap ? <Field label="单次最大输出" value={`${service.output_token_cap} token`} /> : null}
+      {service.pixel_cap ? <Field label="最大图片像素" value={service.pixel_cap.toLocaleString('zh-CN')} /> : null}
+      {service.batch_cap ? <Field label="单批菜名上限" value={`${service.batch_cap} 条`} /> : null}
+      {service.vector_dimension ? <Field label="向量维度" value={service.vector_dimension} /> : null}
     </dl>
-  </section>
+    <p className="mt-4 text-xs text-muted-foreground">{service.configuration_source === 'admin_policy' ? '运行策略可在本页修改；密钥和接口地址仍由服务端环境管理。' : '此服务由服务端环境配置，本页仅展示安全摘要，不提供密钥或接口地址。'}</p>
+    {service.capability === 'text_reasoning' && config ? <div className="mt-4 rounded-md bg-muted p-4 text-sm">
+      <p className="font-medium">当前运行策略：第 {config.version} 版</p>
+      <p className="mt-1 text-muted-foreground">费用估算单价：输入 ${config.input_usd_per_m} / 百万 token，输出 ${config.output_usd_per_m} / 百万 token。</p>
+      <p className="mt-1 text-muted-foreground">预算配置值：单次 ${config.single_call_cap_usd}，周期 ${config.period_cap_usd}。当前代码尚未实现完整的文本模型周期扣费账本。</p>
+    </div> : null}
+  </article>
 }
 
 export function RuntimeConfigSummaryPage({ accessToken, onSessionExpired }: RuntimeConfigSummaryPageProps) {
   const [config, setConfig] = useState<RuntimeConfig>()
+  const [services, setServices] = useState<ModelService[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'expired' | 'empty'>('loading')
   const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -86,19 +107,19 @@ export function RuntimeConfigSummaryPage({ accessToken, onSessionExpired }: Runt
       setState('expired')
       return () => { active = false }
     }
-    void readRuntimeConfig(accessToken).then((next) => {
+    void Promise.all([readModelServices(accessToken), readRuntimeConfig(accessToken).catch((requestError: unknown) => {
+      if (requestError instanceof RuntimeConfigApiError && requestError.status === 404) return undefined
+      throw requestError
+    })]).then(([inventory, next]) => {
       if (!active) return
+      setServices(inventory.services)
       setConfig(next)
-      form.reset(toFormValues(next))
+      if (next) form.reset(toFormValues(next))
       setState('ready')
     }).catch((requestError: unknown) => {
       if (!active) return
       if (secureFailure(requestError)) return
-      if (requestError instanceof RuntimeConfigApiError && requestError.status === 404) {
-        setState('empty')
-        return
-      }
-      setError('暂时无法读取当前运行配置，请稍后重试。')
+      setError('暂时无法读取模型服务配置，请稍后重试。')
       setState('empty')
     })
     return () => { active = false }
@@ -153,8 +174,10 @@ export function RuntimeConfigSummaryPage({ accessToken, onSessionExpired }: Runt
     <a className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-card focus:p-3" href="#runtime-config-main" onClick={() => mainRef.current?.focus()}>跳到主要内容</a>
     <main id="runtime-config-main" ref={mainRef} tabIndex={-1} className="mx-auto max-w-5xl space-y-6 p-8">
       {error ? <p aria-live="polite" className="rounded-md border p-4 text-sm" role="alert">{error}</p> : null}
-      {config ? <ConfigDetails config={config} /> : <section className="rounded-lg border bg-card p-5"><h1 className="text-[28px] font-semibold">尚无运行配置</h1><p className="mt-2 text-muted-foreground">尚未写入可调用策略；可在确认后创建未来使用的非密钥版本。</p></section>}
-      <button className="h-10 rounded-md bg-primary px-4 text-primary-foreground" onClick={openDialog} type="button">变更未来配置</button>
+      <header><h1 className="text-[28px] font-semibold">模型服务配置</h1><p className="mt-2 text-sm text-muted-foreground">查看系统使用的三类 AI 服务。这里只展示可审计的安全配置，不显示密钥、接口地址或模型原始内容。</p></header>
+      <section className="grid gap-4" aria-label="模型服务列表">{services.map((service) => <ServiceCard config={service.capability === 'text_reasoning' ? config : undefined} key={service.capability} service={service} />)}</section>
+      {!config ? <section className="rounded-lg border bg-card p-5"><h2 className="text-xl font-semibold">文字模型尚无运行策略</h2><p className="mt-2 text-muted-foreground">创建首个策略后，新的文字分析任务才能进入模型调用流程。</p></section> : null}
+      <button className="h-10 rounded-md bg-primary px-4 text-primary-foreground" onClick={openDialog} type="button">修改文字模型设置</button>
     </main>
     <AlertDialog.Root onOpenChange={setDialogOpen} open={dialogOpen}><AlertDialogContent aria-labelledby="runtime-config-dialog-title" initialFocus={cancelRef}>
       <AlertDialog.Title className="text-xl font-semibold" id="runtime-config-dialog-title">确认变更未来运行配置？</AlertDialog.Title>

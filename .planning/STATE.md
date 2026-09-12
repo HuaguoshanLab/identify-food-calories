@@ -278,6 +278,7 @@ Fast修正（2026-09-06，4f85cb1）：移除计划日期/时区说明，重新�
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
+| 260912-kjz | 后台完整展示 DeepSeek、Qwen-VL 与 DashScope Embedding 模型服务 | 2026-09-12 | 本次提交 | 8项后端、10项前端测试、类型、Ruff、构建及内置浏览器验证通过 | [模型服务配置](./quick/260912-kjz-deepseek-qwen-vl-dashscope-embedding-val/) |
 | fast-260908-scroll | 营养目录固定顶部与筛选区，仅表格滚动 | 2026-09-08 | aa5b2e5 | 58项测试、类型与构建通过；内置浏览器受过期本地账号和 Chrome 权限阻塞 | — |
 | 260908-kn5 | 后台固定侧栏、二级菜单、面包屑与多标签页改版 | 2026-09-08 | 9a9e8e4 | 58项测试、类型、构建及桌面/375px内置浏览器验证通过 | [后台页面壳](./quick/260908-kn5-admin-layout-redesign/) |
 | 260905-jr2 | 营养目录筛选表格、侧边编辑与 CSV 导入导出 | 2026-09-05 | e4aafc8 | 完成；浏览器交互已验证，下载观测限制见总结 | [目录改造](./quick/260905-jr2-catalog-table-filters-import-export/) |

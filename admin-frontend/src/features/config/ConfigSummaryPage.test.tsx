@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminAuthProvider, useAdminAuth } from '@/auth/AdminAuthProvider'
 import { mswServer } from '@/test/setup'
@@ -26,6 +26,16 @@ const runtimeConfig = {
   output_usd_per_m: '0.28',
   created_at: '2026-09-03T05:00:00Z',
 }
+
+const modelServices = { services: [
+  { capability: 'text_reasoning', provider_label: 'DeepSeek', model_label: 'deepseek-v4-flash', enabled: true, configuration_source: 'admin_policy', timeout_seconds: '20.00', output_token_cap: 800, pixel_cap: null, batch_cap: null, vector_dimension: null },
+  { capability: 'image_understanding', provider_label: '阿里云百炼（通义千问）', model_label: 'qwen3-vl-plus', enabled: true, configuration_source: 'server_environment', timeout_seconds: '20.00', output_token_cap: 800, pixel_cap: 20000000, batch_cap: null, vector_dimension: null },
+  { capability: 'food_similarity', provider_label: '阿里云百炼（DashScope）', model_label: 'text-embedding-v4', enabled: true, configuration_source: 'server_environment', timeout_seconds: '1.50', output_token_cap: null, pixel_cap: null, batch_cap: 10, vector_dimension: 1024 },
+] }
+
+beforeEach(() => {
+  mswServer.use(http.get(`${apiBase}/model-services`, () => HttpResponse.json(modelServices)))
+})
 
 function renderConfigPage() {
   const onSessionExpired = vi.fn()
@@ -108,12 +118,15 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
       }),
     )
     renderConfigPage()
-    expect(await screen.findByText('配置版本 v2')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '模型服务配置' })).toBeVisible()
+    expect(screen.getByRole('article', { name: '文字饮食理解' })).toHaveTextContent('当前运行策略：第 2 版')
+    expect(screen.getByRole('article', { name: '食物图片识别' })).toHaveTextContent('qwen3-vl-plus')
+    expect(screen.getByRole('article', { name: '相似菜品检索' })).toHaveTextContent('text-embedding-v4')
     expect(screen.queryByText(/api_key|endpoint|runtime-only-token/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: '跳到主要内容' }))
     expect(screen.getByRole('main')).toHaveFocus()
-    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    await user.click(screen.getByRole('button', { name: '修改文字模型设置' }))
     const dialog = await screen.findByRole('alertdialog', { name: '确认变更未来运行配置？' })
     expect(within(dialog).getByRole('button', { name: '取消' })).toHaveFocus()
     await user.click(within(dialog).getByRole('checkbox', { name: '启用新的运行配置' }))
@@ -122,7 +135,7 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     await user.click(confirm)
     expect(confirm).toBeDisabled()
     release?.()
-    expect(await screen.findByText('配置版本 v3')).toBeVisible()
+    expect(await screen.findByText('当前运行策略：第 3 版')).toBeVisible()
   })
 
   it('409 保留编辑；401/403 不渲染配置缓存', async () => {
@@ -132,8 +145,8 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
       http.post(`${apiBase}/runtime-config`, () => HttpResponse.json({ detail: 'conflict' }, { status: 409 })),
     )
     renderConfigPage()
-    await screen.findByText('配置版本 v2')
-    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    await screen.findByText('当前运行策略：第 2 版')
+    await user.click(screen.getByRole('button', { name: '修改文字模型设置' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.type(within(dialog).getByLabelText('变更原因'), '并发变更需要重新审阅')
     await user.click(within(dialog).getByRole('button', { name: '确认保存未来配置' }))
@@ -144,13 +157,13 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     mswServer.use(http.get(`${apiBase}/runtime-config`, () => HttpResponse.json({ error: { code: 'AUTHENTICATION_REQUIRED' } }, { status: 401 })))
     const { onSessionExpired } = renderConfigPage()
     await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce())
-    expect(screen.queryByText('配置版本 v2')).not.toBeInTheDocument()
+    expect(screen.queryByText('当前运行策略：第 2 版')).not.toBeInTheDocument()
 
     cleanup()
     mswServer.use(http.get(`${apiBase}/runtime-config`, () => HttpResponse.json({ error: { code: 'ADMIN_PERMISSION_REQUIRED' } }, { status: 403 })))
     renderConfigPage()
     expect(await screen.findByRole('heading', { name: '无后台访问权限' })).toBeVisible()
-    expect(screen.queryByText('配置版本 v2')).not.toBeInTheDocument()
+    expect(screen.queryByText('当前运行策略：第 2 版')).not.toBeInTheDocument()
   })
 
   it('空配置经 Guard 后以 version 0 创建首个启用的非密钥策略', async () => {
@@ -171,8 +184,8 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     )
 
     renderConfigPage()
-    expect(await screen.findByRole('heading', { name: '尚无运行配置' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    expect(await screen.findByRole('heading', { name: '文字模型尚无运行策略' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '修改文字模型设置' }))
     const dialog = await screen.findByRole('alertdialog', { name: '确认变更未来运行配置？' })
     await user.clear(within(dialog).getByLabelText('单次调用上限（USD）'))
     await user.type(within(dialog).getByLabelText('单次调用上限（USD）'), '0.02')
@@ -185,8 +198,8 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
     await user.type(within(dialog).getByLabelText('变更原因'), '为隔离测试启用首个未来调用策略')
     await user.click(within(dialog).getByRole('button', { name: '确认保存未来配置' }))
 
-    expect(await screen.findByText('配置版本 v1')).toBeVisible()
-    expect(screen.getByText('已启用')).toBeVisible()
+    expect(await screen.findByText('当前运行策略：第 1 版')).toBeVisible()
+    expect(screen.getAllByText('已启用').length).toBeGreaterThan(0)
     expect(screen.queryByText(/api_key|endpoint|runtime-only-token/i)).not.toBeInTheDocument()
   })
 
@@ -201,8 +214,8 @@ describe('AdminRouteGuard 与 RuntimeConfigSummaryPage', () => {
       }),
     )
     renderConfigPage()
-    await screen.findByRole('heading', { name: '尚无运行配置' })
-    await user.click(screen.getByRole('button', { name: '变更未来配置' }))
+    await screen.findByRole('heading', { name: '文字模型尚无运行策略' })
+    await user.click(screen.getByRole('button', { name: '修改文字模型设置' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.type(within(dialog).getByLabelText('变更原因'), '零预算不能创建未来调用策略')
     await user.click(within(dialog).getByRole('button', { name: '确认保存未来配置' }))

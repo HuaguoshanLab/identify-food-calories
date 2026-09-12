@@ -2,7 +2,7 @@
 
 ## 职责
 
-`admin-frontend/` 是 Phase 6 的独立桌面优先 React SPA。它为管理员提供运行概览、营养目录版本治理、Agent 运行审计、模型配置和操作审计界面。
+`admin-frontend/` 是 Phase 6 的独立桌面优先 React SPA。它为管理员提供运行概览、营养目录版本治理、Agent 运行审计、模型服务和操作审计界面。模型服务页完整展示 DeepSeek 文字理解、通义千问图片识别与 DashScope 菜品向量检索；只有 DeepSeek 的未来运行策略可在页面修改，视觉与向量服务保持服务端环境只读配置。
 
 它不是用户 H5 的扩展：不得导入 `frontend/src`、不得向用户 H5 注册后台路由，也不得读取数据库或服务端源码。所有数据只能通过公开的 `/api/v1/admin/*` HTTP 合约取得；最终授权始终由后端读取 PostgreSQL 当前角色决定。
 

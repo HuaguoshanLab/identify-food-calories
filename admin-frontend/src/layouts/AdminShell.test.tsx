@@ -23,6 +23,7 @@ describe('AdminShell', () => {
     await user.click(screen.getByRole('menuitem', { name: '退出登录' }))
     expect(logout).toHaveBeenCalledOnce()
     expect(screen.getByRole('link', { name: '运行审计' })).toHaveAttribute('href', '/admin/runs')
+    expect(screen.getByRole('link', { name: '模型服务' })).toHaveAttribute('href', '/admin/model-configs')
   })
 
   it('窄屏抽屉能以 Escape 关闭并将焦点还给触发器', async () => {

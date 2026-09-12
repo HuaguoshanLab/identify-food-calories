@@ -1,8 +1,8 @@
-# 运行配置后台功能
+# 模型服务后台功能
 
 ## 职责
 
-`config/` 只审阅和变更后续 Agent 调用使用的非密钥运行策略。它经严格 Zod DTO 访问公开 `/api/v1/admin/runtime-config`，令牌只作为一次请求参数存在；浏览器不保存、展示或推导密钥、端点、Provider body。
+`config/` 展示文字理解、图片识别和相似菜品检索三类模型服务的安全摘要，并只允许变更后续 DeepSeek Agent 调用使用的非密钥运行策略。它经严格 Zod DTO 访问公开后台接口，令牌只作为一次请求参数存在；浏览器不保存、展示或推导密钥、端点、Provider body。
 
 ## 允许依赖
 
@@ -16,5 +16,5 @@
 | --- | --- |
 | `README.md` | 配置能力、依赖边界和索引。 |
 | `api/` | 严格配置 DTO、读取/写入请求和安全错误分类；目录索引见 `api/README.md`。 |
-| `ConfigSummaryPage.tsx` | 当前非密钥策略摘要、理由确认与 401/403/409 安全体验。 |
+| `ConfigSummaryPage.tsx` | 三类模型服务摘要、文字模型策略修改、理由确认与 401/403/409 安全体验。 |
 | `ConfigSummaryPage.test.tsx` | probe、键盘、敏感字段、并发和重复提交契约。 |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -56,6 +57,8 @@ from app.admin.schemas import (
     CatalogRelationEvidenceRevokeCommand,
     RuntimeConfigCommand,
     RuntimeConfigResponse,
+    ModelServiceSummary,
+    ModelServicesResponse,
     RecipeCandidateBulkCommand,
     RecipeCandidateCsvPreview,
     RecipeCandidateImportCommand,
@@ -189,6 +192,52 @@ def read_runtime_config(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="runtime config not found"
         ) from error
+
+
+@router.get("/model-services", response_model=ModelServicesResponse)
+def read_model_services(
+    request: Request,
+    principal: AuthenticatedPrincipal,
+    admin_service: AdminService = Depends(get_admin_service),
+) -> ModelServicesResponse | JSONResponse:
+    """Return a safe inventory of all model-backed capabilities after fresh DB RBAC."""
+
+    try:
+        admin_service.require_role(user_id=principal, required_role=UserRole.ADMIN)
+    except AdminPermissionDenied:
+        return _forbidden()
+    settings = request.app.state.settings
+    return ModelServicesResponse(services=(
+        ModelServiceSummary(
+            capability="text_reasoning",
+            provider_label="DeepSeek",
+            model_label=settings.deepseek_model or "未配置",
+            enabled=settings.reasoning_provider_mode == "deepseek" and bool(settings.deepseek_model),
+            configuration_source="admin_policy",
+            timeout_seconds=20,
+            output_token_cap=800,
+        ),
+        ModelServiceSummary(
+            capability="image_understanding",
+            provider_label="阿里云百炼（通义千问）",
+            model_label=settings.qwen_model or "未配置",
+            enabled=settings.vision_provider_mode == "qwen" and bool(settings.qwen_model),
+            configuration_source="server_environment",
+            timeout_seconds=settings.vision_timeout_seconds,
+            output_token_cap=800,
+            pixel_cap=settings.vision_max_pixels,
+        ),
+        ModelServiceSummary(
+            capability="food_similarity",
+            provider_label="阿里云百炼（DashScope）",
+            model_label=settings.embedding_model or "未配置",
+            enabled=settings.embedding_provider_mode == "dashscope" and bool(settings.embedding_model),
+            configuration_source="server_environment",
+            timeout_seconds=settings.embedding_timeout_seconds or Decimal("1.5"),
+            batch_cap=10,
+            vector_dimension=settings.embedding_dimension or 1024,
+        ),
+    ))
 
 
 @router.get("/audit", response_model=AdminAuditPageResponse)

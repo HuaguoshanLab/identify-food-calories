@@ -40,7 +40,7 @@ export const adminNavigation: readonly AdminNavigationGroup[] = [
     label: '系统运行',
     items: [
       { icon: ClipboardList, label: '运行审计', to: '/admin/runs' },
-      { icon: Settings2, label: '模型配置', to: '/admin/model-configs' },
+      { icon: Settings2, label: '模型服务', to: '/admin/model-configs' },
       { icon: History, label: '操作审计', to: '/admin/audit' },
     ],
   },

@@ -17,6 +17,25 @@ export const runtimeConfigSchema = z.object({
 
 export type RuntimeConfig = z.infer<typeof runtimeConfigSchema>
 
+export const modelServiceSchema = z.object({
+  capability: z.enum(['text_reasoning', 'image_understanding', 'food_similarity']),
+  provider_label: z.string().min(1),
+  model_label: z.string().min(1),
+  enabled: z.boolean(),
+  configuration_source: z.enum(['admin_policy', 'server_environment']),
+  timeout_seconds: z.union([z.string(), z.number()]),
+  output_token_cap: z.number().int().positive().nullable(),
+  pixel_cap: z.number().int().positive().nullable(),
+  batch_cap: z.number().int().positive().nullable(),
+  vector_dimension: z.number().int().positive().nullable(),
+}).strict()
+
+export const modelServicesSchema = z.object({
+  services: z.array(modelServiceSchema).length(3),
+}).strict()
+
+export type ModelService = z.infer<typeof modelServiceSchema>
+
 export const runtimeConfigFormSchema = z.object({
   provider: z.literal('deepseek'),
   model_alias: z.literal('deepseek-v4-flash'),
@@ -56,6 +75,11 @@ async function request(path: string, init: RequestInit): Promise<unknown> {
 
 export function readRuntimeConfig(accessToken: string) {
   return request('/runtime-config', { headers: headers(accessToken), method: 'GET' }).then(runtimeConfigSchema.parse)
+}
+
+export function readModelServices(accessToken: string) {
+  return request('/model-services', { headers: headers(accessToken), method: 'GET' })
+    .then(modelServicesSchema.parse)
 }
 
 export function saveRuntimeConfig(accessToken: string, values: RuntimeConfigFormValues, idempotencyKey: string, expectedVersion: number) {
