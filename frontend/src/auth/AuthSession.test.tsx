@@ -409,3 +409,22 @@ type AuthSessionSummarySource = Array<{
   last_seen_at: string
   revoked_at: null
 }> | Promise<Response>
+
+it('ends a stalled authentication request when its deadline aborts', async () => {
+  const { loginAccount } = await import('./api')
+  const controller = new AbortController()
+  const deadline = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+  vi.stubGlobal('fetch', vi.fn((_url, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(new DOMException('Timed out', 'TimeoutError')), { once: true })
+  })))
+  try {
+    const result = loginAccount({ email: 'timeout@example.test', password: 'test-only' })
+    const rejected = expect(result).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+    expect(deadline).toHaveBeenCalledWith(15_000)
+    controller.abort()
+    await rejected
+  } finally {
+    deadline.mockRestore()
+    vi.unstubAllGlobals()
+  }
+})

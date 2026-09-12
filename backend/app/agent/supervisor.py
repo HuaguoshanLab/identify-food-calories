@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.agent.models import AgentLease
@@ -181,6 +182,8 @@ class PostgresLeaseSupervisor:
         if not self._started:
             raise RuntimeError("lease supervisor has not started")
         with self._session_factory() as session:
+            # A competing run must not exhaust a worker indefinitely.
+            session.execute(text("SET LOCAL lock_timeout = '5s'"))
             service = AgentService(
                 repository=SqlAlchemyAgentRepository(session),
                 now=self._now,

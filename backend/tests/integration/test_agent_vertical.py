@@ -234,3 +234,21 @@ def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> N
                 assert session.query(AgentRun).filter_by(user_id=user.id).count() == 2
     finally:
         engine.dispose()
+
+
+def test_reused_command_releases_locks_before_second_connection_claims(test_engine) -> None:
+    from app.agent.repository import SqlAlchemyAgentRepository
+    from app.agent.service import AgentService
+
+    with Session(test_engine, expire_on_commit=False) as first:
+        user, _, _ = _create_user(first, label="replay-lock")
+        service = AgentService(repository=SqlAlchemyAgentRepository(first), commit=first.commit, rollback=first.rollback)
+        thread = service.create_thread(user_id=user.id)
+        args = dict(thread_id=thread.id, user_id=user.id, command_key="replay-lock", canonical_command={"kind": "description"})
+        run = service.create_or_reuse_run(**args)
+        assert service.create_or_reuse_run(**args).id == run.id
+        with Session(test_engine) as second:
+            second.execute(text("SET LOCAL lock_timeout = '500ms'"))
+            assert SqlAlchemyAgentRepository(second).get_run_for_user(run_id=run.id, user_id=user.id, for_update=True) is not None
+            assert SqlAlchemyAgentRepository(second).get_thread_for_user(thread_id=thread.id, user_id=user.id, for_update=True) is not None
+            second.rollback()

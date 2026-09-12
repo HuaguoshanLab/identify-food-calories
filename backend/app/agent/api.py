@@ -6,6 +6,7 @@ only its provider/tool ports; SSE merely replays safe persisted events and never
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import uuid
 from collections.abc import Generator, Iterator
@@ -14,6 +15,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.exc import OperationalError
 
 from app.agent.graph import AgentRuntime
 from app.agent.repository import SqlAlchemyAgentRepository
@@ -167,7 +169,11 @@ async def _execute(
     planning_command: DietPlanningStartCommand | None = None,
     graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
 ) -> None:
-    cast(PostgresLeaseSupervisor, runtime.supervisor).claim(run_id=run_id, user_id=user_id)
+    # The supervisor owns its Session; a database lock wait must not block HTTP dispatch.
+    try:
+        await asyncio.to_thread(cast(PostgresLeaseSupervisor, runtime.supervisor).claim, run_id=run_id, user_id=user_id)
+    except OperationalError as error:
+        raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
     await service.execute_run(
         run_id=run_id,
         user_id=user_id,

@@ -185,6 +185,8 @@ class AgentService:
         if existing is not None:
             if existing.command_hash != command_hash:
                 raise AgentCommandConflict("idempotency key payload mismatch")
+            # Lease admission uses a different connection and must never wait on our own row lock.
+            self._commit_or_rollback()
             return existing
         if graph_kind is AgentGraphKind.DIET_PLANNING and self._planning_archive_writer is not None:
             self._planning_archive_writer.check_admission(user_id=user_id, thread_id=thread_id)
@@ -252,6 +254,7 @@ class AgentService:
         if run is None:
             raise AgentThreadUnavailable("agent run is unavailable")
         if run.status == "completed" and resume_payload is None:
+            self._commit_or_rollback()
             return run
         self.get_thread(thread_id=run.thread_id, user_id=user_id)
         run.status = "running"

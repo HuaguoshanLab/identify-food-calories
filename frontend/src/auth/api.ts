@@ -108,10 +108,12 @@ export function apiUrl(path: string) {
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
+  const signal = init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000)
 
   try {
     response = await fetch(apiUrl(path), {
       ...init,
+      signal,
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -122,7 +124,10 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new AuthApiError('NETWORK_ERROR')
   }
 
-  const body = (await response.json().catch(() => ({}))) as T & ApiErrorBody
+  const body = (await response.json().catch(() => {
+    if (signal.aborted) throw new AuthApiError('NETWORK_ERROR')
+    return {}
+  })) as T & ApiErrorBody
   if (!response.ok) {
     const error = body.error
     throw new AuthApiError(

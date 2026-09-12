@@ -694,7 +694,8 @@ def test_runtime_contract_keeps_state_separate_and_command_keys_tenant_scoped() 
         deleted_at=None,
     )
     repository = _FakeAgentRepository(thread=thread)
-    service = AgentService(repository=repository, now=lambda: now)
+    commits = []
+    service = AgentService(repository=repository, now=lambda: now, commit=lambda: commits.append(True))
 
     run = service.create_or_reuse_run(
         thread_id=thread_id,
@@ -709,6 +710,7 @@ def test_runtime_contract_keeps_state_separate_and_command_keys_tenant_scoped() 
         canonical_command={"text": "米饭 100 克", "kind": "description"},
     )
 
+    assert len(commits) == 2  # Both the create and reuse paths release their row locks.
     assert reused is run
     assert repository.owner_queries == [(thread_id, user_id), (thread_id, user_id)]
     assert len(run.command_hash) == 64
@@ -754,3 +756,33 @@ def test_agent_import_boundaries_require_graph_to_use_only_tool_adapter() -> Non
     assert "app.agent.models" not in imported_modules
     assert "app.agent.repository" not in imported_modules
     assert "NutritionService" in tools_source
+
+
+def test_lease_wait_does_not_block_event_loop() -> None:
+    import threading
+    from types import SimpleNamespace
+    from app.agent.api import _execute
+
+    released = threading.Event()
+    entered = threading.Event()
+
+    def claim(**kwargs):
+        entered.set()
+        assert released.wait(timeout=2), "lease blocked the event loop"
+
+    class Service:
+        async def execute_run(self, **kwargs):
+            return None
+
+    async def scenario():
+        runtime = SimpleNamespace(supervisor=SimpleNamespace(claim=claim), graph=None, checkpointer=None)
+        task = asyncio.create_task(_execute(service=Service(), runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))
+        try:
+            while not entered.is_set():
+                await asyncio.sleep(0)
+            released.set()
+            await task
+        finally:
+            released.set()
+
+    asyncio.run(scenario())
