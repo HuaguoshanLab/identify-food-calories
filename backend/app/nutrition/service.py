@@ -11,6 +11,8 @@ from app.nutrition.ports import HybridFoodSearchRepository, NutritionRepository
 from app.nutrition.search import fuse_food_search_evidence
 from app.nutrition.schemas import (
     MAX_CATALOG_CANDIDATES,
+    FoodRelation,
+    FoodSearchCandidate,
     FoodSearchInput,
     FoodSearchResult,
     NutritionAction,
@@ -120,7 +122,7 @@ class NutritionService:
 
         fused = fuse_food_search_evidence([*text_evidence, *vector_evidence])
         rematerialized = tuple(
-            food
+            self._current_candidate(candidate, food)
             for candidate in fused.candidates
             if (
                 food := self._search_repository.get_current_qualified_food(
@@ -161,7 +163,7 @@ class NutritionService:
             return FoodSearchResult(
                 action=NutritionAction.ASK,
                 query=request.query,
-                candidates=tuple(candidates),
+                candidates=tuple(self._legacy_candidate(food) for food in candidates),
                 safe_message="请从候选食物中选择最符合的一项。",
             )
         return FoodSearchResult(
@@ -177,6 +179,40 @@ class NutritionService:
             query=request.query,
             selected_food=food,
             safe_message="已匹配到受控营养目录条目。",
+        )
+
+    @staticmethod
+    def _current_candidate(
+        candidate: FoodSearchCandidate, food: QualifiedFood
+    ) -> FoodSearchCandidate:
+        """Re-read authority without discarding controlled relation evidence."""
+
+        return FoodSearchCandidate(
+            food_id=food.id,
+            catalog_version=food.catalog_version,
+            canonical_name=food.canonical_name,
+            relation=candidate.relation,
+            prepared_state=food.prepared_state,
+            portion_hints=tuple(
+                portion.description for portion in food.portions if portion.audited
+            )[:3],
+            source_name=food.source_name,
+        )
+
+    @staticmethod
+    def _legacy_candidate(food: QualifiedFood) -> FoodSearchCandidate:
+        """Legacy lookup has no governed relation evidence, so remain conservative."""
+
+        return FoodSearchCandidate(
+            food_id=food.id,
+            catalog_version=food.catalog_version,
+            canonical_name=food.canonical_name,
+            relation=FoodRelation.SAME_CLASS,
+            prepared_state=food.prepared_state,
+            portion_hints=tuple(
+                portion.description for portion in food.portions if portion.audited
+            )[:3],
+            source_name=food.source_name,
         )
 
     def _trace_result(

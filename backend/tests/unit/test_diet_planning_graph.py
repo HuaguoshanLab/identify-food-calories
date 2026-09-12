@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from app.agent.graph import DietPlanningGraph
 from app.agent.state import DietPlanningAction, DietPlanningState, MealAgentState
 from app.agent.tools import PlanningToolAdapter
-from app.nutrition.schemas import FoodSearchResult, NutritionAction, QualifiedFood
+from app.nutrition.schemas import FoodRelation, FoodSearchCandidate, FoodSearchResult, NutritionAction
 from app.planning.schemas import (
     DailyTarget,
     MealCompositionResult,
@@ -335,9 +335,9 @@ def test_explicit_lunch_feedback_replaces_only_lunch_and_captures_once() -> None
 def test_nonexact_planning_substitution_waits_then_passes_only_offered_identity() -> None:
     tools = FakePlanningTools()
     food_id = uuid.uuid4()
-    food = QualifiedFood.model_construct(
-        id=food_id, canonical_name="番茄炒蛋", catalog_version="catalog-v1", prepared_state="熟制",
-        source_name="测试目录", source_url="https://example.test/food", license_name="test", aliases=(), portions=(), nutrients_per_100g=None,
+    food = FoodSearchCandidate(
+        food_id=food_id, canonical_name="番茄炒蛋", catalog_version="catalog-v1", prepared_state="熟制",
+        source_name="测试目录", relation=FoodRelation.NAME_VARIANT,
     )
     tools.search_result = FoodSearchResult.model_construct(action=NutritionAction.ASK, query="西红柿炒鸡蛋", selected_food=None, candidates=(food,), safe_message="选择")
     original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))

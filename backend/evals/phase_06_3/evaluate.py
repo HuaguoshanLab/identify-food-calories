@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.models import CatalogPublication, CatalogPublicationEligibility
 from app.admin.repository import SqlAlchemyAdminRepository
-from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand
+from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecycleCommand, CatalogRelationEvidenceCommand
 from app.admin.service import AdminService
 from app.agent.graph import DietPlanningGraph, MealAnalysisGraph
 from app.agent.state import DietPlanningState, MealAgentState
@@ -47,7 +47,7 @@ from app.planning.service import PlanningService
 
 
 CASE_SCHEMA_VERSION = "phase063-case.v1"
-EVALUATOR_VERSION = "phase063-evaluator.v2"
+EVALUATOR_VERSION = "phase063-evaluator.v3"
 CASE_FIELDS = (
     "schema_version",
     "case_id",
@@ -72,14 +72,14 @@ EXPECTED_FIELDS = (
     "execution_mode",
 )
 REQUIRED_CASE_KINDS = frozenset({"exact", "non_exact", "ambiguity", "eligibility", "failure_determinism"})
-RELEASE_SCHEMA_VERSION = "phase063-release.v2"
+RELEASE_SCHEMA_VERSION = "phase063-release.v3"
 RELEASE_FIELDS = frozenset({"schema_version", "evaluator_version", "decision", "input_hashes", "snapshot", "metrics", "cases", "evidence_hash"})
 RELEASE_CASE_FIELDS = frozenset({"case_id", "case_hash", "action", "candidate_ids", "exact_sql", "text_sql", "vector_sql", "graph_calls", "graph_semantics", "assertions"})
-RELEASE_ASSERTION_FIELDS = frozenset({"action", "targets", "excluded", "channel", "execution_mode", "versions", "candidate_bound", "meal_graph", "planning_graph", "flow_semantics"})
+RELEASE_ASSERTION_FIELDS = frozenset({"action", "targets", "excluded", "channel", "execution_mode", "versions", "candidate_bound", "meal_graph", "planning_graph", "flow_semantics", "relations"})
 RELEASE_GRAPH_CALL_FIELDS = frozenset({"meal_graph_entries", "planning_graph_entries", "meal_search_calls", "planning_target_calls", "planning_compose_calls"})
 RELEASE_GRAPH_SEMANTICS_FIELDS = frozenset({"direct", "meal", "planning"})
 RELEASE_SEARCH_SEMANTICS_FIELDS = frozenset({"action", "selected_id", "candidate_ids", "relation_labels"})
-RELEASE_METRIC_FIELDS = frozenset({"case_count", "exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries", "meal_tool_search_calls", "planning_tool_target_calls", "planning_tool_compose_calls", "action_pass_rate", "target_recall", "flow_semantics_parity"})
+RELEASE_METRIC_FIELDS = frozenset({"case_count", "exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries", "meal_tool_search_calls", "planning_tool_target_calls", "planning_tool_compose_calls", "action_pass_rate", "target_recall", "flow_semantics_parity", "relation_label_coverage"})
 RELEASE_INPUT_HASH_FIELDS = frozenset({"dataset_sha256", "evaluator_sha256", "search_policy_sha256"})
 RELEASE_SNAPSHOT_FIELDS = frozenset({"fixture", "food_labels"})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -93,6 +93,12 @@ _LOCKED_NON_EXACT_TARGETS = {
     "四川烤鱼": "food:grilled-fish-v1",
     "定西土豆粉": "food:potato-noodles-v1",
     "包子": "food:pan-fried-bun-v1",
+}
+_RELATION_LAYER = {"名称相近": 0, "地域/做法变体": 1, "同类食物": 2}
+_EXPECTED_RELATIONS = {
+    "西红柿炒鸡蛋": "名称相近", "风干牛肉": "名称相近",
+    "四川烤鱼": "地域/做法变体", "定西土豆粉": "地域/做法变体",
+    "包子": "同类食物", "武汉热干面": "同类食物",
 }
 
 
@@ -264,6 +270,45 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     if session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == rice_id, CatalogSearchName.normalized_name == "白米饭")) is None:
         session.add(CatalogSearchName(id=uuid.uuid4(), publication_id=rice_id, search_version_id=rice_version.id, display_name="白米饭", normalized_name="白米饭", name_kind="controlled_alias", created_at=now))
         session.flush()
+    # Relation source names are governed through the same admin command as
+    # production curation.  The repository excludes active relation sources
+    # from exact matching, so each one exercises ASK-only hybrid semantics.
+    relation_cases = {
+        "西红柿炒鸡蛋": ("food:tomato-egg-v1", "name_variant"),
+        "风干牛肉": ("food:beef-jerky-v1", "name_variant"),
+        "四川烤鱼": ("food:grilled-fish-v1", "regional_preparation_variant"),
+        "定西土豆粉": ("food:potato-noodles-v1", "regional_preparation_variant"),
+        "包子": ("food:pan-fried-bun-v1", "same_category_food"),
+        "武汉热干面": ("food:hot-dry-noodles-v1", "same_category_food"),
+    }
+    relation_service = AdminService(
+        repository=SqlAlchemyAdminRepository(session), now=lambda: now,
+        commit=session.commit, rollback=session.rollback,
+    )
+    for query, (label, relation) in relation_cases.items():
+        publication_id = mapping[label]
+        version = session.scalar(select(CatalogSearchVersion).where(CatalogSearchVersion.publication_id == publication_id))
+        assert version is not None
+        source = session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication_id, CatalogSearchName.normalized_name == query))
+        if source is None:
+            source = CatalogSearchName(
+                id=uuid.uuid4(), publication_id=publication_id,
+                search_version_id=version.id, display_name=query,
+                normalized_name=query, name_kind="controlled_alias", created_at=now,
+            )
+            session.add(source)
+            session.flush()
+        target = session.scalar(select(CatalogSearchName).where(CatalogSearchName.publication_id == publication_id, CatalogSearchName.normalized_name == _CANONICAL_NAMES[label]))
+        assert target is not None
+        relation_service.create_catalog_relation_evidence(
+            actor_user_id=actor.id,
+            command=CatalogRelationEvidenceCommand(
+                source_publication_id=publication_id, source_name_id=source.id,
+                target_publication_id=publication_id, target_name_id=target.id,
+                relation=relation, reason="phase 06.3 frozen relation fixture",
+            ),
+            command_key=f"eval-relation-{actor.id}-{source.id}",
+        )
     # Failure-mode queries intentionally differ from their canonical synthetic
     # names.  Add controlled aliases so a real authority reread can provide the
     # text-only candidate after the evaluator suppresses the PASS short-circuit.
@@ -468,24 +513,36 @@ def _search_service(*, nutrition_repository: SqlAlchemyNutritionRepository, sear
 
 
 def _semantic_projection(result: object, *, label_by_id: Mapping[str, str]) -> dict[str, object]:
-    """Project only IDs/actions/default relation labels shared by all tool boundaries."""
+    """Project only safe IDs and controlled relation labels at every boundary."""
 
     if not hasattr(result, "action") or not hasattr(result, "candidates") or not hasattr(result, "selected_food"):
         raise EvaluationContractError("graph search did not return the typed nutrition result")
     selected = result.selected_food
     selected_id = label_by_id.get(str(selected.id)) if selected is not None else None
-    candidates = [label_by_id.get(str(candidate.id)) for candidate in result.candidates]
+    candidates = [label_by_id.get(str(candidate.food_id)) for candidate in result.candidates]
     if selected is not None and selected_id is None or any(candidate is None for candidate in candidates):
         raise EvaluationContractError("evaluation search returned an unbound food identity")
-    # ``FoodSearchResult`` deliberately hides internal rank/relation evidence.  The
-    # graph therefore persists the contract's fixed, safe default rather than
-    # inventing a relation from scores or natural-language labels.
     return {
         "action": result.action.value,
         "selected_id": selected_id,
         "candidate_ids": candidates,
-        "relation_labels": ["目录候选"] * len(candidates),
+        "relation_labels": [candidate.relation.value for candidate in result.candidates],
     }
+
+
+def _relations_match(*, query: str, semantics: Mapping[str, dict[str, object]]) -> bool:
+    """Reject defaults, layer inversions, and graph-specific relation drift."""
+
+    expected = _EXPECTED_RELATIONS.get(query)
+    for projection in semantics.values():
+        labels = projection["relation_labels"]
+        if not isinstance(labels, list) or any(label not in _RELATION_LAYER for label in labels):
+            return False
+        if any(_RELATION_LAYER[left] > _RELATION_LAYER[right] for left, right in zip(labels, labels[1:])):
+            return False
+        if expected is not None and (not labels or labels[0] != expected):
+            return False
+    return True
 
 
 def _execute_graph_entries(*, query: str, query_vector: tuple[float, ...], mode: str, nutrition_repository: SqlAlchemyNutritionRepository, search_repository: SqlAlchemyHybridFoodSearchRepository, session: Session, label_by_id: Mapping[str, str]) -> tuple[dict[str, int], dict[str, dict[str, object]]]:
@@ -541,10 +598,11 @@ def _release_payload(*, rows: list[dict[str, Any]], observed: list[dict[str, Any
         "action_pass_rate": round(sum(item["assertions"]["action"] for item in observed) / len(rows), 4),
         "target_recall": round(sum(item["assertions"]["targets"] for item in observed) / len(rows), 4),
         "flow_semantics_parity": round(sum(item["assertions"]["flow_semantics"] for item in observed) / len(rows), 4),
+        "relation_label_coverage": sorted({label for item in observed for projection in item["graph_semantics"].values() for label in projection["relation_labels"]}),
     }
     release: dict[str, Any] = {
         "schema_version": RELEASE_SCHEMA_VERSION, "evaluator_version": EVALUATOR_VERSION,
-        "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0 else "FAIL",
+        "decision": "PASS" if all(checks) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0 and metrics["relation_label_coverage"] == sorted(_RELATION_LAYER) else "FAIL",
         "input_hashes": {"dataset_sha256": file_hash(dataset), "evaluator_sha256": file_hash(Path(__file__)), "search_policy_sha256": file_hash(Path(__file__).parents[2] / "app/nutrition/search.py")},
         "snapshot": {"fixture": "synthetic:catalog-06-3-v1", "food_labels": sorted(snapshot)}, "metrics": metrics,
         "cases": observed,
@@ -592,7 +650,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             "direct": _semantic_projection(result, label_by_id=label_by_id),
             **graph_semantics,
         }
-        ids = {str(candidate.id) for candidate in result.candidates}
+        ids = {str(candidate.food_id) for candidate in result.candidates}
         if result.selected_food is not None:
             ids.add(str(result.selected_food.id))
         expected_ids = {str(snapshot[item]) for item in expected["target_food_ids"]}
@@ -603,7 +661,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             "text_fallback" if fallback != "none" else "none" if not result.candidates else "hybrid"
         )
         repeated = [
-            (outcome.action.value, tuple(str(item.id) for item in outcome.candidates), str(trace.spans[-1].get("fallback.code")) if trace.spans else "none")
+            (outcome.action.value, tuple(str(item.food_id) for item in outcome.candidates), str(trace.spans[-1].get("fallback.code")) if trace.spans else "none")
             for outcome, trace in outcomes
         ]
         fault_executed = (
@@ -615,7 +673,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
             "candidate_ids": sorted(label_by_id.get(value, "unbound") for value in ids), "exact_sql": int(bool(exact_rows)),
             "text_sql": int(bool(text_rows)), "vector_sql": int(bool(vector_rows)),
             "graph_calls": graph_calls, "graph_semantics": graph_semantics,
-            "assertions": {"action": result.action.value == expected["action"], "targets": not expected_ids or expected_ids <= ids, "excluded": not (excluded_ids & ids), "channel": channel == expected["match_channel"], "execution_mode": fault_executed and (mode != "repeat_three_times" or len(set(repeated)) == 1), "versions": case["catalog_version"] == "catalog-06-3-v1" and case["retrieval_version"] == "retrieval-06-3-v1" and case["embedding_version"] == "fake-embedding-v1", "candidate_bound": len(result.candidates) <= expected["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0, "flow_semantics": len({json.dumps(value, ensure_ascii=False, sort_keys=True) for value in graph_semantics.values()}) == 1},
+            "assertions": {"action": result.action.value == expected["action"], "targets": not expected_ids or expected_ids <= ids, "excluded": not (excluded_ids & ids), "channel": channel == expected["match_channel"], "execution_mode": fault_executed and (mode != "repeat_three_times" or len(set(repeated)) == 1), "versions": case["catalog_version"] == "catalog-06-3-v1" and case["retrieval_version"] == "retrieval-06-3-v1" and case["embedding_version"] == "fake-embedding-v1", "candidate_bound": len(result.candidates) <= expected["candidate_limit"] or result.action is NutritionAction.PASS, "meal_graph": graph_calls["meal_graph_entries"] > 0 and graph_calls["meal_search_calls"] > 0, "planning_graph": graph_calls["planning_graph_entries"] > 0 and graph_calls["planning_target_calls"] > 0 and graph_calls["planning_compose_calls"] > 0, "flow_semantics": len({json.dumps(value, ensure_ascii=False, sort_keys=True) for value in graph_semantics.values()}) == 1, "relations": _relations_match(query=case["query"], semantics=graph_semantics)},
         })
     release = _release_payload(rows=rows, observed=observed, dataset=dataset, snapshot=snapshot)
     if output is not None:
@@ -647,6 +705,7 @@ def _release_metrics(cases: list[dict[str, Any]]) -> dict[str, int | float]:
         "action_pass_rate": round(sum(case["assertions"]["action"] for case in cases) / len(cases), 4),
         "target_recall": round(sum(case["assertions"]["targets"] for case in cases) / len(cases), 4),
         "flow_semantics_parity": round(sum(case["assertions"]["flow_semantics"] for case in cases) / len(cases), 4),
+        "relation_label_coverage": sorted({label for case in cases for projection in case["graph_semantics"].values() for label in projection["relation_labels"]}),
     }
 
 
@@ -701,8 +760,8 @@ def validate_release(path: Path, *, require_pass: bool) -> dict[str, Any]:
                 raise EvaluationContractError("release search action or selected identity is invalid")
             candidates = projection["candidate_ids"]
             relations = projection["relation_labels"]
-            if not isinstance(candidates, list) or not isinstance(relations, list) or len(candidates) != len(relations) or len(candidates) > 3 or len(set(candidates)) != len(candidates) or not all(isinstance(item, str) and item in _CANONICAL_NAMES for item in candidates) or relations != ["目录候选"] * len(candidates):
-                raise EvaluationContractError("release search candidates or relation defaults are invalid")
+            if not isinstance(candidates, list) or not isinstance(relations, list) or len(candidates) != len(relations) or len(candidates) > 3 or len(set(candidates)) != len(candidates) or not all(isinstance(item, str) and item in _CANONICAL_NAMES for item in candidates) or any(label not in _RELATION_LAYER for label in relations) or any(_RELATION_LAYER[left] > _RELATION_LAYER[right] for left, right in zip(relations, relations[1:])):
+                raise EvaluationContractError("release search candidates or relation order is invalid")
             if (projection["action"] == "PASS") != (projection["selected_id"] is not None) or (projection["action"] == "PASS" and candidates):
                 raise EvaluationContractError("release search selection semantics are invalid")
         semantic_parity = len({json.dumps(value, ensure_ascii=False, sort_keys=True) for value in graph_semantics.values()}) == 1
@@ -711,10 +770,12 @@ def validate_release(path: Path, *, require_pass: bool) -> dict[str, Any]:
             raise EvaluationContractError("release assertions do not match the frozen contract")
         if assertions["flow_semantics"] != semantic_parity:
             raise EvaluationContractError("release flow semantics assertion does not match its graph evidence")
+        if assertions["relations"] != _relations_match(query=row["query"], semantics=graph_semantics):
+            raise EvaluationContractError("release relation semantics do not match graph evidence")
     metrics = release["metrics"]
     if not isinstance(metrics, dict) or set(metrics) != RELEASE_METRIC_FIELDS or metrics != _release_metrics(cases):
         raise EvaluationContractError("release metrics do not match its case evidence")
-    passed = all(all(case["assertions"].values()) for case in cases) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0
+    passed = all(all(case["assertions"].values()) for case in cases) and all(metrics[key] > 0 for key in ("exact_sql_cases", "text_sql_cases", "vector_sql_cases", "meal_graph_entries", "planning_graph_entries")) and metrics["flow_semantics_parity"] == 1.0 and metrics["relation_label_coverage"] == sorted(_RELATION_LAYER)
     if (release["decision"] == "PASS") != passed or (require_pass and release["decision"] != "PASS"):
         raise EvaluationContractError("release decision does not satisfy the frozen contract")
     return release

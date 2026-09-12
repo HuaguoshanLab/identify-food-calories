@@ -99,7 +99,7 @@ def test_evaluator_exposes_hash_bound_real_postgresql_release_contract() -> None
 
     from evals.phase_06_3 import evaluate
 
-    assert evaluate.EVALUATOR_VERSION == "phase063-evaluator.v2"
+    assert evaluate.EVALUATOR_VERSION == "phase063-evaluator.v3"
     assert "SqlAlchemyHybridFoodSearchRepository" in evaluate.__doc__
     assert hasattr(evaluate, "build_release")
     assert hasattr(evaluate, "verify_release")
@@ -148,7 +148,7 @@ def test_release_verification_rejects_graph_output_drift_even_when_call_counts_m
         "action": "ASK",
         "selected_id": None,
         "candidate_ids": ["food:apple-v1"],
-        "relation_labels": ["目录候选"],
+            "relation_labels": ["同类食物"],
     }
     _write_rehashed_release(release, payload)
 
