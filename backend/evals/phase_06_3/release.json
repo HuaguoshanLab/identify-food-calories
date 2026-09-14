@@ -24,7 +24,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -75,7 +75,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -126,7 +126,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -177,7 +177,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -228,7 +228,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -279,7 +279,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -342,7 +342,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -405,7 +405,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -468,7 +468,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -531,7 +531,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -594,7 +594,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -657,7 +657,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -720,7 +720,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -781,7 +781,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -832,7 +832,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -893,7 +893,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -942,7 +942,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -991,7 +991,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1040,7 +1040,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1089,7 +1089,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1140,7 +1140,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1201,7 +1201,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1252,7 +1252,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1315,7 +1315,7 @@
       "graph_calls": {
         "meal_graph_entries": 1,
         "meal_search_calls": 1,
-        "planning_compose_calls": 3,
+        "planning_compose_calls": 1,
         "planning_graph_entries": 1,
         "planning_target_calls": 1
       },
@@ -1357,10 +1357,10 @@
   ],
   "decision": "PASS",
   "evaluator_version": "phase063-evaluator.v3",
-  "evidence_hash": "964358175ff12262c6621b20fd8cba24795c7c49ca90e6c04ffc94a5395cf21e",
+  "evidence_hash": "b82edb5af6ddc1fb6d3d24332f213a3d101b51c1cb3b59a0f84573f0ee965fe6",
   "input_hashes": {
     "dataset_sha256": "0f206658e40d79d289236c80520246368838cb17cdae53389f52f86170ccf82a",
-    "evaluator_sha256": "f900b8791cc9685abb84cf7194601928dca15391e479451695a96224f16b5ffa",
+    "evaluator_sha256": "9a8d2563cd47320485d4f3c6ab0cef0f25fc8ca53deed5c7a0a783aa595f5e76",
     "search_policy_sha256": "dca26399e483f6c6666fa148cc1b984c7c72e1a2ad8252e5f23af555a77cf76f"
   },
   "metrics": {
@@ -1371,7 +1371,7 @@
     "meal_graph_entries": 24,
     "meal_tool_search_calls": 24,
     "planning_graph_entries": 24,
-    "planning_tool_compose_calls": 72,
+    "planning_tool_compose_calls": 24,
     "planning_tool_target_calls": 24,
     "relation_label_coverage": [
       "同类食物",

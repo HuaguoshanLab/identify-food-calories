@@ -745,7 +745,7 @@ class CatalogVectorSpaceBuildResponse(BaseModel):
     pending_count: int = Field(ge=0)
     failed_count: int = Field(ge=0)
     completed_count: int = Field(ge=0)
-    status: Literal["pending", "processing", "partial_failure", "ready"]
+    status: Literal["empty", "pending", "processing", "partial_failure", "ready"]
 
 
 class CatalogVectorSpaceBuildStatusResponse(CatalogVectorSpaceBuildResponse):

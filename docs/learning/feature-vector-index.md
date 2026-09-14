@@ -6,7 +6,7 @@
 
 ## 1. 先看一个实际例子
 
-管理员建立一批目录向量：先固定此次清单，再让后台逐项计算，最后验证证据后激活。期间新增的菜不能偷偷算作这批已经完成的内容。
+管理员建立一批目录向量：升级前的旧目录先回填派生检索名称，再固定此次清单，让后台逐项计算，最后验证证据后激活。期间新增的菜不能偷偷算作这批已经完成的内容。
 
 这个例子贯穿下面的执行过程。示例数据用于理解代码，不是线上测量或真实模型效果证明。
 
@@ -18,8 +18,10 @@
 
 ```mermaid
 flowchart TD
+    N00["旧目录回填检索名称"]
     N0["管理员创建构建"]
     N1["冻结模型身份与目录清单"]
+    N00 --> N0
     N0 --> N1
     N2["Worker 领取一项任务"]
     N1 --> N2
@@ -66,7 +68,7 @@ build = self._repository.add_catalog_vector_space_build(CatalogVectorSpaceBuild(
 
 **为什么这样写**
 
-保存清单与 hash，明确此次到底要处理什么。不能激活时随便选择“最新任务”，否则评测对象和实际向量可能不是同一批。
+保存清单与 hash，明确此次到底要处理什么。没有合格检索名称时必须先回填，后端拒绝空构建；不能把 `0/0` 当成完成。不能激活时随便选择“最新任务”，否则评测对象和实际向量可能不是同一批。
 
 **处理后变成什么，交给谁**
 
@@ -157,6 +159,8 @@ self._validate_activation_build(build=build, vector_space_id=vector_space_id)
 
 | 情况 | 判断与处理 | 应观察的结果 |
 |---|---|---|
+| 旧目录没有派生检索名称 | 先执行受审计回填 | 创建名称后再建立新构建 |
+| 当前没有合格检索名称 | 创建构建时拒绝 | 不产生空 manifest 或伪完成证据 |
 | 领取后目录失格 | 执行前重查 | 取消 |
 | Provider 故障 | 按分类记录 | 有限重试而非无限循环 |
 | build 与空间不符 | 激活拒绝 | 旧空间继续有效 |
@@ -167,10 +171,14 @@ self._validate_activation_build(build=build, vector_space_id=vector_space_id)
 
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/unit/test_embedding_provider.py -q
+.venv/bin/python tests/run_pg.py --env-file .env.test.example -- \
+  .venv/bin/python -m pytest tests/integration/test_catalog_embedding_jobs.py -q
+
+cd ../admin-frontend
+npm test -- --run src/features/vector-retrieval/VectorRetrievalPage.test.tsx
 ```
 
-这条命令检查 Embedding DTO 与 Provider 边界，不覆盖数据库租约和激活。后两者需要 tests/integration/test_catalog_embedding_jobs.py 等真实 PostgreSQL 用例。
+本次修复已执行真实 PostgreSQL 集成测试，8 个用例通过；后台前端全量 16 个测试文件、72 个用例通过，TypeScript 与生产构建通过。冻结评测发布已在隔离测试库重新生成并通过 `--verify-release`。全量 Mypy 仍有 53 个既有错误，分布在本功能之外的配置、规划、Mem0 和评测等模块，不能表述为全仓库类型门禁通过。
 
 本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
 

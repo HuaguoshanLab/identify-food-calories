@@ -12,6 +12,7 @@ from app.admin.models import AdminAuditEvent, CatalogDraft, CatalogPublication, 
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogLifecyclePreviewResponse, CatalogLifecycleCommand
 from app.admin.service import AdminPermissionDenied, AdminService, CatalogDraftConflict
 from app.auth.models import User, UserRole
+from app.nutrition.search_models import CatalogEmbeddingJob, CatalogSearchName, CatalogSearchVersion
 
 
 NOW = datetime(2026, 9, 3, tzinfo=UTC)
@@ -46,6 +47,9 @@ class FakeLifecycleRepository:
         self.eligibilities: dict[uuid.UUID, list[CatalogPublicationEligibility]] = {}
         self.commands: dict[str, object] = {}
         self.events: list[AdminAuditEvent] = []
+        self.search_versions: list[CatalogSearchVersion] = []
+        self.search_names: list[CatalogSearchName] = []
+        self.embedding_jobs: list[CatalogEmbeddingJob] = []
 
     def get_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return self.actor if user_id == self.actor.id else self.users.get(user_id)
@@ -107,6 +111,21 @@ class FakeLifecycleRepository:
     def get_latest_catalog_eligibility(self, publication_id: uuid.UUID):
         events = self.eligibilities.get(publication_id, [])
         return events[-1] if events else None
+
+    def add_catalog_search_version(self, version: CatalogSearchVersion) -> CatalogSearchVersion:
+        self.search_versions.append(version)
+        return version
+
+    def add_catalog_search_names(self, names: list[CatalogSearchName]) -> list[CatalogSearchName]:
+        self.search_names.extend(names)
+        return names
+
+    def list_active_catalog_vector_spaces(self) -> list[object]:
+        return []
+
+    def add_catalog_embedding_jobs(self, jobs: list[CatalogEmbeddingJob]) -> list[CatalogEmbeddingJob]:
+        self.embedding_jobs.extend(jobs)
+        return jobs
 
     def add_audit_event(self, event: AdminAuditEvent) -> AdminAuditEvent:
         self.events.append(event)

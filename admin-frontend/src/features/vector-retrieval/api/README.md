@@ -2,7 +2,7 @@
 
 ## 职责
 
-严格校验 `/api/v1/admin/vector-space-builds*` 的安全投影与命令响应。令牌仅由调用方内存传入。
+严格校验 `/api/v1/admin/catalog-search-index-backfills` 与 `/api/v1/admin/vector-space-builds*` 的安全投影和命令响应。令牌仅由调用方内存传入。
 
 ## 允许依赖
 
@@ -13,4 +13,4 @@
 
 | 路径 | 职责 |
 | --- | --- |
-| `index.ts` | 构建列表、创建、失败重试与激活请求。 |
+| `index.ts` | 检索名称回填、构建列表、创建、失败重试与激活请求。 |

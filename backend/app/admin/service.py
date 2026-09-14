@@ -1347,6 +1347,11 @@ class AdminService:
                 raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different vector-space build")
             return response
 
+        names = self._repository.list_current_eligible_catalog_search_names()
+        if not names:
+            raise CatalogVectorSpaceBuildConflict(
+                "no eligible catalog search names are available; backfill the search index before creating a build"
+            )
         space = self._repository.get_catalog_vector_space(
             embedding_model=command.embedding_model,
             embedding_dimension=command.embedding_dimension,
@@ -1360,7 +1365,6 @@ class AdminService:
                 embedding_dimension=command.embedding_dimension,
                 adapter_version=command.adapter_version, retrieval_version=command.retrieval_version, created_at=now,
             ))
-        names = self._repository.list_current_eligible_catalog_search_names()
         manifest = [
             {"publication_id": str(name.publication_id), "name_id": str(name.id),
              "search_version_id": str(name.search_version_id), "name_kind": name.name_kind}
@@ -1416,8 +1420,10 @@ class AdminService:
         name_ids = [uuid.UUID(item["name_id"]) for item in build.snapshot_manifest]
         jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(build.vector_space_id, name_ids=name_ids)
         counts = self._embedding_job_counts(jobs)
-        status: Literal["pending", "processing", "partial_failure", "ready"]
-        if counts["failed_count"]:
+        status: Literal["empty", "pending", "processing", "partial_failure", "ready"]
+        if build.expected_name_count == 0:
+            status = "empty"
+        elif counts["failed_count"]:
             status = "partial_failure"
         elif counts["completed_count"] == build.expected_name_count:
             status = "ready"
@@ -1638,6 +1644,8 @@ class AdminService:
 
     def _validate_activation_build(self, *, build: CatalogVectorSpaceBuild, vector_space_id: uuid.UUID) -> None:
         manifest = build.snapshot_manifest
+        if build.expected_name_count == 0 or not manifest:
+            raise CatalogVectorSpaceActivationConflict("empty vector-space builds cannot be activated")
         serialized = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         if len(manifest) != build.expected_name_count or hashlib.sha256(serialized).hexdigest() != build.snapshot_hash:
             raise CatalogVectorSpaceActivationConflict("immutable build manifest does not match its hash")

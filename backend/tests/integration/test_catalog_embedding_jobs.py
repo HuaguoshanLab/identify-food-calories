@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.schemas import CatalogDraftCreateCommand, CatalogEmbeddingRetryCommand, CatalogLifecycleCommand, CatalogVectorSpaceBuildCommand
-from app.admin.service import AdminPermissionDenied, AdminService, CatalogVectorSpaceActivationConflict
+from app.admin.service import (
+    AdminPermissionDenied,
+    AdminService,
+    CatalogVectorSpaceActivationConflict,
+    CatalogVectorSpaceBuildConflict,
+)
 from app.auth.models import User, UserRole
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
@@ -358,6 +363,92 @@ def test_vector_space_build_snapshots_current_eligible_names_and_replays_without
         pass
     else:  # pragma: no cover - guard is the assertion
         raise AssertionError("ordinary user unexpectedly started a provider-costing build")
+
+
+def test_vector_space_build_rejects_empty_name_snapshot_without_persisting_space(db_session) -> None:
+    """空清单不能伪装成已完成，也不能留下无意义的向量空间。"""
+
+    now = datetime.now(UTC)
+    actor = _actor(now)
+    db_session.add(actor)
+    db_session.flush()
+    repository = SqlAlchemyAdminRepository(db_session)
+    repository.list_current_eligible_catalog_search_names = lambda: []  # type: ignore[method-assign]
+    service = AdminService(
+        repository=repository,
+        now=lambda: now,
+        commit=db_session.commit,
+        rollback=db_session.rollback,
+    )
+    before_spaces = len(list(db_session.scalars(select(CatalogVectorSpace))))
+    before_builds = len(list(db_session.scalars(select(CatalogVectorSpaceBuild))))
+
+    with pytest.raises(CatalogVectorSpaceBuildConflict, match="backfill the search index"):
+        service.create_catalog_vector_space_build(
+            actor_user_id=actor.id,
+            command=CatalogVectorSpaceBuildCommand(
+                embedding_model="text-embedding-v4",
+                embedding_dimension=1024,
+                adapter_version=f"empty-{actor.id.hex}",
+                retrieval_version="hybrid-v1",
+                reason="empty build must fail",
+                confirm=True,
+            ),
+            command_key=f"vector-space-empty-pg-{actor.id.hex}",
+        )
+
+    assert len(list(db_session.scalars(select(CatalogVectorSpace)))) == before_spaces
+    assert len(list(db_session.scalars(select(CatalogVectorSpaceBuild)))) == before_builds
+
+
+def test_legacy_empty_build_is_projected_as_empty_and_gets_no_completion_evidence(db_session) -> None:
+    """历史空构建保持可见，但不能再被当成成功证据。"""
+
+    now = datetime.now(UTC)
+    actor = _actor(now)
+    space = CatalogVectorSpace(
+        id=uuid.uuid4(),
+        embedding_model="text-embedding-v4",
+        embedding_dimension=1024,
+        adapter_version=f"legacy-empty-{actor.id.hex}",
+        retrieval_version="hybrid-v1",
+        created_at=now,
+    )
+    build = CatalogVectorSpaceBuild(
+        id=uuid.uuid4(),
+        vector_space_id=space.id,
+        requested_by=str(actor.id),
+        reason="legacy empty build",
+        command_key=f"legacy-empty-build-{actor.id.hex}",
+        retrieval_version="hybrid-v1",
+        snapshot_manifest=[],
+        snapshot_hash=hashlib.sha256(b"[]").hexdigest(),
+        expected_name_count=0,
+        requested_at=now,
+    )
+    db_session.add_all([actor, space, build])
+    db_session.flush()
+    repository = SqlAlchemyAdminRepository(db_session)
+
+    assert repository.reconcile_catalog_vector_space_build_completion(build=build, now=now) is None
+    service = AdminService(
+        repository=repository,
+        now=lambda: now,
+        commit=db_session.commit,
+        rollback=db_session.rollback,
+    )
+    status = service.get_catalog_vector_space_build_status(
+        actor_user_id=actor.id,
+        build_id=build.id,
+    )
+
+    assert status.status == "empty"
+    assert status.activation_ready is False
+    assert db_session.scalar(
+        select(CatalogVectorSpaceBuildCompletion).where(
+            CatalogVectorSpaceBuildCompletion.build_id == build.id
+        )
+    ) is None
 
 
 def test_worker_claims_build_job_once_and_records_exact_completion_evidence(test_engine) -> None:

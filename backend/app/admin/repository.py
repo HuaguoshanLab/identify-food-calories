@@ -554,7 +554,7 @@ class SqlAlchemyAdminRepository:
             }
         except (KeyError, TypeError, ValueError):
             return None
-        if len(expected) != locked.expected_name_count:
+        if locked.expected_name_count == 0 or not expected or len(expected) != locked.expected_name_count:
             return None
         name_ids = [name_id for _, name_id in expected]
         jobs = self.list_catalog_embedding_jobs_for_vector_space(locked.vector_space_id, name_ids=name_ids)
