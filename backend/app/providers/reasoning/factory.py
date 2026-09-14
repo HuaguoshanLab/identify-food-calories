@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Literal
 
 from app.core.config import ConfigurationError, ReasoningProviderMode, Settings
+from app.core.tracing import TracingRuntime
 from app.providers.reasoning.deepseek import DeepSeekReasoningModelProvider
 from app.providers.reasoning.fake import RiceOnlyFakeReasoningModelProvider
 from app.providers.reasoning.ports import ReasoningModelProvider
@@ -18,6 +19,7 @@ def create_reasoning_provider(
     app_env: Literal["local", "test", "production"] | None = None,
     provider_mode: ReasoningProviderMode | None = None,
     runtime_config: Mapping[str, object] | None = None,
+    tracing: TracingRuntime | None = None,
 ) -> ReasoningModelProvider:
     """Select only a configured adapter; test never reaches a paid network provider."""
 
@@ -73,5 +75,6 @@ def create_reasoning_provider(
                 "input_usd_per_m": input_price,
                 "output_usd_per_m": output_price,
             },
+            tracing=tracing,
         )
     raise ConfigurationError("unsupported reasoning provider mode")

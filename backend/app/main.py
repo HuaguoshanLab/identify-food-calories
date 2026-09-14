@@ -65,7 +65,7 @@ class PersistedAgentRuntimeFactory:
         database_url = runtime_database_url(self._settings)
         session_factory = create_session_factory(self._settings)
         memory_provider = create_memory_provider(self._settings)
-        provider = create_reasoning_provider(self._settings)
+        provider = create_reasoning_provider(self._settings, tracing=tracing_runtime)
         embedding_provider = create_embedding_provider(self._settings)
         tools = SessionNutritionToolAdapter(
             session_factory=session_factory,
@@ -153,6 +153,7 @@ class PersistedAgentRuntimeFactory:
             supervisor=supervisor,
             session_factory=session_factory,
             image_safety=image_safety,
+            tracing=tracing_runtime,
         )
 
     async def close(self, runtime: AgentRuntime | None) -> None:

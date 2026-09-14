@@ -786,3 +786,68 @@ def test_lease_wait_does_not_block_event_loop() -> None:
             released.set()
 
     asyncio.run(scenario())
+
+
+def test_langfuse_tracing_uses_only_safe_metadata_and_closes_client() -> None:
+    from app.core.tracing import create_tracing_runtime
+
+    class FakeObservation:
+        def __enter__(self) -> "FakeObservation":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    class FakeLangfuse:
+        def __init__(self) -> None:
+            self.observations: list[dict[str, object]] = []
+            self.flushes = 0
+            self.shutdowns = 0
+
+        def start_as_current_observation(self, **payload: object) -> FakeObservation:
+            self.observations.append(payload)
+            return FakeObservation()
+
+        def flush(self) -> None:
+            self.flushes += 1
+
+        def shutdown(self) -> None:
+            self.shutdowns += 1
+
+    client = FakeLangfuse()
+    runtime = create_tracing_runtime(
+        Settings(
+            _env_file=None,
+            tracing_enabled=True,
+            tracing_backend="langfuse",
+            tracing_hmac_key="local-hmac",
+            tracing_service_name="food-agent",
+            tracing_service_version="dev",
+            langfuse_public_key="pk-lf-test",
+            langfuse_secret_key="sk-lf-test",
+            langfuse_base_url="http://127.0.0.1:3001",
+        ),
+        langfuse_client=client,
+    )
+
+    with runtime.span(
+        "agent.provider",
+        {"provider.model": "deepseek-v4-flash", "prompt": "must-not-leak"},
+    ):
+        pass
+    runtime.flush()
+    runtime.shutdown()
+
+    assert client.observations == [
+        {
+            "name": "agent.provider",
+            "as_type": "span",
+            "metadata": {
+                "service.name": "food-agent",
+                "service.version": "dev",
+                "provider.model": "deepseek-v4-flash",
+            },
+        }
+    ]
+    assert client.flushes == 1
+    assert client.shutdowns == 1

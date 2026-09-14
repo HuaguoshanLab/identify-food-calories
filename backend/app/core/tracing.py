@@ -12,7 +12,7 @@ import hashlib
 import hmac
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
@@ -57,6 +57,14 @@ class TracingRuntime(Protocol):
     def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]: ...
 
     def scoped_hmac(self, value: str) -> str: ...
+
+    def flush(self) -> None: ...
+
+    def shutdown(self) -> None: ...
+
+
+class LangfuseClient(Protocol):
+    def start_as_current_observation(self, **payload: object) -> Any: ...
 
     def flush(self) -> None: ...
 
@@ -163,13 +171,92 @@ class AllowlistTracingRuntime:
         self._provider.shutdown()
 
 
+class LangfuseTracingRuntime:
+    """Send the same payload-free spans to one development Langfuse project."""
+
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+        client: LangfuseClient | None = None,
+    ) -> None:
+        service_name = _required(settings.tracing_service_name, "TRACING_SERVICE_NAME")
+        service_version = _required(settings.tracing_service_version, "TRACING_SERVICE_VERSION")
+        if settings.tracing_hmac_key is None:
+            raise ConfigurationError("TRACING_HMAC_KEY is required when tracing is enabled")
+        hmac_key = settings.tracing_hmac_key.get_secret_value()
+        if not hmac_key:
+            raise ConfigurationError("TRACING_HMAC_KEY is required when tracing is enabled")
+        if client is None:
+            if (
+                not settings.langfuse_public_key
+                or settings.langfuse_secret_key is None
+                or not settings.langfuse_base_url
+            ):
+                raise ConfigurationError("Langfuse tracing credentials are incomplete")
+            try:
+                from langfuse import Langfuse
+            except ImportError as error:
+                raise ConfigurationError(
+                    "Langfuse tracing requires the backend dev dependency group"
+                ) from error
+            self._provider: TracerProvider | None = TracerProvider(
+                resource=Resource.create(
+                    {SERVICE_NAME: service_name, SERVICE_VERSION: service_version}
+                )
+            )
+            client = cast(
+                LangfuseClient,
+                Langfuse(
+                    public_key=settings.langfuse_public_key,
+                    secret_key=settings.langfuse_secret_key.get_secret_value(),
+                    base_url=settings.langfuse_base_url,
+                    environment=settings.langfuse_environment,
+                    release=service_version,
+                    tracer_provider=self._provider,
+                ),
+            )
+        else:
+            self._provider = None
+        self._client = cast(LangfuseClient, client)
+        self._hmac_key = hmac_key.encode("utf-8")
+        self._resource_metadata = {
+            "service.name": service_name,
+            "service.version": service_version,
+        }
+
+    @contextmanager
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]:
+        metadata = {**self._resource_metadata, **_allowlisted_attributes(attributes)}
+        with self._client.start_as_current_observation(
+            name=name,
+            as_type="span",
+            metadata=metadata,
+        ):
+            yield
+
+    def scoped_hmac(self, value: str) -> str:
+        return hmac.new(self._hmac_key, value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def flush(self) -> None:
+        self._client.flush()
+
+    def shutdown(self) -> None:
+        self._client.shutdown()
+
+
 def create_tracing_runtime(
-    settings: Settings, *, exporter: SpanExporter | None = None
+    settings: Settings,
+    *,
+    exporter: SpanExporter | None = None,
+    langfuse_client: LangfuseClient | None = None,
 ) -> TracingRuntime:
     """Create a remote-only runtime; disabled tracing has no exporter side effect."""
 
     if not settings.tracing_enabled:
         return DisabledTracingRuntime()
+    if settings.tracing_backend == "langfuse":
+        return LangfuseTracingRuntime(settings=settings, client=langfuse_client)
     return AllowlistTracingRuntime(settings=settings, exporter=exporter)
 
 

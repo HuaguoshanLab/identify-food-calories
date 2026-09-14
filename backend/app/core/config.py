@@ -23,6 +23,7 @@ ReasoningProviderMode: TypeAlias = Literal["fake", "deepseek"]
 VisionProviderMode: TypeAlias = Literal["fake", "qwen"]
 MemoryProviderMode: TypeAlias = Literal["fake", "mem0"]
 EmbeddingProviderMode: TypeAlias = Literal["disabled", "fake", "dashscope"]
+TracingBackend: TypeAlias = Literal["phoenix", "langfuse"]
 
 
 class Settings(BaseSettings):
@@ -52,10 +53,15 @@ class Settings(BaseSettings):
     deepseek_input_usd_per_m: Decimal | None = None
     deepseek_output_usd_per_m: Decimal | None = None
     tracing_enabled: bool = False
+    tracing_backend: TracingBackend = "phoenix"
     tracing_collector_endpoint: str | None = None
     tracing_hmac_key: SecretStr | None = None
     tracing_service_name: str | None = None
     tracing_service_version: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_base_url: str | None = None
+    langfuse_environment: str = "development"
     retention_checkpoint_event_days: int = 7
     retention_audit_days: int = 30
     retention_deletion_sla_hours: int = 24
@@ -207,7 +213,7 @@ class Settings(BaseSettings):
                 "DEEPSEEK_INPUT_USD_PER_M and DEEPSEEK_OUTPUT_USD_PER_M are required"
             )
         if self.tracing_enabled:
-            if not self.tracing_collector_endpoint:
+            if self.tracing_backend == "phoenix" and not self.tracing_collector_endpoint:
                 raise ConfigurationError(
                     "TRACING_COLLECTOR_ENDPOINT is required when tracing is enabled"
                 )
@@ -221,6 +227,30 @@ class Settings(BaseSettings):
                 raise ConfigurationError(
                     "TRACING_SERVICE_VERSION is required when tracing is enabled"
                 )
+            if self.tracing_backend == "langfuse":
+                if self.app_env == "production":
+                    raise ConfigurationError(
+                        "Langfuse runtime tracing is development-only; production uses Phoenix"
+                    )
+                if not self.langfuse_public_key:
+                    raise ConfigurationError(
+                        "LANGFUSE_PUBLIC_KEY is required for Langfuse tracing"
+                    )
+                if (
+                    self.langfuse_secret_key is None
+                    or not self.langfuse_secret_key.get_secret_value()
+                ):
+                    raise ConfigurationError(
+                        "LANGFUSE_SECRET_KEY is required for Langfuse tracing"
+                    )
+                if not self.langfuse_base_url:
+                    raise ConfigurationError(
+                        "LANGFUSE_BASE_URL is required for Langfuse tracing"
+                    )
+                if not self.langfuse_environment.strip():
+                    raise ConfigurationError(
+                        "LANGFUSE_ENVIRONMENT is required for Langfuse tracing"
+                    )
 
         for variable, value in retention_values.items():
             if value is None or value <= 0:

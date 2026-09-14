@@ -71,6 +71,27 @@ def test_deepseek_provider_is_selected_from_local_settings() -> None:
     assert isinstance(provider, DeepSeekReasoningModelProvider)
 
 
+def test_deepseek_factory_injects_shared_tracing_runtime() -> None:
+    from app.core.tracing import DisabledTracingRuntime
+
+    tracing = DisabledTracingRuntime()
+    provider = create_reasoning_provider(
+        Settings(
+            app_env="local",
+            reasoning_provider_mode="deepseek",
+            deepseek_api_key="test-key",
+            deepseek_model="deepseek-v4-flash",
+            deepseek_price_snapshot_version="price-v1",
+            deepseek_input_usd_per_m="1",
+            deepseek_output_usd_per_m="2",
+            _env_file=None,
+        ),
+        tracing=tracing,
+    )
+
+    assert provider._tracing is tracing  # type: ignore[attr-defined]
+
+
 def test_fake_scripts_safe_results_and_preserves_no_raw_request_text_in_trace() -> None:
     provider = FakeReasoningModelProvider()
     provider.queue_parse_result(

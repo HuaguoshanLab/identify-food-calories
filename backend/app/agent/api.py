@@ -169,22 +169,32 @@ async def _execute(
     planning_command: DietPlanningStartCommand | None = None,
     graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
 ) -> None:
-    # The supervisor owns its Session; a database lock wait must not block HTTP dispatch.
-    try:
-        await asyncio.to_thread(cast(PostgresLeaseSupervisor, runtime.supervisor).claim, run_id=run_id, user_id=user_id)
-    except OperationalError as error:
-        raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
-    await service.execute_run(
-        run_id=run_id,
-        user_id=user_id,
-        graph=runtime.graph,
-        checkpointer=runtime.checkpointer,
-        input_text=text,
-        image_reference=image_reference,
-        resume_payload=resume_payload,
-        planning_command=planning_command,
-        graph_kind=graph_kind,
-    )
+    from app.core.tracing import DisabledTracingRuntime
+
+    tracing = getattr(runtime, "tracing", DisabledTracingRuntime())
+    with tracing.span(
+        "agent.run",
+        {
+            "node.name": graph_kind.value,
+            "thread.fingerprint": tracing.scoped_hmac(str(run_id)),
+        },
+    ):
+        # The supervisor owns its Session; a database lock wait must not block HTTP dispatch.
+        try:
+            await asyncio.to_thread(cast(PostgresLeaseSupervisor, runtime.supervisor).claim, run_id=run_id, user_id=user_id)
+        except OperationalError as error:
+            raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
+        await service.execute_run(
+            run_id=run_id,
+            user_id=user_id,
+            graph=runtime.graph,
+            checkpointer=runtime.checkpointer,
+            input_text=text,
+            image_reference=image_reference,
+            resume_payload=resume_payload,
+            planning_command=planning_command,
+            graph_kind=graph_kind,
+        )
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)

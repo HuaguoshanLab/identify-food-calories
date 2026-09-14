@@ -32,6 +32,24 @@ uv run uvicorn app.main:app --reload
 
 运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
 
+### 本地 Langfuse 调用追踪
+
+根目录的独立 Compose 提供本地 Langfuse Web、Worker、Redis、PostgreSQL、ClickHouse 和 MinIO。先按 [`docs/learning/feature-observability.md`](../docs/learning/feature-observability.md) 生成 `.env.langfuse`、启动服务并在页面创建 `food-agent-dev` 项目。随后把项目 API Key 写入未提交的 `backend/.env`，设置：
+
+```dotenv
+TRACING_ENABLED=true
+TRACING_BACKEND=langfuse
+TRACING_HMAC_KEY=<openssl rand -base64 32>
+TRACING_SERVICE_NAME=food-agent-backend
+TRACING_SERVICE_VERSION=local-dev
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=http://127.0.0.1:3001
+LANGFUSE_ENVIRONMENT=development
+```
+
+重启 FastAPI 后配置才会生效。开发环境可选 Langfuse；生产环境仍只允许 Phoenix。两种后端共享同一字段白名单，禁止发送用户身份、饮食原文、健康信息、图片、完整 Prompt、模型原文或思维链。
+
 `.env.example` 当前开启 `REASONING_PROVIDER_MODE=deepseek`、`VISION_PROVIDER_MODE=qwen` 和 `EMBEDDING_PROVIDER_MODE=dashscope`，但不包含密钥。真实功能需要分别填写 `DEEPSEEK_API_KEY`、`QWEN_API_KEY` 和 `DASHSCOPE_API_KEY`，并确认对应模型、端点和价格快照适用于自己的服务配置。不能只填 DeepSeek Key 就认为图片识别和向量检索也可用。
 
 只需离线调试时，在 `.env` 中将 `REASONING_PROVIDER_MODE`、`VISION_PROVIDER_MODE`、`EMBEDDING_PROVIDER_MODE` 和 `MEMORY_PROVIDER_MODE` 均设为 `fake`；这不提供真实模型能力。长期记忆默认 Fake，真实 Mem0 需另行配置。保持 `APP_ENV=local` 和模板开发库地址。规划种子与 Checkpointer 初始化脚本不读取 `.env`，默认连接本地 `food_agent_dev`；请勿让应用连接到另一数据库。

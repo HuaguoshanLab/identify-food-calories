@@ -88,6 +88,7 @@ class AgentRuntime:
     supervisor: object
     session_factory: Callable[[], object]
     image_safety: object
+    tracing: object
 
 
 class AgentRuntimeFactory(Protocol):

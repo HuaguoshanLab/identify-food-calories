@@ -236,7 +236,7 @@ cd backend
 | `admin-frontend/` | 独立 React + TypeScript + Vite 管理后台；仅调用公开 `/api/v1/admin/*` |
 | `backend/` | 后端运行时、迁移和测试 |
 | `docker-compose.yml` | 本地 pgvector 双库与 Mailpit 编排 |
-| `docker-compose.langfuse.yml` | 默认关闭、仅环回暴露的本地 Langfuse 冻结评测镜像；独立网络、数据库与对象存储卷。 |
+| `docker-compose.langfuse.yml` | 默认关闭、仅环回暴露的本地 Langfuse 开发栈；含 Web、Worker、Redis、独立数据库与对象存储。 |
 | `docs/` | 中文教学与工程使用文档 |
 | `.planning/` | GSD 权威规划、需求、路线图与执行状态 |
 

@@ -8,7 +8,7 @@
 
 - Pydantic Settings 用于运行时输入与环境校验。
 - SQLAlchemy 2 与 Psycopg 3 用于同步 PostgreSQL 连接。
-- OpenTelemetry/Phoenix collector 仅用于 allowlist 后的运行指标，不启动本地 Phoenix UI。
+- Phoenix/OpenTelemetry 与开发环境 Langfuse 仅接收 allowlist 后的运行指标。
 - 不依赖 API 路由、应用服务、领域模块或具体业务 Model。
 
 ## 文件索引
@@ -19,4 +19,4 @@
 | `config.py` | fail-closed 运行配置与测试数据库保护 |
 | `database.py` | 应用 Engine、Session factory 与请求依赖 |
 | `embedding_budget.py` | embedding 调用前的 PostgreSQL 周期预算预留与结算；跨进程共享硬上限。 |
-| `tracing.py` | fail-closed Phoenix/OTel collector 生命周期、HMAC scope 与属性 allowlist |
+| `tracing.py` | fail-closed Phoenix/OTel 或开发 Langfuse 生命周期、HMAC scope 与属性 allowlist |

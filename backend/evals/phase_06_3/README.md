@@ -36,7 +36,7 @@ Langfuse 不是在线 tracing、CI 门禁或发布权威；Phoenix 仍是唯一�
 ```bash
 docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml up -d
 cd backend
-uv run --extra dev python evals/phase_06_3/langfuse_publish.py --publish-langfuse
+uv run --env-file ../.env.langfuse --extra dev python evals/phase_06_3/langfuse_publish.py --publish-langfuse
 ```
 
 发布器在创建客户端前拒绝任何未知字段，以及 query、候选正文、用户、餐食、身体/健康、图片、base64、prompt、Provider、向量、密钥、response 或思维链字段。它只镜像合成 case ID/hash、版本/hash、受控候选 ID、PASS/FAIL 与锁定 assertion score；原始 release 字节与判定在发布前后均保持不变。
@@ -47,7 +47,7 @@ uv run --extra dev python evals/phase_06_3/langfuse_publish.py --publish-langfus
 
 ```bash
 cd backend
-uv run python evals/phase_06_3/langfuse_retention.py purge --older-than 30d --verify --format json
+uv run --env-file ../.env.langfuse python evals/phase_06_3/langfuse_retention.py purge --older-than 30d --verify --format json
 ```
 
 该命令固定只查询 `phase063.frozen_case` 的 trace，使用同一个 UTC cutoff：`timestamp <= now - 30 days`。
