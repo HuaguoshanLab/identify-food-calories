@@ -63,6 +63,7 @@ TRACING_SERVICE_VERSION=local-dev
 LANGFUSE_PUBLIC_KEY=pk-lf-实际值
 LANGFUSE_SECRET_KEY=sk-lf-实际值
 LANGFUSE_BASE_URL=http://127.0.0.1:3001
+LANGFUSE_ENVIRONMENT=development
 ```
 
 后端在宿主机运行时使用 `127.0.0.1:3001`。如果以后把后端也放进 Docker，同一地址会指向后端容器自身，届时必须改为共享网络中的 Langfuse 服务地址。
@@ -90,7 +91,7 @@ uv run --env-file ../.env.langfuse --extra dev \
   python evals/phase_06_3/langfuse_publish.py --publish-langfuse
 ```
 
-然后启动后端并完成一次真实餐食分析，在 Langfuse Tracing 页面应看到 `agent.provider`、营养检索或后台任务 span。页面中不应出现餐食原文、邮箱、图片、Prompt 或模型原文。
+然后启动后端并完成一次真实餐食分析，在 Langfuse Tracing 页面应看到 `agent.run`、`agent.provider` 和营养检索 span。开发环境允许显示经过边界清洗的餐食文字与模型结构化输出；页面中不应出现邮箱、手机号、图片 Base64、密钥、Authorization 或思维链。
 
 离线合同测试：
 
@@ -108,7 +109,7 @@ uv run pytest tests/unit/test_langfuse_export.py \
 ## 理解检查
 
 1. 为什么 `LANGFUSE_SECRET_KEY` 和数据库密码不能写进 `.env.example`？
-2. 为什么业务代码只能传固定元数据，不能直接上传请求对象？
+2. 为什么业务代码只能传明确的结构化调试字段，不能直接上传完整请求对象？
 3. 为什么 FastAPI 生命周期内只创建一个 Langfuse 客户端？
 
 最短阅读顺序：`backend/.env.example` → `backend/app/core/config.py` → `backend/app/core/tracing.py` → `backend/app/main.py`。

@@ -29,6 +29,72 @@ docker compose ps
 
 服务端口与验证命令以 [`backend/README.md`](backend/README.md) 为准。生产密钥只通过未提交的环境变量提供；`.env.example` 仅记录变量名和安全占位值。
 
+### 新电脑首次启动本地 Langfuse
+
+本地 Langfuse 是独立的开发辅助栈，不包含在默认 `docker compose up` 中。新电脑需要先安装并启动 Docker Desktop（或提供 Docker Compose v2 的 Docker Engine），然后在仓库根目录确认：
+
+```bash
+docker version
+docker compose version
+```
+
+复制未提交的环境模板：
+
+```bash
+cp .env.langfuse.example .env.langfuse
+```
+
+为 `.env.langfuse` 中前六个密码或 Secret 分别执行一次 `openssl rand -base64 32`，把每次结果填入对应变量；加密密钥单独执行 `openssl rand -hex 32`，其结果必须正好是 64 位十六进制字符：
+
+```bash
+openssl rand -base64 32
+openssl rand -hex 32
+```
+
+不得继续使用模板中的 `replace-with-...` 占位值，也不要提交 `.env.langfuse`。配置完成后启动整个 Langfuse 栈并等待健康检查：
+
+```bash
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml up -d --wait
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml ps
+```
+
+打开 `http://127.0.0.1:3001`，注册这台电脑上的本地账号，创建 `food-agent-dev` 项目，再到 **Project Settings → API Keys** 创建项目密钥。将 `LANGFUSE_PUBLIC_KEY` 和 `LANGFUSE_SECRET_KEY` 写入 `backend/.env`，并确认下列配置存在：
+
+```dotenv
+TRACING_ENABLED=true
+TRACING_BACKEND=langfuse
+TRACING_HMAC_KEY=<执行 openssl rand -base64 32 后得到的值>
+TRACING_SERVICE_NAME=food-agent-backend
+TRACING_SERVICE_VERSION=local-dev
+LANGFUSE_PUBLIC_KEY=pk-lf-实际值
+LANGFUSE_SECRET_KEY=sk-lf-实际值
+LANGFUSE_BASE_URL=http://127.0.0.1:3001
+LANGFUSE_ENVIRONMENT=development
+```
+
+然后按下文启动或重启 FastAPI。完成一次餐食分析后，在 Langfuse 的 **Tracing → Traces** 中应看到 `agent.run`、`agent.provider` 和营养查询节点。
+
+后续开机只需重新启动容器；数据保存在 Docker volumes 中：
+
+```bash
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml up -d --wait
+```
+
+停止容器但保留数据：
+
+```bash
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml stop
+```
+
+排错时查看服务状态和日志：
+
+```bash
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml ps
+docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml logs --tail=200 langfuse langfuse-worker
+```
+
+更完整的字段解释、安全边界和验证方法见 [`docs/learning/feature-observability.md`](docs/learning/feature-observability.md)。
+
 ## 启动、迁移与验收
 
 先安装 Docker Compose、uv 和 Node.js（>=22.12.0）。以下每个终端都从仓库根目录开始；后端和两个前端是持续运行的进程，需要分别保留终端。不要把测试库当成开发库；`postgres-test` 是自动化测试唯一允许清空的数据源。
