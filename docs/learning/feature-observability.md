@@ -72,6 +72,9 @@ LANGFUSE_BASE_URL=http://127.0.0.1:3001
 - `backend/app/core/config.py::Settings.validate_runtime_boundaries`：缺少密钥时拒绝启动，也拒绝在生产环境选择 Langfuse。
 - `backend/app/core/tracing.py::LangfuseTracingRuntime`：创建客户端、过滤属性并管理生命周期。
 - `TRACING_SERVICE_NAME` 与 `TRACING_SERVICE_VERSION` 写入 OpenTelemetry Resource；`LANGFUSE_ENVIRONMENT` 写入 Langfuse 的环境字段，支持按服务、版本和环境筛选。
+- 开发环境的 Langfuse 会记录经过边界清洗的结构化 Input/Output：`agent.run` 记录命令类型与运行结果，`agent.provider` 记录用户消息、模型结构化输出、Token 和成本，`nutrition.hybrid_search` 记录查询与匹配结果。
+- `agent.provider` 使用 Langfuse Generation 类型并设置模型名，因此 Langfuse 可以单独统计模型调用、Token、成本和延迟；其余步骤保持 Span 类型。
+- 清洗器限制字符串长度、字段数量和嵌套深度，并自动移除密码、密钥、Authorization、思维链、邮箱、手机号和图片 Base64。生产 Phoenix 仍只导出 allowlist 指标属性，不导出业务 Input/Output。
 - `backend/app/main.py::PersistedAgentRuntimeFactory.create`：只创建一个追踪实例并注入 Provider、工具和 Supervisor。
 - `backend/app/providers/reasoning/factory.py::create_reasoning_provider`：把共享实例交给 DeepSeek Provider。
 

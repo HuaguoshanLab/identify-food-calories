@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any, Protocol, cast
@@ -54,7 +55,7 @@ class TracingRuntime(Protocol):
     """The only telemetry surface available to runtime wiring."""
 
     @contextmanager
-    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]: ...
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[TracingSpan]: ...
 
     def scoped_hmac(self, value: str) -> str: ...
 
@@ -71,13 +72,63 @@ class LangfuseClient(Protocol):
     def shutdown(self) -> None: ...
 
 
+class TracingSpan(Protocol):
+    """Narrow mutation surface for structured, sanitized observation payloads."""
+
+    def update(
+        self,
+        *,
+        input: object | None = None,
+        output: object | None = None,
+        usage_details: Mapping[str, int] | None = None,
+        cost_details: Mapping[str, float] | None = None,
+    ) -> None: ...
+
+
+class _NoopTracingSpan:
+    def update(
+        self,
+        *,
+        input: object | None = None,
+        output: object | None = None,
+        usage_details: Mapping[str, int] | None = None,
+        cost_details: Mapping[str, float] | None = None,
+    ) -> None:
+        return None
+
+
+class _LangfuseTracingSpan:
+    def __init__(self, observation: Any) -> None:
+        self._observation = observation
+
+    def update(
+        self,
+        *,
+        input: object | None = None,
+        output: object | None = None,
+        usage_details: Mapping[str, int] | None = None,
+        cost_details: Mapping[str, float] | None = None,
+    ) -> None:
+        payload: dict[str, object] = {}
+        if input is not None:
+            payload["input"] = _sanitize_trace_payload(input)
+        if output is not None:
+            payload["output"] = _sanitize_trace_payload(output)
+        if usage_details is not None:
+            payload["usage_details"] = dict(usage_details)
+        if cost_details is not None:
+            payload["cost_details"] = dict(cost_details)
+        if payload:
+            self._observation.update(**payload)
+
+
 class DisabledTracingRuntime:
     """Do nothing when tracing is disabled; no exporter or global provider is created."""
 
     @contextmanager
-    def span(self, _name: str, _attributes: Mapping[str, object]) -> Iterator[None]:
+    def span(self, _name: str, _attributes: Mapping[str, object]) -> Iterator[TracingSpan]:
         with nullcontext():
-            yield
+            yield _NoopTracingSpan()
 
     def scoped_hmac(self, _value: str) -> str:
         return "disabled"
@@ -155,11 +206,11 @@ class AllowlistTracingRuntime:
         self._hmac_key = hmac_key.encode("utf-8")
 
     @contextmanager
-    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]:
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[TracingSpan]:
         with self._tracer.start_as_current_span(name) as active_span:
             for key, value in _allowlisted_attributes(attributes).items():
                 active_span.set_attribute(key, value)
-            yield
+            yield _NoopTracingSpan()
 
     def scoped_hmac(self, value: str) -> str:
         return hmac.new(self._hmac_key, value.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -226,14 +277,17 @@ class LangfuseTracingRuntime:
         }
 
     @contextmanager
-    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[None]:
+    def span(self, name: str, attributes: Mapping[str, object]) -> Iterator[TracingSpan]:
         metadata = {**self._resource_metadata, **_allowlisted_attributes(attributes)}
+        observation_type = "generation" if name == "agent.provider" else "span"
+        model = metadata.get("provider.model") if observation_type == "generation" else None
         with self._client.start_as_current_observation(
             name=name,
-            as_type="span",
+            as_type=observation_type,
             metadata=metadata,
-        ):
-            yield
+            **({"model": model} if isinstance(model, str) else {}),
+        ) as observation:
+            yield _LangfuseTracingSpan(observation)
 
     def scoped_hmac(self, value: str) -> str:
         return hmac.new(self._hmac_key, value.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -278,3 +332,50 @@ def _allowlisted_attributes(attributes: Mapping[str, object]) -> dict[str, Any]:
         elif isinstance(value, str) and value and len(value) <= 128:
             accepted[key] = value
     return accepted
+
+
+_SENSITIVE_KEY = re.compile(
+    r"(?:password|secret|authorization|api[_-]?key|chain[_-]?of[_-]?thought|reasoning_content)",
+    re.IGNORECASE,
+)
+_EMAIL = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_PHONE = re.compile(r"(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)")
+_BEARER = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
+
+
+def _sanitize_trace_payload(value: object, *, depth: int = 0) -> object:
+    """Bound Langfuse payloads and remove credentials and common direct identifiers."""
+
+    if depth >= 5:
+        return "[truncated]"
+    if value is None or isinstance(value, bool | int | float):
+        return value
+    if isinstance(value, str):
+        if value.startswith("data:image/") or (len(value) > 4096 and "base64" in value[:64].lower()):
+            return "[image omitted]"
+        redacted = _BEARER.sub("Bearer [redacted]", value)
+        redacted = _EMAIL.sub("[email redacted]", redacted)
+        redacted = _PHONE.sub("[phone redacted]", redacted)
+        return redacted[:2000] + ("…" if len(redacted) > 2000 else "")
+    if isinstance(value, Mapping):
+        sanitized: dict[str, object] = {}
+        for index, (key, item) in enumerate(value.items()):
+            if index >= 30:
+                sanitized["[truncated]"] = "too many fields"
+                break
+            safe_key = str(key)[:128]
+            sanitized[safe_key] = (
+                "[redacted]"
+                if _SENSITIVE_KEY.search(safe_key)
+                else _sanitize_trace_payload(item, depth=depth + 1)
+            )
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        items = [_sanitize_trace_payload(item, depth=depth + 1) for item in value[:20]]
+        if len(value) > 20:
+            items.append("[truncated]")
+        return items
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _sanitize_trace_payload(model_dump(mode="json"), depth=depth + 1)
+    return _sanitize_trace_payload(str(value), depth=depth + 1)

@@ -237,7 +237,18 @@ class NutritionService:
                 "tool.name": "search_food_catalog",
                 "tool.version": "nutrition-tools-v1",
             },
-        ):
+        ) as trace_span:
+            if trace_span is not None:
+                trace_span.update(
+                    input={"query": result.query},
+                    output={
+                        "action": result.action.value,
+                        "selected_food": (
+                            result.selected_food.canonical_name if result.selected_food else None
+                        ),
+                        "candidates": [candidate.canonical_name for candidate in result.candidates],
+                    },
+                )
             return result
 
     def calculate_nutrition(

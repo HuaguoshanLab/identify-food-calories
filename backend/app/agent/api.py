@@ -178,13 +178,23 @@ async def _execute(
             "node.name": graph_kind.value,
             "thread.fingerprint": tracing.scoped_hmac(str(run_id)),
         },
-    ):
+    ) as trace_span:
+        if trace_span is not None:
+            trace_span.update(
+                input={
+                    "kind": (
+                        "text" if text is not None else "image" if image_reference is not None
+                        else "resume" if resume_payload is not None else "diet_planning"
+                    ),
+                    **({"text": text} if text is not None else {}),
+                }
+            )
         # The supervisor owns its Session; a database lock wait must not block HTTP dispatch.
         try:
             await asyncio.to_thread(cast(PostgresLeaseSupervisor, runtime.supervisor).claim, run_id=run_id, user_id=user_id)
         except OperationalError as error:
             raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
-        await service.execute_run(
+        completed_run = await service.execute_run(
             run_id=run_id,
             user_id=user_id,
             graph=runtime.graph,
@@ -195,6 +205,15 @@ async def _execute(
             planning_command=planning_command,
             graph_kind=graph_kind,
         )
+        if trace_span is not None and completed_run is not None:
+            trace_span.update(
+                output={
+                    "status": completed_run.status,
+                    "model_calls": completed_run.model_calls,
+                    "tool_calls": completed_run.tool_calls,
+                    "elapsed_ms": completed_run.elapsed_ms,
+                }
+            )
 
 
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)

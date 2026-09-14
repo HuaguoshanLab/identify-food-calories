@@ -146,7 +146,14 @@ class DeepSeekReasoningModelProvider:
                 with self._tracing.span(
                     "agent.provider",
                     {"provider.model": self._model, "node.name": operation},
-                ):
+                ) as trace_span:
+                    if trace_span is not None:
+                        trace_span.update(
+                            input={
+                                "operation": operation,
+                                "messages": [{"role": "user", "content": user_text}],
+                            }
+                        )
                     async with httpx.AsyncClient(
                         timeout=httpx.Timeout(self._timeout_seconds), transport=self._transport
                     ) as client:
@@ -155,6 +162,44 @@ class DeepSeekReasoningModelProvider:
                             headers={"Authorization": f"Bearer {self._api_key}"},
                             json=body,
                         )
+                    latency_ms = int((monotonic() - started) * 1000)
+                    if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                        continue
+                    if response.status_code >= 400:
+                        raise ProviderCallError(
+                            kind=(
+                                ProviderFailureKind.TRANSIENT
+                                if response.status_code in {429, 500, 502, 503, 504}
+                                else ProviderFailureKind.PERMANENT
+                            ),
+                            code=("PROVIDER_TRANSIENT_FAILURE" if response.status_code >= 500 or response.status_code == 429 else "PROVIDER_REQUEST_REJECTED"),
+                        )
+                    try:
+                        document = response.json()
+                        content = _response_output_text(document)
+                        payload = json.loads(content)
+                        if not isinstance(payload, dict):
+                            raise ValueError("response JSON is not an object")
+                        metadata = _metadata(
+                            document=document,
+                            headers=response.headers,
+                            model=self._model,
+                            latency_ms=latency_ms,
+                            input_price=self._input_price,
+                            output_price=self._output_price,
+                        )
+                    except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as error:
+                        raise _schema_error(None) from error
+                    if trace_span is not None:
+                        trace_span.update(
+                            output=payload,
+                            usage_details={
+                                "input": metadata.usage.prompt_tokens,
+                                "output": metadata.usage.completion_tokens,
+                                "total": metadata.usage.total_tokens or 0,
+                            },
+                            cost_details={"total": float(metadata.usage.cost_usd)},
+                        )
             except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as error:
                 # Once a request is prepared, transport loss is not provably pre-send. Never retry.
                 raise ProviderCallError(
@@ -162,34 +207,6 @@ class DeepSeekReasoningModelProvider:
                     code="PROVIDER_OUTCOME_UNKNOWN",
                 ) from error
 
-            latency_ms = int((monotonic() - started) * 1000)
-            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
-                continue
-            if response.status_code >= 400:
-                raise ProviderCallError(
-                    kind=(
-                        ProviderFailureKind.TRANSIENT
-                        if response.status_code in {429, 500, 502, 503, 504}
-                        else ProviderFailureKind.PERMANENT
-                    ),
-                    code=("PROVIDER_TRANSIENT_FAILURE" if response.status_code >= 500 or response.status_code == 429 else "PROVIDER_REQUEST_REJECTED"),
-                )
-            try:
-                document = response.json()
-                content = _response_output_text(document)
-                payload = json.loads(content)
-                if not isinstance(payload, dict):
-                    raise ValueError("response JSON is not an object")
-                metadata = _metadata(
-                    document=document,
-                    headers=response.headers,
-                    model=self._model,
-                    latency_ms=latency_ms,
-                    input_price=self._input_price,
-                    output_price=self._output_price,
-                )
-            except (ValueError, TypeError, json.JSONDecodeError, ValidationError) as error:
-                raise _schema_error(None) from error
             _safe_log(metadata)
             return payload, metadata
         raise AssertionError("unreachable retry loop")

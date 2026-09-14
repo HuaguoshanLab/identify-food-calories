@@ -792,21 +792,28 @@ def test_langfuse_tracing_uses_only_safe_metadata_and_closes_client() -> None:
     from app.core.tracing import create_tracing_runtime
 
     class FakeObservation:
+        def __init__(self) -> None:
+            self.updates: list[dict[str, object]] = []
+
         def __enter__(self) -> "FakeObservation":
             return self
 
         def __exit__(self, *_args: object) -> None:
             return None
 
+        def update(self, **payload: object) -> None:
+            self.updates.append(payload)
+
     class FakeLangfuse:
         def __init__(self) -> None:
             self.observations: list[dict[str, object]] = []
+            self.observation = FakeObservation()
             self.flushes = 0
             self.shutdowns = 0
 
         def start_as_current_observation(self, **payload: object) -> FakeObservation:
             self.observations.append(payload)
-            return FakeObservation()
+            return self.observation
 
         def flush(self) -> None:
             self.flushes += 1
@@ -833,20 +840,37 @@ def test_langfuse_tracing_uses_only_safe_metadata_and_closes_client() -> None:
     with runtime.span(
         "agent.provider",
         {"provider.model": "deepseek-v4-flash", "prompt": "must-not-leak"},
-    ):
-        pass
+    ) as span:
+        span.update(
+            input={"message": "米饭 test@example.com 13800138000", "api_key": "secret"},
+            output={"food": "米饭", "reasoning_content": "hidden"},
+            usage_details={"input": 10, "output": 5, "total": 15},
+            cost_details={"total": 0.01},
+        )
     runtime.flush()
     runtime.shutdown()
 
     assert client.observations == [
         {
             "name": "agent.provider",
-            "as_type": "span",
+            "as_type": "generation",
             "metadata": {
                 "service.name": "food-agent",
                 "service.version": "dev",
                 "provider.model": "deepseek-v4-flash",
             },
+            "model": "deepseek-v4-flash",
+        }
+    ]
+    assert client.observation.updates == [
+        {
+            "input": {
+                "message": "米饭 [email redacted] [phone redacted]",
+                "api_key": "[redacted]",
+            },
+            "output": {"food": "米饭", "reasoning_content": "[redacted]"},
+            "usage_details": {"input": 10, "output": 5, "total": 15},
+            "cost_details": {"total": 0.01},
         }
     ]
     assert client.flushes == 1
