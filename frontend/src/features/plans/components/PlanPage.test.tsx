@@ -70,6 +70,57 @@ function requestWithSnapshot() {
 }
 
 describe('PlanPage', () => {
+  it('accepts sequenced progress during regeneration and reconciles the final snapshot', async () => {
+    const user = userEvent.setup()
+    const fallback = requestWithSnapshot()
+    const threadId = '33333333-3333-4333-8333-333333333333'
+    let finished = false
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === `/agent/threads/${threadId}`) return Response.json({
+        thread_id: threadId, status: finished ? 'completed' : 'partial', revision: 1,
+        report: finished ? report : null,
+      })
+      if (path.endsWith('/events')) return new Response(new ReadableStream<Uint8Array>({
+        start(controller) { streamController = controller },
+      }), { headers: { 'Content-Type': 'text/event-stream' } })
+      return fallback(path, init)
+    })
+    renderPage(request)
+    await screen.findByText('170 cm')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await waitFor(() => expect(streamController).toBeDefined())
+    streamController!.enqueue(new TextEncoder().encode('id: 1\ndata: {"schema_version":"safe-stream-stage.v1","stage":"validation","message":"正在校验"}\n\n'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在校验营养与已确认约束'))
+    expect(screen.queryByText('请确认信息后再发起一次。')).not.toBeInTheDocument()
+    finished = true
+    streamController!.enqueue(new TextEncoder().encode('id: 2\ndata: {"schema_version":"safe-stream-stage.v1","stage":"completed","message":"已完成"}\n\n'))
+    streamController!.close()
+    expect(await screen.findByText('燕麦鸡蛋早餐')).toBeInTheDocument()
+  })
+
+  it('keeps the specific terminal report after replaying earlier stages', async () => {
+    const user = userEvent.setup()
+    const fallback = requestWithSnapshot()
+    const message = '没有满足目录资格和三餐槽位的已启用候选菜。'
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return Response.json({
+        thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 1,
+        report: { stage: 'needs_input', message },
+      })
+      if (path.endsWith('/events')) return new Response('id: 1\ndata: {"schema_version":"safe-stream-stage.v1","stage":"perception","message":"读取资料"}\n\nid: 2\ndata: {"schema_version":"safe-stream-stage.v1","stage":"terminal","message":"未完成"}\n\n')
+      return fallback(path, init)
+    })
+    renderPage(request)
+    await screen.findByText('170 cm')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    await waitFor(() => expect(request.mock.calls.filter(([path]) => path === '/agent/threads/33333333-3333-4333-8333-333333333333')).toHaveLength(2))
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.queryByText('请确认信息后再发起一次。')).not.toBeInTheDocument()
+  })
+
   it('owns read-only profile and memory queries, passes their displayed values into the form, and never writes while pre-filling', async () => {
     const request = requestWithSnapshot()
     renderPage(request)

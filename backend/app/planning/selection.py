@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Callable
 from decimal import Decimal
@@ -16,8 +17,10 @@ from app.planning.schemas import (
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v2"
-MAX_RECIPE_CANDIDATES = 256
+SELECTION_POLICY_VERSION = "planning-selection.v3"
+# Bound catalog calculations separately from the 12-per-slot combination search.
+# The managed catalog already contains several hundred qualified candidates.
+MAX_RECIPE_CANDIDATES = 1024
 MAX_OPTIONS_PER_SLOT = 12
 _METRICS = ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")
 
@@ -31,13 +34,17 @@ def matches_exclusion(exclusions: tuple[str, ...], labels: tuple[str, ...]) -> b
 
     normalized_labels = tuple(normalized_label(label) for label in labels)
     for exclusion in exclusions:
-        term = normalized_label(exclusion)
-        for prefix in ("不要吃", "不能吃", "不吃", "不要", "避免"):
-            if term.startswith(prefix):
-                term = term[len(prefix) :]
-                break
-        if term and any(term in label for label in normalized_labels):
-            return True
+        # Preserve clause boundaries before removing whitespace: “不吃辣 饮食清淡”
+        # contains an exclusion and a preference, not the food name “辣饮食清淡”.
+        clauses = re.split(r"[，。；,;\n]+|(?<=[\u3400-\u9fff])\s+|\s+(?=[\u3400-\u9fff])", exclusion)
+        for clause in clauses:
+            term = normalized_label(clause)
+            for prefix in ("不要吃", "不能吃", "不吃", "不要", "避免"):
+                if term.startswith(prefix):
+                    term = term[len(prefix) :]
+                    break
+            if term and any(term in label for label in normalized_labels):
+                return True
     return False
 
 

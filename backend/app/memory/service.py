@@ -23,6 +23,10 @@ class MemoryValidationError(ValueError):
     """Only audited preference categories and canonical text are acceptable."""
 
 
+class MemorySyncPending(RuntimeError):
+    """An unresolved cloud write must finish before its canonical text can change."""
+
+
 class MemoryService:
     """Owns local authorization; the provider sees only a minimum canonical statement."""
 
@@ -108,6 +112,12 @@ class MemoryService:
     def list_memories(self, *, user_id: uuid.UUID) -> list[PreferenceMemoryLedger]:
         return self._repository.list_active_for_user(user_id=user_id)
 
+    def queue_fake_replica_migration(self, *, memory_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        request_key = sha256(f"mem0-migration.v1|{user_id}|{memory_id}".encode()).hexdigest()
+        return self._persist(lambda: self._repository.queue_fake_replica_migration(
+            ledger_id=memory_id, user_id=user_id, request_key=request_key, now=self._now(),
+        ))
+
     def get_memory(self, *, memory_id: uuid.UUID, user_id: uuid.UUID) -> PreferenceMemoryLedger:
         ledger = self._repository.get_active_for_user(ledger_id=memory_id, user_id=user_id)
         if ledger is None:
@@ -120,7 +130,14 @@ class MemoryService:
             raise MemoryUnavailable("memory is unavailable")
         _category, canonical_text = self._validated(category=ledger.category, canonical_text=canonical_text)
         if ledger.external_memory_id is None:
-            ledger.external_memory_id = self._provider.create(user_id=user_id, category=ledger.category, canonical_text=canonical_text)
+            intent = self._repository.get_provision_for_ledger(ledger_id=ledger.id, user_id=user_id)
+            if intent is not None:
+                if intent.status != "pending":
+                    raise MemorySyncPending("memory synchronization is unresolved")
+                # The worker takes the same ledger lock before claiming. Pending
+                # work will read this edit; a second synchronous create would duplicate it.
+            else:
+                ledger.external_memory_id = self._provider.create(user_id=user_id, category=ledger.category, canonical_text=canonical_text)
         else:
             try:
                 self._provider.update(user_id=user_id, external_id=ledger.external_memory_id, category=ledger.category, canonical_text=canonical_text)

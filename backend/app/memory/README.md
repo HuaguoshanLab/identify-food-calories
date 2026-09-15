@@ -10,6 +10,8 @@
 - Service 只依赖 `MemoryProvider` Protocol；真实 SDK 仅在 `providers.py`。直接表达先用 opaque request key 建本地 ledger/intent，再由 Provider 写入，避免把原句、run ID 或外部 ID 暴露给 DTO。Mem0 direct add 固定 `infer=False`，重试只可用同一用户下的 exact request-key resolver，绝不走语义搜索。
 - 禁止传递完整对话、图片/base64、embedding、provider 响应体或模型推理过程。
 - Fake 副本只在实例内存中。编辑通过账本授权后，仅在 Provider 明确报告 `MemoryReplicaMissing` 时重建副本并绑定新 UUID 编号；不能把超时或归属错误当作缺失，不能依赖 Fake 内存保存权威正文。
+- Mem0 Platform 适配使用 `text` 编辑正文、`filters.user_id` 隔离搜索、`top_k` 限量，重试查询使用 `filters.metadata.request_key`。编辑保留原 metadata，避免丢失恢复写入所需的请求键；所有已确认正文写入均使用 `infer=False`。
+- 切换 Mem0 后，经用户授权的旧 Fake 副本通过 `scripts/migrate_fake_memories.py` 加入现有持久化写入队列。pending 正文编辑沿用待办；claimed/未知结果/失败待办返回 409，不能另开同步写入造成重复。迁移不会修改本地可见性或复活删除记录。
 
 ## 文件索引
 

@@ -91,6 +91,10 @@ export function PlanPage() {
     const needsInput = needsInputReportSchema.safeParse(snapshot.report)
     const foodInput = foodClarificationReportSchema.safeParse(snapshot.report)
     const recipeInput = recipeClarificationReportSchema.safeParse(snapshot.report)
+    if (snapshot.status === 'partial') {
+      setStatusKind('working'); setStatusMessage(undefined); setProgressStage((current) => current ?? 'perception')
+      return
+    }
     if (snapshot.status === 'waiting' && recipeInput.success) {
       const key = JSON.stringify(recipeInput.data.candidates)
       if (recipeOfferKey.current !== key) setSelectedRecipeId(undefined)
@@ -143,7 +147,8 @@ export function PlanPage() {
 
   useAgentEventStream({ threadId: creating ? activeThreadId : threadId, request, onEvent: (event) => {
     try {
-      const safeEvent = parseSafePlanningStageEvent(event)
+      // The transport adds an SSE sequence ID; it is not part of the strict payload.
+      const safeEvent = parseSafePlanningStageEvent({ schema_version: event.schema_version, stage: event.stage, message: event.message })
       setStatusKind(safeEvent.stage === 'completed' ? 'idle' : 'working')
       setStatusMessage(undefined)
       setProgressStage(safeEvent.stage)

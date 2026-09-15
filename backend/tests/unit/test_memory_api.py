@@ -11,7 +11,7 @@ from app.auth.api import get_authenticated_principal
 from app.agent.graph import NoopAgentRuntimeFactory
 from app.main import create_app
 from app.memory.api import get_memory_service
-from app.memory.service import MemoryUnavailable
+from app.memory.service import MemorySyncPending, MemoryUnavailable
 from app.records.models import PreferenceMemoryLedger
 
 
@@ -78,3 +78,16 @@ def test_memory_api_cross_user_updates_and_deletes_are_not_found() -> None:
         assert client.get(f"/api/v1/memories/{memory.id}").status_code == 404
         assert client.patch(f"/api/v1/memories/{memory.id}", json={"canonical_text": "不吃花生"}).status_code == 404
         assert client.delete(f"/api/v1/memories/{memory.id}").status_code == 404
+
+
+def test_memory_api_returns_conflict_for_an_unresolved_cloud_write() -> None:
+    class PendingService(StubMemoryService):
+        def update_memory(self, **kwargs):
+            raise MemorySyncPending()
+
+    owner = uuid.uuid4()
+    memory = _memory(user_id=owner)
+    with _client(principal=owner, service=PendingService(memory)) as client:
+        response = client.patch(f"/api/v1/memories/{memory.id}", json={"canonical_text": "不吃辣"})
+    assert response.status_code == 409
+    assert response.json() == {"detail": "记忆正在同步或同步结果尚未确认，请稍后重试。"}

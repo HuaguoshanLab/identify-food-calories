@@ -54,6 +54,19 @@ LANGFUSE_ENVIRONMENT=development
 
 只需离线调试时，在 `.env` 中将 `REASONING_PROVIDER_MODE`、`VISION_PROVIDER_MODE`、`EMBEDDING_PROVIDER_MODE` 和 `MEMORY_PROVIDER_MODE` 均设为 `fake`；这不提供真实模型能力。长期记忆默认 Fake，真实 Mem0 需另行配置。保持 `APP_ENV=local` 和模板开发库地址。规划种子与 Checkpointer 初始化脚本不读取 `.env`，默认连接本地 `food_agent_dev`；请勿让应用连接到另一数据库。
 
+#### Mem0 云端长期记忆
+
+在未提交的 `backend/.env` 设置 `APP_ENV=local`、`MEMORY_PROVIDER_MODE=mem0`、`MEM0_API_KEY` 和 `MEM0_ENDPOINT=https://api.mem0.ai`，然后重启后端。使用锁定的 `mem0ai` 依赖，无需额外安装 OpenMemory 或自建向量库。`APP_ENV=test` 始终选择 Fake。
+
+新增偏好先保存本地账本并唤醒后台同步；Mem0 仅接收白名单偏好和隔离用户标识。现有 Fake 编号不能直接交给 Mem0 编辑。获得该用户的云端迁移授权后，在 `backend/` 执行（替换用户 UUID）：
+
+```bash
+uv run python scripts/migrate_fake_memories.py --user-id <用户UUID>
+uv run python scripts/migrate_fake_memories.py --user-id <用户UUID> --apply
+```
+
+第一条仅预览，第二条只给该用户的有效 Fake 副本建立迁移待办；重复执行不会重置已迁移或正在同步的记录。保留本地记录编号、正文、来源及创建时间。脚本限定本机 `food_agent_dev`，后端必须运行以处理待办；后台默认轮询间隔为 300 秒，新增记忆和删除操作会主动唤醒。迁移不修改数据库结构；失败保留本地正文和待办，不得用清库或盲目重建处理未知云端结果。
+
 需要本地后台账号时，先在 `.env` 设置 `LOCAL_BOOTSTRAP_ADMIN_PASSWORD`（12–128 个字符），然后另开终端在 `backend/` 执行：
 
 ```bash

@@ -93,7 +93,12 @@ export function useAgentEventStream({ threadId, request, onEvent, onInvalidEvent
           }
           parser.feed(decoder.decode())
           parser.reset()
-          if (!observedGap || reconnects >= 1) return
+          if (!observedGap || reconnects >= 1) {
+            // Replayed stages cannot replace the authoritative final report. A run
+            // may also have completed after the snapshot read before connection.
+            if (!controller.signal.aborted) await fetchSnapshot()
+            return
+          }
           reconnects += 1
         } catch {
           // AuthProvider already performs one refresh/replay for 401. Do not make client loops.

@@ -15,7 +15,7 @@ from app.core.database import get_session
 from app.memory.providers import create_memory_provider
 from app.memory.repository import SqlAlchemyMemoryLedgerRepository
 from app.memory.schemas import MemoryCreateRequest, MemoryResponse, MemoryUpdateRequest
-from app.memory.service import MemoryService, MemoryUnavailable, MemoryValidationError
+from app.memory.service import MemoryService, MemorySyncPending, MemoryUnavailable, MemoryValidationError
 from app.agent.supervisor import PostgresLeaseSupervisor
 
 
@@ -36,11 +36,13 @@ ServiceDependency = Annotated[MemoryService, Depends(get_memory_service)]
 
 
 @router.post("", operation_id="createDirectMemory", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
-def create_direct_memory(payload: MemoryCreateRequest, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
+def create_direct_memory(payload: MemoryCreateRequest, request: Request, principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryResponse:
     try:
-        return MemoryResponse.model_validate(service.create_direct(user_id=principal, category=payload.category, canonical_text=payload.canonical_text))
+        memory = service.create_direct(user_id=principal, category=payload.category, canonical_text=payload.canonical_text)
     except MemoryValidationError:
         raise _validation() from None
+    _wake_memory_worker(request)
+    return MemoryResponse.model_validate(memory)
 
 
 @router.post("/{memory_id}/confirm", operation_id="confirmInferredMemory", response_model=MemoryResponse)
@@ -72,6 +74,8 @@ def update_memory(memory_id: uuid.UUID, payload: MemoryUpdateRequest, principal:
         raise _unavailable() from None
     except MemoryValidationError:
         raise _validation() from None
+    except MemorySyncPending:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="记忆正在同步或同步结果尚未确认，请稍后重试。") from None
 
 
 @router.delete("/{memory_id}", operation_id="deleteMemory", status_code=status.HTTP_204_NO_CONTENT)
@@ -80,6 +84,10 @@ def delete_memory(memory_id: uuid.UUID, request: Request, principal: Authenticat
         service.delete_memory(memory_id=memory_id, user_id=principal)
     except MemoryUnavailable:
         raise _unavailable() from None
+    _wake_memory_worker(request)
+
+
+def _wake_memory_worker(request: Request) -> None:
     runtime = getattr(request.app.state, "agent_runtime", None)
     worker = getattr(getattr(runtime, "supervisor", None), "retention_worker", None)
     if isinstance(getattr(runtime, "supervisor", None), PostgresLeaseSupervisor) and worker is not None:

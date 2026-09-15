@@ -14,7 +14,7 @@ from app.planning.schemas import (
     PreferenceReview,
     REQUIRED_MEAL_SLOTS,
 )
-from app.planning.selection import MAX_RECIPE_CANDIDATES
+from app.planning.selection import MAX_RECIPE_CANDIDATES, matches_exclusion
 from app.planning.service import PlanningService
 from tests.planning.test_planning_service import (
     FakePlanningRepository,
@@ -270,6 +270,35 @@ def test_target_relaxation_cannot_mask_an_independent_macro_ratio_failure():
     )
     assert result.action is PlanValidationAction.REPLAN
     assert result.rule_id == "fat_g-ratio-out-of-range"
+
+
+@pytest.mark.parametrize("statement", ["不吃辣 饮食清淡", "不吃辣，饮食清淡", "不吃辣；不吃花生"])
+def test_compound_preferences_keep_explicit_exclusions(statement):
+    assert matches_exclusion((statement,), ("芋儿鸡", "炖煮", "香辣"))
+    assert not matches_exclusion((statement,), ("蒸蛋", "清淡"))
+
+
+def test_english_food_name_is_not_split_into_unrelated_exclusions():
+    assert matches_exclusion(("peanut butter",), ("peanut butter toast",))
+    assert not matches_exclusion(("peanut butter",), ("butter toast",))
+
+
+def test_catalog_with_612_candidates_still_composes_and_validates_three_meals():
+    service, repository, small, _ = setup_pool()
+    repository.candidates = [
+        original.model_copy(update={"id": uuid.UUID(int=index + 1)})
+        for index in range(612)
+        for original in [small[index % 3]]
+    ]
+    result = service.compose_daily_meals(
+        catalog_version=None, target=target("1800"),
+        preferences=PreferenceReview(confirmed=True, exclusions=("不吃辣 饮食清淡",)),
+    )
+    assert result.action is PlanValidationAction.PASS
+    assert tuple(meal.slot for meal in result.meals) == REQUIRED_MEAL_SLOTS
+    assert service.validate_plan(
+        target=target("1800"), meals=result.meals,
+    ).action is PlanValidationAction.PASS
 
 
 def test_candidate_limit_stops_before_unbounded_nutrition_queries():

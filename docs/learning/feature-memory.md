@@ -164,6 +164,14 @@ self._persist(lambda: None)
 
 关键入口：[service.py](../../backend/app/memory/service.py) 的 `update_memory`、[providers.py](../../backend/app/memory/providers.py) 的 `FakeMemoryProvider.update/create`。Fake 新编号使用 UUID，避免不同请求、进程或删除后复用相同编号。真实 Mem0 适配器不将错误自动归类为副本缺失，本次恢复针对 Fake 的生命周期问题。
 
+### 4.5 配置真实 Mem0 与迁移旧副本
+
+配置和启动命令见 [backend/README.md](../../backend/README.md)。云服务通过 `MemoryClient` 调用：编辑用 `text`，搜索用户标识放在 `filters` 中，精确重试查询用 `metadata.request_key`。本地确认后的正文使用 `infer=False`，避免云端再次拆分或改写；编辑仅修改正文，保留用于追踪原写入的 metadata。
+
+切换配置不会自动迁移旧 Fake 编号。获得用户对云端同步的授权后，[migrate_fake_memories.py](../../backend/scripts/migrate_fake_memories.py) 按用户预览或入队：本地锁定有效账本 → 为 Fake 副本建立稳定的迁移请求键 → 后台按请求键查询/写入 → 绑定真实编号。原本地记录编号与正文保持不变，未知写入结果仍只能查询恢复。它不是创建一个新用户偏好，也不会复活已经删除的记忆。
+
+新增记忆提交后会主动唤醒后台同步。同步未开始时编辑只改本地正文，后台读取最新正文；同步已经开始或结果未确认时，接口返回 409，避免另一笔同步创建与原任务竞争。关键入口是 `MemoryService.update_memory`、`queue_fake_replica_migration` 和 `SqlAlchemyMemoryLedgerRepository.queue_fake_replica_migration`。
+
 ## 5. 换一种输入，会走哪条路
 
 | 情况 | 判断与处理 | 应观察的结果 |
@@ -186,6 +194,10 @@ cd backend
 本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
 
 2026-09-15 修复验证：`tests/memory` 与 `tests/unit/test_memory_api.py` 共 17 项通过；真实 PostgreSQL 的公开记忆 API、删除重试、幂等写入三组测试共 5 项通过。覆盖连续请求和应用重建后保存、外部编号不复用、他人请求 404、超时不盲目创建。内置浏览器在隔离环境 `http://127.0.0.1:5186` 使用独立账号验证“不吃辣 饮食清淡”保存后返回列表，并在真实重启测试后端后再次编辑成功；测试不代表真实 Mem0 服务可用性。
+
+2026-09-15 真实 Mem0 接入追加验证：`tests/memory` 与 `tests/unit/test_memory_api.py` 共 23 项通过；`test_memory_direct_write_idempotency.py` 与 `test_memory_deletion_chain.py` 共 5 项 PostgreSQL 测试通过，Ruff 通过。SDK 合约测试使用已安装客户端及 HTTPX MockTransport，不调用云端。另执行了获授权的真实云端联调：认证、禁用推断写入、请求键查找、编辑、搜索、另一用户查不到该记忆和删除均成功。
+
+内置浏览器在 `http://127.0.0.1:5178/app/me/memories` 使用独立测试账号，走公开接口新增后，从页面保存编辑并确认来源变为“用户手动维护”，再确认删除。云端正文更新和 request key 保留均核实；删除待办完成，云端精确查询为空。本次测试记忆已清理。用户单独授权的 1 条旧 Fake 记忆已迁移，原本地编号保留，云端编号经同用户请求键核对。未重跑完整后端或 Playwright E2E，也未验证真实云端故障注入；超时恢复与删除竞争由隔离测试覆盖。
 
 ## 7. 读完应该能回答什么
 

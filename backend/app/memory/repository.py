@@ -25,6 +25,36 @@ class SqlAlchemyMemoryLedgerRepository:
         self._session.flush()
         return ledger
 
+    def queue_fake_replica_migration(self, *, ledger_id: uuid.UUID, user_id: uuid.UUID, request_key: str, now: datetime) -> bool:
+        """Rebind a confirmed fake via the existing durable, owner-scoped write intent."""
+        ledger = self.get_active_for_user(ledger_id=ledger_id, user_id=user_id, for_update=True)
+        if ledger is None or not (ledger.external_memory_id or "").startswith(("fake-memory-", "fake-direct-")):
+            return False
+        intent = self._session.scalar(select(MemoryProvisionOutbox).where(
+            MemoryProvisionOutbox.ledger_id == ledger_id,
+            MemoryProvisionOutbox.user_id == user_id,
+        ).with_for_update())
+        # Never overwrite an in-flight/uncertain operation or resurrect a cancelled intent.
+        if intent is not None and (intent.status != "provisioned" or intent.deleted_at is not None):
+            return False
+        if intent is None:
+            intent = MemoryProvisionOutbox(
+                id=uuid.uuid4(), user_id=user_id, ledger_id=ledger_id,
+                operation="provision_external_memory", created_at=now,
+            )
+            self._session.add(intent)
+        intent.request_key = request_key
+        intent.status = "pending"
+        intent.attempt = 0
+        intent.not_before = now
+        intent.claimed_at = None
+        intent.completed_at = None
+        intent.updated_at = now
+        ledger.external_memory_id = None
+        ledger.provisioning_status = "pending"
+        self._session.flush()
+        return True
+
     def get_active_for_user(self, *, ledger_id: uuid.UUID, user_id: uuid.UUID, for_update: bool = False) -> PreferenceMemoryLedger | None:
         statement = select(PreferenceMemoryLedger).where(PreferenceMemoryLedger.id == ledger_id, PreferenceMemoryLedger.user_id == user_id, PreferenceMemoryLedger.is_active.is_(True), PreferenceMemoryLedger.deleted_at.is_(None))
         if for_update:

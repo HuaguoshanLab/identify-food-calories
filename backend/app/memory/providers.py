@@ -113,18 +113,19 @@ class Mem0MemoryProvider:
             messages=[{"role": "user", "content": canonical_text}],
             user_id=str(user_id),
             metadata={"category": category, "source": "food-agent"},
+            infer=False,
         )
-        candidates = result.get("results") or result.get("memories") or [result]
-        external_id = next((entry.get("id") for entry in candidates if isinstance(entry, dict) and entry.get("id")), None)
-        if not isinstance(external_id, str):
-            raise RuntimeError("Mem0 create returned no opaque memory id")
-        return external_id
+        entries = self._result_entries(result)
+        ids = [entry["id"] for entry in entries if isinstance(entry.get("id"), str)]
+        if len(ids) != 1:
+            raise RuntimeError("Mem0 create must return exactly one id")
+        return ids[0]
 
     def resolve_direct_by_request_key(
         self, *, user_id: uuid.UUID, request_key: str
     ) -> str | None:
         result = self._client.get_all(
-            filters={"user_id": str(user_id), "request_key": request_key},
+            filters={"user_id": str(user_id), "metadata": {"request_key": request_key}},
             page_size=2,
         )
         entries = self._result_entries(result)
@@ -165,15 +166,17 @@ class Mem0MemoryProvider:
         return ids[0]
 
     def update(self, *, user_id: uuid.UUID, external_id: str, category: str, canonical_text: str) -> None:
-        # user_id is recorded only as metadata; ownership was established by the local ledger.
-        self._client.update(external_id, data=canonical_text, metadata={"category": category, "user_id": str(user_id)})
+        # Preserve the immutable request key used to resolve uncertain writes.
+        # Category and ownership cannot be changed by the local edit endpoint.
+        del user_id, category
+        self._client.update(external_id, text=canonical_text)
 
     def delete(self, *, user_id: uuid.UUID, external_id: str) -> None:
         del user_id  # The ledger checked it before this opaque external ID reaches the adapter.
         self._client.delete(external_id)
 
     def search(self, *, user_id: uuid.UUID, query: str, limit: int) -> list[MemorySearchHit]:
-        result = self._client.search(query, user_id=str(user_id), limit=limit)
+        result = self._client.search(query, filters={"user_id": str(user_id)}, top_k=limit)
         entries = result.get("results", result) if isinstance(result, dict) else result
         return [MemorySearchHit(external_id=str(entry["id"]), canonical_text=str(entry.get("memory", ""))) for entry in entries if isinstance(entry, dict) and entry.get("id") and entry.get("memory")]
 

@@ -88,6 +88,34 @@ def _user_and_run(session: Session) -> tuple[User, uuid.UUID]:
     return user, run.id
 
 
+def test_fake_replica_migration_is_owned_idempotent_and_preserves_the_ledger() -> None:
+    engine, provider = _prepare()
+    try:
+        with Session(engine) as session:
+            user, _ = _user_and_run(session)
+            service = _service(session, provider)
+            memory = service.create_direct(user_id=user.id, category="avoidance", canonical_text="不吃辣")
+            assert service.process_due_provisioning() == (1, 0)
+            original_id, original_created_at = memory.id, memory.created_at
+            assert not service.queue_fake_replica_migration(memory_id=memory.id, user_id=uuid.uuid4())
+            assert memory.external_memory_id.startswith("fake-")
+            assert service.queue_fake_replica_migration(memory_id=memory.id, user_id=user.id)
+            assert not service.queue_fake_replica_migration(memory_id=memory.id, user_id=user.id)
+            assert memory.external_memory_id is None
+            assert memory.is_active and memory.canonical_text == "不吃辣"
+            assert memory.id == original_id and memory.created_at == original_created_at
+            assert service.process_due_provisioning() == (1, 0)
+            assert len(provider.direct_records) == 2
+            # After a cloud ID is bound, repeated migration cannot reset it.
+            memory.external_memory_id = str(uuid.uuid4())
+            session.commit()
+            assert not service.queue_fake_replica_migration(memory_id=memory.id, user_id=user.id)
+            service.delete_memory(memory_id=memory.id, user_id=user.id)
+            assert not service.queue_fake_replica_migration(memory_id=memory.id, user_id=user.id)
+    finally:
+        engine.dispose()
+
+
 def test_pg_concurrent_capture_creates_one_ledger_intent_and_remote_record() -> None:
     engine, provider = _prepare()
     try:

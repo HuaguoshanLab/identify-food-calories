@@ -9,7 +9,7 @@ import pytest
 
 from app.memory.providers import FakeMemoryProvider
 from app.memory.providers import create_memory_provider
-from app.memory.service import MemoryService, MemoryUnavailable
+from app.memory.service import MemoryService, MemorySyncPending, MemoryUnavailable
 from app.core.config import ConfigurationError, Settings
 from app.records.models import MemoryDeletionOutbox, MemoryProvisionOutbox, PreferenceMemoryLedger
 
@@ -303,6 +303,31 @@ def test_fake_replica_ids_do_not_collide_across_instances_or_after_deletion() ->
 def test_mem0_mode_fails_closed_without_its_required_secret_and_endpoint() -> None:
     with pytest.raises(ConfigurationError, match="MEM0_API_KEY"):
         create_memory_provider(Settings(app_env="local", memory_provider_mode="mem0", _env_file=None))
+
+
+def test_edit_pending_memory_uses_the_existing_intent_without_a_second_cloud_create() -> None:
+    repository, provider = FakeMemoryLedgerRepository(), FakeMemoryProvider()
+    service = _service(repository, provider)
+    owner = uuid.uuid4()
+    memory = service.create_direct(user_id=owner, category="avoidance", canonical_text="不吃辣")
+    service.update_memory(memory_id=memory.id, user_id=owner, canonical_text="不吃辣 饮食清淡")
+    assert provider.calls == []
+    assert service.process_due_provisioning() == (1, 0)
+    assert len(provider.direct_records) == 1
+    assert next(iter(provider.direct_records.values()))[2] == "不吃辣 饮食清淡"
+
+
+@pytest.mark.parametrize("status", ["claimed", "outcome_unknown", "failed"])
+def test_edit_unresolved_memory_does_not_race_the_cloud_write(status) -> None:
+    repository, provider = FakeMemoryLedgerRepository(), FakeMemoryProvider()
+    service = _service(repository, provider)
+    owner = uuid.uuid4()
+    memory = service.create_direct(user_id=owner, category="avoidance", canonical_text="不吃辣")
+    repository.provision_outbox[0].status = status
+    with pytest.raises(MemorySyncPending):
+        service.update_memory(memory_id=memory.id, user_id=owner, canonical_text="不吃花生")
+    assert memory.canonical_text == "不吃辣"
+    assert provider.calls == []
 
 
 def test_direct_preference_creates_auditable_pending_provision_without_provider_call() -> None:
