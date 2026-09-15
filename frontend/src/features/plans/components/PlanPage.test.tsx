@@ -58,10 +58,7 @@ function requestWithSnapshot() {
     void init
     if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-    if (path === '/memories') return new Response(JSON.stringify([
-      { id: '11111111-1111-4111-8111-111111111111', category: 'avoidance', source_kind: 'user_maintained', canonical_text: '花生', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
-      { id: '22222222-2222-4222-8222-222222222222', category: 'stable_preference', source_kind: 'user_maintained', canonical_text: '清淡', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
-    ]))
+    if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: ['花生'], taste_preferences: ['清淡'] }))
     if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
     if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
     if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
@@ -130,7 +127,7 @@ describe('PlanPage', () => {
     expect(screen.getByText('口味：已确认 清淡')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '管理饮食偏好' })).toHaveAttribute('href', '/app/me/memories')
     expect(request.mock.calls.filter(([path, init]) => path === '/planning/profile' && init?.method && init.method !== 'GET')).toHaveLength(0)
-    expect(request.mock.calls.filter(([path, init]) => path === '/memories' && init?.method && init.method !== 'GET')).toHaveLength(0)
+    expect(request.mock.calls.filter(([path, init]) => path === '/memories/preference-summary' && init?.method && init.method !== 'GET')).toHaveLength(0)
   })
 
   it('only sends displayed and confirmed values after submit, then renders the controlled three-meal snapshot in order', async () => {
@@ -169,7 +166,7 @@ describe('PlanPage', () => {
     request.mockImplementation(async (path: string) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
         thread_id: '33333333-3333-4333-8333-333333333333', status: 'retryable', revision: 1,
         report: { stage: 'needs_input', message: '我们不能为你当前描述的情况生成个性化餐单。孕期或哺乳期、未成年人、疾病或用药、进食障碍或自伤，以及极端减重/增重目标需要专业评估。请咨询医生或注册营养师。你仍可以查看通用、非医疗的均衡饮食原则。' },
@@ -188,16 +185,20 @@ describe('PlanPage', () => {
     expect(screen.queryByText(/provider|token|reasoning|raw-event/i)).not.toBeInTheDocument()
   })
 
-  it('does not mislabel bounded candidate exhaustion as a health-scope refusal', async () => {
+  it.each([
+    '按已确认的忌口筛选后，早餐没有可用候选。请核对饮食偏好，或联系管理员补充合适菜谱；系统不会自动放宽忌口。',
+    '本次筛选时间或计算额度已用完，尚未找到完整餐单。请稍后重试；若反复出现，请联系管理员调整筛选预算。',
+    '午餐没有满足当前要求的可用候选。请更换菜品，或联系管理员补充、启用合格菜谱。',
+  ])('preserves the actionable failure without a health refusal: %s', async (message) => {
     const user = userEvent.setup()
     const request = requestWithSnapshot()
     request.mockImplementation(async (path: string) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning' || path.startsWith('/agent/threads/33333333')) return new Response(JSON.stringify({
         thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3,
-        report: { stage: 'needs_input', message: '当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。' },
+        report: { stage: 'needs_input', message },
       }))
       return new Response('', { status: 500 })
     })
@@ -208,8 +209,8 @@ describe('PlanPage', () => {
     await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
 
     const exhaustionTitle = await screen.findByText('暂时无法生成计划')
-    expect(exhaustionTitle.closest('[role="alert"]')).toHaveTextContent('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')
-    expect(screen.getByText('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')).toBeInTheDocument()
+    expect(exhaustionTitle.closest('[role="alert"]')).toHaveTextContent(message)
+    expect(screen.getByText(message)).toBeInTheDocument()
     expect(screen.queryByText('暂不能生成个性化餐单')).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|node|stack|reasoning|raw payload/i)).not.toBeInTheDocument()
   })
@@ -224,7 +225,7 @@ describe('PlanPage', () => {
     const request = vi.fn(async (path: string) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: saved }))
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === `/agent/threads/${threadId}`) return new Response(JSON.stringify({ thread_id: threadId, status: 'completed', revision: 2, report: adjustedReport }))
       if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
       return new Response('', { status: 500 })
@@ -243,7 +244,7 @@ describe('PlanPage', () => {
       void init
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
         adjusted = true
@@ -296,7 +297,7 @@ describe('PlanPage', () => {
     const request = vi.fn(async (path: string, init?: RequestInit) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
         inputBodies.push(JSON.parse(String(init?.body)))
@@ -355,7 +356,7 @@ describe('PlanPage', () => {
     const request = vi.fn(async (path: string, init?: RequestInit) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed', revision: 1, report }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') {
         inputBodies.push(JSON.parse(String(init?.body)))
@@ -424,7 +425,7 @@ describe('PlanPage', () => {
     const request = vi.fn(async (path: string) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'waiting', revision: 1, report: snapshot }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333/input') { snapshot = relaxed; return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'completed' })) }
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: snapshot === ambiguous ? 'waiting' : 'completed', revision: 2, report: snapshot }))
@@ -455,7 +456,7 @@ describe('PlanPage', () => {
     const request = vi.fn(async (path: string) => {
       if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: null }))
     if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))
       if (path === '/agent/threads/33333333-3333-4333-8333-333333333333') return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'terminal', revision: 3, report: limit }))
       if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })

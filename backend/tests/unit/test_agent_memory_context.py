@@ -37,9 +37,9 @@ class FakeExplicitPreferenceCaptureService:
         self.calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
 
     def capture_explicit_preferences(
-        self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
+        self, *, user_id: uuid.UUID, source_run_id: uuid.UUID, statement: str
     ) -> tuple[CapturedPreferenceSummary, ...]:
-        self.calls.append((user_id, run_id, statement))
+        self.calls.append((user_id, source_run_id, statement))
         if statement == "米饭 100 克，我不吃辣":
             return (CapturedPreferenceSummary(category="avoidance", canonical_text="不吃辣"),)
         return ()

@@ -32,7 +32,7 @@ from app.agent.state import (
     DietPlanningState,
 )
 from app.agent.tools import NutritionToolAdapter, PlanningToolAdapter
-from app.planning.schemas import DailyTarget, MealSlot, PlanValidationAction, PlannedMeal, PreferenceReview
+from app.planning.schemas import DailyTarget, MealSlot, PlanValidationAction, PlanValidationResult, PlannedMeal, PreferenceReview
 from app.images.schemas import ValidatedImageReference
 from app.nutrition.schemas import (
     FoodSearchInput,
@@ -287,13 +287,13 @@ class MealAnalysisGraph:
             raise AgentRuntimeStageError.from_exception(
                 stage="preference_capture", error=error
             ) from None
-        safe_result = tuple((item.category, item.canonical_text) for item in captured)
+        safe_result = tuple((item.category, item.canonical_text, item.scope) for item in captured)
         return state.model_copy(
             update={
                 "explicit_preference_capture_completed": True,
                 "tool_summaries": (*state.tool_summaries, StateToolSummary(
                     tool_name="capture_explicit_preferences",
-                    tool_version="memory-direct-capture.v1",
+                    tool_version="explicit-preferences.v2",
                     action="captured" if safe_result else "no_match",
                     result_digest=_digest(safe_result),
                 )),
@@ -967,6 +967,8 @@ class DietPlanningGraph:
             )
 
         current = state
+        if current.budget.tool_calls >= 12 or current.replan_count >= 3:
+            return self._budget_limit(current)
         target_result = self._tools.calculate_daily_target(
             profile=current.profile, preferences=current.preferences
         )
@@ -979,74 +981,72 @@ class DietPlanningGraph:
         # A health-scope refusal must not persist the transient command as a profile.  Saving is
         # intentionally deferred until the deterministic health guard has accepted the request.
         if current.save_profile and not current.profile_save_completed:
+            if current.budget.tool_calls >= 12:
+                return self._budget_limit(current)
             current = self._call_profile_upsert(current)
 
-        while current.replan_count < 3:
-            composition = self._tools.compose_daily_plan(
-                user_id=current.user_id,
-                target=target_result.target,
-                preferences=current.preferences,
-                replan_count=current.replan_count,
-            )
-            current = self._record_tool(
-                current, "compose_plan", composition.action.value, composition
-            )
-            if composition.action is not PlanValidationAction.PASS:
-                current = current.model_copy(update={"replan_count": current.replan_count + 1})
-                continue
-
-            validation = self._tools.validate_daily_plan(
-                target=target_result.target,
-                meals=composition.meals,
-                replan_count=current.replan_count,
-            )
-            current = self._record_tool(
-                current, "validate_plan", validation.action.value, validation
-            )
-            if validation.action is PlanValidationAction.PASS:
-                report = _planning_report(target=target_result.target, meals=composition.meals)
-                return current.model_copy(
-                    update={
-                        "meals": composition.meals,
-                        "next_action": DietPlanningAction.COMPLETE,
-                        "status": AgentRuntimeStatus.COMPLETED,
-                        "report": report,
-                    }
-                )
-            if validation.action is PlanValidationAction.RELAX:
-                # Relaxation is a bounded, deterministic fallback.  It must remain
-                # visible in the public report instead of being mistaken for a hard
-                # target pass or falling through into a meaningless retry loop.
-                report = _planning_report(target=target_result.target, meals=composition.meals)
-                report.update(
-                    _relaxation_projection(
-                        target=target_result.target,
-                        meals=composition.meals,
-                        reason=validation.safe_message,
-                    )
-                )
-                return current.model_copy(
-                    update={
-                        "meals": composition.meals,
-                        "next_action": DietPlanningAction.COMPLETE,
-                        "status": AgentRuntimeStatus.COMPLETED,
-                        "report": report,
-                    }
-                )
-            if validation.action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
-                return self._safe_terminal(current, validation.action, validation.safe_message)
-            current = current.model_copy(update={"replan_count": current.replan_count + 1})
-
-        return current.model_copy(
-            update={
-                "status": AgentRuntimeStatus.LIMIT_REACHED,
-                "next_action": DietPlanningAction.NEEDS_INPUT,
-                "report": {
-                    "stage": "needs_input",
-                    "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
-                },
-            }
+        if current.replan_count >= 3 or current.budget.tool_calls >= 12:
+            return self._budget_limit(current)
+        composition = self._tools.compose_daily_plan(
+            user_id=current.user_id, target=target_result.target,
+            preferences=current.preferences, replan_count=current.replan_count,
         )
+        current = self._record_tool(current, "compose_plan", composition.action.value, composition)
+        if composition.action is not PlanValidationAction.PASS:
+            # A deterministic search with unchanged inputs has no useful retry.
+            # Preserve the actual cause instead of replacing it with a loop-limit message.
+            return self._safe_terminal(current, composition.action, composition.safe_message)
+        current, validation = self._validate_composed_meals(current, target_result.target, composition.meals)
+        if validation is None:
+            return current
+        if validation.action is PlanValidationAction.PASS:
+            report = _planning_report(target=target_result.target, meals=composition.meals)
+            return current.model_copy(
+                update={
+                    "meals": composition.meals,
+                    "next_action": DietPlanningAction.COMPLETE,
+                    "status": AgentRuntimeStatus.COMPLETED,
+                    "report": report,
+                }
+            )
+        if validation.action is PlanValidationAction.RELAX:
+            # Relaxation is a bounded, deterministic fallback.  It must remain
+            # visible in the public report instead of being mistaken for a hard
+            # target pass or falling through into a meaningless retry loop.
+            report = _planning_report(target=target_result.target, meals=composition.meals)
+            report.update(
+                _relaxation_projection(
+                    target=target_result.target,
+                    meals=composition.meals,
+                    reason=validation.safe_message,
+                )
+            )
+            return current.model_copy(
+                update={
+                    "meals": composition.meals,
+                    "next_action": DietPlanningAction.COMPLETE,
+                    "status": AgentRuntimeStatus.COMPLETED,
+                    "report": report,
+                }
+            )
+        return self._safe_terminal(current, validation.action, validation.safe_message)
+
+    def _validate_composed_meals(
+        self, state: DietPlanningState, target: DailyTarget, meals: tuple[PlannedMeal, ...],
+    ) -> tuple[DietPlanningState, PlanValidationResult | None]:
+        current = state
+        for allow_relaxation in (False, True):
+            if current.budget.tool_calls >= 12:
+                return self._budget_limit(current), None
+            result = self._tools.validate_daily_plan(
+                target=target, meals=meals, allow_target_relaxation=allow_relaxation,
+            )
+            current = self._record_tool(current, "validate_plan", result.action.value, result)
+            # The domain validator alone authorizes one changed-policy retry.
+            # Both initial planning and slot replacement reuse computed meals.
+            if allow_relaxation or result.action is not PlanValidationAction.REPLAN or not result.relaxation_available:
+                return current, result
+        raise AssertionError("bounded validation must return")
 
     async def _apply_adjustment(self, state: DietPlanningState, resume: dict[str, object]) -> DietPlanningState:
         if state.replan_count >= 3:
@@ -1247,6 +1247,8 @@ class DietPlanningGraph:
                 return self._recipe_clarification(current, options, "同一菜品有多种菜谱，请确认份量和做法。")
             selected_recipe_id, selected_recipe_revision = options[0].recipe_id, options[0].revision
         current = current.model_copy(update={"pending_recipe_candidates": ()})
+        if current.budget.tool_calls >= 12:
+            return self._budget_limit(current)
         composition = self._tools.replace_planning_slot(
             user_id=current.user_id,
             target=target,
@@ -1263,10 +1265,9 @@ class DietPlanningGraph:
         current = self._record_tool(current, "replace_planning_slot", composition.action.value, composition)
         if composition.action is not PlanValidationAction.PASS:
             return self._safe_terminal(current, composition.action, composition.safe_message)
-        validation = self._tools.validate_daily_plan(
-            target=target, meals=composition.meals, replan_count=current.replan_count
-        )
-        current = self._record_tool(current, "validate_plan", validation.action.value, validation)
+        current, validation = self._validate_composed_meals(current, target, composition.meals)
+        if validation is None:
+            return current
         if validation.action is PlanValidationAction.BLOCK_HEALTH_SCOPE:
             return self._safe_terminal(current, validation.action, validation.safe_message)
         if validation.action is PlanValidationAction.NEEDS_INPUT:

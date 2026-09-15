@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, ChevronRight, Sparkles } from 'lucide-react'
 
-import { listMemories } from '@/features/memory/api/client'
+import { getMemoryPreferenceSummary } from '@/features/memory/api/client'
 import { getPlanningProfile, PlanningApiError, startDietPlanning } from '../api/client'
 import { profileGoalFormSchema, type DietPlanningStartResponse, type PlanningProfile, type ProfileGoalFormValues } from '../api/schemas'
 
@@ -38,13 +38,16 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
   const [pageError, setPageError] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const profileQuery = useQuery({ queryKey: ['planning-profile'], queryFn: () => getPlanningProfile(request), enabled: initialValues === undefined })
-  const memoriesQuery = useQuery({ queryKey: ['planning-preference-summary'], queryFn: () => listMemories(request), enabled: preferenceSummaries === undefined })
+  const memoriesQuery = useQuery({ queryKey: ['planning-preference-summary'], queryFn: () => getMemoryPreferenceSummary(request), enabled: preferenceSummaries === undefined })
   const form = useForm<ProfileGoalFormValues>({ defaultValues: emptyValues, resolver: zodResolver(profileGoalFormSchema) })
   const profile = initialValues === undefined ? profileQuery.data : initialValues
-  const preferences = preferenceSummaries ?? {
-    exclusions: (memoriesQuery.data ?? []).filter((memory) => memory.category === 'avoidance').map((memory) => memory.canonical_text),
-    tastePreferences: (memoriesQuery.data ?? []).filter((memory) => memory.category === 'stable_preference').map((memory) => memory.canonical_text),
-  }
+  const preferences = preferenceSummaries ?? memoriesQuery.data ?? { exclusions: [], tastePreferences: [] }
+  const preferenceKey = JSON.stringify(preferences)
+
+  useEffect(() => {
+    // Background refetches can change what is being confirmed; never reuse stale consent.
+    form.setValue('preference_reviewed', false)
+  }, [form, preferenceKey])
 
   useEffect(() => {
     if (!profile) return
@@ -56,7 +59,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
   }, [form, profile])
 
   const submit = form.handleSubmit(async (values) => {
-    if (!profile || profileLoadError || profileQuery.isError) return
+    if (!profile || profileLoadError || profileQuery.isError || preferenceLoadError || memoriesQuery.isError) return
     setPageError('')
     setStatusMessage('')
     try {
@@ -99,7 +102,7 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
         {([['身高', `${Number(profile.height_cm)} cm`], ['体重', `${Number(profile.weight_kg)} kg`], ['年龄', `${profile.age_years} 岁`], ['估算参数', profile.formula_variant === 'mifflin_st_jeor_male' ? '男性参数' : '女性参数'], ['活动水平', activityLabels[profile.activity_level]], ['饮食目标', `${goalLabels[profile.goal]} · ${speedLabels[profile.goal_speed]}`]]).map(([label, value], index) => <div className={`min-w-0 rounded-md bg-muted p-2 text-center ${index >= 4 ? 'col-span-2' : ''}`} key={label}><dt className="text-[13px] text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-semibold tabular-nums">{value}</dd></div>)}
       </dl>
     </section> : <section className="flex gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"><span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"><AlertTriangle aria-hidden="true" className="size-5" /></span><div><h2 className="text-base font-semibold">尚未设置身体资料</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">请先完善身体资料与目标，再生成适合你的餐单参考。</p><a className="mt-3 inline-flex min-h-11 w-40 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground" href="/app/me/profile">去填写<ChevronRight aria-hidden="true" className="size-4" /></a></div></section>}
-    <section aria-labelledby="preference-title" className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm leading-6 shadow-sm"><h2 className="text-base font-semibold leading-6" id="preference-title">本次饮食偏好</h2>{showPreferenceLoadError ? <Alert variant="destructive"><AlertDescription>暂时无法读取饮食偏好，请稍后重试。</AlertDescription></Alert> : <><p>忌口：{preferences.exclusions.length ? `已确认 ${preferences.exclusions.join('、')}` : '本次确认无'}</p><p>口味：{preferences.tastePreferences.length ? `已确认 ${preferences.tastePreferences.join('、')}` : '本次确认无'}</p><a className="flex min-h-11 items-center justify-between text-sm font-medium text-primary" href="/app/me/memories">管理饮食偏好<ChevronRight aria-hidden="true" className="size-4" /></a>{form.formState.errors.preference_reviewed?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.preference_reviewed.message}</p> : null}</>}</section>
+    <section aria-labelledby="preference-title" className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm leading-6 shadow-sm"><h2 className="text-base font-semibold leading-6" id="preference-title">本次饮食偏好</h2>{showPreferenceLoadError ? <Alert variant="destructive"><AlertDescription>暂时无法读取饮食偏好，请稍后重试。</AlertDescription></Alert> : <><p className="text-sm text-muted-foreground">请确认分类和内容；本次生成使用下列偏好。</p><p>忌口：{preferences.exclusions.length ? `已确认 ${preferences.exclusions.join('、')}` : '本次确认无'}</p><p>口味：{preferences.tastePreferences.length ? `已确认 ${preferences.tastePreferences.join('、')}` : '本次确认无'}</p><a className="flex min-h-11 items-center justify-between text-sm font-medium text-primary" href="/app/me/memories">管理饮食偏好<ChevronRight aria-hidden="true" className="size-4" /></a>{form.formState.errors.preference_reviewed?.message ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.preference_reviewed.message}</p> : null}</>}</section>
     <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="checkbox" {...form.register('preference_reviewed')} />我已复核以上饮食偏好</label>
     {pageError ? <Alert variant="destructive"><AlertDescription>{pageError}</AlertDescription></Alert> : null}
     {statusMessage ? <p aria-live="polite" className="text-sm text-muted-foreground">{statusMessage}</p> : null}

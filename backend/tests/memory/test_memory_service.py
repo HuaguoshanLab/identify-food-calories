@@ -399,7 +399,8 @@ def test_explicit_preference_capture_uses_allowlist_and_single_infer_false_recor
     )
 
     assert [(memory.category, memory.canonical_text) for memory in memories] == [("avoidance", "不吃辣")]
-    assert [memory.id for memory in temporary] == [memories[0].id]
+    assert [(memory.canonical_text, memory.scope) for memory in temporary] == [("不吃辣", "current_plan")]
+    assert len(repository.ledgers) == 1
     assert rejected == []
     assert provider.calls == []
     assert service.process_due_provisioning() == (1, 0)
@@ -481,3 +482,34 @@ def test_mem0_direct_adapter_passes_exact_canonical_record_without_inference() -
         },
         "infer": False,
     }
+
+
+def test_compound_capture_queues_only_long_term_effects_once_and_is_owner_scoped() -> None:
+    repository, provider = FakeMemoryLedgerRepository(), FakeMemoryProvider()
+    commits = []
+    service = MemoryService(repository=repository, provider=provider, commit=lambda: commits.append(True))
+    user_id, run_id = uuid.uuid4(), uuid.uuid4()
+    statement = "不吃辣 饮食清淡，今天不吃牛肉"
+    captured = service.capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement=statement)
+    assert [item.scope for item in captured] == ["long_term", "long_term", "current_plan"]
+    assert len(commits) == 1
+    service.capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement=statement)
+    assert len(repository.ledgers) == 2
+    assert len(repository.provision_outbox) == 2
+    assert service.preference_summary(user_id=user_id).model_dump() == {"exclusions": ("不吃辣",), "taste_preferences": ("清淡",)}
+    assert service.preference_summary(user_id=uuid.uuid4()).exclusions == ()
+    assert service.process_due_provisioning() == (2, 0)
+    assert {record[2] for record in provider.direct_records.values()} == {"不吃辣", "清淡"}
+
+
+def test_temporary_only_capture_has_no_commit_or_provider_work() -> None:
+    repository, provider = FakeMemoryLedgerRepository(), FakeMemoryProvider()
+    commits = []
+    service = MemoryService(repository=repository, provider=provider, commit=lambda: commits.append(True))
+    captured = service.capture_explicit_preferences(user_id=uuid.uuid4(), source_run_id=uuid.uuid4(), statement="本次不吃辣 饮食清淡")
+    assert len(captured) == 2
+    assert all(item.scope == "current_plan" for item in captured)
+    assert commits == []
+    assert repository.ledgers == {}
+    assert repository.provision_outbox == []
+    assert provider.calls == []

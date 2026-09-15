@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from decimal import Decimal
 from itertools import product
 from uuid import UUID
+from time import monotonic
 
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.planning.diagnostics import SearchDiagnostics, ScanStop
 from app.planning.schemas import (
     DailyTarget,
     PlannedMeal,
@@ -17,11 +21,21 @@ from app.planning.schemas import (
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v3"
-# Bound catalog calculations separately from the 12-per-slot combination search.
-# The managed catalog already contains several hundred qualified candidates.
-MAX_RECIPE_CANDIDATES = 1024
-MAX_OPTIONS_PER_SLOT = 12
+SELECTION_POLICY_VERSION = "planning-selection.v5"
+
+
+class PlanningSearchBudget(BaseModel):
+    """Operator-controlled work budgets, independent of catalog size."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    batch_size: int = Field(default=64, ge=1, le=512)
+    scan_per_slot: int = Field(default=2048, ge=1, le=100000)
+    options_per_slot: int = Field(default=12, ge=1, le=64)
+    max_combinations: int = Field(default=1728, ge=1, le=262144)
+    scan_seconds_per_slot: float = Field(default=3, gt=0, le=30, allow_inf_nan=False)
+    combination_seconds: float = Field(default=2, gt=0, le=30, allow_inf_nan=False)
+
+
 _METRICS = ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")
 
 
@@ -74,19 +88,24 @@ def _distance(
 
 def select_meals(
     *,
-    options: tuple[PlannedMeal, ...],
+    options: Iterable[PlannedMeal],
     target: DailyTarget | None,
     preferences: PreferenceReview,
     recent_recipe_ids: tuple[UUID, ...],
     fixed_meals: tuple[PlannedMeal, ...],
     validation_rank: Callable[[tuple[PlannedMeal, ...]], int],
+    budget: PlanningSearchBudget | None = None,
+    clock: Callable[[], float] = monotonic,
+    diagnostics: SearchDiagnostics | None = None,
 ) -> tuple[PlannedMeal, ...]:
-    """Search at most 12³ combinations. Existing meal snapshots are never rewritten.
+    """Stream a bounded shortlist, then search within count and cooperative time limits.
 
     Shortlisting is a bounded heuristic, not a claim of globally optimal nutrition.
     A previously used recipe remains eligible when it is the only valid solution.
     """
 
+    diagnostics = diagnostics or SearchDiagnostics()
+    budget = budget or PlanningSearchBudget()
     fixed = {meal.slot: meal for meal in fixed_meals}
     fixed_ids = {meal.recipe_id for meal in fixed_meals}
     recent = set(recent_recipe_ids)
@@ -115,21 +134,20 @@ def select_meals(
             str(meal.recipe_id),
         )
 
-    pools: list[tuple[PlannedMeal, ...]] = []
-    for slot in REQUIRED_MEAL_SLOTS:
-        if slot in fixed:
-            pools.append((fixed[slot],))
+    # Keep only K values per slot even when the input spans many database pages.
+    shortlists: dict = {slot: [] for slot in REQUIRED_MEAL_SLOTS if slot not in fixed}
+    for meal in options:
+        if meal.slot not in shortlists or meal.recipe_id in fixed_ids:
             continue
-        pool = tuple(
-            sorted(
-                (
-                    meal
-                    for meal in options
-                    if meal.slot is slot and meal.recipe_id not in fixed_ids
-                ),
-                key=shortlist_key,
-            )[:MAX_OPTIONS_PER_SLOT]
-        )
+        pool = shortlists[meal.slot]
+        pool.append(meal)
+        pool.sort(key=shortlist_key)
+        del pool[budget.options_per_slot:]
+    for slot, pool in shortlists.items():
+        diagnostics.slots[slot].shortlisted = len(pool)
+    pools = []
+    for slot in REQUIRED_MEAL_SLOTS:
+        pool = (fixed[slot],) if slot in fixed else tuple(shortlists[slot])
         if not pool:
             return ()
         pools.append(pool)
@@ -151,10 +169,27 @@ def select_meals(
             tuple(str(meal.recipe_id) for meal in meals),
         )
 
-    combinations = (
-        (*combination, *extra_fixed)
-        for combination in product(*pools)
-        if len({meal.recipe_id for meal in (*combination, *extra_fixed)})
-        == len(combination) + len(extra_fixed)
-    )
-    return min(combinations, key=score, default=())
+    started = clock()
+    deadline = started + budget.combination_seconds
+    best: tuple[PlannedMeal, ...] = ()
+    best_score: tuple | None = None
+    for index, combination in enumerate(product(*pools)):
+        # Count attempts, including duplicate-recipe combinations, to bound all work.
+        if index >= budget.max_combinations:
+            diagnostics.combination_stop = ScanStop.COUNT
+            break
+        if clock() >= deadline:
+            diagnostics.combination_stop = ScanStop.TIME
+            break
+        diagnostics.combinations += 1
+        meals = (*combination, *extra_fixed)
+        if len({meal.recipe_id for meal in meals}) != len(meals):
+            diagnostics.duplicate_combinations += 1
+            continue
+        rank = score(meals)
+        if best_score is None or rank < best_score:
+            best, best_score = meals, rank
+    else:
+        diagnostics.combination_stop = ScanStop.EXHAUSTED
+    diagnostics.combination_elapsed_ms = max(0, int((clock() - started) * 1000))
+    return best

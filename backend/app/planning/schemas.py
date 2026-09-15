@@ -302,18 +302,29 @@ class PlanningNutritionValues(BaseModel):
     carbohydrate_g: Decimal = Field(ge=0)
 
 
+class CompositionFailureReason(str, Enum):
+    MISSING_SLOT = "missing_slot"
+    EXCLUSIONS = "exclusions"
+    NUTRITION_UNAVAILABLE = "nutrition_unavailable"
+    SEARCH_BUDGET = "search_budget"
+    NO_COMBINATION = "no_combination"
+
+
 class MealCompositionResult(BaseModel):
     """Closed composition response; incomplete safe candidates request deterministic replanning."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     action: PlanValidationAction
+    failure_reason: CompositionFailureReason | None = None
     meals: tuple[PlannedMeal, ...] = ()
     safe_message: str
 
     @model_validator(mode="after")
     def keeps_complete_meals_bound_to_pass(self) -> "MealCompositionResult":
         slots = {meal.slot for meal in self.meals}
+        if self.action is PlanValidationAction.PASS and self.failure_reason is not None:
+            raise ValueError("passing composition cannot carry a failure reason")
         if self.action is PlanValidationAction.PASS and not set(REQUIRED_MEAL_SLOTS).issubset(slots):
             raise ValueError("a passing composition requires breakfast, lunch, and dinner")
         if len(slots) != len(self.meals):
@@ -353,9 +364,14 @@ class PlanValidationResult(BaseModel):
     policy_version: str = TARGET_POLICY_VERSION
     safe_message: str
     relaxed_metric: str | None = None
+    relaxation_available: bool = False
 
     @model_validator(mode="after")
     def prevents_implicit_relaxation(self) -> PlanValidationResult:
+        if self.relaxation_available and (self.action is not PlanValidationAction.REPLAN or self.rule_id not in {
+            "energy_kcal-out-of-range", "protein_g-out-of-range", "fat_g-out-of-range", "carbohydrate_g-out-of-range",
+        }):
+            raise ValueError("only target range misses can offer relaxation")
         if self.action is PlanValidationAction.RELAX and self.relaxed_metric is None:
             raise ValueError("RELAX requires its affected metric")
         if self.action is not PlanValidationAction.RELAX and self.relaxed_metric is not None:

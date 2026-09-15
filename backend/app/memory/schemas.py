@@ -34,3 +34,10 @@ class MemoryResponse(BaseModel):
     canonical_text: str
     created_at: datetime
     updated_at: datetime
+
+
+class MemoryPreferenceSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    exclusions: tuple[str, ...]
+    taste_preferences: tuple[str, ...]

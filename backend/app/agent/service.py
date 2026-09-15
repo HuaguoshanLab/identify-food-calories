@@ -64,7 +64,7 @@ GRAPH_VERSION = "meal-agent-graph.v1"
 PROMPT_VERSION = "reasoning-parse.v2"
 TOOL_VERSION = "nutrition-tools-v1"
 VISION_OPERATION_VERSION = "vision-meal.v1"
-DIET_PLANNING_GRAPH_VERSION = "diet-planning-graph.v1"
+DIET_PLANNING_GRAPH_VERSION = "diet-planning-graph.v2"
 DIET_PLANNING_PROMPT_VERSION = "diet-planning-command.v1"
 DIET_PLANNING_TOOL_VERSION = "planning-tools.v2"
 

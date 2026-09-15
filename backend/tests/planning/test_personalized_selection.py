@@ -14,7 +14,7 @@ from app.planning.schemas import (
     PreferenceReview,
     REQUIRED_MEAL_SLOTS,
 )
-from app.planning.selection import MAX_RECIPE_CANDIDATES, matches_exclusion
+from app.planning.selection import PlanningSearchBudget, matches_exclusion, select_meals
 from app.planning.service import PlanningService
 from tests.planning.test_planning_service import (
     FakePlanningRepository,
@@ -283,11 +283,12 @@ def test_english_food_name_is_not_split_into_unrelated_exclusions():
     assert not matches_exclusion(("peanut butter",), ("butter toast",))
 
 
-def test_catalog_with_612_candidates_still_composes_and_validates_three_meals():
+@pytest.mark.parametrize("catalog_size", [612, 1500, 7000])
+def test_large_catalog_still_composes_and_validates_three_meals(catalog_size):
     service, repository, small, _ = setup_pool()
     repository.candidates = [
         original.model_copy(update={"id": uuid.UUID(int=index + 1)})
-        for index in range(612)
+        for index in range(catalog_size)
         for original in [small[index % 3]]
     ]
     result = service.compose_daily_meals(
@@ -301,14 +302,22 @@ def test_catalog_with_612_candidates_still_composes_and_validates_three_meals():
     ).action is PlanValidationAction.PASS
 
 
-def test_candidate_limit_stops_before_unbounded_nutrition_queries():
+def test_scan_budget_limits_nutrition_work_per_slot_without_rejecting_pool():
     service, repository, small, _ = setup_pool()
-    repository.candidates = [small[0]] * (MAX_RECIPE_CANDIDATES + 1)
-    result = service.compose_daily_meals(
-        catalog_version=None, preferences=PreferenceReview(confirmed=True)
-    )
-    assert result.action is PlanValidationAction.NEEDS_INPUT
-    assert result.meals == ()
+    repository.candidates = [
+        small[index % 3].model_copy(update={"id": uuid.UUID(int=index + 1)})
+        for index in range(1500)
+    ]
+    service._search_budget = PlanningSearchBudget(batch_size=7, scan_per_slot=10)
+    calls = []
+    original = service._nutrition_port.calculate_nutrition
+    def calculate(request):
+        calls.append(request)
+        return original(request)
+    service._nutrition_port.calculate_nutrition = calculate
+    result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
+    assert result.action is PlanValidationAction.PASS
+    assert len(calls) == 30
 
 
 def test_first_use_can_compose_active_controlled_recipes_without_a_pinned_catalog():
@@ -346,3 +355,98 @@ def test_an_administratively_empty_pool_never_reactivates_bootstrap_recipes():
     )
     assert result.action is PlanValidationAction.REPLAN
     assert repository.recipe_search_calls == 0
+
+
+def test_excluded_first_pages_do_not_hide_later_usable_candidates():
+    service, repository, small, large = setup_pool()
+    repository.candidates = [
+        large[index % 3].model_copy(update={"id": uuid.UUID(int=index + 1)})
+        for index in range(60)
+    ] + [item.model_copy(update={"id": uuid.UUID(int=100 + index)}) for index, item in enumerate(small)]
+    service._search_budget = PlanningSearchBudget(batch_size=7, options_per_slot=1)
+    calls = []
+    original = service._nutrition_port.calculate_nutrition
+    def calculate(request):
+        calls.append(request)
+        return original(request)
+    service._nutrition_port.calculate_nutrition = calculate
+    result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True, exclusions=("不吃辣",)))
+    assert result.action is PlanValidationAction.PASS
+    assert len(calls) == 3  # Known spicy labels are rejected before catalog I/O.
+    assert all("香辣" not in meal.flavour_tags for meal in result.meals)
+
+
+def test_scan_time_budget_preserves_each_slot_and_uses_already_found_meals():
+    service, repository, small, _ = setup_pool()
+    repository.candidates = [small[index % 3].model_copy(update={"id": uuid.UUID(int=index + 1)}) for index in range(300)]
+    elapsed = [0.0]
+    calls = []
+    original = service._nutrition_port.calculate_nutrition
+    def calculate(request):
+        calls.append(request)
+        elapsed[0] += 0.6
+        return original(request)
+    service._clock = lambda: elapsed[0]
+    service._nutrition_port.calculate_nutrition = calculate
+    service._search_budget = PlanningSearchBudget(scan_seconds_per_slot=1)
+    result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
+    assert result.action is PlanValidationAction.PASS
+    assert len(calls) == 6
+    assert {meal.slot for meal in result.meals} == set(REQUIRED_MEAL_SLOTS)
+
+
+def test_exhausted_scan_does_not_relax_exclusions_to_fill_a_missing_slot():
+    service, repository, small, large = setup_pool()
+    repository.candidates = [large[0].model_copy(update={"id": uuid.UUID(int=1)}), *small[1:]]
+    service._search_budget = PlanningSearchBudget(scan_per_slot=1)
+    result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True, exclusions=("辣",)))
+    assert result.action is PlanValidationAction.REPLAN
+    assert result.meals == ()
+    assert "本次筛选" in result.safe_message
+
+
+@pytest.mark.parametrize("time_budget, max_attempts, expected", [(20, 3, 3), (1, 100, 2)])
+def test_combination_work_stops_at_configured_count_or_time(time_budget, max_attempts, expected):
+    base = valid_daily_meals()
+    options = tuple(meal.model_copy(update={"recipe_id": uuid.UUID(int=index * 2 + variant + 1)}) for index, meal in enumerate(base) for variant in range(2))
+    elapsed = [0.0]
+    seen = []
+    def rank(meals):
+        seen.append(meals)
+        elapsed[0] += 0.6
+        return 0
+    result = select_meals(options=iter(options), target=validation_target(), preferences=PreferenceReview(confirmed=True), recent_recipe_ids=(), fixed_meals=(), validation_rank=rank, budget=PlanningSearchBudget(max_combinations=max_attempts, combination_seconds=time_budget), clock=lambda: elapsed[0])
+    assert len(seen) == expected
+    assert result in seen
+
+
+def test_explicit_replacement_is_filtered_before_scan_budget():
+    service, repository, small, large = setup_pool()
+    original = service.compose_daily_meals(catalog_version=None, target=target("1800"), preferences=PreferenceReview(confirmed=True)).meals
+    selected = large[1].model_copy(update={"id": uuid.UUID(int=99999)})
+    repository.candidates = [small[1].model_copy(update={"id": uuid.UUID(int=index + 1)}) for index in range(100)] + [selected]
+    service._search_budget = PlanningSearchBudget(batch_size=1, scan_per_slot=1)
+    kwargs = dict(catalog_version=None, preferences=PreferenceReview(confirmed=True), required_food_id=selected.nutrition_item_id, required_catalog_version=selected.catalog_version, required_slot=MealSlot.LUNCH, required_recipe_id=selected.id, required_recipe_revision=selected.revision, fixed_meals=tuple(meal for meal in original if meal.slot is not MealSlot.LUNCH))
+    result = service.compose_daily_meals(**kwargs)
+    assert result.action is PlanValidationAction.PASS
+    assert next(meal for meal in result.meals if meal.slot is MealSlot.LUNCH).recipe_id == selected.id
+    stale = service.compose_daily_meals(**(kwargs | {"required_recipe_revision": selected.revision + 1}))
+    assert stale.action is PlanValidationAction.NEEDS_INPUT
+
+
+def test_large_controlled_recipe_catalog_uses_bounded_pages_too():
+    items = [food(slot.value) for slot in REQUIRED_MEAL_SLOTS]
+    originals = [controlled_recipe(slot=slot, food=item, name=slot.value) for slot, item in zip(REQUIRED_MEAL_SLOTS, items, strict=True)]
+    repository = FakePlanningRepository([originals[index % 3].model_copy(update={"id": uuid.UUID(int=index + 1)}) for index in range(1500)])
+    service = PlanningService(repository=repository, nutrition_port=RecipeNutritionPort(items), search_budget=PlanningSearchBudget(batch_size=7, scan_per_slot=10))
+    result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
+    assert result.action is PlanValidationAction.PASS
+    assert repository.recipe_search_calls == 6
+
+
+@pytest.mark.parametrize("field,value", [("batch_size", 0), ("scan_per_slot", -1), ("options_per_slot", 0), ("max_combinations", 0), ("scan_seconds_per_slot", float("inf")), ("combination_seconds", 0)])
+def test_invalid_search_settings_fail_at_startup(field, value):
+    from pydantic import ValidationError
+    from app.core.config import Settings
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{f"planning_{field}": value})

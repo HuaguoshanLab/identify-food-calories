@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
+import pytest
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
@@ -216,5 +218,39 @@ def test_delete_races_leave_no_local_or_remote_memory_and_isolate_users() -> Non
             assert _service(session, provider).list_memories(user_id=owner.id) == []
             assert [memory.id for memory in _service(session, provider).list_memories(user_id=other.id)] == [other_memory.id]
         assert len(provider.direct_records) == 1
+    finally:
+        engine.dispose()
+
+
+def test_pg_compound_capture_rolls_back_all_preferences_and_never_queues_temporary_text() -> None:
+    engine, provider = _prepare()
+    try:
+        with Session(engine) as session:
+            user, run_id = _user_and_run(session)
+            user_id = user.id
+
+            class FailingRepository(SqlAlchemyMemoryLedgerRepository):
+                def get_or_create_direct_candidate(self, **kwargs):
+                    if kwargs["category"] == "stable_preference":
+                        raise RuntimeError("second preference failed")
+                    return super().get_or_create_direct_candidate(**kwargs)
+
+            failing = MemoryService(repository=FailingRepository(session), provider=provider, commit=session.commit, rollback=session.rollback)
+            with pytest.raises(RuntimeError, match="second preference failed"):
+                failing.capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement="不吃辣 饮食清淡")
+            assert session.execute(text("SELECT count(*) FROM preference_memory_ledger WHERE user_id = :user_id"), {"user_id": user_id}).scalar_one() == 0
+            service = _service(session, provider)
+            for _ in range(2):
+                captured = service.capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement="不吃辣 饮食清淡，今天不吃牛肉")
+                assert [item.scope for item in captured] == ["long_term", "long_term", "current_plan"]
+            memories = service.list_memories(user_id=user_id)
+            assert {(item.category, item.canonical_text) for item in memories} == {("avoidance", "不吃辣"), ("stable_preference", "清淡")}
+            assert service.preference_summary(user_id=uuid.uuid4()).exclusions == ()
+            from app.agent.tools import SessionNutritionToolAdapter
+            adapter = SessionNutritionToolAdapter(session_factory=lambda: Session(engine), memory_provider=provider)
+            temporary = adapter.capture_explicit_preferences(user_id=user_id, run_id=run_id, statement="本次不吃虾")
+            assert [(item.canonical_text, item.scope) for item in temporary] == [("不吃虾", "current_plan")]
+            assert service.process_due_provisioning() == (2, 0)
+            assert {record[2] for record in provider.direct_records.values()} == {"不吃辣", "清淡"}
     finally:
         engine.dispose()

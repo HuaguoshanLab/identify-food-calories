@@ -246,6 +246,22 @@ def test_diet_planning_command_is_owner_scoped_idempotent_and_streams_only_safe_
                 assert '"schema_version":"safe-stream-stage.v1"' in stream.text
                 assert '"stage":"completed"' in stream.text
 
+                blocked_command = _command(save_profile=False)
+                blocked_command["preferences"]["exclusions"] = ["原味酸奶燕麦杯"]
+                blocked = client.post(PLANNING_PATH, json=blocked_command, headers={
+                    "Authorization": f"Bearer {owner_token}", "Idempotency-Key": "planning-no-breakfast-0001",
+                })
+                assert blocked.status_code == 201
+                assert blocked.json()["status"] == "terminal"
+                failure = blocked.json()["report"]
+                assert set(failure) == {"stage", "message"}
+                assert "早餐没有可用候选" in failure["message"]
+                assert "三次" not in failure["message"]
+                failure_id = blocked.json()["thread_id"]
+                reread = client.get(f"/api/v1/agent/threads/{failure_id}", headers={"Authorization": f"Bearer {owner_token}"})
+                assert reread.json()["report"] == failure
+                assert "metrics" not in reread.text and "原味酸奶燕麦杯" not in reread.text
+
             assert session.query(PlanningProfile).filter_by(user_id=owner.id, deleted_at=None).count() == 1
             projection = session.query(PlanningCompletionProjection).filter_by(user_id=owner.id, revoked_at=None).one()
             assert projection.completed_thread_id == uuid.UUID(thread_id)

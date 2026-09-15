@@ -8,3 +8,11 @@ export async function listMemories(request: AuthenticatedRequest): Promise<Memor
 export async function getMemory(request: AuthenticatedRequest, id: string): Promise<Memory> { const response = await request(`/memories/${id}`); if (!response.ok) throw new Error('memory unavailable'); return parsed(response) }
 export async function updateMemory(request: AuthenticatedRequest, id: string, canonicalText: string): Promise<Memory> { const response = await request(`/memories/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ canonical_text: canonicalText }) }); if (!response.ok) throw new Error('memory update failed'); return parsed(response) }
 export async function deleteMemory(request: AuthenticatedRequest, id: string): Promise<void> { const response = await request(`/memories/${id}`, { method: 'DELETE' }); if (!response.ok) throw new Error('memory delete failed') }
+
+const preferenceSummarySchema = z.object({ exclusions: z.array(z.string()), taste_preferences: z.array(z.string()) }).strict()
+export async function getMemoryPreferenceSummary(request: AuthenticatedRequest) {
+  const response = await request('/memories/preference-summary')
+  if (!response.ok) throw new Error('preference summary unavailable')
+  const summary = preferenceSummarySchema.parse(await response.json())
+  return { exclusions: summary.exclusions, tastePreferences: summary.taste_preferences }
+}

@@ -14,7 +14,7 @@ from app.core.config import Settings
 from app.core.database import get_session
 from app.memory.providers import create_memory_provider
 from app.memory.repository import SqlAlchemyMemoryLedgerRepository
-from app.memory.schemas import MemoryCreateRequest, MemoryResponse, MemoryUpdateRequest
+from app.memory.schemas import MemoryCreateRequest, MemoryPreferenceSummaryResponse, MemoryResponse, MemoryUpdateRequest
 from app.memory.service import MemoryService, MemorySyncPending, MemoryUnavailable, MemoryValidationError
 from app.agent.supervisor import PostgresLeaseSupervisor
 
@@ -56,6 +56,11 @@ def confirm_inferred_memory(memory_id: uuid.UUID, principal: AuthenticatedPrinci
 @router.get("", operation_id="listMemories", response_model=list[MemoryResponse])
 def list_memories(principal: AuthenticatedPrincipal, service: ServiceDependency) -> list[MemoryResponse]:
     return [MemoryResponse.model_validate(memory) for memory in service.list_memories(user_id=principal)]
+
+
+@router.get("/preference-summary", operation_id="getMemoryPreferenceSummary", response_model=MemoryPreferenceSummaryResponse)
+def get_preference_summary(principal: AuthenticatedPrincipal, service: ServiceDependency) -> MemoryPreferenceSummaryResponse:
+    return MemoryPreferenceSummaryResponse.model_validate(service.preference_summary(user_id=principal))
 
 
 @router.get("/{memory_id}", operation_id="getMemory", response_model=MemoryResponse)

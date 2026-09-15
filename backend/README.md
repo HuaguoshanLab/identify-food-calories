@@ -32,6 +32,25 @@ uv run uvicorn app.main:app --reload
 
 运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
 
+### 餐单筛选预算
+
+无需因菜谱库增长修改总数上限。服务按餐次和当前目录资格分批读取，只保留少量候选；管理员候选和初始受控菜谱使用同一套预算。在未提交的 `backend/.env` 可覆盖以下默认值，修改后重启后端：
+
+```dotenv
+PLANNING_BATCH_SIZE=64
+PLANNING_SCAN_PER_SLOT=2048
+PLANNING_OPTIONS_PER_SLOT=12
+PLANNING_MAX_COMBINATIONS=1728
+PLANNING_SCAN_SECONDS_PER_SLOT=3
+PLANNING_COMBINATION_SECONDS=2
+```
+
+每餐最多扫描 2,048 条或用时 3 秒，每页最多 64 条；保留最接近目标和偏好的 12 个选项。组合阶段最多尝试 1,728 次或用时 2 秒，先到哪个限制就停止，使用已找到的最佳组合并继续营养校验。扫描预算按餐次独立分配，餐库超过预算不会直接报错；本次未找到完整组合时返回可重试结果，不放宽忌口和健康边界。
+
+时间限制在查询、计算之间检查，不能中断正在执行的同步数据库查询，因此不是严格的请求总耗时保证。提高预算会增加查询量和延迟；有限搜索可能错过扫描范围外的合适菜谱，也不保证全库最优。配置在启动时校验，零、负值和超出安全配置范围的数值会被拒绝。只回滚代码及上述配置即可撤销本次算法调整，无需数据库迁移。
+
+筛选诊断默认输出到后端标准日志：搜索 `planning_search` 查看各餐扫描量、淘汰数量、耗时和停止原因；搜索 `planning_validation` 查看最终校验规则及目标调整状态。日志只记录版本、枚举原因和数值计数，不包含用户身份、偏好原文、菜名或身体资料。候选失败不再原样重试三次，允许的目标范围调整只复用餐单校验一次。无需数据库迁移，回滚时同时恢复 planning 和 Agent 工具/图代码。
+
 ### 本地 Langfuse 调用追踪
 
 根目录的独立 Compose 提供本地 Langfuse Web、Worker、Redis、PostgreSQL、ClickHouse 和 MinIO。先按 [`docs/learning/feature-observability.md`](../docs/learning/feature-observability.md) 生成 `.env.langfuse`、启动服务并在页面创建 `food-agent-dev` 项目。随后把项目 API Key 写入未提交的 `backend/.env`，设置：

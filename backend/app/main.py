@@ -13,6 +13,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.planning.selection import PlanningSearchBudget
+from app.planning.diagnostics import configure_planning_diagnostics
 from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
@@ -68,6 +70,14 @@ class PersistedAgentRuntimeFactory:
         provider = create_reasoning_provider(self._settings, tracing=tracing_runtime)
         embedding_provider = create_embedding_provider(self._settings)
         tools = SessionNutritionToolAdapter(
+            planning_search_budget=PlanningSearchBudget(
+                batch_size=self._settings.planning_batch_size,
+                scan_per_slot=self._settings.planning_scan_per_slot,
+                options_per_slot=self._settings.planning_options_per_slot,
+                max_combinations=self._settings.planning_max_combinations,
+                scan_seconds_per_slot=self._settings.planning_scan_seconds_per_slot,
+                combination_seconds=self._settings.planning_combination_seconds,
+            ),
             session_factory=session_factory,
             memory_provider=memory_provider,
             embedding_provider=embedding_provider,
@@ -191,6 +201,7 @@ def create_app(
     """Build the HTTP application from already validated runtime settings."""
 
     active_settings = settings or get_settings()
+    configure_planning_diagnostics()
     application = FastAPI(
         title="Food Agent API",
         version="0.1.0",

@@ -336,3 +336,90 @@ def test_explicit_recipe_selection_is_version_bound_and_never_falls_back(db_sess
     refused = service.compose_daily_meals(**arguments)
     assert refused.action is PlanValidationAction.NEEDS_INPUT
     assert refused.meals == ()
+
+
+def test_keyset_pages_merge_catalog_sources_filter_slots_and_recheck_eligibility(db_session):
+    from sqlalchemy import event
+    db_session.execute(delete(ManagedRecipeCandidate))
+    item = _catalog_item(db_session)
+    first = _candidate(item)
+    first.id = uuid.UUID(int=1)
+    other_slot = _candidate(item)
+    other_slot.meal_slot = "dinner"
+    other_slot.id = uuid.UUID(int=2)
+    disabled = _candidate(item, status="disabled")
+    disabled.id = uuid.UUID(int=3)
+    later = _candidate(item)
+    later.id = uuid.UUID(int=5)
+    db_session.add_all([first, other_slot, disabled, later])
+    published = _published_candidate(db_session)
+    published.id = uuid.UUID(int=4)
+    published.meal_slot = "breakfast"
+    db_session.flush()
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    sql = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().startswith("SELECT") and "managed_recipe_candidates" in statement:
+            sql.append(statement)
+    connection = db_session.connection()
+    event.listen(connection, "before_cursor_execute", capture)
+    try:
+        page1 = repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, limit=1)
+        assert [row.id for row in page1] == [first.id]
+        # Updated timestamps cannot move a visited row across the UUID cursor.
+        first.updated_at = datetime.now(UTC)
+        db_session.flush()
+        page2 = repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, after_id=page1[-1].id, limit=1)
+        assert [row.id for row in page2] == [published.id]
+        later.status = "disabled"
+        db_session.flush()
+        assert repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, after_id=page2[-1].id, limit=1) == []
+        assert all("LIMIT" in statement and "OFFSET" not in statement for statement in sql)
+        assert repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, food_ids=(published.catalog_publication_id,), recipe_id=published.id, recipe_revision=published.revision, limit=1)[0].id == published.id
+        assert repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, recipe_id=published.id, recipe_revision=published.revision + 1, limit=1) == []
+    finally:
+        event.remove(connection, "before_cursor_execute", capture)
+
+
+def test_large_real_catalog_composes_using_bounded_database_pages(db_session):
+    from sqlalchemy import event
+    from app.planning.selection import PlanningSearchBudget
+    db_session.execute(delete(ManagedRecipeCandidate))
+    published = _published_candidate(db_session)
+    for index in range(1200):
+        row = ManagedRecipeCandidate(
+            id=uuid.UUID(int=index + 1), food_catalog_item_id=None,
+            catalog_publication_id=published.catalog_publication_id,
+            catalog_food_name=published.catalog_food_name,
+            nutrition_catalog_version=published.nutrition_catalog_version,
+            portion_grams=published.portion_grams, portion_description=published.portion_description,
+            method_tags=published.method_tags, flavour_tags=published.flavour_tags,
+            status="enabled", revision=1, created_at=published.created_at, updated_at=published.updated_at,
+        )
+        row.meal_slot = ("breakfast", "lunch", "dinner")[index % 3]
+        db_session.add(row)
+    db_session.flush()
+    page_sizes = []
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    original = repo.list_managed_recipe_candidates
+    def read_page(**kwargs):
+        result = original(**kwargs)
+        page_sizes.append(len(result))
+        return result
+    repo.list_managed_recipe_candidates = read_page
+    queries = []
+    connection = db_session.connection()
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().startswith("SELECT") and "managed_recipe_candidates.id IN" in statement:
+            queries.append(statement)
+    event.listen(connection, "before_cursor_execute", capture)
+    try:
+        service = PlanningService(repository=repo, nutrition_port=NutritionService(repository=SqlAlchemyNutritionRepository(db_session)), search_budget=PlanningSearchBudget(batch_size=7, scan_per_slot=10))
+        result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
+        assert result.action is PlanValidationAction.PASS
+        assert {meal.slot for meal in result.meals} == {MealSlot.BREAKFAST, MealSlot.LUNCH, MealSlot.DINNER}
+        assert page_sizes == [7, 3, 7, 3, 7, 3]
+        assert len(queries) == 6
+        assert all("LIMIT" in statement for statement in queries)
+    finally:
+        event.remove(connection, "before_cursor_execute", capture)

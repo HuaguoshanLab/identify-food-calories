@@ -22,7 +22,8 @@ flowchart TD
     N1["规则抽取允许的内容"]
     N0 --> N1
     N2["写本地用户账本与待同步任务"]
-    N1 --> N2
+    N1 -->|长期偏好，同一事务| N2
+    N1 -->|临时要求| T["只进入当前计划状态"]
     N3["同步到 Mem0"]
     N2 --> N3
     N4["后续按用户读取可用偏好"]
@@ -37,41 +38,42 @@ flowchart TD
 
 以下为当前源码的连续节选，省略外围处理，不能单独运行。每一步都说明调用位置和数据去向。
 
-### 4.1 从明确表达中抽取允许类别
+### 4.1 拆分复合偏好，先判断本次还是长期
 
-**收到什么**
+规则入口是 [memory/preferences.py](../../backend/app/memory/preferences.py) 的 `extract_explicit_preferences`，版本为 `explicit-preferences.v2`。它按标点以及明确的新语句边界拆分，用完整匹配提取类别，不调用模型推断。
 
-capture_explicit_preferences 收到当前用户这次表达，本例是我不吃香菜。
+| 输入 | 得到的偏好 | 保存范围 |
+|---|---|---|
+| 不吃辣 饮食清淡 | 忌口“不吃辣”、口味“清淡” | 两条长期偏好 |
+| 今天不想吃辣，饮食清淡 | 同上 | 当前计划，不建立 Mem0 同步任务 |
+| 今天不吃辣，我长期偏好少油 | 临时忌口“不吃辣”、长期口味“少油” | 只保存“少油” |
+| 朋友不吃辣、引用、疑问或假设句 | 不据此推断用户长期偏好 | 不自动保存 |
 
-**代码在哪里**
+临时时间范围会延续到后面的子句，直到明确表达“一直、长期、平时”等习惯。无法确定的说法不猜；这是有限规则，不能声称理解所有自然语言、自动处理偏好撤销或冲突。输入最多 8000 字符，单次最多提取 12 项，重复项去重。
 
-[backend/app/memory/service.py](../../backend/app/memory/service.py) 的 `_extract_explicit_preferences`。
+[MemoryService.capture_explicit_preferences](../../backend/app/memory/service.py) 返回经过校验的偏好及范围，只把长期项按固定顺序放进同一个数据库事务。以下为删减后的主逻辑：
 
 ```python
-clauses = (" ".join(part.split()).strip() for part in re.split(r"[，,。！!?；;]", statement))
-for normalized in clauses:
-    avoidance = re.fullmatch(r"(?:我|今天)?(?:不想|不)吃(?P<item>.+)", normalized)
-    if avoidance is not None:
-        item = avoidance.group("item").strip()
-        return [("avoidance", f"不吃{item}")] if item else []
-    goal = re.fullmatch(r"(?:我的)?目标(?:是|为)(?P<value>.+)", normalized)
-    if goal is not None and goal.group("value").strip():
-        return [("goal", goal.group("value").strip())]
-    preference = re.fullmatch(r"我(?:喜欢|偏好)(?P<value>.+)", normalized)
-    if preference is not None and preference.group("value").strip():
-        return [("stable_preference", preference.group("value").strip())]
-return []
+captured = extract_explicit_preferences(statement)
+persistent = sorted(
+    (item for item in captured if item.scope == "long_term"),
+    key=lambda item: (item.category, item.canonical_text),
+)
+# 省略：事务内为所有 persistent 项建立本地记录与同步待办，失败则整体回滚。
+return captured
 ```
 
-**为什么这样写**
+`scope` 是使用范围，`current_plan` 表示仅本次；`frozen=True` 让规则结果不能被调用方随意修改。固定顺序用于让并发事务按一致顺序处理记录。
 
-目前靠正则规则提取，不是让模型总结整个聊天。照片出现香菜不能推出用户偏好。规则也接受“今天不吃”，所以还不能声称已能正确判断长期性。
+Agent 通过 [agent/tools.py](../../backend/app/agent/tools.py) 接收安全摘要，不接触账本或外部编号。[规划图](../../backend/app/agent/graph.py) 的 `_capture_adjustment_preferences` 将长期和临时要求都合入当前计划约束，临时项仅保留在本次图状态中。餐食分析入口也会过滤临时项的长期写入；它不因此改变确定性营养计算。
 
-**处理后变成什么，交给谁**
+### 4.1.1 旧记录怎样参与计划复核
 
-本例得到 avoidance 类别和“不吃香菜”，交给 create_direct；不符合规则返回空列表。当前命中后就返回，并非完整多偏好语义解析器。
+公开只读接口 `GET /api/v1/memories/preference-summary` 只查询当前用户的有效本地记录。`MemoryService.preference_summary` 将旧的“不吃辣 饮食清淡”投影成两类摘要，保留无法识别的已有忌口供用户复核，排除有明确临时范围的子句。原记录和 Mem0 正文保持原样，不做迁移或自动删除。
 
-> 语法小注：`re.fullmatch` 匹配整句，`group("item")` 取得括号命名部分。
+[ProfileGoalForm](../../frontend/src/features/plans/components/ProfileGoalForm.tsx) 显示分类摘要，用户勾选后才用于新计划。摘要变化会清除勾选，读取失败则阻止生成，避免把加载失败当成“没有忌口”。管理与编辑入口仍在“我的 → 饮食偏好”，计划页没有第二个编辑器。
+
+手动记忆 CRUD 仍按用户选择的类别和原文保存；上述范围过滤针对自动提取及计划复核，不会事后改写用户手动保存的记录。
 
 ### 4.2 同步前先查询本次写入是否存在
 
@@ -176,6 +178,8 @@ self._persist(lambda: None)
 
 | 情况 | 判断与处理 | 应观察的结果 |
 |---|---|---|
+| 今天不吃辣 | 当前计划生效，不进入长期队列 | 后续新计划不自动继承 |
+| 复合偏好第二条保存失败 | 回滚整笔事务 | 不留半条成功的记录 |
 | 只是照片识别出的食物 | 不按明确表达写记忆 | 不推断偏好 |
 | 外部写入结果未知 | 先按请求键查找 | 不盲目新建 |
 | 删除时尚未同步 | 取消待办 | 不能重新激活 |
@@ -198,6 +202,10 @@ cd backend
 2026-09-15 真实 Mem0 接入追加验证：`tests/memory` 与 `tests/unit/test_memory_api.py` 共 23 项通过；`test_memory_direct_write_idempotency.py` 与 `test_memory_deletion_chain.py` 共 5 项 PostgreSQL 测试通过，Ruff 通过。SDK 合约测试使用已安装客户端及 HTTPX MockTransport，不调用云端。另执行了获授权的真实云端联调：认证、禁用推断写入、请求键查找、编辑、搜索、另一用户查不到该记忆和删除均成功。
 
 内置浏览器在 `http://127.0.0.1:5178/app/me/memories` 使用独立测试账号，走公开接口新增后，从页面保存编辑并确认来源变为“用户手动维护”，再确认删除。云端正文更新和 request key 保留均核实；删除待办完成，云端精确查询为空。本次测试记忆已清理。用户单独授权的 1 条旧 Fake 记忆已迁移，原本地编号保留，云端编号经同用户请求键核对。未重跑完整后端或 Playwright E2E，也未验证真实云端故障注入；超时恢复与删除竞争由隔离测试覆盖。
+
+2026-09-15 复合偏好与临时范围验证：后端 `tests/memory`、`test_memory_api.py`、`test_agent_memory_context.py`、`test_diet_planning_graph.py` 及 `tests/planning` 共 199 项通过，Ruff 通过。独立 PostgreSQL 的 `test_memory_direct_write_idempotency.py`、`test_direct_memory_public_api.py`、`test_memory_deletion_chain.py` 共 7 项通过，覆盖整批回滚、同用户幂等、不同用户隔离及临时要求不进入同步队列。前端 PlanPage/ProfileGoalForm 共 21 项通过，类型检查、定向 ESLint、构建及 `memory-preferences.spec.ts` 的 1 项端到端测试通过。
+
+内置浏览器在隔离环境 `http://127.0.0.1:5198` 使用独立测试账号走登录 → 计划复核 → 记忆编辑 → 返回计划：旧复合文本正确分成忌口与口味，旧临时忌口不进入新计划摘要；手动将“饮食清淡”改为“饮食少油”后显示更新后的口味且勾选清除。空态由端到端测试覆盖，读取失败与后台摘要变化由组件测试覆盖；本轮未重新联调真实 Mem0，也未验证所有自然语言表达或完整的生成餐单浏览器路径。规则、保存链路使用 Fake Provider 验证，不代表云服务可用性。
 
 ## 7. 读完应该能回答什么
 

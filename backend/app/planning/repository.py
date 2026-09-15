@@ -138,15 +138,22 @@ class SqlAlchemyPlanningProfileRepository:
         return PlanningTargetEligibility.unavailable() if projection is None else PlanningTargetEligibility.from_projection(projection)
 
     def list_controlled_recipes(
-        self, *, catalog_version: str | None, recipe_version: str
+        self, *, catalog_version: str | None, recipe_version: str,
+        meal_slot: MealSlot | None = None, after_id: uuid.UUID | None = None,
+        limit: int | None = None,
     ) -> list[ControlledRecipe]:
         """Expose only recipes whose complete ingredient chain remains qualified and aligned."""
 
-        rows = self._session.scalars(
-            self._active_recipe_statement(
-                catalog_version=catalog_version, recipe_version=recipe_version
-            )
-        ).unique()
+        statement = self._active_recipe_statement(
+            catalog_version=catalog_version, recipe_version=recipe_version
+        )
+        if meal_slot is not None:
+            statement = statement.where(ControlledRecipeModel.meal_slot == meal_slot.value)
+        if after_id is not None:
+            statement = statement.where(ControlledRecipeModel.id > after_id)
+        if limit is not None:
+            statement = statement.order_by(None).order_by(ControlledRecipeModel.id).limit(limit)
+        rows = self._session.scalars(statement).unique()
         return [self._to_controlled_recipe(row) for row in rows]
 
     def has_managed_recipe_candidates(self) -> bool:
@@ -155,7 +162,10 @@ class SqlAlchemyPlanningProfileRepository:
         return bool(self._session.scalar(select(exists().where(ManagedRecipeCandidateModel.id.is_not(None)))))
 
     def list_managed_recipe_candidates(
-        self, *, catalog_version: str | None
+        self, *, catalog_version: str | None,
+        meal_slot: MealSlot | None = None, after_id: uuid.UUID | None = None,
+        limit: int | None = None, food_ids: tuple[uuid.UUID, ...] | None = None,
+        recipe_id: uuid.UUID | None = None, recipe_revision: int | None = None,
     ) -> list[ManagedRecipeCandidate]:
         """Return only candidates whose referenced catalog row remains calculable now."""
 
@@ -210,10 +220,35 @@ class SqlAlchemyPlanningProfileRepository:
             publication_statement = publication_statement.where(
                 ManagedRecipeCandidateModel.nutrition_catalog_version == catalog_version
             )
-        rows = [
-            *self._session.scalars(imported_statement),
-            *self._session.scalars(publication_statement),
-        ]
+        filters = []
+        if meal_slot is not None:
+            filters.append(ManagedRecipeCandidateModel.meal_slot == meal_slot.value)
+        if after_id is not None:
+            filters.append(ManagedRecipeCandidateModel.id > after_id)
+        if food_ids is not None:
+            filters.append(or_(
+                ManagedRecipeCandidateModel.food_catalog_item_id.in_(food_ids),
+                ManagedRecipeCandidateModel.catalog_publication_id.in_(food_ids),
+            ))
+        if recipe_id is not None:
+            filters.append(ManagedRecipeCandidateModel.id == recipe_id)
+        if recipe_revision is not None:
+            filters.append(ManagedRecipeCandidateModel.revision == recipe_revision)
+        branches = []
+        for source in (imported_statement, publication_statement):
+            source = source.with_only_columns(ManagedRecipeCandidateModel.id).where(*filters)
+            if limit is not None:
+                source = source.order_by(ManagedRecipeCandidateModel.id).limit(limit)
+            branches.append(select(source.subquery().c.id))
+        # Each source supplies at most one page before merging, so UNION does
+        # not materialize the whole qualified catalog on every page request.
+        qualified_ids = branches[0].union(branches[1])
+        statement = select(ManagedRecipeCandidateModel).where(ManagedRecipeCandidateModel.id.in_(qualified_ids))
+        if limit is not None:
+            statement = statement.order_by(ManagedRecipeCandidateModel.id).limit(limit)
+        else:
+            statement = statement.order_by(ManagedRecipeCandidateModel.meal_slot, ManagedRecipeCandidateModel.updated_at, ManagedRecipeCandidateModel.id)
+        rows = self._session.scalars(statement)
         return [
             ManagedRecipeCandidate(
                 id=candidate.id,
@@ -232,10 +267,7 @@ class SqlAlchemyPlanningProfileRepository:
                 status=ManagedRecipeCandidateStatus(candidate.status),
                 revision=candidate.revision,
             )
-            for candidate in sorted(
-                rows,
-                key=lambda row: (row.meal_slot, row.updated_at, str(row.id)),
-            )
+            for candidate in rows
         ]
 
     def list_recent_recipe_ids(

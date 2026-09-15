@@ -8,7 +8,7 @@ from typing import Protocol
 
 from app.nutrition.schemas import NutritionCalculationInput, NutritionCalculationResult
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
-from app.planning.schemas import ControlledRecipe, DailyTarget, ManagedRecipeCandidate, PlanningProfileInput
+from app.planning.schemas import ControlledRecipe, MealSlot, DailyTarget, ManagedRecipeCandidate, PlanningProfileInput
 
 
 class PlanningRepository(Protocol):
@@ -17,13 +17,18 @@ class PlanningRepository(Protocol):
     def get_planning_profile(self, *, user_id: uuid.UUID) -> PlanningProfileInput | None: ...
 
     def list_controlled_recipes(
-        self, *, catalog_version: str | None, recipe_version: str
+        self, *, catalog_version: str | None, recipe_version: str,
+        meal_slot: MealSlot | None = None, after_id: uuid.UUID | None = None,
+        limit: int | None = None,
     ) -> list[ControlledRecipe]: ...
 
     def has_managed_recipe_candidates(self) -> bool: ...
 
     def list_managed_recipe_candidates(
-        self, *, catalog_version: str | None
+        self, *, catalog_version: str | None,
+        meal_slot: MealSlot | None = None, after_id: uuid.UUID | None = None,
+        limit: int | None = None, food_ids: tuple[uuid.UUID, ...] | None = None,
+        recipe_id: uuid.UUID | None = None, recipe_revision: int | None = None,
     ) -> list[ManagedRecipeCandidate]: ...
 
     def list_recent_recipe_ids(

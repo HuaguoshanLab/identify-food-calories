@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import uuid
+import logging
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal
 from typing import Protocol
 
 from sqlalchemy.orm import Session
 
+from app.planning.selection import PlanningSearchBudget
 from app.nutrition.schemas import (
     FoodSearchInput,
     FoodSearchResult,
@@ -42,10 +44,11 @@ from app.planning.schemas import PlanningProfileWrite
 
 @dataclass(frozen=True, slots=True)
 class CapturedPreferenceSummary:
-    """Safe direct-write result available to graph code without storage identifiers."""
+    """Validated preference effect without storage identifiers; temporary effects are not saved."""
 
     category: Literal["goal", "avoidance", "stable_preference"]
     canonical_text: str
+    scope: Literal["long_term", "current_plan"] = "long_term"
 
 
 class NutritionToolAdapter(Protocol):
@@ -98,7 +101,7 @@ class PlanningToolAdapter(Protocol):
     ) -> MealCompositionResult: ...
 
     def validate_daily_plan(
-        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], allow_target_relaxation: bool
     ) -> PlanValidationResult: ...
 
     def upsert_planning_profile(
@@ -164,10 +167,10 @@ class NutritionServiceToolAdapter:
         if self._explicit_preference_capture_service is None:
             return ()
         captured = self._explicit_preference_capture_service.capture_explicit_preferences(  # type: ignore[union-attr,attr-defined]
-            user_id=user_id, run_id=run_id, statement=statement
+            user_id=user_id, source_run_id=run_id, statement=statement
         )
         return tuple(
-            CapturedPreferenceSummary(category=ledger.category, canonical_text=ledger.canonical_text)
+            CapturedPreferenceSummary(category=ledger.category, canonical_text=ledger.canonical_text, scope=ledger.scope)
             for ledger in captured
         )
 
@@ -186,7 +189,9 @@ class SessionNutritionToolAdapter:
         memory_provider: MemoryProvider | None = None,
         embedding_provider: EmbeddingProvider | None = None,
         tracing: TracingRuntime | None = None,
+        planning_search_budget: PlanningSearchBudget | None = None,
     ) -> None:
+        self._planning_search_budget = planning_search_budget
         self._session_factory = session_factory
         self._memory_provider = memory_provider
         self._embedding_provider = embedding_provider
@@ -273,7 +278,7 @@ class SessionNutritionToolAdapter:
                 rollback=session.rollback,
             ).capture_explicit_preferences(user_id=user_id, source_run_id=run_id, statement=statement)
             return tuple(
-                CapturedPreferenceSummary(category=cast(Literal["goal", "avoidance", "stable_preference"], ledger.category), canonical_text=ledger.canonical_text)
+                CapturedPreferenceSummary(category=ledger.category, canonical_text=ledger.canonical_text, scope=ledger.scope)
                 for ledger in captured
             )
         finally:
@@ -291,6 +296,7 @@ class SessionNutritionToolAdapter:
         repository = SqlAlchemyPlanningProfileRepository(session)
         return session, PlanningService(
             repository=repository,
+            search_budget=self._planning_search_budget,
             nutrition_port=NutritionService(
                 repository=SqlAlchemyNutritionRepository(session),
                 tracing=self._tracing,
@@ -403,15 +409,20 @@ class SessionNutritionToolAdapter:
             session.close()
 
     def validate_daily_plan(
-        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], allow_target_relaxation: bool
     ) -> PlanValidationResult:
         session, service = self._planning_service()
         try:
-            return service.validate_plan(
+            result = service.validate_plan(
                 target=target,
                 meals=meals,
-                allow_target_relaxation=replan_count >= 2,
+                allow_target_relaxation=allow_target_relaxation,
             )
+            logging.getLogger("app.planning.diagnostics").info(
+                "planning_validation action=%s rule=%s relaxation=%s",
+                result.action.value, result.rule_id, allow_target_relaxation,
+            )
+            return result
         finally:
             session.close()
 

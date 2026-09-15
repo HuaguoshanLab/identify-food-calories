@@ -169,7 +169,7 @@ class FakePlanningTools(PlanningToolAdapter):
         )
 
     def validate_daily_plan(
-        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], replan_count: int
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], allow_target_relaxation: bool
     ) -> PlanValidationResult:
         self.validate_calls += 1
         self.validated_meals.append(meals)
@@ -273,32 +273,24 @@ def test_unconfirmed_preferences_stop_before_target_or_recipe_calls_and_never_pe
     assert tools.upsert_calls == []
 
 
-def test_replan_budget_stops_after_three_attempts_without_looping() -> None:
+def test_deterministic_composition_failure_stops_without_identical_retries() -> None:
     tools = FakePlanningTools(composition_action=PlanValidationAction.REPLAN)
 
     stopped = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
 
     assert stopped.status.value == "limit_reached"
-    assert stopped.replan_count == 3
-    assert tools.compose_calls == 3
-    assert stopped.report == {
-        "stage": "needs_input",
-        "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
-    }
+    assert stopped.replan_count == 0
+    assert tools.compose_calls == 1
+    assert tools.validate_calls == 0
+    assert stopped.report == {"stage": "needs_input", "message": "没有可用候选。"}
 
 
-def test_non_health_validation_failure_is_bounded_and_never_becomes_health_refusal() -> None:
+def test_hard_validation_failure_is_not_recomputed_or_relaxed() -> None:
     tools = FakePlanningTools(validation_action=PlanValidationAction.REPLAN)
-
     stopped = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
-
     assert stopped.status.value == "limit_reached"
-    assert stopped.replan_count == 3
-    assert tools.validate_calls == 3
-    assert stopped.report == {
-        "stage": "needs_input",
-        "message": "无法在三次调整内满足所有约束；请修改资料或新建计划。",
-    }
+    assert tools.compose_calls == tools.validate_calls == 1
+    assert stopped.report == {"stage": "needs_input", "message": "餐单已校验。"}
 
 
 def test_initial_target_relaxation_completes_with_a_public_deviation() -> None:
@@ -571,3 +563,67 @@ def test_recipe_selection_text_contract_rejects_internal_fields_and_boolean_revi
     assert parse(payload) == payload
     assert parse({**payload, "food_id": str(chosen.food_id)}) is None
     assert parse({**payload, "recipe_revision": True}) is None
+
+
+def test_temporary_adjustment_preferences_are_applied_to_the_current_plan_once() -> None:
+    from app.agent.tools import CapturedPreferenceSummary
+
+    class TemporaryTools(FakePlanningTools):
+        def capture_explicit_preferences(self, *, user_id, run_id, statement):
+            self.capture_calls.append((user_id, run_id, statement))
+            return (
+                CapturedPreferenceSummary(category="avoidance", canonical_text="不吃辣", scope="current_plan"),
+                CapturedPreferenceSummary(category="stable_preference", canonical_text="清淡", scope="current_plan"),
+            )
+
+        def replace_planning_slot(self, **kwargs):
+            assert kwargs["preferences"].exclusions == ("花生", "辣")
+            assert kwargs["preferences"].taste_preferences == ("清淡",)
+            return super().replace_planning_slot(**kwargs)
+
+    tools = TemporaryTools()
+    graph = DietPlanningGraph(tools=tools)
+    original = asyncio.run(graph.ainvoke(_state()))
+    adjusted = asyncio.run(graph.ainvoke(original, resume={"feedback": "今天午餐换清淡一些，不吃辣"}))
+    assert adjusted.status.value == "completed"
+    assert len(tools.capture_calls) == 1
+    assert original.preferences.exclusions == ("花生",)
+    assert asyncio.run(graph.ainvoke(adjusted)) == adjusted
+    assert len(tools.capture_calls) == 1
+
+
+def test_range_relaxation_reuses_meals_without_spending_adjustment_count():
+    class RangeMissTools(FakePlanningTools):
+        def validate_daily_plan(self, *, target, meals, allow_target_relaxation):
+            self.validate_calls += 1
+            self.validated_meals.append(meals)
+            return PlanValidationResult(
+                action=PlanValidationAction.RELAX if allow_target_relaxation else PlanValidationAction.REPLAN,
+                rule_id="energy_kcal-target-relaxation" if allow_target_relaxation else "energy_kcal-out-of-range",
+                relaxed_metric="energy_kcal" if allow_target_relaxation else None,
+                relaxation_available=not allow_target_relaxation,
+                safe_message="能量目标存在偏差。",
+            )
+    tools = RangeMissTools()
+    completed = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
+    assert completed.status.value == "completed"
+    assert completed.replan_count == 0
+    assert tools.compose_calls == 1
+    assert tools.validate_calls == 2
+    assert tools.validated_meals[0] is tools.validated_meals[1]
+    assert "能量目标存在偏差" in str(completed.report)
+
+
+def test_exhausted_tool_budget_stops_before_another_domain_call():
+    tools = FakePlanningTools()
+    state = _state()
+    state = state.model_copy(update={"budget": state.budget.model_copy(update={"tool_calls": 12})})
+    stopped = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(state))
+    assert stopped.status.value == "limit_reached"
+    assert tools.target_calls == tools.compose_calls == tools.validate_calls == 0
+
+
+@pytest.mark.parametrize("rule", ["confirmed-exclusion", "minimum-plan-energy-floor", "fat_g-ratio-out-of-range"])
+def test_hard_constraint_cannot_offer_relaxation(rule):
+    with pytest.raises(ValidationError, match="only target range"):
+        PlanValidationResult(action=PlanValidationAction.REPLAN, rule_id=rule, relaxation_available=True, safe_message="不可放宽。")

@@ -47,15 +47,31 @@ class FakePlanningRepository:
         self.recent_recipe_ids = recent_recipe_ids
 
     def list_controlled_recipes(
-        self, *, catalog_version: str, recipe_version: str
+        self, *, catalog_version: str | None, recipe_version: str,
+        meal_slot=None, after_id=None, limit=None,
     ) -> list[ControlledRecipe]:
         self.recipe_search_calls += 1
-        return [recipe for recipe in self.recipes if recipe.recipe_version == recipe_version]
+        rows = [recipe for recipe in self.recipes if recipe.recipe_version == recipe_version
+                and (catalog_version is None or recipe.catalog_version == catalog_version)
+                and (meal_slot is None or meal_slot in recipe.meal_slots)
+                and (after_id is None or recipe.id > after_id)]
+        return sorted(rows, key=lambda row: row.id)[:limit]
+
+    def has_managed_recipe_candidates(self):
+        return bool(self.candidates)
 
     def list_managed_recipe_candidates(
-        self, *, catalog_version: str | None
+        self, *, catalog_version: str | None, meal_slot=None, after_id=None,
+        limit=None, food_ids=None, recipe_id=None, recipe_revision=None,
     ) -> list[ManagedRecipeCandidate]:
-        return [candidate for candidate in self.candidates if catalog_version is None or candidate.catalog_version == catalog_version]
+        rows = [candidate for candidate in self.candidates
+                if (catalog_version is None or candidate.catalog_version == catalog_version)
+                and (meal_slot is None or candidate.meal_slot is meal_slot)
+                and (after_id is None or candidate.id > after_id)
+                and (food_ids is None or candidate.nutrition_item_id in food_ids)
+                and (recipe_id is None or candidate.id == recipe_id)
+                and (recipe_revision is None or candidate.revision == recipe_revision)]
+        return sorted(rows, key=lambda row: row.id)[:limit]
 
     def list_recent_recipe_ids(self, *, user_id: uuid.UUID, plan_limit: int) -> tuple[uuid.UUID, ...]:
         return self.recent_recipe_ids
@@ -570,7 +586,8 @@ def test_composition_rejects_nonqualified_catalog_food_and_never_uses_stored_rec
 
     assert result.action is PlanValidationAction.REPLAN
     assert result.meals == ()
-    assert result.safe_message == "没有同时满足受控来源、审核、目录资格和三餐槽位的候选。"
+    assert result.failure_reason.value == "nutrition_unavailable"
+    assert "营养数据当前不可用" in result.safe_message
     with pytest.raises(ValidationError):
         ControlledRecipe.model_validate({**recipe.model_dump(), "stored_total": {"energy_kcal": "1"}})
 

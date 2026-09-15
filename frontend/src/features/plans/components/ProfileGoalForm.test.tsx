@@ -32,10 +32,7 @@ function renderForm(request: AuthContextValue['request']) {
 function requestWith(profileResponse: Response = new Response(JSON.stringify(profile))) {
   return vi.fn(async (path: string, init?: RequestInit) => {
     if (path === '/planning/profile') return profileResponse
-    if (path === '/memories') return new Response(JSON.stringify([
-      { id: '11111111-1111-4111-8111-111111111111', category: 'avoidance', source_kind: 'user_maintained', canonical_text: '花生', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
-      { id: '22222222-2222-4222-8222-222222222222', category: 'stable_preference', source_kind: 'user_maintained', canonical_text: '清淡', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' },
-    ]))
+    if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: ['花生'], taste_preferences: ['清淡'] }))
     if (path === '/agent/threads/diet-planning') {
       expect(init?.method).toBe('POST')
       return new Response(JSON.stringify({ thread_id: '33333333-3333-4333-8333-333333333333', status: 'accepted', revision: 0 }), { status: 201 })
@@ -93,7 +90,7 @@ describe('ProfileGoalForm', () => {
     const request = requestWith()
     request.mockImplementation(async (path: string) => {
       if (path === '/planning/profile') return new Response(JSON.stringify(profile))
-      if (path === '/memories') return new Response('[]')
+      if (path === '/memories/preference-summary') return new Response(JSON.stringify({ exclusions: [], taste_preferences: [] }))
       if (path === '/agent/threads/diet-planning') return new Response(JSON.stringify({ detail: [{ loc: ['body', 'profile', 'height_cm'], msg: '身高必须在 100 到 250 cm 之间。' }] }), { status: 422 })
       return new Response('', { status: 500 })
     })
@@ -116,6 +113,31 @@ describe('ProfileGoalForm', () => {
     expect(screen.getByRole('button', { name: '生成今日餐单' })).toBeDisabled()
     expect(request.mock.calls.some(([path]) => path === '/agent/threads/diet-planning')).toBe(false)
     expect(screen.getByRole('link', { name: status === 404 ? '去填写' : '查看个人资料' })).toHaveAttribute('href', '/app/me/profile')
+  })
+
+  it('requires a fresh review when the preference summary changes', async () => {
+    const user = userEvent.setup()
+    const request = requestWith()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><AuthContext.Provider value={{ login: vi.fn(), logout: vi.fn(), request, retryBootstrap: vi.fn(), status: 'authenticated' }}><ProfileGoalForm /></AuthContext.Provider></QueryClientProvider>)
+    await screen.findByText('忌口：已确认 花生')
+    const checkbox = screen.getByLabelText('我已复核以上饮食偏好')
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+    client.setQueryData(['planning-preference-summary'], { exclusions: ['不吃辣'], tastePreferences: ['少油'] })
+    await screen.findByText('忌口：已确认 不吃辣')
+    await waitFor(() => expect(checkbox).not.toBeChecked())
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    expect(request.mock.calls.some(([path]) => path === '/agent/threads/diet-planning')).toBe(false)
+  })
+
+  it('blocks generation when the preference summary is unavailable', async () => {
+    const fallback = requestWith()
+    const request = vi.fn(async (path: string, init?: RequestInit) => path === '/memories/preference-summary' ? new Response('', { status: 503 }) : fallback(path, init))
+    renderForm(request)
+    await screen.findByText('暂时无法读取饮食偏好，请稍后重试。')
+    expect(screen.getByRole('button', { name: '生成今日餐单' })).toBeDisabled()
+    expect(request.mock.calls.some(([path]) => path === '/agent/threads/diet-planning')).toBe(false)
   })
 
 })

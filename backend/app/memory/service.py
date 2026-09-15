@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import uuid
-import re
 from hashlib import sha256
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+from app.memory.preferences import ExplicitPreference, PreferenceSummary, extract_explicit_preferences, summarize_memory_preferences
 from app.memory.ports import MemoryLedgerRepository, MemoryProvider, MemoryReplicaMissing
 from app.records.models import PreferenceMemoryLedger
 
@@ -57,24 +57,24 @@ class MemoryService:
         canonical_text: str,
         source_run_id: uuid.UUID | None = None,
     ) -> PreferenceMemoryLedger:
-        category, canonical_text = self._validated(category=category, canonical_text=canonical_text)
-        now = self._now()
-        request_key = self._direct_request_key(
-            user_id=user_id,
+        return self._persist(lambda: self._create_direct_candidate(
+            user_id=user_id, category=category, canonical_text=canonical_text,
             source_run_id=source_run_id,
-            category=category,
-            canonical_text=canonical_text,
+        ))
+
+    def _create_direct_candidate(
+        self, *, user_id: uuid.UUID, category: str, canonical_text: str,
+        source_run_id: uuid.UUID | None,
+    ) -> PreferenceMemoryLedger:
+        category, canonical_text = self._validated(category=category, canonical_text=canonical_text)
+        request_key = self._direct_request_key(
+            user_id=user_id, source_run_id=source_run_id,
+            category=category, canonical_text=canonical_text,
         )
-        return self._persist(
-            lambda: self._repository.get_or_create_direct_candidate(
-                user_id=user_id,
-                source_run_id=source_run_id,
-                category=category,
-                canonical_text=canonical_text,
-                request_key=request_key,
-                request_key_digest=sha256(request_key.encode()).hexdigest(),
-                now=now,
-            )
+        return self._repository.get_or_create_direct_candidate(
+            user_id=user_id, source_run_id=source_run_id,
+            category=category, canonical_text=canonical_text, request_key=request_key,
+            request_key_digest=sha256(request_key.encode()).hexdigest(), now=self._now(),
         )
 
     def create_inference_proposal(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> PreferenceMemoryLedger:
@@ -86,18 +86,27 @@ class MemoryService:
 
     def capture_explicit_preferences(
         self, *, user_id: uuid.UUID, source_run_id: uuid.UUID, statement: str
-    ) -> list[PreferenceMemoryLedger]:
-        """Persist only deterministic first-person statements; guesses stay proposals."""
-        captured: list[PreferenceMemoryLedger] = []
-        for category, canonical_text in self._extract_explicit_preferences(statement):
-            ledger = self.create_direct(
-                user_id=user_id,
-                source_run_id=source_run_id,
-                category=category,
-                canonical_text=canonical_text,
-            )
-            captured.append(ledger)
+    ) -> list[ExplicitPreference]:
+        """Return current constraints; atomically queue only explicit long-term preferences."""
+        captured = extract_explicit_preferences(statement)
+        persistent = sorted(
+            (item for item in captured if item.scope == "long_term"),
+            key=lambda item: (item.category, item.canonical_text),
+        )
+        if persistent:
+            # One statement is one transaction: a later failure cannot leave half its
+            # long-term preferences committed. Cloud writes remain asynchronous.
+            self._persist(lambda: [self._create_direct_candidate(
+                user_id=user_id, source_run_id=source_run_id,
+                category=item.category, canonical_text=item.canonical_text,
+            ) for item in persistent])
         return captured
+
+    def preference_summary(self, *, user_id: uuid.UUID) -> PreferenceSummary:
+        return summarize_memory_preferences([
+            (memory.category, memory.canonical_text)
+            for memory in self.list_memories(user_id=user_id)
+        ])
 
     def confirm_inference(self, *, memory_id: uuid.UUID, user_id: uuid.UUID) -> PreferenceMemoryLedger:
         ledger = self._repository.get_for_user(ledger_id=memory_id, user_id=user_id)
@@ -269,23 +278,6 @@ class MemoryService:
         if category not in ALLOWED_CATEGORIES or not normalized:
             raise MemoryValidationError("invalid preference memory")
         return category, normalized
-
-    @staticmethod
-    def _extract_explicit_preferences(statement: str) -> list[tuple[str, str]]:
-        """D-08 allowlist intentionally rejects model, image and meal-parser observations."""
-        clauses = (" ".join(part.split()).strip() for part in re.split(r"[，,。！!?；;]", statement))
-        for normalized in clauses:
-            avoidance = re.fullmatch(r"(?:我|今天)?(?:不想|不)吃(?P<item>.+)", normalized)
-            if avoidance is not None:
-                item = avoidance.group("item").strip()
-                return [("avoidance", f"不吃{item}")] if item else []
-            goal = re.fullmatch(r"(?:我的)?目标(?:是|为)(?P<value>.+)", normalized)
-            if goal is not None and goal.group("value").strip():
-                return [("goal", goal.group("value").strip())]
-            preference = re.fullmatch(r"我(?:喜欢|偏好)(?P<value>.+)", normalized)
-            if preference is not None and preference.group("value").strip():
-                return [("stable_preference", preference.group("value").strip())]
-        return []
 
     @staticmethod
     def _direct_request_key(

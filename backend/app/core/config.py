@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, TypeAlias
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     qwen_up_to_256k_output_cny_per_m: Decimal | None = None
     vision_timeout_seconds: int = 20
     vision_max_pixels: int = 20_000_000
+    planning_batch_size: int = Field(default=64, ge=1, le=512)
+    planning_scan_per_slot: int = Field(default=2048, ge=1, le=100000)
+    planning_options_per_slot: int = Field(default=12, ge=1, le=64)
+    planning_max_combinations: int = Field(default=1728, ge=1, le=262144)
+    planning_scan_seconds_per_slot: float = Field(default=3, gt=0, le=30, allow_inf_nan=False)
+    planning_combination_seconds: float = Field(default=2, gt=0, le=30, allow_inf_nan=False)
     memory_provider_mode: MemoryProviderMode = "fake"
     mem0_api_key: SecretStr | None = None
     mem0_endpoint: str | None = None
