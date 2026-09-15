@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from app.core.config import ConfigurationError, Settings
-from app.memory.ports import MemoryProvider, MemorySearchHit
+from app.memory.ports import MemoryProvider, MemoryReplicaMissing, MemorySearchHit
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +28,8 @@ class FakeMemoryProvider:
         self.fail_next_delete = False
 
     def create(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> str:
-        external_id = f"fake-memory-{len(self._memories) + 1}"
+        # IDs may be persisted beyond this fake instance or process lifetime.
+        external_id = f"fake-memory-{uuid.uuid4()}"
         self._memories[external_id] = (user_id, category, canonical_text)
         self.calls.append(FakeMemoryProviderCall("create", user_id, external_id))
         return external_id
@@ -71,7 +72,9 @@ class FakeMemoryProvider:
 
     def update(self, *, user_id: uuid.UUID, external_id: str, category: str, canonical_text: str) -> None:
         owner = self._memories.get(external_id)
-        if owner is None or owner[0] != user_id:
+        if owner is None:
+            raise MemoryReplicaMissing("memory replica is unavailable")
+        if owner[0] != user_id:
             raise LookupError("memory is unavailable")
         self._memories[external_id] = (user_id, category, canonical_text)
         self.calls.append(FakeMemoryProviderCall("update", user_id, external_id))

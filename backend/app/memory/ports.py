@@ -20,6 +20,10 @@ class MemorySearchHit:
     canonical_text: str
 
 
+class MemoryReplicaMissing(LookupError):
+    """Provider positively confirmed a missing replica, not a timeout or owner mismatch."""
+
+
 class MemoryProvider(Protocol):
     def create(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> str: ...
     def resolve_direct_by_request_key(self, *, user_id: uuid.UUID, request_key: str) -> str | None: ...

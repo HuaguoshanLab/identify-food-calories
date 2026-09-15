@@ -9,6 +9,7 @@
 - 可依赖 `records.models` 的本地账本、SQLAlchemy、Pydantic 和 `core.config`；API 从 `auth.api.AuthenticatedPrincipal` 获取用户身份，不依赖 Agent API。
 - Service 只依赖 `MemoryProvider` Protocol；真实 SDK 仅在 `providers.py`。直接表达先用 opaque request key 建本地 ledger/intent，再由 Provider 写入，避免把原句、run ID 或外部 ID 暴露给 DTO。Mem0 direct add 固定 `infer=False`，重试只可用同一用户下的 exact request-key resolver，绝不走语义搜索。
 - 禁止传递完整对话、图片/base64、embedding、provider 响应体或模型推理过程。
+- Fake 副本只在实例内存中。编辑通过账本授权后，仅在 Provider 明确报告 `MemoryReplicaMissing` 时重建副本并绑定新 UUID 编号；不能把超时或归属错误当作缺失，不能依赖 Fake 内存保存权威正文。
 
 ## 文件索引
 

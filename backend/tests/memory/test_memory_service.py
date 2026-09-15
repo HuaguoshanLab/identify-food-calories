@@ -253,6 +253,53 @@ def test_delete_is_immediately_invisible_even_when_external_cleanup_retries() ->
     assert repository.outbox[0].status == "completed"
 
 
+def test_edit_recovers_a_lost_fake_replica_after_authorizing_the_ledger() -> None:
+    repository, provider, owner = FakeMemoryLedgerRepository(), FakeMemoryProvider(), uuid.uuid4()
+    service = _service(repository, provider)
+    memory = service.create_direct(user_id=owner, category="avoidance", canonical_text="不吃辣")
+    service.process_due_provisioning()
+    old_external_id = memory.external_memory_id
+    restarted = FakeMemoryProvider()
+    service = _service(repository, restarted)
+    with pytest.raises(MemoryUnavailable):
+        service.update_memory(memory_id=memory.id, user_id=uuid.uuid4(), canonical_text="他人修改")
+    assert restarted.calls == []
+    updated = service.update_memory(memory_id=memory.id, user_id=owner, canonical_text="不吃辣 饮食清淡")
+    assert updated.id == memory.id
+    assert updated.canonical_text == "不吃辣 饮食清淡"
+    assert updated.source_kind == "user_maintained"
+    assert updated.external_memory_id != old_external_id
+    assert [call.operation for call in restarted.calls] == ["create"]
+    assert restarted.search(user_id=owner, query="清淡", limit=3)[0].canonical_text == updated.canonical_text
+
+
+@pytest.mark.parametrize("failure", [TimeoutError, LookupError])
+def test_edit_never_recreates_on_unknown_failure_or_owner_mismatch(failure) -> None:
+    class FailingUpdate(FakeMemoryProvider):
+        def update(self, **kwargs):
+            raise failure("unavailable")
+
+    repository, provider, owner = FakeMemoryLedgerRepository(), FailingUpdate(), uuid.uuid4()
+    service = _service(repository, provider)
+    memory = service.create_direct(user_id=owner, category="avoidance", canonical_text="不吃辣")
+    service.process_due_provisioning()
+    calls_before, external_id = list(provider.calls), memory.external_memory_id
+    with pytest.raises(failure):
+        service.update_memory(memory_id=memory.id, user_id=owner, canonical_text="清淡")
+    assert provider.calls == calls_before
+    assert memory.canonical_text == "不吃辣" and memory.external_memory_id == external_id
+
+
+def test_fake_replica_ids_do_not_collide_across_instances_or_after_deletion() -> None:
+    owner = uuid.uuid4()
+    first, second = FakeMemoryProvider(), FakeMemoryProvider()
+    ids = [first.create(user_id=owner, category="avoidance", canonical_text="不吃辣")]
+    ids.append(second.create(user_id=owner, category="avoidance", canonical_text="不吃辣"))
+    first.delete(user_id=owner, external_id=ids[0])
+    ids.append(first.create(user_id=owner, category="avoidance", canonical_text="清淡"))
+    assert len(set(ids)) == 3
+
+
 def test_mem0_mode_fails_closed_without_its_required_secret_and_endpoint() -> None:
     with pytest.raises(ConfigurationError, match="MEM0_API_KEY"):
         create_memory_provider(Settings(app_env="local", memory_provider_mode="mem0", _env_file=None))

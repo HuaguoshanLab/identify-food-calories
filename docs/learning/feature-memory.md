@@ -156,6 +156,14 @@ self._persist(lambda: None)
 
 > 语法小注：Outbox 是数据库里的待办记录，用来追踪外部工作尚未完成。
 
+### 4.4 编辑时恢复丢失的 Fake 副本
+
+本地 Fake Provider 的内容只在实例内存里，而偏好正文、用户归属和外部编号保存在 PostgreSQL。记忆编辑接口会创建新的 Provider 实例；后端重启也会清空 Fake 内容。因此列表可能正常显示，但旧外部编号在当前 Fake 实例里已经不存在。
+
+`MemoryService.update_memory` 先按用户 ID 查询并锁定有效账本，再更新副本。只有 Provider 明确抛出 `MemoryReplicaMissing`（确认副本不存在）时，才重建副本、更新外部编号，并保存新正文和“用户手动维护”来源。其他用户的记录在调用 Provider 前就会被拒绝；超时、未知错误和副本归属冲突不会触发重建。
+
+关键入口：[service.py](../../backend/app/memory/service.py) 的 `update_memory`、[providers.py](../../backend/app/memory/providers.py) 的 `FakeMemoryProvider.update/create`。Fake 新编号使用 UUID，避免不同请求、进程或删除后复用相同编号。真实 Mem0 适配器不将错误自动归类为副本缺失，本次恢复针对 Fake 的生命周期问题。
+
 ## 5. 换一种输入，会走哪条路
 
 | 情况 | 判断与处理 | 应观察的结果 |
@@ -176,6 +184,8 @@ cd backend
 看显式表达、未确认推测和删除场景，关注本地可见性与外部调用次数。外部删除竞争另需集成测试。
 
 本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+2026-09-15 修复验证：`tests/memory` 与 `tests/unit/test_memory_api.py` 共 17 项通过；真实 PostgreSQL 的公开记忆 API、删除重试、幂等写入三组测试共 5 项通过。覆盖连续请求和应用重建后保存、外部编号不复用、他人请求 404、超时不盲目创建。内置浏览器在隔离环境 `http://127.0.0.1:5186` 使用独立账号验证“不吃辣 饮食清淡”保存后返回列表，并在真实重启测试后端后再次编辑成功；测试不代表真实 Mem0 服务可用性。
 
 ## 7. 读完应该能回答什么
 

@@ -154,6 +154,25 @@ def test_public_registration_mailpit_login_and_memory_tenant_boundary() -> None:
         )
         assert updated.status_code == 200, updated.text
         assert updated.json()["source_kind"] == "user_maintained"
+        # A second HTTP request gets a fresh Fake Provider while the ledger
+        # still holds the first request's external ID (the reported regression).
+        repeated = client_a.patch(
+            f"/api/v1/memories/{memory_id}", headers=headers_a,
+            json={"canonical_text": "不吃辣 饮食清淡"},
+        )
+        assert repeated.status_code == 200, repeated.text
+        with TestClient(create_app(_settings()), base_url=FRONTEND_ORIGIN) as restarted:
+            restored = restarted.get(f"/api/v1/memories/{memory_id}", headers=headers_a)
+            assert restored.json()["canonical_text"] == "不吃辣 饮食清淡"
+            edited_after_restart = restarted.patch(
+                f"/api/v1/memories/{memory_id}", headers=headers_a,
+                json={"canonical_text": "不吃辣 饮食清淡 少油"},
+            )
+            assert edited_after_restart.status_code == 200, edited_after_restart.text
+            assert edited_after_restart.json()["id"] == memory_id
+        assert client_b.patch(
+            f"/api/v1/memories/{memory_id}", headers=headers_b, json={"canonical_text": "他人修改"}
+        ).status_code == 404
         deleted = client_a.delete(f"/api/v1/memories/{memory_id}", headers=headers_a)
         assert deleted.status_code == 204, deleted.text
         assert client_a.get("/api/v1/memories", headers=headers_a).json() == []

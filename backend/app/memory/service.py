@@ -8,7 +8,7 @@ from hashlib import sha256
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-from app.memory.ports import MemoryLedgerRepository, MemoryProvider
+from app.memory.ports import MemoryLedgerRepository, MemoryProvider, MemoryReplicaMissing
 from app.records.models import PreferenceMemoryLedger
 
 
@@ -122,7 +122,12 @@ class MemoryService:
         if ledger.external_memory_id is None:
             ledger.external_memory_id = self._provider.create(user_id=user_id, category=ledger.category, canonical_text=canonical_text)
         else:
-            self._provider.update(user_id=user_id, external_id=ledger.external_memory_id, category=ledger.category, canonical_text=canonical_text)
+            try:
+                self._provider.update(user_id=user_id, external_id=ledger.external_memory_id, category=ledger.category, canonical_text=canonical_text)
+            except MemoryReplicaMissing:
+                # The locked, owner-checked ledger remains authoritative when an
+                # ephemeral fake loses its replica. Unknown outcomes must not create duplicates.
+                ledger.external_memory_id = self._provider.create(user_id=user_id, category=ledger.category, canonical_text=canonical_text)
         ledger.canonical_text = canonical_text
         ledger.source_kind = "user_maintained"
         ledger.updated_at = self._now()
