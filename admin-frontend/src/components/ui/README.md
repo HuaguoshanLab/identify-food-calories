@@ -17,4 +17,4 @@
 | `README.md` | 官方 UI 原语边界、允许依赖与文件索引。 |
 | `AlertDialog.tsx` | 基于官方 Base UI 的受控高风险确认对话框原语。 |
 
-未来新增的每个官方原语文件必须逐项登记于此，并同步更新父级 `components/README.md`。
+未来新增原语时保持官方 shadcn/Base UI 来源和无业务依赖边界；不再逐文件维护父级索引。

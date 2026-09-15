@@ -15,6 +15,6 @@
 | 文件 | 职责 |
 | --- | --- |
 | `README.md` | 配置能力、依赖边界和索引。 |
-| `api/` | 严格配置 DTO、读取/写入请求和安全错误分类；目录索引见 `api/README.md`。 |
+| `api/` | 严格配置 DTO、读取/写入请求和安全错误分类。 |
 | `ConfigSummaryPage.tsx` | 三类模型服务摘要、文字模型策略修改、理由确认与 401/403/409 安全体验。 |
 | `ConfigSummaryPage.test.tsx` | probe、键盘、敏感字段、并发和重复提交契约。 |

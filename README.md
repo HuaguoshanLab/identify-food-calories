@@ -38,71 +38,9 @@ docker compose ps
 
 服务端口与验证命令以 [`backend/README.md`](backend/README.md) 为准。生产密钥只通过未提交的环境变量提供；`.env.example` 仅记录变量名和安全占位值。
 
-### 新电脑首次启动本地 Langfuse
+### 可选的本地追踪
 
-本地 Langfuse 是独立的开发辅助栈，不包含在默认 `docker compose up` 中。新电脑需要先安装并启动 Docker Desktop（或提供 Docker Compose v2 的 Docker Engine），然后在仓库根目录确认：
-
-```bash
-docker version
-docker compose version
-```
-
-复制未提交的环境模板：
-
-```bash
-cp .env.langfuse.example .env.langfuse
-```
-
-为 `.env.langfuse` 中前六个密码或 Secret 分别执行一次 `openssl rand -base64 32`，把每次结果填入对应变量；加密密钥单独执行 `openssl rand -hex 32`，其结果必须正好是 64 位十六进制字符：
-
-```bash
-openssl rand -base64 32
-openssl rand -hex 32
-```
-
-不得继续使用模板中的 `replace-with-...` 占位值，也不要提交 `.env.langfuse`。配置完成后启动整个 Langfuse 栈并等待健康检查：
-
-```bash
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml up -d --wait
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml ps
-```
-
-打开 `http://127.0.0.1:3001`，注册这台电脑上的本地账号，创建 `food-agent-dev` 项目，再到 **Project Settings → API Keys** 创建项目密钥。将 `LANGFUSE_PUBLIC_KEY` 和 `LANGFUSE_SECRET_KEY` 写入 `backend/.env`，并确认下列配置存在：
-
-```dotenv
-TRACING_ENABLED=true
-TRACING_BACKEND=langfuse
-TRACING_HMAC_KEY=<执行 openssl rand -base64 32 后得到的值>
-TRACING_SERVICE_NAME=food-agent-backend
-TRACING_SERVICE_VERSION=local-dev
-LANGFUSE_PUBLIC_KEY=pk-lf-实际值
-LANGFUSE_SECRET_KEY=sk-lf-实际值
-LANGFUSE_BASE_URL=http://127.0.0.1:3001
-LANGFUSE_ENVIRONMENT=development
-```
-
-然后按下文启动或重启 FastAPI。完成一次餐食分析后，在 Langfuse 的 **Tracing → Traces** 中应看到 `agent.run`、`agent.provider` 和营养查询节点。
-
-后续开机只需重新启动容器；数据保存在 Docker volumes 中：
-
-```bash
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml up -d --wait
-```
-
-停止容器但保留数据：
-
-```bash
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml stop
-```
-
-排错时查看服务状态和日志：
-
-```bash
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml ps
-docker compose --env-file .env.langfuse -f docker-compose.langfuse.yml logs --tail=200 langfuse langfuse-worker
-```
-
-更完整的字段解释、安全边界和验证方法见 [`docs/learning/feature-observability.md`](docs/learning/feature-observability.md)。
+Langfuse 是默认关闭的开发辅助栈，不影响主应用启动。需要时复制 `.env.langfuse.example`，生成独立强密钥，再使用 `docker-compose.langfuse.yml` 启动。完整配置、安全字段和排错方法见 [`docs/learning/feature-observability.md`](docs/learning/feature-observability.md)。
 
 ## 启动、迁移与验收
 
@@ -201,7 +139,7 @@ uv run python tests/run_pg.py --env-file .env.test.example -- uv run python eval
 uv run python tests/run_pg.py --env-file .env.test.example -- uv run --extra dev pytest -q tests/integration/test_hybrid_food_search.py tests/integration/test_catalog_embedding_jobs.py tests/integration/test_embedding_budget_ledger.py
 ```
 
-## Phase 6 架构与边界
+## 架构摘要
 
 ```mermaid
 flowchart LR
@@ -213,57 +151,10 @@ flowchart LR
   API --> AGENT[Agent API / LangGraph]
   AGENT --> TOOLS[受控 Tools]
   TOOLS --> SVC
-  AGENT -. 只能读取确定性 facts .-> DASH[Dashboard weekly-review graph]
-  DASH --> CACHE[(版本化 review cache)]
+  AGENT --> PROVIDERS[DeepSeek / Qwen-VL / Fake Providers]
 ```
 
-两份 SPA 都只能经公开 HTTP 合约访问后端；前端 route guard 不构成授权。管理员请求由 `app.admin.service.AdminService` 重新读取 PostgreSQL 当前角色，餐食和看板聚合只读取已确认快照。LangGraph 不直接访问数据库：Agent 只通过受控 tools 调用领域服务；周复盘 graph 只接收去标识、确定性的聚合 facts，Provider 不是营养数字或权限真相。
-
-```mermaid
-stateDiagram-v2
-  [*] --> no_records
-  no_records --> recorded: completed_validated 报告\n确认保存 + IANA 时区
-  recorded --> overview: Service 固化 local_date\n并写入餐食快照
-  overview --> history: 签名 keyset cursor
-  overview --> insufficient: 覆盖不足
-  overview --> reviewing: 覆盖合格且 cache miss
-  reviewing --> reviewed: facts-only graph 通过语义阀
-  reviewing --> safe_abstention: 安全/预算/停用/未知结果
-  reviewed --> [*]
-  insufficient --> [*]
-  safe_abstention --> [*]
-```
-
-```mermaid
-sequenceDiagram
-  participant U as 用户 H5
-  participant A as FastAPI / Agent
-  participant R as Records Service
-  participant D as Dashboard Service
-  U->>A: 分析并确认保存（IANA time_zone）
-  A->>R: 仅接受 completed_validated 报告
-  R->>R: 固化 consumed_local_date
-  R-->>U: 餐食详情与快照版本
-  U->>R: 一次确认统计 IANA 时区
-  U->>D: overview / history(cursor) / weekly-review（不携带客户端时区权威）
-  D-->>U: 聚合事实、签名 cursor、闭合安全状态
-```
-
-```mermaid
-sequenceDiagram
-  participant M as 管理员 SPA
-  participant A as Admin API
-  participant S as Admin Service
-  participant P as PostgreSQL
-  M->>A: 草稿预览 / If-Match / 理由
-  A->>S: DB-RBAC + 服务端 diff
-  S->>P: 草稿、不可变 publication、eligibility history
-  S->>P: append-only audit
-  S-->>M: revision、影响范围和审计结果
-  M->>A: runtime config 命令
-  A->>S: 非密钥快照 + optimistic version
-  S-->>M: 后续运行使用的新版本
-```
+两份 SPA 只能经公开 HTTP 合约访问后端，管理员授权由后端实时读取 PostgreSQL 角色。LangGraph 只通过受控 tools 调用领域服务，模型不是营养数字或权限真相。详细依赖方向见三个应用的 `ARCHITECTURE.md`。
 
 ## 调试与可追溯验收
 
@@ -272,34 +163,7 @@ sequenceDiagram
 - 管理员 DB RBAC、不可变目录和运行配置快照：[`backend/app/admin/service.py`](backend/app/admin/service.py)、[`backend/tests/admin/test_catalog_lifecycle_service.py`](backend/tests/admin/test_catalog_lifecycle_service.py)、[`backend/tests/admin/test_runtime_config_service.py`](backend/tests/admin/test_runtime_config_service.py)。
 - 真实浏览器成功路径、边界和未完成项：[`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
 
-### 可验证的面试深挖题
-
-1. 为什么保存请求必须提交 IANA 时区而不是由浏览器展示时再换算？从 [`backend/app/records/service.py`](backend/app/records/service.py) 和 [`backend/tests/integration/test_record_local_time_attribution.py`](backend/tests/integration/test_record_local_time_attribution.py) 追踪。
-2. 为什么 dashboard history 使用签名 keyset cursor，而不是 offset？从 [`backend/app/dashboard/schemas.py`](backend/app/dashboard/schemas.py) 与 [`backend/tests/dashboard/test_dashboard_service.py`](backend/tests/dashboard/test_dashboard_service.py) 验证。
-3. 为什么周复盘不把 Profile 或 Agent State 交给模型？对照 [`backend/app/dashboard/weekly_review_graph.py`](backend/app/dashboard/weekly_review_graph.py) 和冻结 [`backend/tests/evals/test_weekly_review_eval.py`](backend/tests/evals/test_weekly_review_eval.py)。
-4. 为什么后台 UI 隐藏菜单不能替代 RBAC？从 [`backend/app/admin/api.py`](backend/app/admin/api.py)、[`backend/app/admin/service.py`](backend/app/admin/service.py) 与 [`backend/tests/unit/test_admin_rbac_api.py`](backend/tests/unit/test_admin_rbac_api.py) 检查。
-
-管理员不通过用户 H5 创建。先注册、验证一个真实账号，然后按 [`backend/README.md`](backend/README.md#本地运行) 的 `app.admin.cli bootstrap` 或 `promote` 命令操作；两种操作都会留下可审计记录。
-
-Phase 2 的真实 Provider 文案评测仅能使用 lockfile 中已批准的本地 CLI；它不是日常前端构建步骤，也不得用 `npx` 临时下载。Plan 02-17 获得明确付费授权后才可执行：
-
-```bash
-cd frontend
-npx --no-install promptfoo eval -c ../backend/evals/promptfooconfig.yaml --no-cache
-```
-
-该命令会调用配置的 Provider，未获当次授权时禁止运行。
-
-Phase 3 的图片冻结评测不调用真实模型，只回放合成、不可逆 fixture reference；任何哈希漂移、缺案例或关键安全失败都让报告失败：
-
-```bash
-cd backend
-.venv/bin/python evals/evaluate_phase3.py \
-  --dataset evals/phase03-cases.jsonl \
-  --output evals/phase03-release.json
-```
-
-详见 [`docs/after/phase-03-multimodal-meal-analysis.md`](docs/after/phase-03-multimodal-meal-analysis.md)。
+管理员创建、真实 Provider 评测和图片冻结评测都不是日常启动步骤。请分别查看 [`backend/README.md`](backend/README.md)、[`docs/learning/README.md`](docs/learning/README.md) 与 [`docs/verification/README.md`](docs/verification/README.md)；任何会调用付费 Provider 的评测都需要当次明确授权。
 
 ## 文件索引
 

@@ -10,11 +10,14 @@
 - 测试数据库动作只允许使用 `validate_test_database_configuration()` 返回的隔离测试 URL；本机开发 Checkpointer 初始化只允许固定的 loopback `food_agent_dev`。
 - 禁止读取或改写 `DATABASE_URL` 以把开发库伪装成测试库，禁止把密码写进错误输出。
 
-## 文件索引
+## 入口分类
 
-| 路径 | 职责 |
-|---|---|
-| `run_initialized_app.py` | 固定执行安全 schema reset → Alembic → Checkpointer setup → seed apply → Uvicorn；任一步失败即停止。 |
-| `bootstrap_local_admin.py` | 只对 guard 验证后的本地库幂等创建 `.env` 提供密码的固定管理员，并以既有管理员审计服务记录角色变化。 |
-| `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 显式执行一次 AsyncPostgresSaver schema setup。 |
-| `setup_local_checkpointer.py` | 只对 `APP_ENV=local` 的 loopback `food_agent_dev` 幂等创建 LangGraph Checkpointer 表；不接收 URL、不 reset、不迁移、不 seed。 |
+| 类别 | 脚本 | 使用时机 |
+|---|---|---|
+| 首次本地初始化 | `bootstrap_local_planning_data.py` | 首次启动或开发库重建后，幂等导入受控食材和菜谱。 |
+| 首次本地初始化 | `setup_local_checkpointer.py` | 为 loopback `food_agent_dev` 幂等创建 LangGraph Checkpointer 表。 |
+| 可选本地管理 | `bootstrap_local_admin.py` | 需要管理后台账号时运行；密码只来自未提交 `.env`。 |
+| 自动化测试 | `run_initialized_app.py` | 隔离 E2E/集成环境的 reset、迁移、Checkpointer、seed 和 Uvicorn 统一入口；不得对开发库运行。 |
+| 自动化测试 | `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 创建 Checkpointer schema。 |
+
+日常启动不需要新的包装脚本：完成必要初始化后，直接运行 `uv run alembic upgrade head` 和 `uv run uvicorn app.main:app --reload`。本目录当前没有废弃脚本。
