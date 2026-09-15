@@ -78,6 +78,6 @@ npm run typecheck && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build
 | `src/features/recipes/` | 候选菜 CSV 导入导出、列表与批量生命周期 UI；不持有营养计算逻辑。 |
 | `src/features/runs/` / `src/features/audit/` | 最小运行诊断和 append-only 审计读取 UI |
 
-## 实施顺序
+## 后续变更
 
-实施从已批准的 [Phase 6 计划](../.planning/phases/06-user-dashboard-admin/) 开始。先建立锁定的 Vite 供应链与独立入口，再创建认证壳、严格 API 客户端和各功能模块；不得跳过计划直接手写后台页面。
+Phase 6 计划仅作历史证据。后续功能按 `AGENTS.md` 的 S/M/L 风险分级执行：先在所属 feature 定义严格 API 合约，再实现页面和范围匹配的测试，不再创建 GSD Plan 或 Summary。

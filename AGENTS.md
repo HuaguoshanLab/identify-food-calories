@@ -24,12 +24,14 @@
 
 **Core Value:** 让用户获得可追问、可校验、可追溯、能记住个人偏好的饮食分析与规划结果。
 
-权威资料：
+历史规划资料：
 
 - `.planning/PROJECT.md`
 - `.planning/REQUIREMENTS.md`
 - `.planning/ROADMAP.md`
 - `.planning/STATE.md`
+
+`.planning/` 自 2026-09-15 起冻结为历史规划与验证档案，可用于追溯旧决策，但不再作为强制工作流或当前进度状态机。当前事实以源码、测试、迁移、三个应用的 README/ARCHITECTURE 和本文件为准。
 
 ## Approved Stack
 
@@ -77,12 +79,12 @@
 
 ## Teaching Contract
 
-- 学习文档按功能组织，不按 Phase 新增阶段教程。每个后端阶段或功能变更完成后，更新 `docs/learning/` 中受影响的功能文档；只有出现新功能时才新增 `feature-<功能名>.md`。
+- 学习文档按功能组织，不按 Phase 新增阶段教程。只有新增用户能力、改变后端关键链路或原文已不再成立时，才更新 `docs/learning/`；局部重构、样式和机械修复不要制造教学文档工作。
 - `docs/learning/README.md` 是统一入口，列出功能、简短介绍和可点击链接；新增、调整或移动功能文档时同步更新。
 - 每篇先概述功能，再依次说明：核心能力（解决什么问题、实现什么效果）、业务背景（具体场景与设计理由）、整体执行流程（输入 → 处理 → 输出，可用简单流程图）、关键代码、难懂语法和验证方法。
 - 讲解使用通俗中文，侧重 AI 与后端；专业术语先解释用途，前端只交代必要入口和交互。标明真实代码路径与关键函数，只贴简短主逻辑，删减代码必须标注，难懂语法单独解释。
 - 以当前源码、测试与运行结果为依据，区分模型理解、工具计算、状态管理和业务存储；不得把规划目标或未接入的模型能力写成已实现，也不得虚构验证通过。
-- `docs/after/` 仅存放原有阶段及补充专题资料，保留历史用途；新功能教学和后续维护统一进入 `docs/learning/`，不恢复旧阶段文件作为教学交付物。
+- `docs/after/`、`.planning/phases/` 和 `.planning/quick/` 是冻结的历史快照；除敏感信息、断链或会导致破坏性操作的严重错误外，不因当前实现变化而追溯重写。
 - 验证方法说明对应测试、已执行结果、未验证部分与常见错误。
 - 代码注释解释“为什么”，不要逐行翻译“做什么”。
 - Service 使用 fake repository 单测；Repository 使用真实 PostgreSQL 集成测试；Agent 图使用 Fake Provider 测试路由、interrupt/resume 与循环终止。
@@ -98,20 +100,22 @@
 ## Conventions
 
 - 仓库根目录、`frontend/` 与 `backend/` 必须各自维护 `README.md` 和 `AGENTS.md`；Phase 6 创建 `admin-frontend/` 时同样适用；子级 `AGENTS.md` 只能细化、不能放宽上级规则。
-- 新增任何目录时，必须在同一次提交新增该目录的 `README.md`，写明目录职责、允许依赖和文件索引；目录文件变化时同步更新索引。
+- 只有新建顶级应用或业务模块根目录时必须新增 `README.md`。`api/`、`components/`、`tests/`、`data/` 等约定俗成的子目录不强制单独 README；只有存在非显然安全边界、依赖例外或运维流程时才创建。
+- README 只维护稳定职责和关键入口，不手工复制可由文件系统直接得到的逐文件索引。普通文件增删不要连锁修改多级 README。
 - 数据库 schema 变更必须通过 Alembic migration。
 - API、模型输出、工具参数和 Graph State 必须经过运行时校验。
 - 模型、提示词、工具、目录和计算规则都有版本标识。
 - 依赖密钥只能通过未提交的环境变量提供。
 - 未经冻结评测和安全测试，不得在简历或 README 中声称达到某项指标。
 
-## GSD Workflow Enforcement
+## Change Workflow
 
-- `$gsd-discuss-phase`：阶段上下文
-- `$gsd-plan-phase`：可执行计划
-- `$gsd-execute-phase`：执行已验证计划
-- `$gsd-verify-work`：人工验收
-- `$gsd-secure-phase`：威胁缓解审计
-- `$gsd-eval-review`：Agent 评测覆盖审计
+后续开发不使用 GSD，不再新建或更新 GSD Phase、Quick、Plan、Summary、State 或其他工作流产物。现有产物只作历史查询。
 
-除非用户明确要求绕过，否则不要脱离 GSD 工作流实施计划内功能。
+变更按风险分级：
+
+- **S 级**：文案、样式、明确小 Bug、机械重构和文档事实修正。直接确认范围、修改、运行定向验证。
+- **M 级**：新页面、现有领域的新 API、筛选或普通后台操作。先写简短实施清单，再实现、测试和验收。
+- **L 级**：认证、权限、数据库核心模型、图片安全、Agent 状态机、营养计算、Provider 费用或长期记忆隔离。在实现前明确威胁、失败模式、回滚和验证清单，但不依赖 GSD 文件。
+
+文档影响遵循最小化原则：产品边界只改根 README；强制规则只改 AGENTS；代码落点或依赖方向只改 ARCHITECTURE；启动、构建、测试或配置只改对应应用 README；用户可见能力或关键后端链路变化才更新 `docs/learning/`。一项普通变更不应为了同步状态而修改五份文档。

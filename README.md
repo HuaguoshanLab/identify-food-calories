@@ -7,7 +7,9 @@
 - Phase 1–06.3 共 129 个计划均已执行并产生 Summary；Phase 6、06.2 和 06.3 的最终验证已通过。
 - Phase 2 已由用户手动接受为阶段完成，但当前 Spearman 发布报告仍为 `FAIL`，不得宣称该发布门禁已通过。
 - Phase 5 的规划实现和组件证据已完成，但真实“生成后调整餐单”的 E2E 路径仍需人工复验。
-- Phase 7“评测、安全与上线”尚未开始；项目当前不等于生产就绪。权威追踪见 [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md)、[`.planning/ROADMAP.md`](.planning/ROADMAP.md) 和 [`.planning/STATE.md`](.planning/STATE.md)。
+- Phase 7“评测、安全与上线”尚未开始；项目当前不等于生产就绪。截止停用 GSD 时的历史追踪见 [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md)、[`.planning/ROADMAP.md`](.planning/ROADMAP.md) 和 [`.planning/STATE.md`](.planning/STATE.md)。
+
+> 流程状态：项目自 2026-09-15 起不再使用 GSD。`.planning/` 中的需求、路线图、阶段计划、Summary 和 Verification 均保留为历史证据，不再作为强制开发流程或实时状态。
 
 ## 职责
 
@@ -311,11 +313,11 @@ cd backend
 | `docker-compose.yml` | 本地 pgvector 双库与 Mailpit 编排 |
 | `docker-compose.langfuse.yml` | 默认关闭、仅环回暴露的本地 Langfuse 开发栈；含 Web、Worker、Redis、独立数据库与对象存储。 |
 | `docs/` | 中文教学与工程使用文档 |
-| `.planning/` | GSD 权威规划、需求、路线图与执行状态 |
+| `.planning/` | 截至 2026-09-15 的 GSD 历史规划、需求、路线图与执行证据；不再实时更新 |
 
 ## 文档维护
 
-任何新目录必须在同一提交中提供 `README.md`，至少包含“职责”“允许依赖”“文件索引”；目录内容变化时同步更新父级索引。
+只有新建顶级应用或业务模块根目录时必须提供 `README.md`。约定俗成的子目录不强制单独 README，普通文件增删不连锁更新多级索引。
 
 ### 今日计划存档
 

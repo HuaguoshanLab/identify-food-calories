@@ -2,7 +2,7 @@
 
 ## 职责
 
-`tests/architecture/` 把仓库目录、README 索引和依赖边界变成自动化合同，防止新增模块后文档与代码悄悄分叉。
+`tests/architecture/` 把稳定的应用/业务模块 README 边界和代码依赖规则变成自动化合同。它不再要求每个机械子目录创建 README，也不校验易漂移的逐目录父级索引。
 
 ## 允许依赖
 
@@ -14,4 +14,4 @@
 
 | 文件 | 职责 |
 |---|---|
-| `test_directory_contract.py` | README 三节与父级索引的仓库级合同 |
+| `test_directory_contract.py` | 顶级应用和业务模块根目录的 README 边界合同 |

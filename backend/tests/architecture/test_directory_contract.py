@@ -1,4 +1,4 @@
-"""Repository documentation contracts for tracked source directories."""
+"""Documentation contracts for stable application and business-module roots."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-REQUIRED_SECTIONS = ("## 职责", "## 允许依赖", "## 文件索引")
 EXCLUDED_PARTS = {
     ".git",
     ".mypy_cache",
@@ -42,43 +41,41 @@ def _is_contract_source(path: Path) -> bool:
     )
 
 
-def _documented_directories() -> set[Path]:
-    directories = {Path(".")}
+APPLICATION_ROOTS = {
+    Path("."),
+    Path("backend"),
+    Path("frontend"),
+    Path("admin-frontend"),
+}
+BUSINESS_CONTAINERS = {
+    Path("backend/app"),
+    Path("frontend/src/features"),
+    Path("admin-frontend/src/features"),
+}
+
+
+def _required_documentation_roots() -> set[Path]:
+    """Require docs at stable module boundaries, not every mechanical subdirectory."""
+
+    roots = set(APPLICATION_ROOTS)
     for path in _tracked_paths():
         if not _is_contract_source(path):
             continue
-        current = path.parent
-        while current != Path("."):
-            directories.add(current)
-            current = current.parent
-    return directories
+        for container in BUSINESS_CONTAINERS:
+            try:
+                relative = path.relative_to(container)
+            except ValueError:
+                continue
+            if len(relative.parts) >= 2:
+                roots.add(container / relative.parts[0])
+    return roots
 
 
-def test_every_tracked_source_directory_has_a_three_section_readme() -> None:
+def test_application_and_business_module_roots_have_boundary_readmes() -> None:
     missing: list[str] = []
-    incomplete: list[str] = []
-    for directory in sorted(_documented_directories()):
+    for directory in sorted(_required_documentation_roots()):
         readme = REPOSITORY_ROOT / directory / "README.md"
         if not readme.is_file():
             missing.append(str(directory))
-            continue
-        content = readme.read_text(encoding="utf-8")
-        absent = [section for section in REQUIRED_SECTIONS if section not in content]
-        if absent:
-            incomplete.append(f"{directory}: {', '.join(absent)}")
 
-    assert not missing, f"source directories missing README.md: {missing}"
-    assert not incomplete, f"README sections missing: {incomplete}"
-
-
-def test_parent_readme_indexes_each_direct_child_source_directory() -> None:
-    directories = _documented_directories()
-    omissions: list[str] = []
-    for child in sorted(directory for directory in directories if directory != Path(".")):
-        parent = child.parent
-        parent_readme = (REPOSITORY_ROOT / parent / "README.md").read_text(encoding="utf-8")
-        child_name = child.name
-        if f"`{child_name}/`" not in parent_readme and f"`{child_name}`" not in parent_readme:
-            omissions.append(f"{parent}/README.md does not index {child}/")
-
-    assert not omissions, "parent directory indexes are stale: " + "; ".join(omissions)
+    assert not missing, f"application or business-module roots missing README.md: {missing}"

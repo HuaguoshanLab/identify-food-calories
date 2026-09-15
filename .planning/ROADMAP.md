@@ -1,5 +1,7 @@
 # Roadmap: 多模态饮食健康智能 Agent
 
+> **历史快照：** 本路线图保留截至 2026-09-15 的 GSD 阶段历史。后续开发不再以 Phase/Plan 流程推进，也不在此更新实时进度。
+
 ## 跨阶段学习文档交付规则
 
 - 后续 GSD 讨论与规划按受影响功能确定文档范围；计划的文件清单与验收项指向 `docs/learning/feature-*.md` 和 `docs/learning/README.md`，不再创建 `phase-*.md` 或按阶段编号的教程。

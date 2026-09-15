@@ -14,6 +14,8 @@ progress:
   percent: 91
 ---
 
+> **已冻结：** 本文件是 2026-09-15 停用 GSD 时的状态快照，不再作为当前任务、进度或恢复入口。历史内容保留供查询，后续变更不得继续向本文件追加运行日志。
+
 # Project State
 
 ## Project Reference

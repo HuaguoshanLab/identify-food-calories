@@ -22,8 +22,8 @@
 
 ## Documentation
 
-- 新增目录时必须同次增加 README，写明职责、允许依赖和文件索引。
-- 文件增删时同步维护本目录和父目录索引。
+- 只有新建业务 feature 根目录时必须增加 README。约定俗成的 `api/`、`components/`、`tests/` 子目录不强制单独 README。
+- README 仅维护稳定责任、关键入口和例外依赖；普通文件增删不连锁更新多级索引。
 
 ## H5 UI Contract
 

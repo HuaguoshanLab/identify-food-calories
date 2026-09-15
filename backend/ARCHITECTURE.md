@@ -80,4 +80,4 @@ providers/* → core/config.py、自己的 DTO/Port、已验证图片引用
 
 ## 变更门禁
 
-新目录在同一提交新增 `README.md`，包含“职责 / 允许依赖 / 文件索引”；文件移动、增加或删除时同步更新本目录和父目录索引。新增业务能力遵守 `API → Application/Service → Repository → Model`，功能实现完成后依次补对应单测、PostgreSQL 集成测试与公开 API 合约测试。完整命令和测试数据库隔离规则见 `README.md`。
+新建业务模块根目录时增加说明职责和非显然边界的 README；常规子目录和普通文件增删不连锁维护索引。新增业务能力遵守 `API → Application/Service → Repository → Model`，并补范围匹配的单测、PostgreSQL 集成测试与公开 API 合约测试。完整命令和测试数据库隔离规则见 `README.md`。

@@ -22,4 +22,4 @@
 
 - 组件行为使用 Vitest、Testing Library 与 MSW；跨栈路径使用 Playwright。
 - 页面、表单、路由、图表或跨栈交互完成后，必须经真实公开 API 在 Codex 内置浏览器验证；不得通过直写数据库、伪造 token 或截图替代。
-- 新增目录时同次创建 README，写明职责、允许依赖和文件索引；目录内容变化时同步更新本目录与直接父级索引。
+- 只有新建后台 feature 根目录时必须增加 README。常规 `api/`、`components/`、`tests/` 子目录和普通文件增删不强制创建或连锁更新索引。
