@@ -19,18 +19,20 @@
 - 管理员：维护菜品、营养来源、数据版本、模型配置与审核状态。
 - 学习者/面试官：可以从代码、测试和文档中追踪一条 Agent 请求的完整生命周期。
 
-## Active Requirements
+## Delivery Status
 
-- [ ] 邮箱注册、验证码激活、登录、刷新、退出、密码重置和基于角色的权限控制。
-- [ ] LangGraph 主图包含餐食分析子图和饮食规划子图。
-- [ ] 图片识别失败、菜品模糊或份量缺失时，Agent 可以中断并追问用户，收到回复后从 Checkpoint 恢复。
-- [ ] 营养查询、热量计算和异常校验均为确定性工具，模型不得自由生成最终营养数值。
-- [ ] DeepSeek 用于文本推理和工具选择，Qwen-VL 用于视觉理解；两者通过 Provider 接口可替换。
-- [ ] PostgreSQL 保存用户、餐食、营养目录、Agent 运行和审计信息；pgvector 支持语义检索。
-- [ ] Mem0 只保存经过筛选的长期偏好，不替代业务数据库。
-- [ ] 用户可查看餐食历史、热量趋势和饮食复盘。
-- [ ] 管理员可维护菜品、营养来源、数据版本、模型配置与审核状态。
-- [ ] 每个后端阶段同步更新按功能组织的中文学习文档及总目录，侧重 AI 与后端的业务场景、执行流程、关键代码和验证方法。
+截至 2026-09-12，Phase 1–06.3 的 129 个计划均已有完成摘要。下列产品与架构能力已实现；“已实现”不等于“已生产发布”。Phase 2 的阶段实现已由用户手动接受，但其保留的 Spearman 发布报告仍为 `FAIL`；Phase 5 的代码与组件证据已完成，真实调整闭环仍有人工 E2E 复验项；Phase 7 的统一安全、CI 和上线门禁尚未开始。
+
+- [x] 邮箱注册、验证码激活、登录、刷新、退出、密码重置和基于角色的权限控制。
+- [x] LangGraph 主图包含餐食分析子图和饮食规划子图。
+- [x] 图片识别失败、菜品模糊或份量缺失时，Agent 可以中断并追问用户，收到回复后从 Checkpoint 恢复。
+- [x] 营养查询、热量计算和异常校验均为确定性工具，模型不得自由生成最终营养数值。
+- [x] DeepSeek 用于文本推理和工具选择，Qwen-VL 用于视觉理解；两者通过 Provider 接口可替换。
+- [x] PostgreSQL 保存用户、餐食、营养目录、Agent 运行和审计信息；pgvector 支持语义检索。
+- [x] Mem0 只保存经过筛选的长期偏好，不替代业务数据库。
+- [x] 用户可查看餐食历史、热量趋势和饮食复盘。
+- [x] 管理员可维护菜品、营养来源、数据版本、模型配置与审核状态。
+- [x] 已按功能维护 `docs/learning/` 中文学习文档及总目录。
 
 ## Out of Scope for v1
 
@@ -52,7 +54,7 @@
 
 ### Backend and Agent
 
-- Python 3.11+、FastAPI、Pydantic
+- Python 3.12+、FastAPI、Pydantic
 - LangGraph、PostgreSQL Checkpointer
 - SQLAlchemy 2、Alembic、PostgreSQL、pgvector
 - Mem0（长期偏好阶段接入）
@@ -106,4 +108,4 @@
 该文档在每个阶段完成后更新。新增模型、记忆或后台能力必须保持 Provider、工具和权限边界，不得绕过确定性营养计算与审计。
 
 ---
-*Last updated: 2026-08-27 after Agent redesign*
+*Last updated: 2026-09-15 after delivery-status reconciliation against source, plans, summaries, and verification reports*

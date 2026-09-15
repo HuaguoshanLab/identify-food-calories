@@ -2,7 +2,7 @@
 
 ## 状态与目标
 
-`admin-frontend/` 是 Phase 6 的独立、桌面优先管理后台 React SPA。本文件是实施前的架构合同：它规定后续代码的落点和边界，不声称当前已存在应用入口、依赖锁或业务页面。
+`admin-frontend/` 是已交付的独立、桌面优先管理后台 React SPA。它已包含独立应用入口、依赖锁、认证壳、运行概览、营养目录、菜谱、向量检索、Agent 运行、模型配置、审计和系统管理页面。本文件同时作为现有实现的架构边界和后续变更合同。
 
 后台服务于五类管理员工作：运行概览、营养目录版本治理、Agent 运行审计、模型服务与操作审计。模型服务页通过安全摘要区分 DeepSeek 文字理解、通义千问图片识别和 DashScope 菜品向量检索，不把服务端环境配置伪装成浏览器可编辑项。它只访问公开 `/api/v1/admin/*`；用户 H5 保持四 Tab，绝不包含后台路由、导航或业务组件。
 
@@ -16,9 +16,9 @@
 前端 route guard / 菜单可见性 ── 仅改善体验，不能替代后端 RBAC
 ```
 
-## 目标运行时组成
+## 运行时组成
 
-后续入口必须保持以下单向组合；应用级文件只装配 Provider 与路由，不承载业务请求或领域状态。
+当前入口按以下单向组合；应用级文件只装配 Provider 与路由，不承载业务请求或领域状态。
 
 ```text
 main.tsx
@@ -38,7 +38,7 @@ main.tsx
 
 ## 目录地图与新代码落点
 
-下列目录在相应执行计划创建前可能还不存在；首次创建必须同时加入本级 README 和父级索引。
+下列目录已存在；后续新增 capability 或子目录时，首次创建必须同时加入本级 README 和父级索引。
 
 | 位置 | 责任 | 新代码放置规则 |
 |---|---|---|
@@ -53,7 +53,10 @@ main.tsx
 | `src/features/overview/` | 近 24 小时运行指标与到 runs 的筛选深链 | 指标 API、格式化、页面和测试都留在本 feature。 |
 | `src/features/catalog/` | 目录草稿、审核、发布、失格与字段级差异 | 所有目录 mutation 走严格 API 客户端与理由确认。 |
 | `src/features/runs/` | 运行筛选、列表和最小化详情 | 只消费安全摘要；不渲染 Provider 原文或完整 State。 |
-| `src/features/model-configs/` | 非密钥 Provider/模型版本、费用上限与启停 | 不出现密钥、端点或 Provider body 字段。 |
+| `src/features/config/` | 非密钥 Provider/模型版本、费用上限与启停 | 不出现密钥、端点或 Provider body 字段。 |
+| `src/features/recipes/` | 成品菜候选的 CSV 导入导出与批量生命周期 | 营养计算和候选资格仍由后端决定。 |
+| `src/features/system/` | 账号列表、固定角色说明与受审计的管理员升降权 | 页面状态不代替后端实时 RBAC。 |
+| `src/features/vector-retrieval/` | 向量空间构建、状态、重试和显式激活 | 只展示安全投影，发布准入由后端冻结证据决定。 |
 | `src/features/audit/` | 管理员操作审计时间线/表格 | 只读、分页、最小化 DTO；不自行拼装敏感详情。 |
 | `src/test/` | Vitest、Testing Library、MSW 通用 setup | 清理 mock、Query cache 与 DOM；不放 feature 测试主体。 |
 | `tests/e2e/` | Playwright 真实公开 API 跨栈路径 | 不通过直写数据库、伪造 token 或内部函数建立验收状态。 |

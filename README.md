@@ -2,6 +2,13 @@
 
 本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
 
+## 交付状态
+
+- Phase 1–06.3 共 129 个计划均已执行并产生 Summary；Phase 6、06.2 和 06.3 的最终验证已通过。
+- Phase 2 已由用户手动接受为阶段完成，但当前 Spearman 发布报告仍为 `FAIL`，不得宣称该发布门禁已通过。
+- Phase 5 的规划实现和组件证据已完成，但真实“生成后调整餐单”的 E2E 路径仍需人工复验。
+- Phase 7“评测、安全与上线”尚未开始；项目当前不等于生产就绪。权威追踪见 [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md)、[`.planning/ROADMAP.md`](.planning/ROADMAP.md) 和 [`.planning/STATE.md`](.planning/STATE.md)。
+
 ## 职责
 
 - `frontend/`：独立运行和构建的 React、TypeScript 与 Vite 用户端。

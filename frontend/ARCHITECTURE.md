@@ -35,7 +35,7 @@ main.tsx → Router / QueryClient / AuthProvider → App.tsx（路由组合）
 | `src/features/agent/` | 餐食分析、OpenAPI 生成物、SSE | Agent 页面、流、生成合约都留在此处；不得保存 Graph State 或计算营养数值。 |
 | `src/features/records/` | 已确认餐食记录 | 记录 DTO、请求、展示和编辑都留在此处。 |
 | `src/features/memory/` | 长期偏好管理 | 记忆 DTO、请求、列表和编辑都留在此处。 |
-| `src/features/plans/` | 未来饮食计划能力 | 当前 `PlaceholderTabPage` 仅是占位；开始实现计划时创建此 feature，不把计划代码继续塞入 `app/`。 |
+| `src/features/plans/` | 饮食规划、资料目标、安全调整与正式餐单存档 | 规划 API、SSE、运行时 DTO、生成/调整页、历史与详情继续归属此 feature；不把计划代码塞入 `app/`。 |
 | `tests/e2e/` | Playwright 真实浏览器跨栈路径 | 仅放跨栈、真实用户路径；组件与模块行为测试紧贴源码。 |
 
 ## 依赖规则
