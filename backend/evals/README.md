@@ -52,6 +52,8 @@
 
 ## Phase 3 多模态冻结门
 
+`evaluate_phase3.py` 当前只验证 Fake Provider 合成回放。报告显式记录 `evidence_scope=synthetic_provider_replay`、`real_model_evaluated=false` 和 `real_image_lifecycle_evaluated=false`；预置的删除观察不构成真实删除证据。CLI 在回放检查失败时返回非零退出码。旧报告保留原始版本，不追溯改写成新验证结果。
+
 ```bash
 cd backend
 .venv/bin/python -m pytest tests/unit/test_phase03_eval_contract.py -q

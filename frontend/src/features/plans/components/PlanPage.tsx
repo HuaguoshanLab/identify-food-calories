@@ -104,8 +104,13 @@ export function PlanPage() {
       const changedSlot = parsedReport.data.adjustment?.changed_slots[0]
       if (changedSlot && parsedReport.data.adjustment) {
         const previousName = report?.meals.find((meal) => meal.slot === changedSlot)?.display_name
-        if (previousName) setMealAdjustment((current) => ({ ...current, [changedSlot]: { previousName, matchedConstraint: parsedReport.data.adjustment!.matched_constraint, rangeStatus: adjustmentRangeSummary(parsedReport.data.adjustment!.range_status) } }))
-        setUpdatedSlot(changedSlot)
+        const currentName = parsedReport.data.meals.find((meal) => meal.slot === changedSlot)?.display_name
+        // A restored stream may replay the already saved version. It carries no
+        // previous name, so it cannot establish a new before/after comparison.
+        if (previousName && previousName !== currentName) {
+          setMealAdjustment((current) => ({ ...current, [changedSlot]: { previousName, matchedConstraint: parsedReport.data.adjustment!.matched_constraint, rangeStatus: adjustmentRangeSummary(parsedReport.data.adjustment!.range_status) } }))
+          setUpdatedSlot(changedSlot)
+        }
       }
       setReport(parsedReport.data); setCreating(false);
       await queryClient.invalidateQueries({ queryKey: planArchiveKeys.all });

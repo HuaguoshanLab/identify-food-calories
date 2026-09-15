@@ -70,45 +70,49 @@ current = current.model_copy(
 
 > 语法小注：`model_copy(update=...)` 生成更新后的状态，传递下一步需要的数据。
 
-### 4.2 优先从已启用候选池选择
+### 4.2 把目标传给选菜服务
 
 **收到什么**
 
-组合函数收到目标关联信息、偏好以及本次排除的菜谱。此处展示已通过前置身份检查后的候选来源选择。
+`DailyTarget` 是确定性工具算出的全天目标；`PreferenceReview` 是用户确认的忌口和口味。
 
 **代码在哪里**
 
-[backend/app/planning/service.py](../../backend/app/planning/service.py) 的 `compose_daily_meals`。
+[backend/app/agent/tools.py](../../backend/app/agent/tools.py) 的 `SessionNutritionToolAdapter.compose_daily_plan`。以下省略 Session 的创建和关闭：
 
 ```python
-candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
-if required_recipe_id is not None:
-    candidates = [item for item in candidates if item.meal_slot is not required_slot or (item.id == required_recipe_id and item.revision == required_recipe_revision)]
-if candidates:
-    recent_recipe_ids = () if user_id is None else getattr(
-        self._repository, "list_recent_recipe_ids", lambda **_: ()
-    )(user_id=user_id, plan_limit=3)
-    return self._compose_managed_candidates(
-        candidates, preferences, exclude_recipe_ids, recent_recipe_ids, required_food_id, required_catalog_version, required_slot
-    )
-if catalog_version is None:
-    return MealCompositionResult(
-        action=PlanValidationAction.REPLAN,
-        safe_message="没有可用于餐单的已启用候选菜。请先在菜谱管理中启用合格候选菜。",
-    )
+return service.compose_daily_meals(
+    user_id=user_id,
+    target=target,
+    catalog_version=None,
+    preferences=preferences,
+    recipe_version=CONTROLLED_RECIPE_VERSION,
+)
 ```
 
 **为什么这样写**
 
-已有管理员候选时走候选组合，并参考最近三份历史降低重复。没有候选也不能凭空生成：是否能用受控菜谱还取决于目录版本。
+目标必须参与选菜。管理员候选携带自己的目录版本，不固定为某个初始目录。新环境尚未配置过管理员候选时，服务可读取当前启用且审核通过的受控食谱；一旦存在管理员候选记录，即使全部停用或删除，也不会自动回退，避免绕过管理员决定。
 
 **处理后变成什么，交给谁**
 
-候选路径得到按份量重算的餐次组合；缺来源会返回 REPLAN。这里主要是后端规则，不存在模型自由创作整份菜单的调用。
+每个候选按目录和原有份量重算营养，再交给 `planning/selection.py` 的 `select_meals`。未改变食谱份量和营养公式。
 
-> 语法小注：`getattr(..., 默认函数)` 兼容不同实现的仓储接口，不代表运行时自动获得新能力。
+### 4.3 在有界组合中比较目标与偏好
 
-### 4.3 检查三餐与重复，之后才查数值
+[backend/app/planning/selection.py](../../backend/app/planning/selection.py) 使用 `planning-selection.v2`。输入是已经计算好的候选餐次；输出是一组三餐或空结果。
+
+- 候选总量超过 256 时停止并提示缩小范围，防止大量营养查询。
+- 每个餐次最多保留 12 个候选，最多比较 1,728 个三餐组合。
+- 排序先看硬校验与目标符合情况，再比较口味匹配、近期重复和目标中点距离；同样输入与历史产生相同结果。
+- 近期吃过的菜仍可使用：不能为了换花样丢掉唯一能通过校验的组合。
+- 这是有限候选中的启发式搜索，不保证全局最优；最终仍必须通过 `validate_plan`。
+
+忌口检查使用菜名、受控别名、做法和口味标签；受控食谱还检查每个已知食材的名称和别名。全角字符、大小写和多余空白会先归一化。管理员成品菜没有完整配料结构，不能把这种匹配当作过敏原保障，也不推断缺失配料。
+
+> 语法小注：`product(*pools)` 枚举各餐次候选的组合；`min(..., key=score)` 按评分元组从左到右比较。`Decimal` 保留十进制计算，避免浮点误差参与排序。
+
+### 4.4 检查三餐与重复，之后才查数值
 
 **收到什么**
 
@@ -135,7 +139,7 @@ if len({meal.recipe_id for meal in meals}) != len(meals):
 
 **为什么这样写**
 
-三餐齐全、不重复是结构条件；后面还检查忌口、总量与比例。单个食物算对不代表整日组合符合约束。
+三餐齐全、不重复是结构条件；后面先检查忌口、最低能量与宏量比例，再检查目标范围。范围放宽不能跳过宏量比例。单个食物算对不代表整日组合符合约束。
 
 **处理后变成什么，交给谁**
 
@@ -157,12 +161,14 @@ if len({meal.recipe_id for meal in meals}) != len(meals):
 
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/unit/test_diet_planning_graph.py tests/planning/test_planning_service.py -q
+.venv/bin/python -m pytest tests/unit/test_diet_planning_graph.py tests/planning/test_planning_service.py tests/planning/test_personalized_selection.py -q
 ```
 
 观察 COMPOSE 后还必须 VALIDATE，检查三次上限及 PASS/RELAX 的不同结果。替身验证的是规则路由，不是模型菜单质量。
 
-本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+新增回归覆盖不同目标产生不同组合、口味排序、别名忌口、仅剩可行旧菜、组合上限和宏量比例不能被放宽跳过。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+2026-09-15 本地验收：`frontend/tests/e2e/plans.spec.ts` 两项通过；Codex 内置浏览器走过公开注册、资料保存、生成、午餐清淡调整、刷新和历史版本。无可替换早餐时流程有界结束，已保存餐单未被覆盖。使用 Fake Provider，仅验证产品链路；真实模型理解质量与真实设备软键盘仍未验证。
 
 ## 7. 读完应该能回答什么
 

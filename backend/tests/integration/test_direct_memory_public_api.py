@@ -67,7 +67,7 @@ def _mailpit_code(*, email: str) -> str:
     raise AssertionError("Mailpit did not deliver a registration code")
 
 
-def _register_verify_and_login(client: TestClient, *, label: str) -> str:
+def _register_verify_and_login(client: TestClient, *, label: str, bootstrap_admin: bool = False) -> str:
     email = f"direct-memory-public-{label}-{uuid.uuid4().hex}@example.test"
     password = "correct-horse-battery-staple"
     registered = client.post(
@@ -82,6 +82,11 @@ def _register_verify_and_login(client: TestClient, *, label: str) -> str:
         json={"code": _mailpit_code(email=email)},
     )
     assert verified.status_code == 200, verified.text
+    if bootstrap_admin:
+        subprocess.run(
+            [sys.executable, "-m", "app.admin.cli", "bootstrap", "--email", email, "--reason", "isolated public API runtime setup"],
+            cwd=BACKEND_ROOT, env=os.environ.copy(), check=True,
+        )
     logged_in = client.post(
         "/api/v1/auth/login",
         headers={"Origin": FRONTEND_ORIGIN},
@@ -98,6 +103,16 @@ def test_public_registration_mailpit_login_and_memory_tenant_boundary() -> None:
         return
     _prepare_database()
     httpx.delete("http://127.0.0.1:8025/api/v1/messages", timeout=2).raise_for_status()
+    with TestClient(create_app(_settings()), base_url=FRONTEND_ORIGIN) as administrator:
+        token = _register_verify_and_login(administrator, label="runtime-admin", bootstrap_admin=True)
+        configured = administrator.post(
+            "/api/v1/admin/runtime-config",
+            headers={"Authorization": f"Bearer {token}", "Origin": FRONTEND_ORIGIN, "Idempotency-Key": "memory-public-runtime-0001", "If-Match": "0"},
+            json={"provider": "deepseek", "model_alias": "deepseek-v4-flash", "enabled": True,
+                  "single_call_cap_usd": "0.03", "period_cap_usd": "3", "input_usd_per_m": "0.2",
+                  "output_usd_per_m": "0.8", "reason": "isolated public API runtime setup", "confirm": True},
+        )
+        assert configured.status_code == 201, configured.text
     with TestClient(create_app(_settings()), base_url=FRONTEND_ORIGIN) as client_a, TestClient(
         create_app(_settings()), base_url=FRONTEND_ORIGIN
     ) as client_b:

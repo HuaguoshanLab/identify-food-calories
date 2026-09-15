@@ -139,7 +139,9 @@ return MealCompositionResult(
 
 **为什么这样写**
 
-从替换方案里只取受影响餐次，其余沿用原对象，避免顺手改动用户满意的早餐午餐。随后图仍调用 validate_daily_plan 校验整日。
+选菜前，工具就把其他餐次作为 `fixed_meals` 传入服务，按它们已经占用的营养量比较替换候选。原快照不要求目录仍在售，也不重新生成其他餐次。
+
+`feedback_intent="lighter"` 只接受受控口味标签含“清淡”的替换菜；找不到时返回无法满足，不能把随便换一道菜说成清淡。这里的“清淡”是已维护的口味标签，不代表系统测出了盐含量。随后图仍调用 `validate_daily_plan` 校验整日。
 
 **处理后变成什么，交给谁**
 
@@ -161,12 +163,14 @@ return MealCompositionResult(
 
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/unit/test_diet_planning_graph.py tests/planning/test_managed_recipe_candidates.py -q
+.venv/bin/python -m pytest tests/unit/test_diet_planning_graph.py tests/planning/test_managed_recipe_candidates.py tests/planning/test_personalized_selection.py -q
 ```
 
 重点观察同一菜品多个菜谱、过期 revision 和非目标餐次保持不变的用例。测试以当前候选规则为准，不推导真实模型理解能力。
 
-本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+新增回归覆盖清淡要求不可满足、其他餐次已下架仍保持快照、替换后全天目标符合情况。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+
+2026-09-15 本地验收：`frontend/tests/e2e/plans.spec.ts` 两项通过；Codex 内置浏览器走过公开注册、资料保存、生成、午餐清淡调整、刷新和历史版本。无可替换早餐时流程有界结束，已保存餐单未被覆盖。使用 Fake Provider，仅验证产品链路；真实模型理解质量与真实设备软键盘仍未验证。
 
 ## 7. 读完应该能回答什么
 

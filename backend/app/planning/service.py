@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -40,6 +39,12 @@ from app.planning.schemas import (
     TargetRange,
 )
 from app.nutrition.schemas import NutritionAction, NutritionCalculationInput, NutritionValues
+from app.planning.selection import (
+    MAX_RECIPE_CANDIDATES,
+    matches_exclusion,
+    normalized_label,
+    select_meals,
+)
 
 
 MIN_ADULT_AGE = 19
@@ -185,9 +190,10 @@ class PlanningService:
                 safe_message="当前三餐能量低于安全下限，不能通过放宽目标接受该餐单。",
             )
 
-        failed_metric = self._first_failed_target_metric(target=target, totals=totals)
+        # A range miss must never conceal a hard macro-ratio failure when relaxation is enabled.
+        failed_metric = self._first_failed_macro_ratio(totals)
         if failed_metric is None:
-            failed_metric = self._first_failed_macro_ratio(totals)
+            failed_metric = self._first_failed_target_metric(target=target, totals=totals)
         if failed_metric is None:
             return PlanValidationResult(
                 action=PlanValidationAction.PASS,
@@ -220,6 +226,9 @@ class PlanningService:
         required_slot: MealSlot | None = None,
         required_recipe_id: uuid.UUID | None = None,
         required_recipe_revision: int | None = None,
+        target: DailyTarget | None = None,
+        fixed_meals: tuple[PlannedMeal, ...] = (),
+        feedback_intent: str | None = None,
     ) -> MealCompositionResult:
         """Select one fully qualified candidate per stable slot and recompute every ingredient."""
 
@@ -228,6 +237,15 @@ class PlanningService:
                 action=PlanValidationAction.NEEDS_INPUT,
                 safe_message="请先确认本次要使用的忌口和口味偏好。",
             )
+        if feedback_intent not in {None, "replace", "lighter"}:
+            return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="请明确要调整的口味或菜品。")
+        if fixed_meals and (
+            required_slot is None
+            or any(meal.slot is required_slot for meal in fixed_meals)
+            or len({meal.slot for meal in fixed_meals}) != len(fixed_meals)
+            or len({meal.recipe_id for meal in fixed_meals}) != len(fixed_meals)
+        ):
+            return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="原餐单或调整餐次无效，请重新打开计划。")
         if required_recipe_id is not None:
             if required_food_id is None or required_catalog_version is None or required_slot is None or required_recipe_revision is None:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="指定菜谱信息不完整，请重新选择。")
@@ -247,6 +265,8 @@ class PlanningService:
             if qualified.action is not NutritionAction.PASS:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="所选菜品已不再可用，请重新选择。")
         candidates = getattr(self._repository, "list_managed_recipe_candidates", lambda **_: [])(catalog_version=catalog_version)
+        if len(candidates) > MAX_RECIPE_CANDIDATES:
+            return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="候选菜品过多，请缩小候选范围后重试。")
         if required_recipe_id is not None:
             candidates = [item for item in candidates if item.meal_slot is not required_slot or (item.id == required_recipe_id and item.revision == required_recipe_revision)]
         if candidates:
@@ -254,9 +274,13 @@ class PlanningService:
                 self._repository, "list_recent_recipe_ids", lambda **_: ()
             )(user_id=user_id, plan_limit=3)
             return self._compose_managed_candidates(
-                candidates, preferences, exclude_recipe_ids, recent_recipe_ids, required_food_id, required_catalog_version, required_slot
+                candidates, preferences, exclude_recipe_ids, recent_recipe_ids, required_food_id, required_catalog_version, required_slot,
+                target=target, fixed_meals=fixed_meals, feedback_intent=feedback_intent,
             )
-        if catalog_version is None:
+        if catalog_version is None and (
+            required_food_id is not None
+            or getattr(self._repository, "has_managed_recipe_candidates", lambda: False)()
+        ):
             return MealCompositionResult(
                 action=PlanValidationAction.REPLAN,
                 safe_message="没有可用于餐单的已启用候选菜。请先在菜谱管理中启用合格候选菜。",
@@ -264,17 +288,17 @@ class PlanningService:
         recipes = self._repository.list_controlled_recipes(
             catalog_version=catalog_version, recipe_version=recipe_version
         )
-        meals: list[PlannedMeal] = []
+        if len(recipes) > MAX_RECIPE_CANDIDATES:
+            return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="候选菜品过多，请缩小候选范围后重试。")
+        options: list[PlannedMeal] = []
         for slot in REQUIRED_MEAL_SLOTS:
-            meal = next(
-                (
+            options.extend(
                     built_meal
                     for recipe in recipes
                     if slot in recipe.meal_slots
-                    and recipe.catalog_version == catalog_version
+                    and (catalog_version is None or recipe.catalog_version == catalog_version)
                     and recipe.recipe_version == recipe_version
                     and recipe.id not in exclude_recipe_ids
-                    and recipe.id not in {selected.recipe_id for selected in meals}
                     and not self._matches_exclusion(recipe=recipe, exclusions=preferences.exclusions)
                     and (
                         built_meal := self._build_meal(
@@ -284,15 +308,14 @@ class PlanningService:
                         )
                     )
                     is not None
-                ),
-                None,
+                    and (feedback_intent != "lighter" or slot is not required_slot or "清淡" in {normalized_label(tag) for tag in built_meal.flavour_tags})
             )
-            if meal is None:
-                return MealCompositionResult(
-                    action=PlanValidationAction.REPLAN,
-                    safe_message="没有同时满足受控来源、审核、目录资格和三餐槽位的候选。",
-                )
-            meals.append(meal)
+        meals = self._select_meals(options=tuple(options), target=target, preferences=preferences, fixed_meals=fixed_meals)
+        if not meals:
+            return MealCompositionResult(
+                action=PlanValidationAction.REPLAN,
+                safe_message="没有同时满足受控来源、审核、目录资格和三餐槽位的候选。",
+            )
         return MealCompositionResult(
             action=PlanValidationAction.PASS,
             meals=tuple(meals),
@@ -344,30 +367,50 @@ class PlanningService:
         required_food_id: uuid.UUID | None = None,
         required_catalog_version: str | None = None,
         required_slot: MealSlot | None = None,
+        *,
+        target: DailyTarget | None = None,
+        fixed_meals: tuple[PlannedMeal, ...] = (),
+        feedback_intent: str | None = None,
     ) -> MealCompositionResult:
-        meals: list[PlannedMeal] = []
-        for slot in REQUIRED_MEAL_SLOTS:
-            # Recent archived plans are the rotation authority.  When every option was
-            # recently used, falling back prevents a sparse candidate pool from dead-ending.
-            options = sorted((candidate for candidate in candidates if candidate.meal_slot is slot and candidate.id not in exclude_recipe_ids and candidate.id not in {meal.recipe_id for meal in meals} and (required_food_id is None or slot is not required_slot or (candidate.nutrition_item_id == required_food_id and candidate.catalog_version == required_catalog_version))), key=lambda candidate: str(candidate.id))
-            fresh_options = [candidate for candidate in options if candidate.id not in recent_recipe_ids]
-            if fresh_options:
-                options = fresh_options
-            if len(options) > 1:
-                options = [options.pop(secrets.randbelow(len(options))) for _ in range(len(options))]
-            meal = next((built for candidate in options if (built := self._build_managed_meal(candidate, preferences)) is not None), None)
-            if meal is None:
-                return MealCompositionResult(action=PlanValidationAction.REPLAN, safe_message="没有满足目录资格和三餐槽位的已启用候选菜。")
-            meals.append(meal)
-        return MealCompositionResult(action=PlanValidationAction.PASS, meals=tuple(meals), safe_message="餐单营养值已按候选关联目录的每 100 克基准重算。")
+        fixed_slots = {meal.slot for meal in fixed_meals}
+        options = tuple(
+            meal for candidate in candidates
+            if candidate.meal_slot not in fixed_slots
+            and candidate.id not in exclude_recipe_ids
+            and (required_food_id is None or candidate.meal_slot is not required_slot or (candidate.nutrition_item_id == required_food_id and candidate.catalog_version == required_catalog_version))
+            and (feedback_intent != "lighter" or candidate.meal_slot is not required_slot or "清淡" in {normalized_label(tag) for tag in candidate.flavour_tags})
+            if (meal := self._build_managed_meal(candidate, preferences)) is not None
+        )
+        meals = self._select_meals(options=options, target=target, preferences=preferences, recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals)
+        if not meals:
+            message = "没有满足目录资格和三餐槽位的已启用候选菜。"
+            if feedback_intent == "lighter":
+                message = "没有符合当前忌口且标记为清淡的替换菜品，请尝试其他调整。"
+            return MealCompositionResult(action=PlanValidationAction.REPLAN, safe_message=message)
+        return MealCompositionResult(action=PlanValidationAction.PASS, meals=meals, safe_message="餐单营养值已按候选关联目录的每 100 克基准重算。")
+
+    def _select_meals(
+        self, *, options: tuple[PlannedMeal, ...], target: DailyTarget | None,
+        preferences: PreferenceReview, recent_recipe_ids: tuple[uuid.UUID, ...] = (),
+        fixed_meals: tuple[PlannedMeal, ...] = (),
+    ) -> tuple[PlannedMeal, ...]:
+        def validation_rank(meals: tuple[PlannedMeal, ...]) -> int:
+            assert target is not None
+            result = self.validate_plan(target=target, meals=meals, allow_target_relaxation=True)
+            return {PlanValidationAction.PASS: 0, PlanValidationAction.RELAX: 1}.get(result.action, 2)
+
+        return select_meals(options=options, target=target, preferences=preferences,
+                            recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals,
+                            validation_rank=validation_rank)
 
     def _build_managed_meal(self, candidate, preferences: PreferenceReview) -> PlannedMeal | None:
         calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.nutrition_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
         if calculation.action is not NutritionAction.PASS or calculation.food is None or calculation.nutrients is None:
             return None
-        if any(value.casefold() in calculation.food.canonical_name.casefold() for value in preferences.exclusions):
+        if matches_exclusion(preferences.exclusions, (calculation.food.canonical_name, *calculation.food.aliases, candidate.display_name, *candidate.method_tags, *candidate.flavour_tags)):
             return None
-        return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=candidate.portion_description, portion_grams=candidate.portion_grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
+        summaries = tuple(f"偏好：{value}" for value in preferences.taste_preferences if normalized_label(value) in {normalized_label(tag) for tag in (*candidate.flavour_tags, *candidate.method_tags)})
+        return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=candidate.portion_description, portion_grams=candidate.portion_grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, matched_preference_summaries=summaries, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
 
     def _build_meal(self, *, recipe, slot: MealSlot, preferences: PreferenceReview) -> PlannedMeal | None:
         calculated: list[NutritionValues] = []
@@ -383,10 +426,7 @@ class PlanningService:
                 return None
             assert calculation.food is not None
             assert calculation.nutrients is not None
-            if any(
-                exclusion.casefold() in calculation.food.canonical_name.casefold()
-                for exclusion in preferences.exclusions
-            ):
+            if matches_exclusion(preferences.exclusions, (calculation.food.canonical_name, *calculation.food.aliases)):
                 return None
             calculated.append(calculation.nutrients)
         if not calculated:
@@ -417,10 +457,7 @@ class PlanningService:
 
     @staticmethod
     def _matches_exclusion(*, recipe, exclusions: tuple[str, ...]) -> bool:
-        searchable = " ".join(
-            (recipe.display_name, *recipe.method_tags, *recipe.flavour_tags)
-        ).casefold()
-        return any(exclusion.casefold() in searchable for exclusion in exclusions)
+        return matches_exclusion(exclusions, (recipe.display_name, *recipe.method_tags, *recipe.flavour_tags))
 
     @staticmethod
     def _matching_preferences(*, recipe, preferences: PreferenceReview) -> tuple[str, ...]:

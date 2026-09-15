@@ -2,6 +2,10 @@
 
 本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
 
+当前编排实现是 Python 业务状态机，使用 LangGraph 的 PostgreSQL Checkpointer 保存与恢复状态；尚未采用原生 `StateGraph` 节点、条件边和 `interrupt()`。餐单由确定性规则生成：目标驱动候选组合、受控标签约束调整、目录重算与最终校验。真实模型效果与原生图编排能力不能从这些流程测试中推导。
+
+日常变更门禁见 [Application quality](.github/workflows/quality.yml)：完整后端测试、两个前端的类型检查/单测/构建，以及餐单生成调整、后台运行配置和权限两组公开浏览器流程。其余历史 E2E 套件与 macOS 专用截图不在此门禁范围，真实模型评测独立于 CI。
+
 ## 交付状态
 
 - Phase 1–06.3 共 129 个计划均已执行并产生 Summary；Phase 6、06.2 和 06.3 的最终验证已通过。

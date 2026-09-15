@@ -54,6 +54,20 @@ def _candidate(item: FoodCatalogItem, *, status: str = "enabled", deleted_at=Non
     )
 
 
+@pytest.mark.parametrize("deleted", [False, True])
+def test_disabled_or_deleted_pool_prevents_bootstrap_recipe_fallback(db_session, deleted):
+    db_session.execute(delete(ManagedRecipeCandidate))
+    repository = SqlAlchemyPlanningProfileRepository(db_session)
+    assert repository.has_managed_recipe_candidates() is False
+    row = _candidate(_catalog_item(db_session), status="disabled", deleted_at=datetime.now(UTC) if deleted else None)
+    db_session.add(row)
+    db_session.flush()
+    assert repository.has_managed_recipe_candidates() is True
+    assert repository.list_managed_recipe_candidates(catalog_version=None) == []
+    result = PlanningService(repository=repository, nutrition_port=NutritionService(repository=SqlAlchemyNutritionRepository(db_session))).compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
+    assert result.action is PlanValidationAction.REPLAN
+
+
 def _published_candidate(db_session, *, canonical_name: str | None = None) -> ManagedRecipeCandidate:
     now = datetime.now(UTC)
     suffix = uuid.uuid4().hex

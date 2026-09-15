@@ -1366,7 +1366,7 @@ class DietPlanningGraph:
                     *state.tool_summaries,
                     StateToolSummary(
                         tool_name=name,
-                        tool_version="planning-tools.v1",
+                        tool_version=state.tool_version,
                         action=action,
                         result_digest=_digest(result),
                     ),

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -161,6 +161,28 @@ describe('PlanPage', () => {
     expect(screen.getByText('当前受控餐单暂时无法同时满足已确认约束；请稍后重试或修改饮食偏好。')).toBeInTheDocument()
     expect(screen.queryByText('暂不能生成个性化餐单')).not.toBeInTheDocument()
     expect(screen.queryByText(/provider|node|stack|reasoning|raw payload/i)).not.toBeInTheDocument()
+  })
+
+  it('does not invent a previous meal when a saved adjustment is replayed after reload', async () => {
+    const threadId = '33333333-3333-4333-8333-333333333333'
+    const saved = {
+      id: '44444444-4444-4444-8444-444444444444', plan_date: '2026-09-06', time_zone: 'Asia/Shanghai',
+      current_version: 2, version: 2, created_at: '2026-09-06T00:00:00Z', updated_at: '2026-09-06T00:01:00Z', saved_at: '2026-09-06T00:01:00Z',
+      report: adjustedReport, totals: { energy_kcal: '1900', carbohydrate_g: '200', protein_g: '100', fat_g: '60' }, adjustment_thread_id: threadId,
+    }
+    const request = vi.fn(async (path: string) => {
+      if (path === '/planning/plans/today') return new Response(JSON.stringify({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: saved }))
+      if (path === '/planning/profile') return new Response(JSON.stringify(profile))
+      if (path === '/memories') return new Response('[]')
+      if (path === `/agent/threads/${threadId}`) return new Response(JSON.stringify({ thread_id: threadId, status: 'completed', revision: 2, report: adjustedReport }))
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return new Response('', { status: 500 })
+    })
+    renderPage(request)
+    await screen.findByText('清淡豆腐菌菇午餐')
+    await waitFor(() => expect(request).toHaveBeenCalledWith(`/agent/threads/${threadId}`, expect.anything()))
+    expect(screen.queryByText(/^已替换：/)).not.toBeInTheDocument()
+    expect(screen.queryByText('已更新午餐，其余餐次保持不变。')).not.toBeInTheDocument()
   })
 
   it('submits one labelled adjustment on the owned thread without moving focus to the polite replacement summary', async () => {

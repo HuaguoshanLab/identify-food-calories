@@ -1,7 +1,7 @@
 """PostgreSQL adapter for the versioned hybrid food-search boundary.
 
-The adapter deliberately reads only current, eligible catalog publications.  Search
-indexes are derived data, so neither an old vector nor a stale relation assertion
+Exact lookup includes current qualified imported catalogs and eligible publications.
+Text/vector indexes are derived data, so neither an old vector nor a stale relation assertion
 can make a publication usable after its authoritative lifecycle changes.
 """
 
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.admin.models import CatalogPublication
 from app.nutrition.repository import ADMIN_PUBLICATION_VERSION, SqlAlchemyNutritionRepository
+from app.nutrition.models import FoodCatalogAlias
 from app.nutrition.schemas import FoodRelation, FoodSearchEvidence, QualifiedFood
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
@@ -59,7 +60,16 @@ class SqlAlchemyHybridFoodSearchRepository:
             )
             .order_by(CatalogPublication.id)
         )
-        return [SqlAlchemyNutritionRepository._to_published_food(row) for row in self._session.scalars(statement).unique()]
+        published = [SqlAlchemyNutritionRepository._to_published_food(row) for row in self._session.scalars(statement).unique()]
+        # Initial catalogs are authoritative too; enabling hybrid retrieval must not
+        # make the application's initialized food data disappear from exact lookup.
+        imported_statement = (
+            SqlAlchemyNutritionRepository._qualified_statement()
+            .join(FoodCatalogAlias)
+            .where(FoodCatalogAlias.normalized_alias == normalized_query, FoodCatalogAlias.is_controlled.is_(True))
+        )
+        imported = [SqlAlchemyNutritionRepository._to_qualified_food(row) for row in self._session.scalars(imported_statement).unique()]
+        return sorted([*published, *imported], key=lambda food: (food.catalog_version, str(food.id)))
 
     def find_text_candidates(self, *, normalized_query: str, limit: int) -> list[FoodSearchEvidence]:
         if limit <= 0:
@@ -124,7 +134,7 @@ class SqlAlchemyHybridFoodSearchRepository:
         self, *, food_id: uuid.UUID, catalog_version: str
     ) -> QualifiedFood | None:
         if catalog_version != ADMIN_PUBLICATION_VERSION:
-            return None
+            return SqlAlchemyNutritionRepository(self._session).get_qualified_food(food_id=food_id, catalog_version=catalog_version)
         publication = self._session.scalar(
             self._current_qualified_statement().where(CatalogPublication.id == food_id)
         )

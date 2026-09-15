@@ -44,6 +44,8 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 def _user(session: Session, label: str) -> tuple[User, str]:
+    from tests.integration.test_meal_records import _enable_test_runtime_config
+    _enable_test_runtime_config(session)
     now = datetime.now(UTC)
     user = User(
         id=uuid.uuid4(),

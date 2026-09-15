@@ -40,7 +40,7 @@ index-url = "https://mirrors.aliyun.com/pypi/simple/"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra --import-mode=importlib"
 pythonpath = ["."]
 
 [tool.setuptools.packages.find]

@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, update
 from sqlalchemy.orm import Session
 
 from app.admin.api import get_admin_service
@@ -33,6 +33,13 @@ from scripts.bootstrap_local_admin import (
 SECRET = "admin-audit-test-secret-with-at-least-forty-eight-bytes"
 ISSUER = "food-agent-api"
 AUDIENCE = "food-agent-h5"
+
+
+@pytest.fixture(autouse=True)
+def isolate_existing_admins(db_session: Session):
+    # Bootstrap is defined relative to an empty admin population; rollback restores
+    # unrelated fixtures instead of relying on a previous suite leaving no admins.
+    db_session.execute(update(User).where(User.role == UserRole.ADMIN.value).values(is_active=False))
 
 
 def _settings() -> Settings:
@@ -303,7 +310,7 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
 
     events = list(
         db_session.scalars(
-            select(AdminRoleAudit).order_by(AdminRoleAudit.occurred_at, AdminRoleAudit.id)
+            select(AdminRoleAudit).where(AdminRoleAudit.target_user_id.in_((first_target.id, second_target.id))).order_by(AdminRoleAudit.occurred_at, AdminRoleAudit.id)
         )
     )
     assert [(event.actor_identifier, event.target_user_id) for event in events] == [
@@ -315,7 +322,7 @@ def test_admin_cli_requires_explicit_reason_and_verified_active_admin_actor(
     assert all(event.reason for event in events)
     assert all(event.occurred_at.tzinfo is not None for event in events)
 
-    before_failures = len(events)
+    before_failures = len(list(db_session.scalars(select(AdminRoleAudit))))
     assert admin_cli(
         [
             "bootstrap",
@@ -398,6 +405,10 @@ def test_vector_build_cli_uses_database_admin_and_replays_idempotently(
 
     def session_factory() -> object:
         return nullcontext(db_session)
+
+    from tests.integration.test_hybrid_food_search import _publish, _index_name
+    publication = _publish(db_session, canonical_name="CLI 测试菜", aliases=["CLI 测试菜"])
+    _index_name(db_session, publication, "cli 测试菜")
 
     command = [
         "vector-build",

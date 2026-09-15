@@ -104,7 +104,7 @@ async function createEnabledRuntimeConfig(page: Page) {
   const post = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/runtime-config')
     && response.request().method() === 'POST' && response.status() === 201)
   await expect(page.getByRole('heading', { name: '尚无运行配置' })).toBeVisible()
-  await page.getByRole('button', { name: '变更未来配置' }).click()
+  await page.getByRole('button', { name: '修改文字模型设置' }).click()
   const dialog = page.getByRole('alertdialog', { name: '确认变更未来运行配置？' })
   const enabled = dialog.getByRole('checkbox', { name: '启用新的运行配置' })
   if (!(await enabled.isChecked())) await enabled.check()
@@ -117,7 +117,7 @@ async function createEnabledRuntimeConfig(page: Page) {
   const response = await post
   expect(response.request().headers()['if-match']).toBe('0')
   expect(response.request().headers()['idempotency-key']).toBeTruthy()
-  await expect(page.getByText('配置版本 v1')).toBeVisible()
+  await expect(page.getByText('当前运行策略：第 1 版')).toBeVisible()
 }
 
 test.describe.configure({ mode: 'serial' })

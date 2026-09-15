@@ -58,6 +58,8 @@ def _settings() -> Settings:
 
 
 def _create_user(session: Session, *, label: str) -> tuple[User, str]:
+    from tests.integration.test_meal_records import _enable_test_runtime_config
+    _enable_test_runtime_config(session)
     now = datetime.now(UTC)
     user = User(
         id=uuid.uuid4(),
@@ -94,9 +96,14 @@ def _create_user(session: Session, *, label: str) -> tuple[User, str]:
 def _wait_for_automatic_sweep(client: TestClient, worker: object, *, after: int) -> int:
     """Wait for the lifespan task; this deliberately does not call a cleanup API."""
 
-    return client.portal.call(  # type: ignore[no-any-return,union-attr]
-        lambda: worker.wait_for_sweep(after=after)
-    )
+    async def wait_after_clock_change() -> int:
+        # The first completion may belong to a sweep that sampled the old clock.
+        # Fence it, then wake another automatic sweep under the current clock.
+        completed = await worker.wait_for_sweep(after=after)
+        worker.wake()
+        return await worker.wait_for_sweep(after=completed)
+
+    return client.portal.call(wait_after_clock_change)  # type: ignore[no-any-return,union-attr]
 
 
 def test_lifespan_retention_enforces_exact_boundaries_and_tenant_isolation() -> None:

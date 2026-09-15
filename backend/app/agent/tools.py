@@ -315,6 +315,7 @@ class SessionNutritionToolAdapter:
         try:
             return service.compose_daily_meals(
                 user_id=user_id,
+                target=target,
                 catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,
@@ -377,6 +378,9 @@ class SessionNutritionToolAdapter:
                 return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="请选择早餐、午餐或晚餐。")
             replacement_plan = service.compose_daily_meals(
                 user_id=user_id,
+                target=target,
+                fixed_meals=tuple(meal for meal in existing_meals if meal.slot is not affected_slot),
+                feedback_intent=feedback_intent,
                 catalog_version=None,
                 preferences=preferences,
                 recipe_version=CONTROLLED_RECIPE_VERSION,

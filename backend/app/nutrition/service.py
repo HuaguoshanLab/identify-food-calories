@@ -80,6 +80,15 @@ class NutritionService:
                 fallback_code="none",
                 started_at=time.monotonic(),
             )
+        if len(exact_matches) > 1:
+            return self._trace_result(
+                FoodSearchResult(
+                    action=NutritionAction.ASK, query=request.query,
+                    candidates=tuple(self._legacy_candidate(food) for food in exact_matches[:MAX_CATALOG_CANDIDATES]),
+                    safe_message="存在多个合格的同名条目，请确认使用的来源。",
+                ),
+                channel="exact", fallback_code="none", started_at=time.monotonic(),
+            )
 
         started_at = time.monotonic()
         fallback_code = "none"

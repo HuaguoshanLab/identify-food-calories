@@ -42,6 +42,8 @@ def _settings() -> Settings:
 
 
 def _create_user(session: Session, *, label: str) -> tuple[User, AuthSession, str]:
+    from tests.integration.test_meal_records import _enable_test_runtime_config
+    _enable_test_runtime_config(session)
     now = datetime.now(UTC)
     user = User(
         id=uuid.uuid4(), email=f"agent-vertical-{label}-{uuid.uuid4().hex}@example.test",
@@ -230,7 +232,8 @@ def test_real_pg_api_resumes_same_waiting_run_without_repeating_the_parse() -> N
                 corrected = client.get(f"/api/v1/agent/threads/{thread_id}", headers=headers).json()
                 assert corrected["report"]["totals"]["energy_kcal"] == "195.0"
                 latest = session.query(AgentRun).filter_by(thread_id=uuid.UUID(thread_id)).order_by(AgentRun.created_at.desc()).first()
-                assert latest is not None and latest.model_calls == 0 and latest.tool_calls == 2
+                # Correction rechecks catalog eligibility before calculate + validate.
+                assert latest is not None and latest.model_calls == 0 and latest.tool_calls == 3
                 assert session.query(AgentRun).filter_by(user_id=user.id).count() == 2
     finally:
         engine.dispose()

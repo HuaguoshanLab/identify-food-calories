@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import re
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.admin.models import CatalogPublication, CatalogPublicationEligibility
@@ -27,6 +27,7 @@ from app.agent.graph import DietPlanningGraph, MealAnalysisGraph
 from app.agent.state import DietPlanningState, MealAgentState
 from app.agent.tools import CapturedPreferenceSummary
 from app.auth.models import User, UserRole
+from app.nutrition.models import FoodCatalogItem
 from app.nutrition.repository import SqlAlchemyNutritionRepository
 from app.nutrition.schemas import FoodRelation, FoodSearchEvidence, FoodSearchInput, NutritionAction
 from app.nutrition.search_models import (
@@ -276,6 +277,10 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
     # mix local catalog rows with this synthetic fixture.  This is an uncommitted
     # transaction-local isolation layer and is rolled back with the fixture.
     existing_publication_ids = list(session.scalars(select(CatalogPublication.id)))
+    # Exact lookup also includes initialized catalogs. Isolate those authorities
+    # in the same rollback-only transaction; never filter production search to
+    # hide a source merely to make the frozen synthetic expectations pass.
+    session.execute(update(FoodCatalogItem).values(is_qualified=False))
     session.add_all(
         CatalogPublicationEligibility(
             id=uuid.uuid4(), publication_id=publication_id, status="disqualified",

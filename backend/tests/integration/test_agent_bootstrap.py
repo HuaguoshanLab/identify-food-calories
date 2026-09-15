@@ -9,6 +9,8 @@ import asyncio
 from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
@@ -192,7 +194,7 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
         table_names = set(inspect(engine).get_table_names())
         assert {"checkpoints", "checkpoint_blobs", "checkpoint_writes"} <= table_names
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0012"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
             assert connection.scalar(
                 text(
                     "SELECT content_hash FROM nutrition_catalog_versions "
@@ -226,9 +228,9 @@ def test_prepare_only_is_idempotent_and_keeps_database_targets_distinct() -> Non
                 )
             ) == 1
         with sessionmaker(engine)() as session:
-            result = NutritionService(repository=SqlAlchemyNutritionRepository(session)).search_food_catalog(
+            result = asyncio.run(NutritionService(repository=SqlAlchemyNutritionRepository(session)).search_food_catalog(
                 FoodSearchInput(query="辣椒炒肉")
-            )
+            ))
             assert result.selected_food is not None
             assert result.selected_food.canonical_name == "Chili fried pork, reference recipe v2"
     finally:

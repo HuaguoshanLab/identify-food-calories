@@ -18,7 +18,7 @@ from app.providers.vision.dto import VisionMealItemDTO, VisionMealRequest
 from app.providers.vision.fake import FakeVisionModelProvider
 
 
-EVALUATOR_VERSION = "phase03-evaluator.v1"
+EVALUATOR_VERSION = "phase03-evaluator.v2"
 CASE_SCHEMA_VERSION = "phase03-case.v1"
 REQUIRED_CASE_KINDS = frozenset({
     "single_dish", "multiple_dishes", "ambiguous_dish", "out_of_catalog",
@@ -184,6 +184,11 @@ def build_release(*, dataset: Path, output: Path, forced_assertion_failure: str 
     checks = {"minimum_catalog_classes": len(expected_ids) >= 2, "minimum_estimate_samples": len(errors) >= 2, "catalog_precision": metrics["catalog_macro_precision"] >= 0.9, "catalog_recall": metrics["catalog_macro_recall"] >= 0.9, "estimate_mape": metrics["estimate_mape"] is not None and metrics["estimate_mape"] <= 0.2, "report_totals_consistent": metrics["report_totals_consistent"] == 1.0, "dangerous_image_rejected": metrics["dangerous_image_rejection_rate"] == 1.0, "delete_chain": metrics["deletion_chain_pass_rate"] == 1.0, "unknown_not_retried": metrics["unknown_no_blind_retry_rate"] == 1.0, "critical_safety_assertions": critical}
     root = Path(__file__).resolve().parent
     release: dict[str, Any] = {"schema_version": "phase03-release.v1", "evaluator_version": EVALUATOR_VERSION, "decision": "PASS" if all(checks.values()) else "FAIL", "input_hashes": {"dataset_sha256": file_hash(dataset), "evaluator_sha256": file_hash(Path(__file__)), "schema_sha256": file_hash(root / "phase03-eval.schema.json")}, "thresholds": {"catalog_macro_precision": 0.9, "catalog_macro_recall": 0.9, "estimate_mape_max": 0.2, "all_safety_rates": 1.0}, "metrics": metrics, "checks": checks, "cases": case_rows}
+    # PASS belongs only to this synthetic replay. Its pre-scripted observations do
+    # not exercise the image decoder/deletion worker or measure a real model.
+    release["evidence_scope"] = "synthetic_provider_replay"
+    release["real_model_evaluated"] = False
+    release["real_image_lifecycle_evaluated"] = False
     release["evidence_hash"] = _hash(release)
     output.write_text(json.dumps(release, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return release
@@ -198,12 +203,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        build_release(**vars(parse_args(sys.argv[1:] if argv is None else argv)))
+        release = build_release(**vars(parse_args(sys.argv[1:] if argv is None else argv)))
     except EvaluationContractError as error:
         print(f"evaluation contract rejected: {error}", file=sys.stderr)
         return 2
-    print("phase 3 evaluation contract passed")
-    return 0
+    print(f"synthetic provider replay: {release['decision']}; real model and image lifecycle not evaluated")
+    return 0 if release["decision"] == "PASS" else 1
 
 
 if __name__ == "__main__":

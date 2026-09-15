@@ -80,6 +80,8 @@ docker compose up -d --wait postgres postgres-test mailpit
 
 所有真实 PostgreSQL 测试 child 必须通过受版本控制的环境合同和唯一 wrapper 启动；wrapper 保持 `DATABASE_URL` 指向开发哨兵、`TEST_DATABASE_URL` 指向隔离库，拒绝同目标、非 loopback、错误端口或错误库名，且不回显密码：
 
+完整测试通过 `pyproject.toml` 的 `--import-mode=importlib` 按完整模块路径加载，避免 unit 与 integration 下同名测试相互覆盖。测试服务需启动 `postgres-test` 与 Mailpit；本机运行完整门禁时设置 `SMTP_HOST=127.0.0.1 SMTP_PORT=1025`。
+
 ```bash
 uv run python tests/run_pg.py --env-file .env.test.example -- uv run python -m pytest tests/integration -q
 ```

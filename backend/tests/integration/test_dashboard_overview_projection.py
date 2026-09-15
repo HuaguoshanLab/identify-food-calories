@@ -62,8 +62,8 @@ def test_overview_omits_targets_when_the_injected_projection_port_revokes_or_is_
         target_port=FakePlanningPort(owner.id, PlanningTargetEligibility.unavailable()), now=lambda: now,
     )
 
-    owner_overview = service.get_overview(user_id=owner.id, week_start=date(2026, 8, 31))
-    foreign_overview = service.get_overview(user_id=other.id, week_start=date(2026, 8, 31))
+    owner_overview = service.get_overview(user_id=owner.id)
+    foreign_overview = service.get_overview(user_id=other.id)
 
     assert owner_overview.today.meal_count == 1
     assert owner_overview.target_eligibility.model_dump(exclude_none=True) == {"eligible": False}

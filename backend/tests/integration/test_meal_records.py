@@ -50,6 +50,8 @@ def _create_user(session: Session, *, label: str) -> tuple[User, str]:
 def _enable_test_runtime_config(session: Session) -> None:
     """Admit the fake test provider through the same audited policy path as production."""
 
+    if SqlAlchemyAdminRepository(session).get_active_runtime_config() is not None:
+        return
     now = datetime.now(UTC)
     actor = User(
         id=uuid.uuid4(), email=f"runtime-admin-{uuid.uuid4().hex}@example.test", password_hash="argon2id-digest",

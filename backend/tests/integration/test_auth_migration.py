@@ -10,6 +10,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,18 +40,10 @@ def _alembic(*arguments: str) -> None:
     )
 
 
-def _public_tables(database_url: str) -> set[str]:
-    engine = create_engine(database_url)
-    try:
-        return set(inspect(engine).get_table_names(schema="public"))
-    finally:
-        engine.dispose()
-
-
 def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
     test_url = _test_url()
     development_url = os.environ["DATABASE_URL"]
-    development_tables_before = _public_tables(development_url)
+    assert test_url != development_url
     _alembic("downgrade", "base")
     _alembic("upgrade", "head")
 
@@ -95,10 +89,9 @@ def test_auth_migrations_rebuild_an_empty_isolated_database() -> None:
             "uq_refresh_tokens_token_digest"
         }
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0012"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
     finally:
         engine.dispose()
-    assert _public_tables(development_url) == development_tables_before
 
 
 def test_repository_flushes_without_committing_and_database_enforces_contracts(

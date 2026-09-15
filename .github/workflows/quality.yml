@@ -1,0 +1,123 @@
+name: Application quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "1025"
+      REASONING_PROVIDER_MODE: fake
+      VISION_PROVIDER_MODE: fake
+      MEMORY_PROVIDER_MODE: fake
+      EMBEDDING_PROVIDER_MODE: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked backend dependencies
+        working-directory: backend
+        run: uv sync --extra dev --frozen
+      - name: Start isolated test services
+        run: docker compose up -d --wait postgres-test mailpit
+      - name: Check backend source
+        working-directory: backend
+        run: uv run ruff check app
+      - name: Run all backend tests through the database guard
+        working-directory: backend
+        run: uv run python tests/run_pg.py --env-file .env.test.example -- uv run pytest -q
+      - name: Stop test services
+        if: always()
+        run: docker compose down -v
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, admin-frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    env:
+      VITE_ADMIN_API_BASE_URL: /api/v1/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - if: matrix.app == 'frontend'
+        run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: frontend
+            spec: plans.spec.ts
+          - app: admin-frontend
+            spec: runtime-policy.spec.ts
+    env:
+      REASONING_PROVIDER_MODE: fake
+      VISION_PROVIDER_MODE: fake
+      MEMORY_PROVIDER_MODE: fake
+      EMBEDDING_PROVIDER_MODE: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            admin-frontend/package-lock.json
+      - working-directory: backend
+        run: uv sync --extra dev --frozen
+      - working-directory: frontend
+        run: npm ci
+      - working-directory: admin-frontend
+        run: npm ci
+      - name: Install Chromium and system dependencies
+        working-directory: frontend
+        run: npm exec --no -- playwright install --with-deps chromium
+      - name: Exercise public product flows
+        working-directory: ${{ matrix.app }}
+        # Explicit critical-flow gate; legacy suites and OS-specific screenshots remain separate.
+        run: npm run test:e2e -- ${{ matrix.spec }}
+      - name: Stop isolated browser services
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v

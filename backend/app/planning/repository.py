@@ -138,7 +138,7 @@ class SqlAlchemyPlanningProfileRepository:
         return PlanningTargetEligibility.unavailable() if projection is None else PlanningTargetEligibility.from_projection(projection)
 
     def list_controlled_recipes(
-        self, *, catalog_version: str, recipe_version: str
+        self, *, catalog_version: str | None, recipe_version: str
     ) -> list[ControlledRecipe]:
         """Expose only recipes whose complete ingredient chain remains qualified and aligned."""
 
@@ -148,6 +148,11 @@ class SqlAlchemyPlanningProfileRepository:
             )
         ).unique()
         return [self._to_controlled_recipe(row) for row in rows]
+
+    def has_managed_recipe_candidates(self) -> bool:
+        # Disabled/deleted rows still prove that administrators adopted this pool.
+        # Its deliberate empty state must not silently reactivate the bootstrap recipes.
+        return bool(self._session.scalar(select(exists().where(ManagedRecipeCandidateModel.id.is_not(None)))))
 
     def list_managed_recipe_candidates(
         self, *, catalog_version: str | None
@@ -274,7 +279,7 @@ class SqlAlchemyPlanningProfileRepository:
 
     @staticmethod
     def _active_recipe_statement(
-        *, catalog_version: str, recipe_version: str
+        *, catalog_version: str | None, recipe_version: str
     ) -> Select[tuple[ControlledRecipeModel]]:
         disqualified_active_publication = (
             select(CatalogPublicationEligibility.id)
@@ -320,9 +325,9 @@ class SqlAlchemyPlanningProfileRepository:
                 ControlledRecipeModel.license_name == "LicenseRef-Project-Authored-v1",
                 ControlledRecipeModel.audit_status == "approved",
                 ControlledRecipeModel.audited_by_role == "nutrition_catalog_reviewer",
-                ControlledRecipeModel.catalog_version == catalog_version,
+                or_(catalog_version is None, ControlledRecipeModel.catalog_version == catalog_version),
                 ControlledRecipeModel.recipe_version == recipe_version,
-                NutritionCatalogVersion.version == catalog_version,
+                NutritionCatalogVersion.version == ControlledRecipeModel.catalog_version,
                 ~exists(invalid_ingredient),
             )
             .order_by(ControlledRecipeModel.meal_slot, ControlledRecipeModel.display_name)

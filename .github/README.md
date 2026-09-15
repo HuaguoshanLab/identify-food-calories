@@ -7,7 +7,7 @@
 ## 允许依赖
 
 - GitHub Actions 公开 action、仓库内已提交的 Docker Compose、测试 wrapper 与 Python 项目定义。
-- 工作流只能使用隔离的 `postgres-test` 和由 CI 临时目录保存的评测 release。
+- 工作流只能使用隔离的 `postgres-test`、后台浏览器测试专用的 `postgres-e2e`、对应 Mailpit 和由 CI 临时目录保存的评测 release。
 
 ## 文件索引
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 import threading
 import uuid
+import asyncio
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -79,7 +80,7 @@ def test_published_food_is_searchable_by_its_canonical_name_when_aliases_differ(
     service.review_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="review-canonical-search-pg-0001")
     publication = service.publish_catalog_draft(actor_user_id=actor.id, draft_id=draft.id, expected_revision=1, command=command, command_key="publish-canonical-search-pg-0001")
 
-    result = NutritionService(repository=SqlAlchemyNutritionRepository(db_session)).search_food_catalog(FoodSearchInput(query="白米饭"))
+    result = asyncio.run(NutritionService(repository=SqlAlchemyNutritionRepository(db_session)).search_food_catalog(FoodSearchInput(query="白米饭")))
 
     assert result.action is NutritionAction.PASS
     assert result.selected_food is not None

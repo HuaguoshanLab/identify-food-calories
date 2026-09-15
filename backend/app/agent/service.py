@@ -66,7 +66,7 @@ TOOL_VERSION = "nutrition-tools-v1"
 VISION_OPERATION_VERSION = "vision-meal.v1"
 DIET_PLANNING_GRAPH_VERSION = "diet-planning-graph.v1"
 DIET_PLANNING_PROMPT_VERSION = "diet-planning-command.v1"
-DIET_PLANNING_TOOL_VERSION = "planning-tools.v1"
+DIET_PLANNING_TOOL_VERSION = "planning-tools.v2"
 
 
 def safe_meal_stream_stage(event_type: str) -> str | None:
@@ -289,6 +289,7 @@ class AgentService:
                 state = previous.model_copy(
                     update={
                         "run_id": run.id,
+                        "tool_version": run.tool_version,
                         # Meal graph treats invalid answers as a no-op: preserve waiting
                         # so an input mistake cannot fall through to a terminal failure.
                         "status": previous.status if isinstance(previous, MealAgentState) else AgentRuntimeStatus.ACCEPTED,

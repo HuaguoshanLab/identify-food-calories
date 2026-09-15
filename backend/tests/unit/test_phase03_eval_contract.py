@@ -44,3 +44,28 @@ def test_release_fails_when_any_critical_safety_assertion_fails(tmp_path: Path) 
 
     assert release["decision"] == "FAIL"
     assert release["checks"]["critical_safety_assertions"] is False
+
+
+def test_replay_pass_explicitly_excludes_real_model_and_image_lifecycle(tmp_path: Path) -> None:
+    from evals.evaluate_phase3 import build_release
+
+    release = build_release(dataset=DATASET, output=tmp_path / "release.json")
+    assert release["decision"] == "PASS"
+    assert release["evidence_scope"] == "synthetic_provider_replay"
+    assert release["real_model_evaluated"] is False
+    assert release["real_image_lifecycle_evaluated"] is False
+
+
+def test_cli_returns_failure_when_valid_replay_observations_fail_the_gate(tmp_path: Path) -> None:
+    from evals.evaluate_phase3 import _hash, main
+
+    rows = [json.loads(line) for line in DATASET.read_text().splitlines()]
+    rows[0]["replay"]["items"][0]["grams"] = "999"
+    parent = None
+    for row in rows:
+        row["parent_hash"] = parent
+        row["case_hash"] = _hash({key: value for key, value in row.items() if key != "case_hash"})
+        parent = row["case_hash"]
+    dataset = tmp_path / "cases.jsonl"
+    dataset.write_text("\n".join(json.dumps(row) for row in rows))
+    assert main(["--dataset", str(dataset), "--output", str(tmp_path / "report.json")]) == 1

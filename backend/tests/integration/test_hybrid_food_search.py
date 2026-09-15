@@ -208,6 +208,43 @@ def test_exact_and_confirmation_reread_use_current_qualified_publication(db_sess
     assert repository.get_current_qualified_food(food_id=publication.id, catalog_version="stale") is None
 
 
+def test_initialized_food_remains_exact_and_confirmation_rereads_eligibility(db_session) -> None:
+    from app.nutrition.models import FoodCatalogItem
+    from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
+
+    repository = SqlAlchemyHybridFoodSearchRepository(db_session)
+    imported = [food for food in repository.find_current_qualified_exact(normalized_query="米饭")
+                if food.catalog_version != ADMIN_PUBLICATION_VERSION]
+    assert len(imported) == 1
+    food = imported[0]
+    assert repository.get_current_qualified_food(food_id=food.id, catalog_version=food.catalog_version) == food
+    db_session.get(FoodCatalogItem, food.id).is_qualified = False
+    db_session.flush()
+    assert food.id not in {item.id for item in repository.find_current_qualified_exact(normalized_query="米饭")}
+    assert repository.get_current_qualified_food(food_id=food.id, catalog_version=food.catalog_version) is None
+
+
+def test_same_name_in_imported_and_published_catalogs_requires_confirmation(db_session) -> None:
+    import asyncio
+    from app.nutrition.repository import SqlAlchemyNutritionRepository
+    from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
+    from app.nutrition.schemas import FoodSearchInput, NutritionAction
+    from app.nutrition.service import NutritionService
+    from app.providers.embedding.fake import FakeEmbeddingProvider
+
+    publication = _publish(db_session, canonical_name="米饭", aliases=["白米饭"])
+    _index_name(db_session, publication, "米饭")
+    provider = FakeEmbeddingProvider()
+    service = NutritionService(repository=SqlAlchemyNutritionRepository(db_session),
+        search_repository=SqlAlchemyHybridFoodSearchRepository(db_session), embedding_provider=provider)
+    result = asyncio.run(service.search_food_catalog(FoodSearchInput(query="米饭")))
+    assert result.action == NutritionAction.ASK
+    assert result.selected_food is None
+    assert publication.id in {item.food_id for item in result.candidates}
+    assert any(item.catalog_version != ADMIN_PUBLICATION_VERSION for item in result.candidates)
+    assert provider.calls == []
+
+
 def test_text_and_vector_candidates_only_read_current_eligible_index_rows(db_session) -> None:
     from app.nutrition.search_repository import SqlAlchemyHybridFoodSearchRepository
 
