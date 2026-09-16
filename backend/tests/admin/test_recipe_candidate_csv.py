@@ -93,6 +93,7 @@ def test_recipe_candidate_export_neutralizes_formulas_and_template_columns_are_s
         "做法标签",
         "口味标签",
         "状态",
+        "餐内角色",
     ]
     assert values[1][0] == "'=1+1"
 
@@ -101,3 +102,14 @@ def test_recipe_candidate_export_neutralizes_formulas_and_template_columns_are_s
 def test_recipe_candidate_csv_rejects_invalid_file(content: str) -> None:
     with pytest.raises(RecipeCandidateCsvInvalid):
         parse_recipe_candidate_csv(content)
+
+
+def test_role_roundtrip_legacy_compatibility_and_no_name_inference():
+    modern = csv_text(row(name="清炒时蔬").model_copy(update={"meal_role": "vegetable"}))
+    assert parse_recipe_candidate_csv(modern).rows[0].meal_role == "vegetable"
+    legacy = "关联目录菜品名称,餐次,单份克数,份量说明,做法标签,口味标签,状态\n清炒时蔬,午餐,100,一盘,炒,清淡,待审核\n"
+    assert parse_recipe_candidate_csv(legacy).rows[0].meal_role == "standalone"
+    for invalid in ("", "自动推断", "VEGETABLE"):
+        preview = parse_recipe_candidate_csv(modern.replace(",蔬菜", f",{invalid}"))
+        assert preview.valid_rows == 0
+        assert preview.errors[0].field == "餐内角色"

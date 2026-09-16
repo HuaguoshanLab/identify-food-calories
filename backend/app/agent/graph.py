@@ -1446,6 +1446,13 @@ def _planning_report(*, target: object, meals: tuple[object, ...]) -> dict[str, 
                 "display_name": meal.display_name,
                 "portion_description": meal.portion_description,
                 "portion_grams": str(meal.portion_grams),
+                **({"items": [
+                    {"meal_role": item.meal_role, "display_name": item.display_name,
+                     "portion_description": item.portion_description, "portion_grams": str(item.portion_grams),
+                     "method_tags": list(item.method_tags), "flavour_tags": list(item.flavour_tags),
+                     "nutrients": item.nutrients.model_dump(mode="json")}
+                    for item in meal.items
+                ]} if meal.items else {}),
                 "method_tags": list(meal.method_tags),
                 "flavour_tags": list(meal.flavour_tags),
                 "matched_preference_summaries": list(meal.matched_preference_summaries),

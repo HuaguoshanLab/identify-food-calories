@@ -410,10 +410,14 @@ class CatalogCsvImportResponse(BaseModel):
     draft_ids: list[uuid.UUID]
 
 
+RecipeMealRole = Literal["standalone", "staple", "protein", "vegetable", "side", "drink"]
+
+
 class RecipeCandidateCsvRow(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     catalog_food_name: str = Field(min_length=1, max_length=200)
     meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
+    meal_role: RecipeMealRole = "standalone"
     portion_grams: Decimal = Field(gt=0, le=2000, max_digits=14, decimal_places=6)
     portion_description: str = Field(min_length=1, max_length=120)
     method_tags: tuple[str, ...] = Field(min_length=1, max_length=20)
@@ -457,6 +461,7 @@ class RecipeCandidateResponse(BaseModel):
     id: uuid.UUID
     catalog_food_name: str
     meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
+    meal_role: RecipeMealRole = "standalone"
     portion_grams: Decimal
     portion_description: str
     method_tags: tuple[str, ...]
@@ -512,6 +517,20 @@ class RecipeCandidateBulkCommand(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("ids must be unique")
         return value
+
+
+class RecipeCandidateRoleCommand(RecipeCandidateBulkCommand):
+    meal_role: RecipeMealRole
+
+    @field_validator("reason")
+    @classmethod
+    def clean_reason(cls, value: str) -> str:
+        return CatalogDraftCreateCommand.normalize_reason(value)
+
+
+class RecipeCandidateRoleResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    changed_count: int = Field(ge=0)
 
 
 class CatalogDraftPreviewCommand(_CatalogDraftFields):

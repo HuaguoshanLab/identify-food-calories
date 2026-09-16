@@ -1,10 +1,15 @@
 import { z } from 'zod'
 
+export const recipeMealRoleSchema = z.enum(['standalone', 'staple', 'protein', 'vegetable', 'side', 'drink'])
+export const recipeMealRoleLabels = { standalone: '单独候选', staple: '主食', protein: '蛋白质菜', vegetable: '蔬菜', side: '其他配菜', drink: '饮品' } as const
+export type RecipeMealRole = z.infer<typeof recipeMealRoleSchema>
+
 const mealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const candidateSchema = z.object({
   id: z.string().uuid(),
   catalog_food_name: z.string().min(1),
   meal_slot: mealSlotSchema,
+  meal_role: recipeMealRoleSchema,
   portion_grams: z.string(),
   portion_description: z.string(),
   method_tags: z.array(z.string()),
@@ -15,7 +20,7 @@ const candidateSchema = z.object({
 const listResponseSchema = z.object({ items: z.array(candidateSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().positive() }).strict()
 const previewSchema = z.object({
   total_rows: z.number().int().nonnegative(), valid_rows: z.number().int().nonnegative(),
-  rows: z.array(z.object({ catalog_food_name: z.string(), meal_slot: mealSlotSchema, portion_grams: z.string(), portion_description: z.string(), method_tags: z.array(z.string()), flavour_tags: z.array(z.string()), status: z.enum(['pending', 'disabled']) }).strict()),
+  rows: z.array(z.object({ catalog_food_name: z.string(), meal_slot: mealSlotSchema, meal_role: recipeMealRoleSchema, portion_grams: z.string(), portion_description: z.string(), method_tags: z.array(z.string()), flavour_tags: z.array(z.string()), status: z.enum(['pending', 'disabled']) }).strict()),
   errors: z.array(z.object({ row: z.number().int().positive(), field: z.string(), message: z.string() }).strict()),
 }).strict()
 
@@ -68,4 +73,9 @@ export async function downloadRecipeCandidates(token: string, template = false) 
   link.download = template ? '菜谱候选导入模板.csv' : '菜谱候选.csv'
   link.click()
   URL.revokeObjectURL(url)
+}
+
+export async function changeRecipeMealRole(token: string, ids: string[], mealRole: RecipeMealRole, reason: string, key: string) {
+  const response = await request('/api/v1/admin/recipe-candidates/meal-role', { method: 'POST', headers: authorized(token, { 'Content-Type': 'application/json', 'Idempotency-Key': key }), body: JSON.stringify({ ids, meal_role: mealRole, reason, confirm: true }) })
+  return z.object({ changed_count: z.number().int().nonnegative() }).strict().parse(await response.json())
 }

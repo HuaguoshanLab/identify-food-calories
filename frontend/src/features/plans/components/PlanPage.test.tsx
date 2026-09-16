@@ -237,6 +237,70 @@ describe('PlanPage', () => {
     expect(screen.queryByText('已更新午餐，其余餐次保持不变。')).not.toBeInTheDocument()
   })
 
+  it('preserves an unsent draft when a restored completed snapshot arrives late', async () => {
+    const user = userEvent.setup()
+    const threadId = '33333333-3333-4333-8333-333333333333'
+    const saved = {
+      id: '44444444-4444-4444-8444-444444444444', plan_date: '2026-09-06', time_zone: 'Asia/Shanghai',
+      current_version: 1, version: 1, created_at: '2026-09-06T00:00:00Z', updated_at: '2026-09-06T00:01:00Z', saved_at: '2026-09-06T00:01:00Z',
+      report, totals: { energy_kcal: '1920', carbohydrate_g: '210', protein_g: '100', fat_g: '60' }, adjustment_thread_id: threadId,
+    }
+    let release: (response: Response) => void = () => undefined
+    const delayed = new Promise<Response>(resolve => { release = resolve })
+    let todayReads = 0
+    const request = vi.fn(async (path: string) => {
+      if (path === '/planning/plans/today') { todayReads++; return Response.json({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: saved }) }
+      if (path === `/agent/threads/${threadId}`) return delayed
+      if (path.endsWith('/events')) return new Response('', { headers: { 'Content-Type': 'text/event-stream' } })
+      return requestWithSnapshot()(path)
+    })
+    renderPage(request)
+    const input = await screen.findByLabelText('告诉我们想换什么')
+    await user.type(input, '午餐换清淡一些')
+    release(Response.json({ thread_id: threadId, status: 'completed', revision: 1, report }))
+    await waitFor(() => expect(todayReads).toBeGreaterThan(1))
+    expect(input).toHaveValue('午餐换清淡一些')
+  })
+
+  it.each(['network', 'snapshot'])('reuses the submission key after %s failure and rotates it for a new identical request', async (failure) => {
+    const user = userEvent.setup()
+    const fallback = requestWithSnapshot()
+    const keys: string[] = []
+    let accepted = false
+    let failSnapshot = failure === 'snapshot'
+    const threadPath = '/agent/threads/33333333-3333-4333-8333-333333333333'
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === `${threadPath}/input`) {
+        keys.push(new Headers(init?.headers).get('Idempotency-Key')!)
+        if (failure === 'network' && keys.length === 1) throw new Error('response lost')
+        accepted = true
+        return Response.json({ thread_id: threadPath.split('/').at(-1), status: 'completed' })
+      }
+      if (path === threadPath && accepted) {
+        if (failSnapshot) { failSnapshot = false; throw new Error('snapshot unavailable') }
+        return Response.json({ thread_id: threadPath.split('/').at(-1), status: 'completed', revision: keys.length + 1, report: adjustedReport })
+      }
+      return fallback(path, init)
+    })
+    renderPage(request)
+    await screen.findByText('170 cm')
+    await user.click(screen.getByLabelText('我已复核以上饮食偏好'))
+    await user.click(screen.getByRole('button', { name: '生成今日餐单' }))
+    const input = await screen.findByLabelText('告诉我们想换什么')
+    await user.type(input, '午餐换一份')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+    await screen.findByText('暂时无法提交调整。请检查网络后重试。')
+    expect(input).toHaveValue('午餐换一份')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+    await user.type(input, '午餐换一份')
+    await user.click(screen.getByRole('button', { name: '提交调整' }))
+    await waitFor(() => expect(keys).toHaveLength(3))
+    expect(keys[2]).not.toBe(keys[1])
+  })
+
   it('submits one labelled adjustment on the owned thread without moving focus to the polite replacement summary', async () => {
     const user = userEvent.setup()
     let adjusted = false

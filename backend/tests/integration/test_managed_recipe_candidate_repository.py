@@ -174,7 +174,7 @@ def _replaceable(service: PlanningService, identity, *, exclusions=(), exclude_r
 
 @pytest.mark.parametrize("condition", [
     "no_recipe", "wrong_slot", "disabled", "deleted", "stale_version",
-    "disqualified", "retired_publication", "excluded_food", "current_recipe",
+    "disqualified", "retired_publication", "excluded_food", "current_recipe", "component",
 ])
 def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, condition) -> None:
     recipe = _published_candidate(db_session)
@@ -188,6 +188,8 @@ def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, con
         db_session.delete(recipe)
     elif condition == "wrong_slot":
         recipe.meal_slot = "breakfast"
+    elif condition == "component":
+        recipe.meal_role = "vegetable"
     elif condition == "disabled":
         recipe.status = "disabled"
     elif condition == "deleted":
@@ -423,3 +425,110 @@ def test_large_real_catalog_composes_using_bounded_database_pages(db_session):
         assert all("LIMIT" in statement for statement in queries)
     finally:
         event.remove(connection, "before_cursor_execute", capture)
+
+
+@pytest.mark.parametrize("source", ["imported", "published"])
+def test_component_roles_are_filtered_before_pagination_and_explicit_selection(db_session, source):
+    db_session.execute(delete(ManagedRecipeCandidate))
+    if source == "published":
+        component = _published_candidate(db_session)
+        standalone = _additional_recipe(db_session, component, "lunch")
+    else:
+        food = _catalog_item(db_session)
+        component, standalone = _candidate(food), _candidate(food)
+        component.meal_slot = standalone.meal_slot = "lunch"
+        db_session.add_all((component, standalone))
+    component.id = uuid.UUID(int=1)
+    standalone.id = uuid.UUID(int=2)
+    component.meal_role = "vegetable"
+    db_session.flush()
+    assert standalone.meal_role == "standalone"
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    assert repo.has_managed_recipe_candidates()
+    page = repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.LUNCH, limit=1)
+    assert [row.id for row in page] == [standalone.id]
+    assert page[0].meal_role == "standalone"
+    assert repo.list_managed_recipe_candidates(catalog_version=None, recipe_id=component.id) == []
+    standalone.meal_role = "drink"
+    db_session.flush()
+    assert repo.list_managed_recipe_candidates(catalog_version=None) == []
+    assert repo.has_managed_recipe_candidates()  # Do not reactivate bootstrap recipes.
+
+
+def test_postgres_rejects_unknown_roles(db_session):
+    from sqlalchemy.exc import IntegrityError
+    candidate = _candidate(_catalog_item(db_session))
+    db_session.add(candidate)
+    db_session.flush()
+    with pytest.raises(IntegrityError), db_session.begin_nested():
+        candidate.meal_role = "invented"
+        db_session.flush()
+
+
+def test_role_migration_roundtrip_preserves_candidates_and_backfills_legacy_rows(db_session):
+    import importlib
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import inspect, text
+
+    row = _candidate(_catalog_item(db_session))
+    row.meal_role = "side"
+    db_session.add(row)
+    db_session.flush()
+    connection = db_session.connection()
+    migration = importlib.import_module("migrations.versions.0029_recipe_meal_role")
+    # DDL stays inside the isolated fixture transaction; no committed data is altered.
+    with Operations.context(MigrationContext.configure(connection)):
+        migration.downgrade()
+        assert "meal_role" not in {column["name"] for column in inspect(connection).get_columns("managed_recipe_candidates")}
+        migration.upgrade()
+    assert connection.execute(text("SELECT meal_role, revision FROM managed_recipe_candidates WHERE id = :id"), {"id": row.id}).one() == ("standalone", 1)
+
+
+def test_explicit_components_generate_real_calculated_meals_in_postgres(db_session):
+    from tests.planning.test_meal_bundles import fixtures
+    db_session.execute(delete(ManagedRecipeCandidate))
+    foods, candidates, target = fixtures(alternatives=2)
+    food_map = {}
+    # The calculator accepts only the current governed catalog, not arbitrary
+    # imported versions. Keep all fixture foods in that one authoritative version.
+    anchor = _catalog_item(db_session)
+    version = db_session.get(NutritionCatalogVersion, anchor.catalog_version_id)
+    catalog = db_session.scalar(select(NutritionCatalog).where(NutritionCatalog.catalog_key == "reference-recipes"))
+    if catalog is None:
+        catalog = db_session.get(NutritionCatalog, version.catalog_id)
+        catalog.catalog_key = "reference-recipes"
+    else:
+        version.catalog_id = catalog.id
+    for food in foods:
+        item = anchor if not food_map else FoodCatalogItem(
+            id=uuid.uuid4(), catalog_version_id=anchor.catalog_version_id,
+            source_id=anchor.source_id, stable_id=uuid.uuid4().hex,
+            canonical_name=food.canonical_name, prepared_state="cooked", is_qualified=True,
+        )
+        db_session.add(item)
+        item.canonical_name = food.canonical_name
+        for metric, value in food.nutrients_per_100g.model_dump().items():
+            setattr(item, f"{metric}_per_100g", value)
+        food_map[food.id] = item
+    for candidate in candidates:
+        row = _candidate(food_map[candidate.nutrition_item_id])
+        row.meal_slot = candidate.meal_slot.value
+        row.meal_role = candidate.meal_role
+        row.portion_grams = candidate.portion_grams
+        db_session.add(row)
+    db_session.flush()
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    assert len(repo.list_managed_recipe_candidates(catalog_version=None)) == 1
+    assert len(repo.list_managed_recipe_candidates(catalog_version=None, include_components=True)) == len(candidates)
+    result = _planning_service(db_session).compose_daily_meals(catalog_version=None, target=target, preferences=PreferenceReview(confirmed=True))
+    assert result.action is PlanValidationAction.PASS
+    assert [len(meal.items) for meal in result.meals] == [0, 3, 3]
+    assert result.meals[1].nutrients.energy_kcal == Decimal('540')
+    # Current qualification, not the administrator's role label, controls eligibility.
+    for candidate in candidates:
+        if candidate.meal_role == 'vegetable':
+            food_map[candidate.nutrition_item_id].is_qualified = False
+    db_session.flush()
+    failure = _planning_service(db_session).compose_daily_meals(catalog_version=None, target=target, preferences=PreferenceReview(confirmed=True))
+    assert failure.action is PlanValidationAction.REPLAN and failure.meals == ()

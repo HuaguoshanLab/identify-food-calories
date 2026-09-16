@@ -384,6 +384,7 @@ async def submit_agent_input(
     payload: AgentInputRequest,
     request: Request,
     principal: AgentPrincipal,
+    command_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=128)] = None,
     service: AgentService = Depends(get_agent_service),
 ) -> AgentCommandAcceptedResponse | JSONResponse:
     try:
@@ -392,6 +393,25 @@ async def submit_agent_input(
         raise _unavailable() from None
     runtime = _runtime(request)
     planning_thread = latest is not None and latest.graph_version == DIET_PLANNING_GRAPH_VERSION
+    # Existing clients without a key retain legacy replay behaviour. New clients
+    # identify a submission, so identical wording can represent a later adjustment.
+    planning_key = (
+        f"planning-submission-{hashlib.sha256(command_key.encode('utf-8')).hexdigest()}"
+        if command_key is not None else
+        f"planning-adjustment-{hashlib.sha256(payload.text.encode('utf-8')).hexdigest()[:32]}"
+    )
+    if planning_thread:
+        try:
+            existing = service.find_reusable_run(
+                thread_id=thread_id, user_id=principal, command_key=planning_key,
+                canonical_command={"kind": "planning_adjustment", "input_hash": hashlib.sha256(payload.text.encode("utf-8")).hexdigest()},
+            )
+        except AgentCommandConflict:
+            return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同调整，请刷新计划后重新提交。")
+        except AgentThreadUnavailable:
+            raise _unavailable() from None
+        if existing is not None:
+            return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(existing.status))
     try:
         resume_payload = await service.resume_payload_for_text(
             checkpointer=runtime.checkpointer,
@@ -405,7 +425,12 @@ async def submit_agent_input(
         return await _submit_agent_input_after_admission(
             thread_id=thread_id, payload=payload, principal=principal, service=service,
             runtime=runtime, latest=latest, planning_thread=planning_thread, resume_payload=resume_payload,
+            planning_key=planning_key,
         )
+    except AgentCommandConflict:
+        return _error(status.HTTP_409_CONFLICT, "COMMAND_KEY_CONFLICT", "该请求标识已用于不同调整，请刷新计划后重新提交。")
+    except PlanArchiveConflict as error:
+        return _error(status.HTTP_409_CONFLICT, "PLAN_ARCHIVE_CONFLICT", str(error))
     except AgentRuntimeAdmissionDenied:
         return _runtime_admission_rejected()
 
@@ -420,6 +445,7 @@ async def _submit_agent_input_after_admission(
     latest: object | None,
     planning_thread: bool,
     resume_payload: dict[str, object] | None,
+    planning_key: str,
 ) -> AgentCommandAcceptedResponse | JSONResponse:
     """Keep admission failures at the HTTP boundary while AgentService owns creation."""
 
@@ -430,11 +456,11 @@ async def _submit_agent_input_after_admission(
         run = service.create_or_reuse_run(
             thread_id=thread_id,
             user_id=principal,
-            command_key=f"planning-adjustment-{hashlib.sha256(payload.text.encode('utf-8')).hexdigest()[:32]}",
+            command_key=planning_key,
             canonical_command={"kind": "planning_adjustment", "input_hash": hashlib.sha256(payload.text.encode("utf-8")).hexdigest()},
             graph_kind=AgentGraphKind.DIET_PLANNING,
         )
-        if run.status != "completed":
+        if run.status == "accepted":
             await _execute(
                 service=service,
                 runtime=runtime,

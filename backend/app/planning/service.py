@@ -9,6 +9,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 from itertools import islice
 from time import monotonic
 
+from app.planning.bundles import BUNDLE_ROLES, BUNDLE_SLOTS, BundlePool
 from app.planning.diagnostics import SearchDiagnostics, SlotDiagnostics, ScanStop
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
 from app.planning.ports import (
@@ -176,7 +177,8 @@ class PlanningService:
                 rule_id="incomplete-meal-slots",
                 safe_message="餐单必须包含不重复的早餐、午餐和晚餐后才能校验。",
             )
-        if len({meal.recipe_id for meal in meals}) != len(meals):
+        sources = [identity for meal in meals for identity in meal.source_recipe_ids]
+        if len(set(sources)) != len(sources):
             return PlanValidationResult(
                 action=PlanValidationAction.REPLAN,
                 rule_id="duplicate-controlled-recipe",
@@ -316,7 +318,7 @@ class PlanningService:
             required_slot is None
             or any(meal.slot is required_slot for meal in fixed_meals)
             or len({meal.slot for meal in fixed_meals}) != len(fixed_meals)
-            or len({meal.recipe_id for meal in fixed_meals}) != len(fixed_meals)
+            or len({identity for meal in fixed_meals for identity in meal.source_recipe_ids}) != sum(len(meal.source_recipe_ids) for meal in fixed_meals)
         ):
             return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="原餐单或调整餐次无效，请重新打开计划。")
         if required_recipe_id is not None:
@@ -346,6 +348,7 @@ class PlanningService:
                     food_ids=(required_food_id,) if slot is required_slot and required_food_id is not None else None,
                     recipe_id=required_recipe_id if slot is required_slot else None,
                     recipe_revision=required_recipe_revision if slot is required_slot else None,
+                    include_components=self._selection_policy.bundle_enabled and slot in BUNDLE_SLOTS and required_food_id is None,
                 )
             )
             return self._compose_managed_candidates(
@@ -438,7 +441,7 @@ class PlanningService:
         affected = [diagnostics.slots[slot] for slot in missing]
         reason = CompositionFailureReason.NO_COMBINATION
         message = "本次候选无法组成不重复的完整三餐，请更换菜品或调整偏好。"
-        if any(item.stop in {ScanStop.TIME, ScanStop.COUNT} for item in affected) or diagnostics.combination_stop in {ScanStop.TIME, ScanStop.COUNT}:
+        if any(item.stop in {ScanStop.TIME, ScanStop.COUNT} or item.bundle_stop in {ScanStop.TIME, ScanStop.COUNT} for item in affected) or diagnostics.combination_stop in {ScanStop.TIME, ScanStop.COUNT}:
             reason = CompositionFailureReason.SEARCH_BUDGET
             message = "本次筛选时间或计算额度已用完，尚未找到完整餐单。请稍后重试；若反复出现，请联系管理员调整筛选预算。"
         elif missing:
@@ -508,6 +511,13 @@ class PlanningService:
         diagnostics: SearchDiagnostics,
     ) -> MealCompositionResult:
         fixed_slots = {meal.slot for meal in fixed_meals}
+        bundles = {
+            slot: BundlePool(slot=slot, energy=self._slot_energy(target, fixed_meals, slot),
+                             policy=self._selection_policy, preferences=preferences,
+                             recent=recent_recipe_ids, stats=diagnostics.slots[slot], clock=self._clock)
+            for slot in BUNDLE_SLOTS if slot not in fixed_slots
+            and self._selection_policy.bundle_enabled and required_food_id is None
+        }
         def options() -> Iterator[SelectionCandidate]:
             for candidate in candidates:
                 stats = diagnostics.slots[candidate.meal_slot]
@@ -516,6 +526,14 @@ class PlanningService:
                     and (candidate.nutrition_item_id != required_food_id or candidate.catalog_version != required_catalog_version)
                 ) or (feedback_intent == "lighter" and candidate.meal_slot is required_slot and "清淡" not in {normalized_label(tag) for tag in candidate.flavour_tags}):
                     stats.filtered += 1
+                    continue
+                if candidate.meal_role != "standalone":
+                    if candidate.meal_slot in bundles and candidate.meal_role in BUNDLE_ROLES:
+                        meal = self._build_managed_meal(candidate, preferences, stats=stats, allow_component=True)
+                        if meal is not None:
+                            bundles[candidate.meal_slot].add(candidate, meal)
+                    else:
+                        stats.filtered += 1
                     continue
                 meal = self._build_managed_meal(candidate, preferences, stats=stats)
                 if meal is not None:
@@ -526,6 +544,8 @@ class PlanningService:
                         adjusted = self._build_managed_meal(candidate, preferences, stats=stats, portion_grams=grams)
                         if adjusted is not None:
                             yield SelectionCandidate(adjusted, food_ids)
+            for pool in bundles.values():
+                yield from pool.finish(excluded=exclude_recipe_ids)
         meals = self._select_meals(options=options(), target=target, preferences=preferences, recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals, diagnostics=diagnostics)
         if not meals:
             failure = self._search_failure(diagnostics, fixed_meals)
@@ -558,6 +578,17 @@ class PlanningService:
                             recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals,
                             validation_rank=validation_rank, budget=self._search_budget, policy=self._selection_policy, clock=self._clock, diagnostics=diagnostics)
 
+    def _slot_energy(self, target: DailyTarget | None, fixed_meals: tuple[PlannedMeal, ...], slot: MealSlot) -> Decimal | None:
+        if target is None:
+            return None
+        fixed_slots = {meal.slot for meal in fixed_meals}
+        slots = [item for item in REQUIRED_MEAL_SLOTS if item not in fixed_slots]
+        if slot not in slots:
+            return None
+        residual = max(Decimal(0), (target.energy_kcal.lower + target.energy_kcal.upper) / 2
+                       - sum((meal.nutrients.energy_kcal for meal in fixed_meals), Decimal(0)))
+        return residual * self._selection_policy.weight(slot) / sum(self._selection_policy.weight(item) for item in slots)
+
     def _adapted_portion(self, meal: PlannedMeal, target: DailyTarget | None, fixed_meals: tuple[PlannedMeal, ...]) -> Decimal | None:
         policy = self._selection_policy
         fixed_slots = {item.slot for item in fixed_meals}
@@ -585,8 +616,11 @@ class PlanningService:
         # Do not retain household-unit counts such as “4 dumplings” after scaling.
         return f"按目标调整份量（原份量 {base.normalize():f}g）"
 
-    def _build_managed_meal(self, candidate, preferences: PreferenceReview, *, stats: SlotDiagnostics | None = None, portion_grams: Decimal | None = None) -> PlannedMeal | None:
+    def _build_managed_meal(self, candidate, preferences: PreferenceReview, *, stats: SlotDiagnostics | None = None, portion_grams: Decimal | None = None, allow_component: bool = False) -> PlannedMeal | None:
         stats = stats or SlotDiagnostics()
+        if candidate.meal_role != "standalone" and not (allow_component and candidate.meal_role in BUNDLE_ROLES):
+            stats.filtered += 1
+            return None
         # Cheap known-label exclusions precede nutrition I/O. Canonical aliases
         # are still checked after the authoritative catalog lookup below.
         if matches_exclusion(preferences.exclusions, (candidate.display_name, *candidate.method_tags, *candidate.flavour_tags)):

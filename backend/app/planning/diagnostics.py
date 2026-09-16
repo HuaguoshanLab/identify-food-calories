@@ -37,6 +37,10 @@ class SlotDiagnostics(BaseModel):
     filtered: int = Field(default=0, ge=0)
     nutrition_calls: int = Field(default=0, ge=0)
     eligible: int = Field(default=0, ge=0)
+    components: int = Field(default=0, ge=0)
+    bundle_attempts: int = Field(default=0, ge=0)
+    bundles: int = Field(default=0, ge=0)
+    bundle_stop: ScanStop | None = None
     shortlisted: int = Field(default=0, ge=0)
     stop: ScanStop | None = None
     elapsed_ms: int = Field(default=0, ge=0)

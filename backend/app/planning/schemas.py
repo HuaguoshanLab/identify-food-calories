@@ -266,12 +266,30 @@ class ManagedRecipeCandidate(BaseModel):
     catalog_version: str = Field(min_length=1, max_length=80)
     display_name: str = Field(min_length=1, max_length=200)
     meal_slot: MealSlot
+    meal_role: Literal["standalone", "staple", "protein", "vegetable", "side", "drink"] = "standalone"
     portion_grams: Decimal = Field(gt=0, le=Decimal("2000"))
     portion_description: str = Field(min_length=1, max_length=120)
     method_tags: tuple[str, ...] = Field(min_length=1)
     flavour_tags: tuple[str, ...] = Field(min_length=1)
     status: ManagedRecipeCandidateStatus
     revision: int = Field(ge=1)
+
+
+class PlannedMealItem(BaseModel):
+    """A calculated, version-bound component; identities stay on the server."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    recipe_id: uuid.UUID
+    recipe_revision: int = Field(ge=1)
+    nutrition_item_id: uuid.UUID
+    catalog_version: str = Field(min_length=1, max_length=80)
+    meal_role: Literal["staple", "protein", "vegetable"]
+    display_name: str = Field(min_length=1, max_length=200)
+    portion_description: str = Field(min_length=1, max_length=120)
+    portion_grams: Decimal = Field(gt=0, le=2000)
+    method_tags: tuple[str, ...]
+    flavour_tags: tuple[str, ...]
+    nutrients: "PlanningNutritionValues"
 
 
 class PlannedMeal(BaseModel):
@@ -289,6 +307,28 @@ class PlannedMeal(BaseModel):
     matched_preference_summaries: tuple[str, ...] = ()
     matched_exclusion_summaries: tuple[str, ...] = ()
     nutrients: "PlanningNutritionValues"
+    items: tuple[PlannedMealItem, ...] = Field(default=(), max_length=3)
+
+    @property
+    def source_recipe_ids(self) -> tuple[uuid.UUID, ...]:
+        return tuple(item.recipe_id for item in self.items) if self.items else (self.recipe_id,)
+
+    @model_validator(mode="after")
+    def validates_component_totals(self) -> "PlannedMeal":
+        if self.items:
+            if self.slot not in {MealSlot.LUNCH, MealSlot.DINNER}:
+                raise ValueError("component meals currently support lunch and dinner")
+            if tuple(item.meal_role for item in self.items) != ("staple", "protein", "vegetable"):
+                raise ValueError("a bundle requires one staple, protein dish and vegetable")
+            if len(set(self.source_recipe_ids)) != 3 or len({item.nutrition_item_id for item in self.items}) != 3:
+                raise ValueError("bundle components must reference distinct recipes and foods")
+            if sum((item.portion_grams for item in self.items), Decimal(0)) != self.portion_grams:
+                raise ValueError("bundle grams must equal its components")
+            for metric in PlanningNutritionValues.model_fields:
+                if sum((getattr(item.nutrients, metric) for item in self.items), Decimal(0)) != getattr(self.nutrients, metric):
+                    raise ValueError("bundle nutrients must equal its components")
+        return self
+
 
 
 class PlanningNutritionValues(BaseModel):

@@ -23,7 +23,7 @@ from app.planning.schemas import (
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v7"
+SELECTION_POLICY_VERSION = "planning-selection.v9"
 
 
 class PlanningSearchBudget(BaseModel):
@@ -47,6 +47,15 @@ class MealSelectionPolicy(BaseModel):
     dinner_weight: Decimal = Field(default=Decimal("35"), gt=0, le=1000)
     diversity_slots: int = Field(default=4, ge=0, le=64)
     diversity_weight: Decimal = Field(default=Decimal("0.05"), ge=0, le=1)
+    flavour_diversity_weight: Decimal = Field(default=Decimal("0.25"), ge=0, le=1)
+
+    bundle_enabled: bool = True
+    bundle_options_per_role: int = Field(default=4, ge=1, le=8)
+    bundle_max_combinations: int = Field(default=64, ge=1, le=512)
+    bundle_seconds: float = Field(default=0.5, gt=0, le=5, allow_inf_nan=False)
+    bundle_staple_weight: Decimal = Field(default=45, gt=0, le=1000)
+    bundle_protein_weight: Decimal = Field(default=35, gt=0, le=1000)
+    bundle_vegetable_weight: Decimal = Field(default=20, gt=0, le=1000)
 
     portion_adjustment_enabled: bool = True
     portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
@@ -74,23 +83,44 @@ class SelectionCandidate:
         return frozenset(normalized_label(tag) for tag in self.meal.method_tags if normalized_label(tag))
 
     @property
+    def flavours(self) -> frozenset[str]:
+        return frozenset(normalized_label(tag) for tag in self.meal.flavour_tags if normalized_label(tag))
+
+    @property
     def signature(self) -> tuple:
         return tuple(sorted(self.food_ids)), tuple(sorted(self.methods))
 
 
-def _similarity(left: SelectionCandidate, right: SelectionCandidate) -> Decimal:
+def _similarity(
+    left: SelectionCandidate, right: SelectionCandidate, *,
+    flavour_weight: Decimal = Decimal(0), preferred_flavours: frozenset[str] = frozenset(),
+) -> Decimal:
     def overlap(a: frozenset, b: frozenset) -> Decimal:
         return Decimal(len(a & b)) / len(a | b) if a and b else Decimal(0)
 
     # Missing composition contributes no invented ingredient evidence. Known
     # methods can still diversify managed dishes that lack ingredient lists.
-    return overlap(left.food_ids, right.food_ids) + Decimal("0.25") * overlap(left.methods, right.methods)
+    flavour_overlap = Decimal(0)
+    if flavour_weight:
+        # Unknown labels provide no evidence of novelty; do not reward missing data.
+        # Deliberately repeated user favourites are exempt from taste penalties.
+        flavour_overlap = (
+            overlap(left.flavours - preferred_flavours, right.flavours - preferred_flavours)
+            if left.flavours and right.flavours else Decimal(1)
+        )
+    return (overlap(left.food_ids, right.food_ids) + Decimal("0.25") * overlap(left.methods, right.methods)
+            + flavour_weight * flavour_overlap)
 
 
 class _Shortlist:
-    """Keep at most K nutritional leaders plus K distinct composition/method leaders."""
+    """Keep at most K nutritional leaders plus K distinct catalog-evidence leaders."""
 
-    def __init__(self, capacity: int, reserve: int) -> None:
+    def __init__(
+        self, capacity: int, reserve: int, *, flavour_weight: Decimal = Decimal(0),
+        preferred_flavours: frozenset[str] = frozenset(),
+    ) -> None:
+        self.flavour_weight = flavour_weight
+        self.preferred_flavours = preferred_flavours
         self.capacity = capacity
         self.reserve = min(reserve, capacity - 1)
         self.primary: list[tuple[tuple, SelectionCandidate]] = []
@@ -104,6 +134,8 @@ class _Shortlist:
         del self.primary[self.capacity:]
         if self.reserve:
             signature = candidate.signature
+            if self.flavour_weight:
+                signature = (*signature, tuple(sorted(candidate.flavours - self.preferred_flavours)))
             previous = self.groups.get(signature)
             if previous is None or key < previous[0]:
                 self.groups[signature] = (key, candidate)
@@ -117,7 +149,10 @@ class _Shortlist:
             remaining.pop(item.identity, None)
         while remaining and len(chosen) < self.capacity:
             entry = min(remaining.values(), key=lambda entry: (
-                sum((_similarity(entry[1], item) for _, item in chosen), Decimal(0)), entry[0],
+                -len(entry[1].flavours & self.preferred_flavours) if self.flavour_weight else 0,
+                sum((_similarity(entry[1], item, flavour_weight=self.flavour_weight,
+                                 preferred_flavours=self.preferred_flavours) for _, item in chosen), Decimal(0)),
+                entry[0],
             ))
             chosen.append(entry)
             del remaining[entry[1].identity]
@@ -197,7 +232,7 @@ def select_meals(
     budget = budget or PlanningSearchBudget()
     policy = policy or MealSelectionPolicy()
     fixed = {meal.slot: meal for meal in fixed_meals}
-    fixed_ids = {meal.recipe_id for meal in fixed_meals}
+    fixed_ids = {identity for meal in fixed_meals for identity in meal.source_recipe_ids}
     recent = set(recent_recipe_ids)
     variable_slots = tuple(slot for slot in REQUIRED_MEAL_SLOTS if slot not in fixed)
     remaining_weight = sum((policy.weight(slot) for slot in variable_slots), Decimal(0))
@@ -214,16 +249,19 @@ def select_meals(
         return (
             allocation_distance(meal),
             -preference_matches(meal, preferences),
-            meal.recipe_id in recent,
+            bool(set(meal.source_recipe_ids) & recent),
             str(meal.recipe_id),
             meal.portion_grams,
         )
 
-    shortlists = {slot: _Shortlist(budget.options_per_slot, policy.diversity_slots) for slot in variable_slots}
+    preferred_flavours = frozenset(normalized_label(value) for value in preferences.taste_preferences if normalized_label(value))
+    shortlists = {slot: _Shortlist(budget.options_per_slot, policy.diversity_slots,
+                                 flavour_weight=policy.flavour_diversity_weight,
+                                 preferred_flavours=preferred_flavours) for slot in variable_slots}
     for option in options:
         candidate = option if isinstance(option, SelectionCandidate) else SelectionCandidate(option)
         meal = candidate.meal
-        if meal.slot in shortlists and meal.recipe_id not in fixed_ids:
+        if meal.slot in shortlists and not (set(meal.source_recipe_ids) & fixed_ids):
             shortlists[meal.slot].add(candidate, shortlist_key(meal))
     finalized = {slot: shortlist.finish() for slot, shortlist in shortlists.items()}
     # Record all slots before returning for an empty one, or a missing breakfast
@@ -249,9 +287,10 @@ def select_meals(
             validation_rank(meals) if target is not None else 0,
             outside,
             -sum(preference_matches(meal, preferences) for meal in meals),
-            sum(meal.recipe_id in recent for meal in meals),
+            sum(bool(set(meal.source_recipe_ids) & recent) for meal in meals),
+            -sum(bool(meal.items) for meal in meals),
             midpoint + sum((allocation_distance(meal) for meal in meals), Decimal(0))
-            + policy.diversity_weight * sum((_similarity(left, right) for index, left in enumerate(candidates) for right in candidates[index + 1:]), Decimal(0)),
+            + policy.diversity_weight * sum((_similarity(left, right, flavour_weight=policy.flavour_diversity_weight, preferred_flavours=preferred_flavours) for index, left in enumerate(candidates) for right in candidates[index + 1:]), Decimal(0)),
             tuple((str(meal.recipe_id), meal.portion_grams) for meal in meals),
         )
 
@@ -269,7 +308,8 @@ def select_meals(
             break
         diagnostics.combinations += 1
         meals = (*(candidate.meal for candidate in combination), *extra_fixed)
-        if len({meal.recipe_id for meal in meals}) != len(meals):
+        sources = [identity for meal in meals for identity in meal.source_recipe_ids]
+        if len(set(sources)) != len(sources):
             diagnostics.duplicate_combinations += 1
             continue
         rank = score(combination, meals)

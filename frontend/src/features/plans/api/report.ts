@@ -4,10 +4,18 @@ const decimalSchema = z.string().regex(/^\d+(?:\.\d+)?$/)
 const metricSchema = z.object({ lower: decimalSchema, upper: decimalSchema }).strict()
 const nutrientsSchema = z.object({ energy_kcal: decimalSchema, carbohydrate_g: decimalSchema, protein_g: decimalSchema, fat_g: decimalSchema }).strict()
 const slotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
+const planMealItemSchema = z.object({
+  meal_role: z.enum(['staple', 'protein', 'vegetable']), display_name: z.string().min(1).max(200),
+  portion_description: z.string().min(1).max(120), portion_grams: decimalSchema,
+  method_tags: z.array(z.string()), flavour_tags: z.array(z.string()), nutrients: nutrientsSchema,
+}).strict()
 const planMealSchema = z.object({
+  items: z.array(planMealItemSchema).max(3).optional(),
   slot: slotSchema, display_name: z.string().min(1), portion_description: z.string().min(1), portion_grams: decimalSchema,
   method_tags: z.array(z.string().min(1)), flavour_tags: z.array(z.string().min(1)), matched_preference_summaries: z.array(z.string().min(1)), matched_exclusion_summaries: z.array(z.string().min(1)), nutrients: nutrientsSchema,
-}).strict()
+}).strict().superRefine((meal, context) => {
+  if (meal.items?.length && (!['lunch', 'dinner'].includes(meal.slot) || meal.items.map(item => item.meal_role).join(',') !== 'staple,protein,vegetable')) context.addIssue({ code: 'custom', message: 'a component meal requires ordered staple, protein and vegetable' })
+})
 const rangeStatusSchema = z.enum(['low', 'in_range', 'high'])
 const relaxationSchema = z.object({ metric: z.enum(['energy_kcal', 'carbohydrate_g', 'protein_g', 'fat_g']), original_range: metricSchema, plan_value: decimalSchema, deviation: z.string().regex(/^-?\d+(?:\.\d+)?$/), reason: z.string().min(1).max(500) }).strict()
 const planAdjustmentSchema = z.object({

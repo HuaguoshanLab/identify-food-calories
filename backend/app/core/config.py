@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     planning_dinner_weight: Decimal = Field(default=Decimal("35"), gt=0, le=1000)
     planning_diversity_slots: int = Field(default=4, ge=0, le=64)
     planning_diversity_weight: Decimal = Field(default=Decimal("0.05"), ge=0, le=1)
+    planning_flavour_diversity_weight: Decimal = Field(default=Decimal("0.25"), ge=0, le=1)
+    planning_bundle_enabled: bool = True
+    planning_bundle_options_per_role: int = Field(default=4, ge=1, le=8)
+    planning_bundle_max_combinations: int = Field(default=64, ge=1, le=512)
+    planning_bundle_seconds: float = Field(default=0.5, gt=0, le=5, allow_inf_nan=False)
+    planning_bundle_staple_weight: Decimal = Field(default=45, gt=0, le=1000)
+    planning_bundle_protein_weight: Decimal = Field(default=35, gt=0, le=1000)
+    planning_bundle_vegetable_weight: Decimal = Field(default=20, gt=0, le=1000)
     planning_portion_adjustment_enabled: bool = True
     planning_portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
     planning_portion_max_multiplier: Decimal = Field(default=Decimal("1.25"), ge=1, le=Decimal("1.5"))

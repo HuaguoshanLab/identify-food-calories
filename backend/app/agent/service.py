@@ -39,7 +39,7 @@ from app.agent.schemas import DietPlanningStartCommand
 from app.agent.weight import parse_weight_grams
 from app.planning.ports import PlanningCompletionProjectionWriter
 from app.planning.archive_ports import PlanArchiveWriter
-from app.planning.archive_schemas import PlanArchiveWrite, PlanReport
+from app.planning.archive_schemas import PlanArchiveWrite, PlanReport, PlanComponentRecipeEvidence
 from langgraph.types import Command
 from langgraph.errors import GraphRecursionError
 
@@ -158,6 +158,19 @@ class AgentService:
         if thread is None or thread.deleted_at is not None:
             raise AgentThreadUnavailable("agent thread is unavailable")
         return thread
+
+    def find_reusable_run(
+        self, *, thread_id: uuid.UUID, user_id: uuid.UUID, command_key: str,
+        canonical_command: dict[str, object],
+    ) -> AgentRun | None:
+        """Resolve an acknowledged command before interpreting newer checkpoint state."""
+        self.get_thread(thread_id=thread_id, user_id=user_id)
+        existing = self._repository.get_run_for_command_for_user(
+            thread_id=thread_id, user_id=user_id, command_key=command_key,
+        )
+        if existing is not None and existing.command_hash != canonical_command_hash(canonical_command):
+            raise AgentCommandConflict("idempotency key payload mismatch")
+        return existing
 
     def create_or_reuse_run(
         self,
@@ -451,7 +464,13 @@ class AgentService:
                     self._planning_archive_writer.record_completion(PlanArchiveWrite(
                         user_id=user_id, run_id=run.id, thread_id=run.thread_id,
                         started_at=thread.created_at, report=PlanReport.model_validate(finished.report),
-                        recipe_ids=tuple(meal.recipe_id for meal in finished.meals),
+                        recipe_ids=tuple(identity for meal in finished.meals for identity in meal.source_recipe_ids),
+                        component_recipes=tuple(PlanComponentRecipeEvidence(
+                            recipe_id=item.recipe_id,
+                            recipe_version=f"managed-candidate.v{item.recipe_revision}",
+                            catalog_version=item.catalog_version,
+                            audit_version=f"candidate-revision.v{item.recipe_revision}",
+                        ) for meal in finished.meals for item in meal.items),
                         target_version=finished.target.policy_version, formula_version=finished.target.formula_version,
                         graph_version=finished.graph_version, tool_version=finished.tool_version,
                     ))

@@ -96,13 +96,16 @@ class PlanArchiveService:
             }
         )
         provenance = {
-            "schema_version": "diet-plan-snapshot.v1",
+            "schema_version": "diet-plan-snapshot.v2" if command.component_recipes else "diet-plan-snapshot.v1",
             "validation": "completed_validated",
             "target_version": command.target_version,
             "formula_version": command.formula_version,
             "graph_version": command.graph_version,
             "tool_version": command.tool_version,
-            "recipes": self.repo.recipe_versions(command.recipe_ids),
+            "recipes": [*self.repo.recipe_versions(tuple(
+                identity for identity in command.recipe_ids
+                if identity not in {item.recipe_id for item in command.component_recipes}
+            )), *(item.model_dump(mode="json") for item in command.component_recipes)],
         }
         self.repo.add_version(
             DietPlanVersion(

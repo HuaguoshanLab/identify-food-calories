@@ -2,7 +2,7 @@
 
 [返回功能学习总目录](README.md)
 
-管理员维护可用于餐单的成品菜候选，指定关联营养目录、单份重量、餐次和口味标签。规划服务从这些候选里组合餐单。
+管理员维护可用于餐单的成品菜候选，指定关联营养目录、单份重量、餐次、餐内角色和口味标签。规划服务从这些候选里组合餐单。
 
 ## 1. 先看一个实际例子
 
@@ -109,6 +109,7 @@ candidate = ManagedRecipeCandidate(
     catalog_food_name=food.canonical_name,
     nutrition_catalog_version=food.nutrition_catalog_version,
     meal_slot=row.meal_slot,
+    meal_role=row.meal_role,
     portion_grams=row.portion_grams,
     portion_description=row.portion_description,
     method_tags="|".join(row.method_tags),
@@ -140,25 +141,51 @@ candidate = ManagedRecipeCandidate(
 
 [backend/app/planning/service.py](../../backend/app/planning/service.py) 的 `_build_managed_meal`。
 
+以下为删减主逻辑，省略计数、别名忌口校验、份量调整和卡片组装：
+
 ```python
-def _build_managed_meal(self, candidate, preferences: PreferenceReview) -> PlannedMeal | None:
-    calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.nutrition_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
-    if calculation.action is not NutritionAction.PASS or calculation.food is None or calculation.nutrients is None:
-        return None
-    if any(value.casefold() in calculation.food.canonical_name.casefold() for value in preferences.exclusions):
-        return None
-    return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=candidate.portion_description, portion_grams=candidate.portion_grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
+if candidate.meal_role != "standalone":
+    stats.filtered += 1
+    return None
+calculation = self._nutrition_port.calculate_nutrition(
+    NutritionCalculationInput(
+        food_id=candidate.nutrition_item_id,
+        catalog_version=candidate.catalog_version,
+        grams=grams,
+    )
+)
 ```
 
 **为什么这样写**
 
-把候选转换成受控 recipe，再走同一个 _build_meal。后者按目录计算和检查排除项，不能直接相信列表里有这道菜就可用。
+单独候选可作为一餐；午餐、晚餐还可通过 `planning/bundles.py` 的 `BundlePool` 将主食、蛋白质菜、蔬菜各一项拼成一餐。数据库默认只返回单独候选，组合路径才显式允许这三类组成菜品，领域服务再次检查；任意一个组成菜品都不能单独成为整餐。之后仍按目录每 100g 基准重算营养，并核对菜名、别名和已知标签中的忌口；不会从菜名猜完整配料。
 
 **处理后变成什么，交给谁**
 
-得到可用 PlannedMeal 或 None。可用项进入整日组合；失败项排除。最近历史轮换只能尽量减少重复，不保证候选有限时永不重复。
+得到可用 `PlannedMeal` 或 `None`。可用项进入整日组合；失败项排除。最近历史轮换只能尽量减少重复，不保证候选有限时永不重复。
 
-> 语法小注：函数返回可选值时，`None` 表示这份候选不适合当前组合。
+> 语法小注：`PlannedMeal | None` 表示既可能返回餐次，也可能返回“此项不可用”。
+
+### 4.4 明确标记餐内角色
+
+分类决定午餐、晚餐如何组合；它由管理员维护，模型和菜名都不能替代这份证据。
+
+| CSV / 后台标签 | 保存值 | 当前用途 |
+|---|---|---|
+| 单独候选 | `standalone` | 沿用原有每餐一个候选的行为，不代表营养搭配完整 |
+| 主食 | `staple` | 午餐、晚餐组合的主食项 |
+| 蛋白质菜 | `protein` | 午餐、晚餐组合的蛋白质菜项 |
+| 蔬菜 | `vegetable` | 午餐、晚餐组合的蔬菜项 |
+| 其他配菜 | `side` | 暂不参与规划 |
+| 饮品 | `drink` | 暂不参与规划 |
+
+新模板在原七列末尾增加“餐内角色”，支持表中中文或保存值。新列存在时必须填写有效值，不能留空或写“自动”。完整的旧七列模板仍可导入，默认 `standalone`，系统不会因名称含“蔬菜”或“牛奶”而自动改分类。迁移也将现有行保留为 `standalone`。
+
+后台“菜谱管理”可勾选已有记录，点击“设置餐内角色”，填写角色与原因。这比导出后重新导入更适合修正旧数据：重新导入会新增候选，不会覆盖原记录。
+
+入口是 [RecipeRoleDialog.tsx](../../admin-frontend/src/features/recipes/RecipeRoleDialog.tsx)，公开接口为 `POST /api/v1/admin/recipe-candidates/meal-role`，业务函数是 `AdminService.change_recipe_candidate_role`。每批最多 1000 条：验证当前管理员 → 对选中记录按 ID 排序加锁 → 全批检查 → 修改角色和版本 → 同事务写审计。缺失或已删除成员使整批失败；同一请求键重复提交返回原计数，不重复修改版本。角色未变化的行不增加版本，返回计数只统计真正修改的行。
+
+角色变更会影响新的候选扫描和换餐确认，已归档餐单不被回写。若所有候选都标成配菜，系统会报告缺少可用餐次，不会偷偷回退到初始种子菜谱。分类由管理员明确提供，不是模型推断，也不是营养资质认证。
 
 ## 5. 换一种输入，会走哪条路
 
@@ -166,20 +193,20 @@ def _build_managed_meal(self, candidate, preferences: PreferenceReview) -> Plann
 |---|---|---|
 | 目录不存在或不唯一 | 导入拒绝 | 不猜关联 |
 | 同批重发 | 返回原 ID | 不新增重复候选 |
+| 已标成配菜或饮品 | 生成和换餐排除 | 不单独成为一餐 |
 | 触犯忌口 | 构造失败或排除 | 不进入餐单 |
 
 ## 6. 自己验证一次
 
-在仓库根目录执行现有测试，使用后端已安装的测试环境：
+核心测试入口：
 
-```bash
-cd backend
-.venv/bin/python -m pytest tests/planning/test_managed_recipe_candidates.py -q
-```
+- [CSV 兼容与校验](../../backend/tests/admin/test_recipe_candidate_csv.py)：新分类往返、旧模板默认、空值与非法角色。
+- [管理服务](../../backend/tests/admin/test_recipe_role_service.py)：当前角色授权、审计、重试、整批失败与无效命令。
+- [规划过滤](../../backend/tests/planning/test_recipe_meal_roles.py)：即使替身仓储错误返回配菜，生成和换餐仍会拒绝，且不调用营养计算。
+- [真实 PostgreSQL](../../backend/tests/integration/test_managed_recipe_candidate_repository.py)：两种目录来源均在分页前过滤，数据库拒绝非法角色。
+- [后台交互](../../admin-frontend/tests/e2e/recipe-management.spec.ts)：旧模板、新分类导入、批量修改、刷新和审计。
 
-观察候选引用、按份量重算和餐次筛选，真实导入事务另看集成测试。把候选重量改变时，应重新计算而非读取旧总量。
-
-本轮运行范围与结果见[总目录验证记录](README.md)。替身测试证明指定输入下的代码行为，不能替代真实模型效果、数据库并发或页面验收。
+2026-09-16 已执行相关规划、后台与图单测 259 项，真实 PostgreSQL 集成测试 31 项，另有迁移升级/降级与旧数据回填测试 1 项；后台定向组件测试 9 项、类型检查和构建通过。真实后台端到端流程 1 条通过，覆盖旧模板与新分类导入、启停删除、批量修改、刷新和审计。内置浏览器已在隔离环境通过实际登录 → 菜谱管理 → 设置角色 → 保存，看到成功提示与列表更新。测试使用隔离数据，尚未对真实菜谱库做分类；不能证明现有菜品已经有完整营养搭配。
 
 ## 7. 读完应该能回答什么
 
@@ -188,3 +215,6 @@ cd backend
 3. 启用的菜为何还可能被本次规划排除？
 
 源码阅读顺序：[admin/service.py](../../backend/app/admin/service.py) → [planning/service.py](../../backend/app/planning/service.py)。先跟本例函数走一遍，再展开旁支。
+
+
+组合餐的本轮测试、真实页面验收和未验证范围见[生成一日餐单的组合餐验证](feature-daily-planning.md#组合餐验证2026-09-16)。分类完成只是必要条件，候选还必须启用、目录合格、符合已知忌口，并通过全天营养校验。

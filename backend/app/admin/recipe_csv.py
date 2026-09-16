@@ -22,7 +22,10 @@ RECIPE_CSV_COLUMNS = {
     "做法标签": "method_tags",
     "口味标签": "flavour_tags",
     "状态": "status",
+    "餐内角色": "meal_role",
 }
+LEGACY_RECIPE_CSV_COLUMNS = {label: field for label, field in RECIPE_CSV_COLUMNS.items() if field != "meal_role"}
+ROLE_LABELS = {"standalone": "单独候选", "staple": "主食", "protein": "蛋白质菜", "vegetable": "蔬菜", "side": "其他配菜", "drink": "饮品"}
 MEAL_LABELS = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
 STATUS_LABELS = {"pending": "待审核", "enabled": "已启用", "disabled": "已停用"}
 
@@ -40,7 +43,9 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
         reader = csv.reader(
             io.StringIO(content.lstrip("\ufeff"), newline=""), strict=True
         )
-        if next(reader, None) != list(RECIPE_CSV_COLUMNS):
+        header = next(reader, None)
+        columns = LEGACY_RECIPE_CSV_COLUMNS if header == list(LEGACY_RECIPE_CSV_COLUMNS) else RECIPE_CSV_COLUMNS
+        if header != list(columns):
             raise RecipeCandidateCsvInvalid(
                 "表头不匹配，请下载并使用导入模板，保留列名与顺序。"
             )
@@ -54,14 +59,14 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
             count += 1
             if count > MAX_IMPORT_ROWS:
                 raise RecipeCandidateCsvInvalid("每次最多导入 500 条，请拆分文件。")
-            if len(record) != len(RECIPE_CSV_COLUMNS):
+            if len(record) != len(columns):
                 errors.append(
                     RecipeCandidateCsvError(
                         row=reader.line_num, field="整行", message="列数与模板不一致。"
                     )
                 )
                 continue
-            raw = dict(zip(RECIPE_CSV_COLUMNS.values(), record, strict=True))
+            raw = dict(zip(columns.values(), record, strict=True))
             raw["method_tags"] = tuple(
                 value.strip() for value in str(raw["method_tags"]).split("|")
             )
@@ -74,6 +79,9 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
             raw["status"] = {label: key for key, label in STATUS_LABELS.items()}.get(
                 str(raw["status"]).strip(), raw["status"]
             )
+            if "meal_role" in raw:
+                role = str(raw["meal_role"]).strip()
+                raw["meal_role"] = {label: key for key, label in ROLE_LABELS.items()}.get(role, role)
             try:
                 candidate = RecipeCandidateCsvRow.model_validate(raw)
             except ValidationError as error:
@@ -120,6 +128,7 @@ def write_recipe_candidate_csv(
             "flavour_tags": "|".join(row.flavour_tags),
             "meal_slot": MEAL_LABELS[str(row.meal_slot)],
             "status": STATUS_LABELS[str(row.status)],
+            "meal_role": ROLE_LABELS[row.meal_role],
         }
         writer.writerow(
             [_safe_cell(values[field]) for field in RECIPE_CSV_COLUMNS.values()]

@@ -47,3 +47,26 @@ def test_all_agent_operations_require_authentication_without_starting_a_database
         "retryAgentRun",
         "deleteAgentThread",
     } <= operation_ids
+
+
+def test_reused_waiting_adjustment_does_not_resume_a_newer_checkpoint(monkeypatch):
+    """The create-or-reuse lock may observe a completion after the initial lookup."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from uuid import uuid4
+    from app.agent import api
+    from app.agent.schemas import AgentInputRequest
+
+    execute = AsyncMock()
+    monkeypatch.setattr(api, "_execute", execute)
+    for state in ("running", "waiting_input", "completed", "failed", "limit_reached"):
+        run = SimpleNamespace(status=state)
+        service = SimpleNamespace(create_or_reuse_run=Mock(return_value=run))
+        response = asyncio.run(api._submit_agent_input_after_admission(
+            thread_id=uuid4(), payload=AgentInputRequest(kind="description", text="午餐换一份"),
+            principal=uuid4(), service=service, runtime=SimpleNamespace(), latest=run,
+            planning_thread=True, resume_payload={"feedback": "午餐换一份"}, planning_key="submission",
+        ))
+        assert response.status == api._status(state)
+    execute.assert_not_called()

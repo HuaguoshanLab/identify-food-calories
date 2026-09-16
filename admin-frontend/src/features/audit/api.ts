@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
 const scalarSchema = z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()])
+// Batch audit events carry bounded ID lists; the page still displays only allowlisted fields.
+const diffValueSchema = z.union([scalarSchema, z.array(scalarSchema).max(1000)])
 const auditWireEventSchema = z.object({
-  id: z.string().uuid(), actor_identifier: z.string().min(1).max(320), actor_label: z.string().min(1).max(320), occurred_at: z.string().datetime({ offset: true }), action: z.string().min(1).max(80), object_type: z.string().min(1).max(80), object_id: z.string().min(1).max(160), reason: z.string().min(1).max(500), before: z.record(z.string(), scalarSchema), after: z.record(z.string(), scalarSchema), related_version: z.string().max(160).nullable(), command_key: z.string().min(1).max(160),
+  id: z.string().uuid(), actor_identifier: z.string().min(1).max(320), actor_label: z.string().min(1).max(320), occurred_at: z.string().datetime({ offset: true }), action: z.string().min(1).max(80), object_type: z.string().min(1).max(80), object_id: z.string().min(1).max(160), reason: z.string().min(1).max(500), before: z.record(z.string(), diffValueSchema), after: z.record(z.string(), diffValueSchema), related_version: z.string().max(160).nullable(), command_key: z.string().min(1).max(160),
 }).strict()
 
 export const auditPageSchema = z.object({ items: z.array(auditWireEventSchema), next_cursor: z.string().min(16).max(500).nullable() }).strict()

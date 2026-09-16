@@ -10,7 +10,7 @@ import { RecipeListPage } from './RecipeListPage'
 vi.mock('@/auth/AdminAuthProvider', () => ({ useAdminAuth: () => ({ accessToken: 'test-runtime-token', clearSession: vi.fn() }) }))
 
 const base = '/api/v1/admin/recipe-candidates'
-const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slot: 'lunch', portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
+const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slot: 'lunch', meal_role: 'standalone', portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
 
 function setup() {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RecipeListPage /></QueryClientProvider>)
@@ -31,6 +31,28 @@ describe('RecipeListPage', () => {
     await user.type(screen.getByLabelText('操作原因'), '核对完毕')
     await user.click(screen.getByRole('button', { name: '确认操作' }))
     expect(await screen.findByRole('status')).toHaveTextContent('已启用 1 条菜谱候选')
+  })
+
+  it('明确显示角色，要求原因并通过后端批量修改', async () => {
+    const user = userEvent.setup()
+    let changed = false
+    mswServer.use(http.get(base, () => HttpResponse.json({ items: [{ ...candidate, meal_role: changed ? 'vegetable' : 'standalone' }], total: 1, page: 1, page_size: 20 })), http.post(`${base}/meal-role`, async ({ request }) => {
+      expect(await request.json()).toEqual({ ids: [candidate.id], meal_role: 'vegetable', reason: '根据实际食材分类', confirm: true })
+      expect(request.headers.get('Idempotency-Key')).toBeTruthy()
+      changed = true
+      return HttpResponse.json({ changed_count: 1 })
+    }))
+    setup()
+    await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
+    await user.click(screen.getByRole('button', { name: '设置餐内角色' }))
+    expect(screen.getByText(/缺少任一角色时不会拼餐/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '保存角色' }))
+    expect(await screen.findByText('请填写修改原因。')).toBeVisible()
+    await user.selectOptions(screen.getByLabelText('餐内角色'), 'vegetable')
+    await user.type(screen.getByLabelText('修改原因'), '根据实际食材分类')
+    await user.click(screen.getByRole('button', { name: '保存角色' }))
+    expect(await screen.findByText('已更新 1 条菜谱的餐内角色。')).toBeVisible()
+    expect(await screen.findByRole('cell', { name: '蔬菜' })).toBeVisible()
   })
 
   it('导入显示逐行校验错误并禁止确认', async () => {

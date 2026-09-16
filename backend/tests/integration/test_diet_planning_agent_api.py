@@ -475,3 +475,53 @@ def test_concurrent_archive_writes_have_one_day_and_unique_versions() -> None:
             assert sorted(row.version for row in session.query(DietPlanVersion).filter_by(user_id=owner_id)) == [1, 2]
     finally:
         engine.dispose()
+
+
+def test_adjustment_submission_keys_distinguish_new_intent_from_retries():
+    from sqlalchemy import select, func
+    from app.agent.models import AgentRun
+    from app.planning.models import DietPlanVersion
+
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run([sys.executable, "scripts/run_initialized_app.py", "--prepare-only"], cwd=BACKEND_ROOT, env=_test_env(settings), check=True)
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            owner, token = _create_user(session, label="submission-keys")
+            _, other_token = _create_user(session, label="submission-other")
+            authentication = AuthenticationService(repository=SqlAlchemyAuthRepository(session), secret_key=SECRET, issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback)
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            headers = {"Authorization": f"Bearer {token}"}
+            with TestClient(app) as client:
+                started = client.post(PLANNING_PATH, json=_command(), headers=headers | {"Idempotency-Key": "submission-plan"})
+                assert started.status_code == 201 and started.json()["status"] == "completed", started.text
+                thread_id = started.json()["thread_id"]
+                path = f"/api/v1/agent/threads/{thread_id}"
+                payload = {"kind": "description", "text": "午餐换一份"}
+                first_headers = headers | {"Idempotency-Key": "adjustment-click-1"}
+                first = client.post(path + "/input", json=payload, headers=first_headers)
+                assert first.status_code == 202 and first.json()["status"] == "completed", first.text
+                snapshot = client.get(path, headers=headers).json()
+                repeated = client.post(path + "/input", json=payload, headers=first_headers)
+                assert repeated.status_code == 202
+                assert client.get(path, headers=headers).json() == snapshot
+                conflict = client.post(path + "/input", json={"kind": "description", "text": "晚餐换一份"}, headers=first_headers)
+                assert conflict.status_code == 409 and conflict.json()["error"]["code"] == "COMMAND_KEY_CONFLICT"
+                assert client.post(path + "/input", json=payload, headers={"Authorization": f"Bearer {other_token}", "Idempotency-Key": "adjustment-click-1"}).status_code == 404
+                again = client.post(path + "/input", json=payload, headers=headers | {"Idempotency-Key": "adjustment-click-2"})
+                assert again.status_code == 202 and again.json()["status"] == "completed", again.text
+                changed = client.get(path, headers=headers).json()
+                assert changed["revision"] > snapshot["revision"]
+                before_meals, after_meals = snapshot["report"]["meals"], changed["report"]["meals"]
+                assert before_meals[0] == after_meals[0] and before_meals[2] == after_meals[2]
+                assert before_meals[1] != after_meals[1]
+                # Replaying an older command cannot overwrite the newer checkpoint/version.
+                assert client.post(path + "/input", json=payload, headers=first_headers).status_code == 202
+                assert client.get(path, headers=headers).json() == changed
+                assert client.post(path + "/input", json=payload, headers=headers | {"Idempotency-Key": "x" * 129}).status_code == 422
+                assert session.scalar(select(func.count()).select_from(AgentRun).where(AgentRun.user_id == owner.id)) == 3
+                assert session.scalar(select(func.count()).select_from(DietPlanVersion).where(DietPlanVersion.user_id == owner.id)) == 3
+    finally:
+        engine.dispose()

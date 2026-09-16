@@ -875,3 +875,30 @@ def test_langfuse_tracing_uses_only_safe_metadata_and_closes_client() -> None:
     ]
     assert client.flushes == 1
     assert client.shutdowns == 1
+
+
+def test_idempotent_run_lookup_checks_owner_and_payload_without_creating_work():
+    from app.agent.models import AgentThread
+    from app.agent.service import AgentCommandConflict, AgentService, AgentThreadUnavailable
+
+    now = datetime(2026, 9, 16, tzinfo=UTC)
+    owner, thread_id = uuid.uuid4(), uuid.uuid4()
+    thread = AgentThread(id=thread_id, user_id=owner, status="open", revision=0,
+                         created_at=now, last_activity_at=now, deleted_at=None)
+    repository = _FakeAgentRepository(thread=thread)
+    service = AgentService(repository=repository, now=lambda: now)
+    arguments = dict(thread_id=thread_id, user_id=owner, command_key="submission-1",
+                     canonical_command={"kind": "planning_adjustment", "input_hash": "digest"})
+    assert service.find_reusable_run(**arguments) is None
+    run = service.create_or_reuse_run(**arguments)
+    for status in ("accepted", "running", "waiting_input", "completed", "failed", "limit_reached"):
+        run.status = status
+        assert service.find_reusable_run(**arguments) is run
+    with pytest.raises(AgentCommandConflict):
+        service.find_reusable_run(**(arguments | {"canonical_command": {"input_hash": "different"}}))
+    with pytest.raises(AgentThreadUnavailable):
+        service.find_reusable_run(**(arguments | {"user_id": uuid.uuid4()}))
+    assert service.find_reusable_run(**(arguments | {"command_key": "submission-2"})) is None
+    thread.deleted_at = now
+    with pytest.raises(AgentThreadUnavailable):
+        service.find_reusable_run(**arguments)

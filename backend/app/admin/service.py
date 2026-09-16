@@ -96,6 +96,8 @@ from app.admin.schemas import (
     RuntimeConfigCommand,
     RuntimeConfigResponse,
     RecipeCandidateBulkCommand,
+    RecipeCandidateRoleCommand,
+    RecipeCandidateRoleResponse,
     RecipeCandidateCsvPreview,
     RecipeCandidateImportCommand,
     RecipeCandidateImportResponse,
@@ -697,6 +699,7 @@ class AdminService:
                     catalog_food_name=food.canonical_name,
                     nutrition_catalog_version=food.nutrition_catalog_version,
                     meal_slot=row.meal_slot,
+                    meal_role=row.meal_role,
                     portion_grams=row.portion_grams,
                     portion_description=row.portion_description,
                     method_tags="|".join(row.method_tags),
@@ -722,6 +725,7 @@ class AdminService:
                             "nutrition_item_id": str(food.id),
                             "nutrition_catalog_version": food.nutrition_catalog_version,
                             "meal_slot": candidate.meal_slot,
+                            "meal_role": candidate.meal_role,
                             "status": candidate.status,
                             "revision": 1,
                         },
@@ -752,6 +756,55 @@ class AdminService:
             self._rollback()
             raise
         return RecipeCandidateImportResponse(imported_count=len(ids), candidate_ids=ids)
+
+    def change_recipe_candidate_role(
+        self, *, actor_user_id: uuid.UUID, command: RecipeCandidateRoleCommand,
+        command_key: str,
+    ) -> RecipeCandidateRoleResponse:
+        actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        batch_key = "recipe-role:" + hashlib.sha256(f"{actor.id}:{command_key}".encode()).hexdigest()
+        request_hash = self._request_hash("recipe-role", command.model_dump())
+        self._repository.acquire_recipe_candidate_lock(batch_key)
+        replay = self._repository.get_audit_event_by_command_key(batch_key)
+        if replay is not None:
+            if replay.after_diff.get("request_hash") != request_hash:
+                raise RecipeCandidateConflict("Idempotency-Key was reused for a different command")
+            return RecipeCandidateRoleResponse(changed_count=len(replay.after_diff["candidate_ids"]))
+        now = self._now()
+        changed_ids = []
+        try:
+            # Stable row-lock order avoids deadlocks between overlapping batches.
+            candidates = [self._repository.get_recipe_candidate(identity, for_update=True)
+                          for identity in sorted(command.ids)]
+            if any(item is None or item.deleted_at is not None for item in candidates):
+                raise KeyError("recipe candidate not found")
+            for candidate in candidates:
+                if candidate.meal_role == command.meal_role:
+                    continue
+                before = {"meal_role": candidate.meal_role, "revision": candidate.revision}
+                candidate.meal_role = command.meal_role
+                candidate.revision += 1
+                candidate.updated_at = now
+                changed_ids.append(str(candidate.id))
+                self._repository.add_audit_event(AdminAuditEvent(
+                    id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+                    action="recipe_candidate.role_changed", object_type="managed_recipe_candidate",
+                    object_id=str(candidate.id), reason=command.reason, before_diff=before,
+                    after_diff={"meal_role": candidate.meal_role, "revision": candidate.revision},
+                    related_version=None, command_key=f"{batch_key}:{candidate.id}",
+                ))
+            self._repository.add_audit_event(AdminAuditEvent(
+                id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+                action="recipe_candidate.role_changed_batch", object_type="managed_recipe_candidate_batch",
+                object_id=command_key, reason=command.reason, before_diff={},
+                after_diff={"request_hash": request_hash, "candidate_ids": changed_ids},
+                related_version=None, command_key=batch_key,
+            ))
+            self._commit()
+        except Exception:
+            self._rollback()
+            raise
+        return RecipeCandidateRoleResponse(changed_count=len(changed_ids))
 
     def change_recipe_candidate_status(
         self,
@@ -2152,6 +2205,7 @@ class AdminService:
             meal_slot=cast(
                 Literal["breakfast", "lunch", "dinner", "snack"], candidate.meal_slot
             ),
+            meal_role=candidate.meal_role,
             portion_grams=candidate.portion_grams,
             portion_description=candidate.portion_description,
             method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),

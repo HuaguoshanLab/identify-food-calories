@@ -1,41 +1,5 @@
-import { execFile as execFileCallback } from 'node:child_process'
-import { promisify } from 'node:util'
-
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-
-const execFile = promisify(execFileCallback)
-const mailpitApi = 'http://127.0.0.1:8025/api/v1'
-const userFrontendUrl = `http://127.0.0.1:${process.env.E2E_ADMIN_USER_FRONTEND_PORT ?? '5183'}`
-
-type Account = Readonly<{ email: string, password: string }>
-
-async function verificationCode(request: APIRequestContext, email: string) {
-  await expect.poll(async () => {
-    const body = await (await request.get(`${mailpitApi}/messages`)).json() as { messages?: Array<{ ID?: string, To?: Array<{ Address?: string }> }> }
-    const message = body.messages?.find(item => item.To?.some(recipient => recipient.Address === email))
-    if (!message?.ID) return undefined
-    const detail = await (await request.get(`${mailpitApi}/message/${message.ID}`)).json() as { Text?: string }
-    return detail.Text?.match(/\b(\d{6})\b/)?.[1]
-  }).toMatch(/^\d{6}$/)
-  const body = await (await request.get(`${mailpitApi}/messages`)).json() as { messages?: Array<{ ID?: string, To?: Array<{ Address?: string }> }> }
-  const id = body.messages?.find(item => item.To?.some(recipient => recipient.Address === email))?.ID
-  const detail = id ? await (await request.get(`${mailpitApi}/message/${id}`)).json() as { Text?: string } : {}
-  return detail.Text!.match(/\b(\d{6})\b/)![1]
-}
-
-async function registerAndVerify(page: Page, request: APIRequestContext, account: Account) {
-  await page.goto(`${userFrontendUrl}/register`)
-  await page.getByLabel('邮箱').fill(account.email)
-  await page.getByLabel('密码', { exact: true }).fill(account.password)
-  await page.getByLabel('确认密码').fill(account.password)
-  await page.getByRole('button', { name: '发送验证码' }).click()
-  await page.getByLabel('6 位邮箱验证码').fill(await verificationCode(request, account.email))
-  await page.getByRole('button', { name: '验证并激活账号' }).click()
-}
-
-async function bootstrap(account: Account) {
-  await execFile('../backend/.venv/bin/python', ['tests/run_pg.py', '--env-file', '.env.test.example', '--', '.venv/bin/python', '-m', 'app.admin.cli', 'bootstrap', '--email', account.email, '--reason', 'Recipe candidate E2E bootstrap'], { cwd: '../backend' })
-}
+import { expect, test, type Page } from '@playwright/test'
+import { bootstrapFirstAdmin, registerAndVerify, type Account } from './auth-helpers'
 
 async function login(page: Page, account: Account) {
   const probe = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/probe') && response.status() === 200)
@@ -70,16 +34,17 @@ async function publishFood(page: Page, name: string) {
   }
 }
 
-test('管理员通过真实页面导入并批量启用、停用、删除菜谱候选', async ({ page, request }) => {
+test('管理员导入、分类、审计和候选生命周期', async ({ page, request }) => {
+  test.setTimeout(90_000)
   const suffix = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
   const account = { email: `recipe-admin-${suffix}@example.test`, password: 'Recipe-admin-password-2026!' }
   const foodName = `候选菜目录 ${suffix}`
   await registerAndVerify(page, request, account)
-  await bootstrap(account)
+  await bootstrapFirstAdmin(account)
   await login(page, account)
   await publishFood(page, foodName)
   await page.getByRole('link', { name: '菜谱管理', exact: true }).click()
-  await expect(page.locator('h1', { hasText: '菜谱管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '菜谱管理', exact: true })).toBeVisible()
 
   const csv = '关联目录菜品名称,餐次,单份克数,份量说明,做法标签,口味标签,状态\r\n'
     + `${foodName},早餐,300,一份,炒,家常,待审核\r\n${foodName},午餐,300,一份,炒,家常,待审核\r\n${foodName},晚餐,300,一份,炒,家常,待审核\r\n`
@@ -108,4 +73,26 @@ test('管理员通过真实页面导入并批量启用、停用、删除菜谱�
     if (action !== '批量删除') await page.getByRole('checkbox', { name: '全选当前页' }).check()
   }
   await expect(page.getByText('暂无菜谱候选')).toBeVisible()
+
+  await page.getByRole('button', { name: '导入', exact: true }).click()
+  const roleCsv = '关联目录菜品名称,餐次,单份克数,份量说明,做法标签,口味标签,状态,餐内角色\n'
+    + `${foodName},午餐,100,一份,蒸,清淡,待审核,蔬菜\n`
+  await page.getByLabel('选择 CSV 文件').setInputFiles({ name: 'roles.csv', mimeType: 'text/csv', buffer: Buffer.from(roleCsv) })
+  await expect(page.getByRole('cell', { name: '蔬菜', exact: true })).toBeVisible()
+  await page.getByLabel('导入原因').fill('核对菜品用途')
+  await page.getByRole('button', { name: '确认导入 1 条' }).click()
+  await expect(page.getByText('成功导入 1 条菜谱候选。')).toBeVisible()
+  await page.getByRole('checkbox', { name: `选择 ${foodName}` }).check()
+  await page.getByRole('button', { name: '设置餐内角色' }).click()
+  await expect(page.getByText(/缺少任一角色时不会拼餐/)).toBeVisible()
+  await page.getByLabel('餐内角色', { exact: true }).selectOption('side')
+  await page.getByLabel('修改原因').fill('复核为其他配菜')
+  await page.getByRole('button', { name: '保存角色', exact: true }).click()
+  await expect(page.getByText('已更新 1 条菜谱的餐内角色。')).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('cell', { name: '其他配菜', exact: true })).toBeVisible()
+  await page.getByRole('link', { name: '操作审计', exact: true }).click()
+  await expect(page.getByRole('cell', { name: '修改餐内角色', exact: true })).toBeVisible()
+  await expect(page.getByText('蔬菜 → 其他配菜', { exact: false })).toBeVisible()
+  console.log(`Native verification account: ${account.email}`)
 })

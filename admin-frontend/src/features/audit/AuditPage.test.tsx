@@ -46,6 +46,18 @@ function renderAuditPage() {
 }
 
 describe('AuditPage', () => {
+  it('批量审计的 ID 列表不阻断角色差异展示且不泄露内部列表', async () => {
+    const original = auditPage.items[0]
+    mswServer.use(http.get(`${apiBase}/audit`, () => HttpResponse.json({ items: [
+      { ...original, action: 'recipe_candidate.role_changed', before: { meal_role: 'vegetable' }, after: { meal_role: 'side' } },
+      { ...original, id: auditPage.items[1].id, action: 'recipe_candidate.role_changed_batch', before: {}, after: { candidate_ids: ['internal-candidate-id'] } },
+    ], next_cursor: null })))
+    renderAuditPage()
+    expect(await screen.findByRole('cell', { name: '修改餐内角色' })).toBeVisible()
+    expect(screen.getByText(/蔬菜 → 其他配菜/)).toBeVisible()
+    expect(screen.queryByText('internal-candidate-id')).not.toBeInTheDocument()
+  })
+
   it('只向 audit endpoint 发送 allowlist filters 与 opaque cursor，筛选改变会重置 cursor', async () => {
     const user = userEvent.setup()
     const requests: URL[] = []

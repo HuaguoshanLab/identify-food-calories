@@ -29,6 +29,7 @@ class PlanningRepository(Protocol):
         meal_slot: MealSlot | None = None, after_id: uuid.UUID | None = None,
         limit: int | None = None, food_ids: tuple[uuid.UUID, ...] | None = None,
         recipe_id: uuid.UUID | None = None, recipe_revision: int | None = None,
+        include_components: bool = False,
     ) -> list[ManagedRecipeCandidate]: ...
 
     def list_recent_recipe_ids(

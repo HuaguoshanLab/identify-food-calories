@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -22,6 +23,16 @@ class PlanTarget(ArchiveDTO):
     fat_g: TargetRange
 
 
+class PlanMealItemSnapshot(ArchiveDTO):
+    meal_role: Literal["staple", "protein", "vegetable"]
+    display_name: str = Field(min_length=1, max_length=200)
+    portion_description: str = Field(min_length=1, max_length=120)
+    portion_grams: str = Field(pattern=r"^\d+(?:\.\d+)?$")
+    method_tags: tuple[str, ...]
+    flavour_tags: tuple[str, ...]
+    nutrients: PlanningNutritionValues
+
+
 class PlanMealSnapshot(ArchiveDTO):
     slot: MealSlot
     display_name: str = Field(min_length=1, max_length=200)
@@ -32,6 +43,21 @@ class PlanMealSnapshot(ArchiveDTO):
     matched_preference_summaries: tuple[str, ...]
     matched_exclusion_summaries: tuple[str, ...]
     nutrients: PlanningNutritionValues
+    items: tuple[PlanMealItemSnapshot, ...] = Field(default=(), max_length=3)
+
+    @model_validator(mode="after")
+    def checks_bundle_snapshot(self) -> "PlanMealSnapshot":
+        if self.items:
+            if self.slot not in {MealSlot.LUNCH, MealSlot.DINNER} or tuple(item.meal_role for item in self.items) != ("staple", "protein", "vegetable"):
+                raise ValueError("invalid component meal structure")
+            if any(not 0 < Decimal(item.portion_grams) <= 2000 for item in self.items):
+                raise ValueError("component portions must be positive")
+            if sum((Decimal(item.portion_grams) for item in self.items), Decimal(0)) != Decimal(self.portion_grams):
+                raise ValueError("component grams do not match snapshot")
+            for metric in PlanningNutritionValues.model_fields:
+                if sum((getattr(item.nutrients, metric) for item in self.items), Decimal(0)) != getattr(self.nutrients, metric):
+                    raise ValueError("component nutrients do not match snapshot")
+        return self
 
 
 class PlanRangeStatus(ArchiveDTO):
@@ -72,6 +98,14 @@ class PlanReport(ArchiveDTO):
         return self
 
 
+class PlanComponentRecipeEvidence(ArchiveDTO):
+    recipe_id: uuid.UUID
+    source_kind: Literal["managed_recipe_candidate"] = "managed_recipe_candidate"
+    recipe_version: str = Field(min_length=1, max_length=80)
+    catalog_version: str = Field(min_length=1, max_length=80)
+    audit_version: str = Field(min_length=1, max_length=80)
+
+
 class PlanArchiveWrite(ArchiveDTO):
     """Internal completion command, constructed only after deterministic validation."""
 
@@ -80,11 +114,22 @@ class PlanArchiveWrite(ArchiveDTO):
     thread_id: uuid.UUID
     started_at: datetime
     report: PlanReport
-    recipe_ids: tuple[uuid.UUID, ...] = Field(min_length=3, max_length=4)
+    recipe_ids: tuple[uuid.UUID, ...] = Field(min_length=3, max_length=10)
+    component_recipes: tuple[PlanComponentRecipeEvidence, ...] = Field(default=(), max_length=9)
     target_version: str = Field(min_length=1, max_length=80)
     formula_version: str = Field(min_length=1, max_length=80)
     graph_version: str = Field(min_length=1, max_length=80)
     tool_version: str = Field(min_length=1, max_length=80)
+
+
+    @model_validator(mode="after")
+    def checks_component_evidence(self) -> "PlanArchiveWrite":
+        evidence_ids = [item.recipe_id for item in self.component_recipes]
+        if len(set(self.recipe_ids)) != len(self.recipe_ids) or len(set(evidence_ids)) != len(evidence_ids) or not set(evidence_ids).issubset(self.recipe_ids):
+            raise ValueError("invalid component recipe evidence")
+        if len(evidence_ids) != sum(len(meal.items) for meal in self.report.meals):
+            raise ValueError("all components require frozen provenance")
+        return self
 
 
 class SavedPlanSummary(ArchiveDTO):

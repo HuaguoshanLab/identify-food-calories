@@ -60,6 +60,8 @@ from app.admin.schemas import (
     ModelServiceSummary,
     ModelServicesResponse,
     RecipeCandidateBulkCommand,
+    RecipeCandidateRoleCommand,
+    RecipeCandidateRoleResponse,
     RecipeCandidateCsvPreview,
     RecipeCandidateImportCommand,
     RecipeCandidateImportResponse,
@@ -420,6 +422,25 @@ def import_recipe_candidates(
         raise HTTPException(
             status_code=409, detail="recipe candidate import conflict"
         ) from error
+
+
+@router.post("/recipe-candidates/meal-role", response_model=RecipeCandidateRoleResponse)
+def change_recipe_candidate_role(
+    command: RecipeCandidateRoleCommand,
+    principal: AuthenticatedPrincipal,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+    admin_service: AdminService = Depends(get_admin_service),
+):
+    try:
+        return admin_service.change_recipe_candidate_role(
+            actor_user_id=principal, command=command, command_key=idempotency_key,
+        )
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="recipe candidate not found") from error
+    except RecipeCandidateConflict as error:
+        raise HTTPException(status_code=409, detail="recipe candidate command conflict") from error
 
 
 @router.post("/recipe-candidates/{operation}")

@@ -62,7 +62,7 @@ class FakePlanningRepository:
 
     def list_managed_recipe_candidates(
         self, *, catalog_version: str | None, meal_slot=None, after_id=None,
-        limit=None, food_ids=None, recipe_id=None, recipe_revision=None,
+        limit=None, food_ids=None, recipe_id=None, recipe_revision=None, include_components=False,
     ) -> list[ManagedRecipeCandidate]:
         rows = [candidate for candidate in self.candidates
                 if (catalog_version is None or candidate.catalog_version == catalog_version)
