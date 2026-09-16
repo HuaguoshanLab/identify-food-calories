@@ -1,0 +1,58 @@
+[
+  {
+    "id": "a43bbe59-444d-419d-bdf9-3976dcce9e0b",
+    "name": "壮族五色糯米饭",
+    "slot": "lunch",
+    "before": "standalone",
+    "after": "staple",
+    "revision": 2
+  },
+  {
+    "id": "b41ee154-d57f-4e03-90bb-715c9681bc8c",
+    "name": "苏州水晶虾仁",
+    "slot": "dinner",
+    "before": "standalone",
+    "after": "protein",
+    "revision": 2
+  },
+  {
+    "id": "7ff8bfd4-f3bd-4302-8646-daf53338398b",
+    "name": "银鱼炒蛋",
+    "slot": "dinner",
+    "before": "standalone",
+    "after": "protein",
+    "revision": 2
+  },
+  {
+    "id": "796d5730-d49f-4809-8b61-57a3a4c5eb59",
+    "name": "龙井虾仁",
+    "slot": "dinner",
+    "before": "standalone",
+    "after": "protein",
+    "revision": 2
+  },
+  {
+    "id": "fa0e6100-60a3-4de2-aba7-35e39a58df96",
+    "name": "剁椒蒸茄子",
+    "slot": "lunch",
+    "before": "standalone",
+    "after": "vegetable",
+    "revision": 2
+  },
+  {
+    "id": "519ef89f-ed04-44c4-8223-c510c0e5a07e",
+    "name": "问政山笋",
+    "slot": "lunch",
+    "before": "standalone",
+    "after": "vegetable",
+    "revision": 2
+  },
+  {
+    "id": "f819b4d9-cfa5-4588-b6e9-ccce3ad85e19",
+    "name": "红烧鸡枞",
+    "slot": "dinner",
+    "before": "standalone",
+    "after": "vegetable",
+    "revision": 2
+  }
+]

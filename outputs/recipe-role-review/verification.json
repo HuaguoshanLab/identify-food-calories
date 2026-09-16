@@ -1,0 +1,475 @@
+{
+  "coverage": [
+    {
+      "slot": "breakfast",
+      "role": "standalone",
+      "status": "enabled",
+      "count": 68
+    },
+    {
+      "slot": "dinner",
+      "role": "protein",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "dinner",
+      "role": "standalone",
+      "status": "enabled",
+      "count": 206
+    },
+    {
+      "slot": "dinner",
+      "role": "staple",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "dinner",
+      "role": "vegetable",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "lunch",
+      "role": "protein",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "lunch",
+      "role": "standalone",
+      "status": "enabled",
+      "count": 168
+    },
+    {
+      "slot": "lunch",
+      "role": "staple",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "lunch",
+      "role": "vegetable",
+      "status": "enabled",
+      "count": 3
+    },
+    {
+      "slot": "snack",
+      "role": "standalone",
+      "status": "enabled",
+      "count": 163
+    }
+  ],
+  "audits": [
+    {
+      "action": "recipe_candidate.enabled",
+      "count": 11
+    },
+    {
+      "action": "recipe_candidate.enabled_batch",
+      "count": 1
+    },
+    {
+      "action": "recipe_candidate.import",
+      "count": 11
+    },
+    {
+      "action": "recipe_candidate.import_batch",
+      "count": 1
+    },
+    {
+      "action": "recipe_candidate.role_changed",
+      "count": 7
+    },
+    {
+      "action": "recipe_candidate.role_changed_batch",
+      "count": 5
+    }
+  ],
+  "components": [
+    {
+      "name": "苏州水晶虾仁",
+      "slot": "dinner",
+      "role": "protein",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "40.000000000000",
+        "fat_g": "7.500000000000",
+        "carbohydrate_g": "10.000000000000"
+      }
+    },
+    {
+      "name": "红烧鸡枞",
+      "slot": "dinner",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "15.000000000000",
+        "fat_g": "15.000000000000",
+        "carbohydrate_g": "17.500000000000"
+      }
+    },
+    {
+      "name": "龙井虾仁",
+      "slot": "dinner",
+      "role": "protein",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "40.000000000000",
+        "fat_g": "10.000000000000",
+        "carbohydrate_g": "7.500000000000"
+      }
+    },
+    {
+      "name": "银鱼炒蛋",
+      "slot": "dinner",
+      "role": "protein",
+      "grams": "200.000000",
+      "nutrients": {
+        "energy_kcal": "280.000000000000",
+        "protein_g": "24.000000000000",
+        "fat_g": "18.000000000000",
+        "carbohydrate_g": "4.000000000000"
+      }
+    },
+    {
+      "name": "冠头蒸馒头",
+      "slot": "dinner",
+      "role": "staple",
+      "grams": "150.000000",
+      "nutrients": {
+        "energy_kcal": "345.000000000000",
+        "protein_g": "10.500000000000",
+        "fat_g": "1.500000000000",
+        "carbohydrate_g": "70.500000000000"
+      }
+    },
+    {
+      "name": "壮族五色糯米饭",
+      "slot": "dinner",
+      "role": "staple",
+      "grams": "300.000000",
+      "nutrients": {
+        "energy_kcal": "540.000000000000",
+        "protein_g": "9.000000000000",
+        "fat_g": "0E-12",
+        "carbohydrate_g": "117.000000000000"
+      }
+    },
+    {
+      "name": "问政山笋",
+      "slot": "dinner",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "150.000000000000",
+        "protein_g": "5.000000000000",
+        "fat_g": "5.000000000000",
+        "carbohydrate_g": "17.500000000000"
+      }
+    },
+    {
+      "name": "剁椒蒸茄子",
+      "slot": "dinner",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "175.000000000000",
+        "protein_g": "2.500000000000",
+        "fat_g": "10.000000000000",
+        "carbohydrate_g": "20.000000000000"
+      }
+    },
+    {
+      "name": "白米饭",
+      "slot": "dinner",
+      "role": "staple",
+      "grams": "200.000000",
+      "nutrients": {
+        "energy_kcal": "260.000000000000",
+        "protein_g": "4.800000000000",
+        "fat_g": "0.600000000000",
+        "carbohydrate_g": "56.400000000000"
+      }
+    },
+    {
+      "name": "壮族五色糯米饭",
+      "slot": "lunch",
+      "role": "staple",
+      "grams": "300.000000",
+      "nutrients": {
+        "energy_kcal": "540.000000000000",
+        "protein_g": "9.000000000000",
+        "fat_g": "0E-12",
+        "carbohydrate_g": "117.000000000000"
+      }
+    },
+    {
+      "name": "剁椒蒸茄子",
+      "slot": "lunch",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "175.000000000000",
+        "protein_g": "2.500000000000",
+        "fat_g": "10.000000000000",
+        "carbohydrate_g": "20.000000000000"
+      }
+    },
+    {
+      "name": "问政山笋",
+      "slot": "lunch",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "150.000000000000",
+        "protein_g": "5.000000000000",
+        "fat_g": "5.000000000000",
+        "carbohydrate_g": "17.500000000000"
+      }
+    },
+    {
+      "name": "苏州水晶虾仁",
+      "slot": "lunch",
+      "role": "protein",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "40.000000000000",
+        "fat_g": "7.500000000000",
+        "carbohydrate_g": "10.000000000000"
+      }
+    },
+    {
+      "name": "冠头蒸馒头",
+      "slot": "lunch",
+      "role": "staple",
+      "grams": "150.000000",
+      "nutrients": {
+        "energy_kcal": "345.000000000000",
+        "protein_g": "10.500000000000",
+        "fat_g": "1.500000000000",
+        "carbohydrate_g": "70.500000000000"
+      }
+    },
+    {
+      "name": "白米饭",
+      "slot": "lunch",
+      "role": "staple",
+      "grams": "200.000000",
+      "nutrients": {
+        "energy_kcal": "260.000000000000",
+        "protein_g": "4.800000000000",
+        "fat_g": "0.600000000000",
+        "carbohydrate_g": "56.400000000000"
+      }
+    },
+    {
+      "name": "红烧鸡枞",
+      "slot": "lunch",
+      "role": "vegetable",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "15.000000000000",
+        "fat_g": "15.000000000000",
+        "carbohydrate_g": "17.500000000000"
+      }
+    },
+    {
+      "name": "银鱼炒蛋",
+      "slot": "lunch",
+      "role": "protein",
+      "grams": "200.000000",
+      "nutrients": {
+        "energy_kcal": "280.000000000000",
+        "protein_g": "24.000000000000",
+        "fat_g": "18.000000000000",
+        "carbohydrate_g": "4.000000000000"
+      }
+    },
+    {
+      "name": "龙井虾仁",
+      "slot": "lunch",
+      "role": "protein",
+      "grams": "250.000000",
+      "nutrients": {
+        "energy_kcal": "275.000000000000",
+        "protein_g": "40.000000000000",
+        "fat_g": "10.000000000000",
+        "carbohydrate_g": "7.500000000000"
+      }
+    }
+  ],
+  "deterministic_trials": [
+    {
+      "energy_center": 1400,
+      "action": "PASS",
+      "validation": "planning-validation-pass",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "name": "三鲜豆皮",
+          "components": 0,
+          "energy_kcal": "350.20000000"
+        },
+        {
+          "slot": "lunch",
+          "name": "牦牛饺子",
+          "components": 0,
+          "energy_kcal": "525.000000000000"
+        },
+        {
+          "slot": "dinner",
+          "name": "馕包肉",
+          "components": 0,
+          "energy_kcal": "604.90000000"
+        }
+      ]
+    },
+    {
+      "energy_center": 1600,
+      "action": "PASS",
+      "validation": "planning-validation-pass",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "name": "石家庄鸡蛋饼",
+          "components": 0,
+          "energy_kcal": "360.000000000000"
+        },
+        {
+          "slot": "lunch",
+          "name": "午餐组合餐",
+          "components": 3,
+          "energy_kcal": "710.000000000000"
+        },
+        {
+          "slot": "dinner",
+          "name": "馕包肉",
+          "components": 0,
+          "energy_kcal": "604.90000000"
+        }
+      ]
+    },
+    {
+      "energy_center": 1800,
+      "action": "PASS",
+      "validation": "planning-validation-pass",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "name": "三鲜豆皮",
+          "components": 0,
+          "energy_kcal": "425.0000000"
+        },
+        {
+          "slot": "lunch",
+          "name": "午餐组合餐",
+          "components": 3,
+          "energy_kcal": "710.000000000000"
+        },
+        {
+          "slot": "dinner",
+          "name": "晚餐组合餐",
+          "components": 3,
+          "energy_kcal": "690.000000000000"
+        }
+      ]
+    },
+    {
+      "energy_center": 2000,
+      "action": "PASS",
+      "validation": "planning-validation-pass",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "name": "煎饼果子",
+          "components": 0,
+          "energy_kcal": "499.80000000"
+        },
+        {
+          "slot": "lunch",
+          "name": "午餐组合餐",
+          "components": 3,
+          "energy_kcal": "795.000000000000"
+        },
+        {
+          "slot": "dinner",
+          "name": "晚餐组合餐",
+          "components": 3,
+          "energy_kcal": "775.000000000000"
+        }
+      ]
+    },
+    {
+      "energy_center": 2200,
+      "action": "PASS",
+      "validation": "planning-validation-pass",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "name": "煎饼果子",
+          "components": 0,
+          "energy_kcal": "525.0000000"
+        },
+        {
+          "slot": "lunch",
+          "name": "午餐组合餐",
+          "components": 3,
+          "energy_kcal": "895.000000000000"
+        },
+        {
+          "slot": "dinner",
+          "name": "晚餐组合餐",
+          "components": 3,
+          "energy_kcal": "775.000000000000"
+        }
+      ]
+    }
+  ],
+  "policy": {
+    "breakfast_weight": "25",
+    "lunch_weight": "40",
+    "dinner_weight": "35",
+    "diversity_slots": 4,
+    "diversity_weight": "0.05",
+    "flavour_diversity_weight": "0.25",
+    "bundle_enabled": true,
+    "bundle_options_per_role": 4,
+    "bundle_max_combinations": 64,
+    "bundle_seconds": 0.5,
+    "bundle_staple_weight": "45",
+    "bundle_protein_weight": "35",
+    "bundle_vegetable_weight": "20",
+    "portion_adjustment_enabled": true,
+    "portion_min_multiplier": "0.75",
+    "portion_max_multiplier": "1.25",
+    "max_target_deviation": "0.10"
+  },
+  "budget": {
+    "batch_size": 64,
+    "scan_per_slot": 2048,
+    "options_per_slot": 12,
+    "max_combinations": 1728,
+    "scan_seconds_per_slot": 3.0,
+    "combination_seconds": 2.0
+  },
+  "new_candidate_ids": [
+    "3c9e9c4e-482f-4233-86d1-9d993712679b",
+    "da1576ca-e75c-4696-abac-5c64633b2f67",
+    "4d699343-edc5-4dce-a922-af7a904f00f7",
+    "e3eb2384-4166-4777-9bd2-d09594199436",
+    "4fb5fda4-dc17-47b5-a935-c68e30018e53",
+    "1faf390b-a6bd-4b18-b3bc-53c382edbb03",
+    "375d1aa7-2ccf-44ae-99f8-89a63a14fb04",
+    "5a64a6f4-fb13-4053-b0f7-c1a8bee9b700",
+    "1ea6c6bd-9634-416d-9561-d68aea394279",
+    "ba110d78-9ca2-4400-b83c-b0dffa4807cc",
+    "e83ca5ba-e715-4fa6-8a9d-2ddd5eec826b"
+  ]
+}

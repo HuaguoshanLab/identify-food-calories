@@ -262,7 +262,8 @@ class PlanningService:
         """Record one count-only search summary, including failed searches."""
         diagnostics = SearchDiagnostics()
         started = self._clock()
-        action, reason = "error", "internal_error"
+        action = "error"
+        reason: str | None = "internal_error"
         try:
             result = self._compose_daily_meals(
                 diagnostics=diagnostics,
@@ -327,6 +328,7 @@ class PlanningService:
         if (required_food_id is None) != (required_catalog_version is None):
             return MealCompositionResult(action=PlanValidationAction.NEEDS_INPUT, safe_message="指定菜品版本无效，请重新选择。")
         if required_food_id is not None:
+            assert required_catalog_version is not None
             qualified = self._nutrition_port.calculate_nutrition(
                 NutritionCalculationInput(food_id=required_food_id, catalog_version=required_catalog_version, grams=Decimal("1"))
             )
@@ -518,6 +520,13 @@ class PlanningService:
             for slot in BUNDLE_SLOTS if slot not in fixed_slots
             and self._selection_policy.bundle_enabled and required_food_id is None
         }
+        def adapt_component(candidate: ManagedRecipeCandidate, meal: PlannedMeal, energy: Decimal) -> PlannedMeal | None:
+            grams = self._portion_for_energy(meal, energy)
+            if grams is None:
+                return meal
+            return self._build_managed_meal(candidate, preferences, stats=diagnostics.slots[candidate.meal_slot],
+                                            portion_grams=grams, allow_component=True)
+
         def options() -> Iterator[SelectionCandidate]:
             for candidate in candidates:
                 stats = diagnostics.slots[candidate.meal_slot]
@@ -545,7 +554,7 @@ class PlanningService:
                         if adjusted is not None:
                             yield SelectionCandidate(adjusted, food_ids)
             for pool in bundles.values():
-                yield from pool.finish(excluded=exclude_recipe_ids)
+                yield from pool.finish(excluded=exclude_recipe_ids, adapt=adapt_component)
         meals = self._select_meals(options=options(), target=target, preferences=preferences, recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals, diagnostics=diagnostics)
         if not meals:
             failure = self._search_failure(diagnostics, fixed_meals)
@@ -590,17 +599,13 @@ class PlanningService:
         return residual * self._selection_policy.weight(slot) / sum(self._selection_policy.weight(item) for item in slots)
 
     def _adapted_portion(self, meal: PlannedMeal, target: DailyTarget | None, fixed_meals: tuple[PlannedMeal, ...]) -> Decimal | None:
+        return self._portion_for_energy(meal, self._slot_energy(target, fixed_meals, meal.slot))
+
+    def _portion_for_energy(self, meal: PlannedMeal, energy: Decimal | None) -> Decimal | None:
         policy = self._selection_policy
-        fixed_slots = {item.slot for item in fixed_meals}
-        if not policy.portion_adjustment_enabled or target is None or meal.slot in fixed_slots or meal.nutrients.energy_kcal <= 0:
+        if not policy.portion_adjustment_enabled or energy is None or meal.nutrients.energy_kcal <= 0:
             return None
-        slots = [slot for slot in REQUIRED_MEAL_SLOTS if slot not in fixed_slots]
-        weight = sum((policy.weight(slot) for slot in slots), Decimal(0))
-        if meal.slot not in slots or not weight:
-            return None
-        residual = max(Decimal(0), (target.energy_kcal.lower + target.energy_kcal.upper) / 2
-                       - sum((item.nutrients.energy_kcal for item in fixed_meals), Decimal(0)))
-        desired = meal.portion_grams * residual * policy.weight(meal.slot) / weight / meal.nutrients.energy_kcal
+        desired = meal.portion_grams * energy / meal.nutrients.energy_kcal
         # Whole grams keep the displayed quantity and the calculator input aligned.
         lower = (meal.portion_grams * policy.portion_min_multiplier).to_integral_value(rounding=ROUND_CEILING)
         upper = min(Decimal("2000"), meal.portion_grams * policy.portion_max_multiplier).to_integral_value(rounding=ROUND_FLOOR)

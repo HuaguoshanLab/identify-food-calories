@@ -40,6 +40,8 @@ class SlotDiagnostics(BaseModel):
     components: int = Field(default=0, ge=0)
     bundle_attempts: int = Field(default=0, ge=0)
     bundles: int = Field(default=0, ge=0)
+    adapted_components: int = Field(default=0, ge=0)
+    adapted_bundles: int = Field(default=0, ge=0)
     bundle_stop: ScanStop | None = None
     shortlisted: int = Field(default=0, ge=0)
     stop: ScanStop | None = None

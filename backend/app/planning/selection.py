@@ -23,7 +23,7 @@ from app.planning.schemas import (
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v9"
+SELECTION_POLICY_VERSION = "planning-selection.v10"
 
 
 class PlanningSearchBudget(BaseModel):
@@ -53,9 +53,9 @@ class MealSelectionPolicy(BaseModel):
     bundle_options_per_role: int = Field(default=4, ge=1, le=8)
     bundle_max_combinations: int = Field(default=64, ge=1, le=512)
     bundle_seconds: float = Field(default=0.5, gt=0, le=5, allow_inf_nan=False)
-    bundle_staple_weight: Decimal = Field(default=45, gt=0, le=1000)
-    bundle_protein_weight: Decimal = Field(default=35, gt=0, le=1000)
-    bundle_vegetable_weight: Decimal = Field(default=20, gt=0, le=1000)
+    bundle_staple_weight: Decimal = Field(default=Decimal(45), gt=0, le=1000)
+    bundle_protein_weight: Decimal = Field(default=Decimal(35), gt=0, le=1000)
+    bundle_vegetable_weight: Decimal = Field(default=Decimal(20), gt=0, le=1000)
 
     portion_adjustment_enabled: bool = True
     portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
@@ -74,9 +74,9 @@ class SelectionCandidate:
     food_ids: frozenset[UUID] = frozenset()
 
     @property
-    def identity(self) -> tuple[UUID, Decimal]:
-        # Portion variants compete for the same bounded pool, but remain distinct.
-        return self.meal.recipe_id, self.meal.portion_grams
+    def identity(self) -> tuple[UUID, Decimal, tuple[Decimal, ...]]:
+        # Equal total grams can hide different component amounts and nutrition.
+        return self.meal.recipe_id, self.meal.portion_grams, tuple(item.portion_grams for item in self.meal.items)
 
     @property
     def methods(self) -> frozenset[str]:
@@ -252,6 +252,7 @@ def select_meals(
             bool(set(meal.source_recipe_ids) & recent),
             str(meal.recipe_id),
             meal.portion_grams,
+            tuple(item.portion_grams for item in meal.items),
         )
 
     preferred_flavours = frozenset(normalized_label(value) for value in preferences.taste_preferences if normalized_label(value))
@@ -291,7 +292,7 @@ def select_meals(
             -sum(bool(meal.items) for meal in meals),
             midpoint + sum((allocation_distance(meal) for meal in meals), Decimal(0))
             + policy.diversity_weight * sum((_similarity(left, right, flavour_weight=policy.flavour_diversity_weight, preferred_flavours=preferred_flavours) for index, left in enumerate(candidates) for right in candidates[index + 1:]), Decimal(0)),
-            tuple((str(meal.recipe_id), meal.portion_grams) for meal in meals),
+            tuple((str(meal.recipe_id), meal.portion_grams, tuple(item.portion_grams for item in meal.items)) for meal in meals),
         )
 
     started = clock()

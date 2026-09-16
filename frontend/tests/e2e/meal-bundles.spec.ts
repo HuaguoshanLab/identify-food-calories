@@ -26,8 +26,8 @@ test('分类菜品组合成餐，换餐保留其他明细，失格后历史仍�
   const reason = { reason: '隔离组合餐测试数据', confirm: true }
   await post('/admin/runtime-config', { ...reason, provider: 'deepseek', model_alias: 'deepseek-v4-flash', enabled: true, single_call_cap_usd: '0.02', period_cap_usd: '12', input_usd_per_m: '0.14', output_usd_per_m: '0.28' }, 0)
   const foods = [
-    { name: '测试早餐', role: '单独候选', grams: 100, nutrients: ['400', '20', '10', '60'] },
-    { name: '测试米饭', role: '主食', grams: 200, nutrients: ['150', '3', '1', '32'] },
+    { name: '测试早餐', role: '单独候选', grams: 100, nutrients: ['400', '20', '15', '60'] },
+    { name: '测试米饭', role: '主食', grams: 280, nutrients: ['150', '3', '1', '32'] },
     { name: '测试鸡胸肉', role: '蛋白质菜', grams: 100, nutrients: ['180', '25', '8', '2'] },
     { name: '测试鱼肉', role: '蛋白质菜', grams: 100, nutrients: ['180', '25', '8', '2'] },
     { name: '测试青菜', role: '蔬菜', grams: 150, nutrients: ['40', '2', '1', '6'] },
@@ -60,12 +60,33 @@ test('分类菜品组合成餐，换餐保留其他明细，失格后历史仍�
   await page.getByLabel('我已复核以上饮食偏好').check()
   await page.getByRole('button', { name: '生成今日餐单' }).click()
   await expect(page.getByText(/已自动保存.*第 1 版/)).toBeVisible()
+  await expect(page.getByText('全部指标在目标范围内', { exact: true })).toBeVisible()
   const lunch = card(page, '午餐')
   await expect(lunch).toContainText('主食')
   await expect(lunch).toContainText('蛋白质菜')
   await expect(lunch).toContainText('测试青菜')
-  await expect(lunch).toContainText('200g · 一份')
-  await expect(lunch).toContainText('合计 540 kcal')
+  const saved = await request.get(`${api}/planning/plans/today`, { headers: { Authorization: `Bearer ${token}` } })
+  expect(saved.ok()).toBeTruthy()
+  type Item = { display_name: string; portion_grams: string; nutrients: Record<string, string> }
+  const { plan } = await saved.json() as { plan: { report: { meals: (Item & { items: Item[] })[] } } }
+  let adapted = false
+  for (const meal of plan.report.meals.filter(meal => meal.items.length)) {
+    for (const item of meal.items) {
+      const source = foods.find(food => food.name === item.display_name)!
+      const grams = Number(item.portion_grams)
+      expect(Number.isInteger(grams)).toBeTruthy()
+      expect(grams).toBeGreaterThanOrEqual(source.grams * 0.75)
+      expect(grams).toBeLessThanOrEqual(source.grams * 1.25)
+      adapted ||= grams !== source.grams
+      for (const [index, metric] of ['energy_kcal', 'protein_g', 'fat_g', 'carbohydrate_g'].entries()) {
+        expect(Number(item.nutrients[metric])).toBeCloseTo(Number(source.nutrients[index]) * grams / 100, 2)
+      }
+    }
+    for (const metric of ['energy_kcal', 'protein_g', 'fat_g', 'carbohydrate_g']) {
+      expect(Number(meal.nutrients[metric])).toBeCloseTo(meal.items.reduce((sum, item) => sum + Number(item.nutrients[metric]), 0), 2)
+    }
+  }
+  expect(adapted).toBeTruthy()
   const breakfast = await card(page, '早餐').innerText()
   const dinner = await card(page, '晚餐').innerText()
   const originalLunch = await lunch.innerText()
@@ -84,13 +105,15 @@ test('分类菜品组合成餐，换餐保留其他明细，失格后历史仍�
   expect(await lunch.innerText()).not.toBe(changedLunch)
   expect(await card(page, '早餐').innerText()).toBe(breakfast)
   expect(await card(page, '晚餐').innerText()).toBe(dinner)
+  const latestLunch = await lunch.innerText()
   await page.getByRole('link', { name: '历史计划', exact: true }).click()
   await page.getByRole('link', { name: /三餐计划/ }).click()
   await expect(lunch).toContainText('测试青菜')
-  await expect(lunch).toContainText('合计 540 kcal')
+  await expect(lunch).toContainText(latestLunch.match(/合计 [\d,]+ kcal/)![0])
+  const archivedLunch = await lunch.innerText()
   await post('/admin/recipe-candidates/disable', { ...reason, ids: vegetableIds })
   await page.reload()
-  await expect(lunch).toContainText('测试青菜')
+  await expect(lunch).toHaveText(archivedLunch, { useInnerText: true })
   await page.goto('/app/plans')
   await page.getByRole('button', { name: '重新生成今日计划' }).click()
   await page.getByLabel('我已复核以上饮食偏好').check()
