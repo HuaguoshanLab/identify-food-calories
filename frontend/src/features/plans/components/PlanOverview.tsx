@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatPlanNumber } from '../format'
+import { formatPlanNumber, formatTargetGap } from '../format'
 import type { PlanReport } from './PlanPage'
 
 const macros = [
@@ -13,6 +13,7 @@ const metrics = [['energy_kcal', '能量'], ['protein_g', '蛋白质'], ['fat_g'
 
 export function PlanOverview({ report }: { report: PlanReport }) {
   const totals = Object.fromEntries(metrics.map(([field]) => [field, report.meals.reduce((sum, meal) => sum + Number(meal.nutrients[field]), 0)])) as Record<(typeof metrics)[number][0], number>
+  const allInRange = metrics.every(([field]) => formatTargetGap(totals[field], report.target[field].lower, report.target[field].upper, '').inRange)
   const energy = formatPlanNumber(String(totals.energy_kcal))
   const range = report.target.energy_kcal
   // 环形面积仅表示三大营养素的估算供能比例；中心热量始终使用后端餐单能量合计。
@@ -28,6 +29,9 @@ export function PlanOverview({ report }: { report: PlanReport }) {
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles aria-hidden="true" className="size-5 text-primary" />今日餐单已生成</CardTitle></CardHeader>
       <CardContent className="space-y-5">
+        <p className={allInRange ? 'text-sm text-primary' : 'text-sm text-destructive'}>
+          {allInRange ? '全部指标在目标范围内' : '部分指标未达到原目标，请查看差距'}
+        </p>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 tabular-nums">
           <p><span className="text-4xl font-bold tracking-tight">{energy}</span><span className="ml-1 text-base font-semibold text-muted-foreground">kcal</span></p>
           <p className="text-[13px] text-muted-foreground">（目标 {formatPlanNumber(range.lower)}–{formatPlanNumber(range.upper)} kcal）</p>
@@ -43,6 +47,18 @@ export function PlanOverview({ report }: { report: PlanReport }) {
           const target = report.target[macro.field]
           return <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd><dd className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">（{formatPlanNumber(target.lower)}–{formatPlanNumber(target.upper)}g）</dd></div>
         })}</dl>
+        <div className="space-y-2" aria-label="营养目标对照">
+          <h3 className="text-sm font-semibold">目标与实际差距</h3>
+          {metrics.map(([field, label]) => {
+            const bounds = report.target[field]
+            const unit = field === 'energy_kcal' ? 'kcal' : 'g'
+            const gap = formatTargetGap(totals[field], bounds.lower, bounds.upper, unit)
+            return <div key={field} className="border-t border-border pt-2 text-sm">
+              <div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span className="font-medium">{label}</span><span className={gap.inRange ? 'text-primary' : 'text-destructive'}>{gap.label}</span></div>
+              <p className="mt-1 text-xs tabular-nums text-muted-foreground">目标 {formatPlanNumber(bounds.lower)}–{formatPlanNumber(bounds.upper)} {unit} · 实际 {Number(totals[field].toFixed(1))} {unit}</p>
+            </div>
+          })}
+        </div>
       </CardContent>
     </Card>
   </section>

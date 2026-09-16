@@ -57,7 +57,19 @@ test.describe('daily planning archive H5', () => {
     await page.getByLabel('我已复核以上饮食偏好').check()
     await page.getByRole('button', { name: '生成今日餐单' }).click()
 
+    // The small seed catalog cannot satisfy this profile even after bounded scaling.
+    await expect(page.getByRole('alert')).toContainText('与营养目标差距过大，不能自动放宽')
+    await expect(page.getByText(/已自动保存/)).toHaveCount(0)
+    await page.getByRole('link', { name: '修改', exact: true }).click()
+    await page.getByRole('button', { name: '编辑个人资料' }).click()
+    await page.getByLabel('日常活动水平').selectOption({ label: '轻度活动' })
+    await page.getByRole('button', { name: '保存个人资料' }).click()
+    await expect(page.getByRole('button', { name: '编辑个人资料' })).toBeVisible()
+    await page.goto('/app/plans')
+    await page.getByLabel('我已复核以上饮食偏好').check()
+    await page.getByRole('button', { name: '生成今日餐单' }).click()
     await expect(page.getByRole('heading', { name: '今日饮食计划' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '目标与实际差距' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '早餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '午餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '晚餐' })).toBeVisible()
@@ -96,7 +108,7 @@ test.describe('daily planning archive H5', () => {
     await page.getByRole('spinbutton', { name: '体重' }).fill('65')
     await page.getByLabel('年龄').fill('30')
     await page.getByLabel('使用女性参数').check()
-    await page.getByLabel('日常活动水平').selectOption({ label: '中度活动' })
+    await page.getByLabel('日常活动水平').selectOption({ label: '轻度活动' })
     await page.getByLabel('目标', { exact: true }).selectOption({ label: '维持体重' })
     await page.getByLabel('目标速度').selectOption('maintain')
     await page.getByRole('button', { name: '保存个人资料' }).click()
@@ -114,6 +126,7 @@ test.describe('daily planning archive H5', () => {
     await scrollArea.evaluate((element) => { element.scrollTop = element.scrollHeight })
     const scrollTopBeforeAdjustment = await scrollArea.evaluate((element) => element.scrollTop)
     expect(scrollTopBeforeAdjustment).toBeGreaterThan(0)
+    const submitTopBeforeAdjustment = await submitButton.evaluate((element) => element.getBoundingClientRect().top)
     await submitButton.focus()
     await expect(submitButton).toBeFocused()
     await submitButton.click()
@@ -124,9 +137,9 @@ test.describe('daily planning archive H5', () => {
     await expect(completionSummary).not.toHaveAttribute('tabindex')
     await expect(completionSummary).not.toBeFocused()
     await expect(submitButton).toBeFocused()
-    // Native layout/scroll anchoring may settle by one spacing unit after the saved-version badge updates.
-    // A focus jump to the result heading would move hundreds of pixels and still fails this guard.
-    await expect.poll(async () => Math.abs(await scrollArea.evaluate((element) => element.scrollTop) - scrollTopBeforeAdjustment)).toBeLessThanOrEqual(8)
+    // An adjustment can remove a target-gap warning, changing document height.
+    // Preserve the control's viewport position, not an absolute scroll offset.
+    await expect.poll(async () => Math.abs(await submitButton.evaluate((element) => element.getBoundingClientRect().top) - submitTopBeforeAdjustment)).toBeLessThanOrEqual(8)
     await expect(mealCard(page, '午餐')).toContainText('已调整')
     expect(await mealCard(page, '早餐').innerText()).toBe(breakfast)
     expect(await mealCard(page, '晚餐').innerText()).toBe(dinner)

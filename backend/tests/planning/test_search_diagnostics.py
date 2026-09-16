@@ -20,16 +20,19 @@ def summary(caplog):
     return json.loads(records[0].message.split("metrics=", 1)[1])
 
 
-def test_missing_slot_reports_which_meal_instead_of_loop_limit(caplog):
+@pytest.mark.parametrize("missing_slot", [MealSlot.BREAKFAST, MealSlot.DINNER])
+def test_missing_slot_reports_which_meal_instead_of_loop_limit(caplog, missing_slot):
     caplog.set_level(logging.INFO, logger="app.planning.diagnostics")
     service, repo, small, _ = setup_pool()
-    repo.candidates = small[:2]
+    repo.candidates = [item for item in small if item.meal_slot is not missing_slot]
     result = service.compose_daily_meals(catalog_version=None, preferences=PreferenceReview(confirmed=True))
     assert result.failure_reason is CompositionFailureReason.MISSING_SLOT
-    assert "晚餐" in result.safe_message
+    labels = {MealSlot.BREAKFAST: "早餐", MealSlot.LUNCH: "午餐", MealSlot.DINNER: "晚餐"}
+    assert labels[missing_slot] in result.safe_message
+    assert all(label not in result.safe_message for slot, label in labels.items() if slot is not missing_slot)
     stats = summary(caplog)
-    assert stats["slots"]["dinner"]["stop"] == "exhausted"
-    assert stats["slots"]["dinner"]["scanned"] == 0
+    assert stats["slots"][missing_slot.value]["stop"] == "exhausted"
+    assert stats["slots"][missing_slot.value]["scanned"] == 0
 
 
 def test_exclusions_are_counted_before_nutrition_and_user_text_is_not_logged(caplog):

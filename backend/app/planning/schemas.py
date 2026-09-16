@@ -361,7 +361,7 @@ class PlanValidationResult(BaseModel):
 
     action: PlanValidationAction
     rule_id: str = Field(min_length=1, max_length=100)
-    policy_version: str = TARGET_POLICY_VERSION
+    policy_version: str = "planning-validation.v2"
     safe_message: str
     relaxed_metric: str | None = None
     relaxation_available: bool = False

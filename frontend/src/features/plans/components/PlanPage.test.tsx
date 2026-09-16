@@ -145,7 +145,7 @@ describe('PlanPage', () => {
       profile: { height_cm: '170', weight_kg: '65', age_years: 30 },
       preferences: { confirmed: true, exclusions: ['花生'], taste_preferences: ['清淡'] }, save_profile: false,
     })
-    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['早餐', '午餐', '晚餐'])
+    expect(screen.getAllByRole('heading', { level: 3, name: /^(早餐|午餐|晚餐)$/ }).map((heading) => heading.textContent)).toEqual(['早餐', '午餐', '晚餐'])
     expect(screen.getByText('燕麦鸡蛋早餐')).toBeInTheDocument()
     expect(screen.getByText('320g · 一份')).toBeInTheDocument()
     expect(screen.getByText('蒸煮')).toBeInTheDocument()

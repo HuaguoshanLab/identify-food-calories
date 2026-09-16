@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.planning.selection import PlanningSearchBudget
+from app.planning.selection import MealSelectionPolicy, PlanningSearchBudget
 from app.planning.diagnostics import configure_planning_diagnostics
 from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
@@ -70,6 +70,17 @@ class PersistedAgentRuntimeFactory:
         provider = create_reasoning_provider(self._settings, tracing=tracing_runtime)
         embedding_provider = create_embedding_provider(self._settings)
         tools = SessionNutritionToolAdapter(
+            planning_selection_policy=MealSelectionPolicy(
+                breakfast_weight=self._settings.planning_breakfast_weight,
+                lunch_weight=self._settings.planning_lunch_weight,
+                dinner_weight=self._settings.planning_dinner_weight,
+                diversity_slots=self._settings.planning_diversity_slots,
+                diversity_weight=self._settings.planning_diversity_weight,
+                portion_adjustment_enabled=self._settings.planning_portion_adjustment_enabled,
+                portion_min_multiplier=self._settings.planning_portion_min_multiplier,
+                portion_max_multiplier=self._settings.planning_portion_max_multiplier,
+                max_target_deviation=self._settings.planning_max_target_deviation,
+            ),
             planning_search_budget=PlanningSearchBudget(
                 batch_size=self._settings.planning_batch_size,
                 scan_per_slot=self._settings.planning_scan_per_slot,

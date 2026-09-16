@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from decimal import Decimal
 from itertools import product
 from uuid import UUID
@@ -15,13 +16,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.planning.diagnostics import SearchDiagnostics, ScanStop
 from app.planning.schemas import (
     DailyTarget,
+    MealSlot,
     PlannedMeal,
     PreferenceReview,
     REQUIRED_MEAL_SLOTS,
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v5"
+SELECTION_POLICY_VERSION = "planning-selection.v7"
 
 
 class PlanningSearchBudget(BaseModel):
@@ -34,6 +36,92 @@ class PlanningSearchBudget(BaseModel):
     max_combinations: int = Field(default=1728, ge=1, le=262144)
     scan_seconds_per_slot: float = Field(default=3, gt=0, le=30, allow_inf_nan=False)
     combination_seconds: float = Field(default=2, gt=0, le=30, allow_inf_nan=False)
+
+
+class MealSelectionPolicy(BaseModel):
+    """Soft ranking preferences, never substitutes for nutrition/exclusion validation."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    breakfast_weight: Decimal = Field(default=Decimal("25"), gt=0, le=1000)
+    lunch_weight: Decimal = Field(default=Decimal("40"), gt=0, le=1000)
+    dinner_weight: Decimal = Field(default=Decimal("35"), gt=0, le=1000)
+    diversity_slots: int = Field(default=4, ge=0, le=64)
+    diversity_weight: Decimal = Field(default=Decimal("0.05"), ge=0, le=1)
+
+    portion_adjustment_enabled: bool = True
+    portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
+    portion_max_multiplier: Decimal = Field(default=Decimal("1.25"), ge=1, le=Decimal("1.5"))
+    max_target_deviation: Decimal = Field(default=Decimal("0.10"), ge=0, le=Decimal("0.25"))
+
+    def weight(self, slot: MealSlot) -> Decimal:
+        return getattr(self, f"{slot.value}_weight")
+
+
+@dataclass(frozen=True)
+class SelectionCandidate:
+    """Transient catalog evidence; never added to public cards or graph checkpoints."""
+
+    meal: PlannedMeal
+    food_ids: frozenset[UUID] = frozenset()
+
+    @property
+    def identity(self) -> tuple[UUID, Decimal]:
+        # Portion variants compete for the same bounded pool, but remain distinct.
+        return self.meal.recipe_id, self.meal.portion_grams
+
+    @property
+    def methods(self) -> frozenset[str]:
+        return frozenset(normalized_label(tag) for tag in self.meal.method_tags if normalized_label(tag))
+
+    @property
+    def signature(self) -> tuple:
+        return tuple(sorted(self.food_ids)), tuple(sorted(self.methods))
+
+
+def _similarity(left: SelectionCandidate, right: SelectionCandidate) -> Decimal:
+    def overlap(a: frozenset, b: frozenset) -> Decimal:
+        return Decimal(len(a & b)) / len(a | b) if a and b else Decimal(0)
+
+    # Missing composition contributes no invented ingredient evidence. Known
+    # methods can still diversify managed dishes that lack ingredient lists.
+    return overlap(left.food_ids, right.food_ids) + Decimal("0.25") * overlap(left.methods, right.methods)
+
+
+class _Shortlist:
+    """Keep at most K nutritional leaders plus K distinct composition/method leaders."""
+
+    def __init__(self, capacity: int, reserve: int) -> None:
+        self.capacity = capacity
+        self.reserve = min(reserve, capacity - 1)
+        self.primary: list[tuple[tuple, SelectionCandidate]] = []
+        self.groups: dict[tuple, tuple[tuple, SelectionCandidate]] = {}
+
+    def add(self, candidate: SelectionCandidate, key: tuple) -> None:
+        if any(item.identity == candidate.identity for _, item in self.primary):
+            return
+        self.primary.append((key, candidate))
+        self.primary.sort(key=lambda entry: entry[0])
+        del self.primary[self.capacity:]
+        if self.reserve:
+            signature = candidate.signature
+            previous = self.groups.get(signature)
+            if previous is None or key < previous[0]:
+                self.groups[signature] = (key, candidate)
+            if len(self.groups) > self.capacity:
+                del self.groups[max(self.groups, key=lambda group: self.groups[group][0])]
+
+    def finish(self) -> tuple[SelectionCandidate, ...]:
+        chosen = self.primary[:self.capacity - self.reserve]
+        remaining = {item.identity: (key, item) for key, item in (*self.primary, *self.groups.values())}
+        for _, item in chosen:
+            remaining.pop(item.identity, None)
+        while remaining and len(chosen) < self.capacity:
+            entry = min(remaining.values(), key=lambda entry: (
+                sum((_similarity(entry[1], item) for _, item in chosen), Decimal(0)), entry[0],
+            ))
+            chosen.append(entry)
+            del remaining[entry[1].identity]
+        return tuple(item for _, item in sorted(chosen, key=lambda entry: entry[0]))
 
 
 _METRICS = ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g")
@@ -88,13 +176,14 @@ def _distance(
 
 def select_meals(
     *,
-    options: Iterable[PlannedMeal],
+    options: Iterable[PlannedMeal | SelectionCandidate],
     target: DailyTarget | None,
     preferences: PreferenceReview,
     recent_recipe_ids: tuple[UUID, ...],
     fixed_meals: tuple[PlannedMeal, ...],
     validation_rank: Callable[[tuple[PlannedMeal, ...]], int],
     budget: PlanningSearchBudget | None = None,
+    policy: MealSelectionPolicy | None = None,
     clock: Callable[[], float] = monotonic,
     diagnostics: SearchDiagnostics | None = None,
 ) -> tuple[PlannedMeal, ...]:
@@ -106,48 +195,44 @@ def select_meals(
 
     diagnostics = diagnostics or SearchDiagnostics()
     budget = budget or PlanningSearchBudget()
+    policy = policy or MealSelectionPolicy()
     fixed = {meal.slot: meal for meal in fixed_meals}
     fixed_ids = {meal.recipe_id for meal in fixed_meals}
     recent = set(recent_recipe_ids)
-    variable_count = len(REQUIRED_MEAL_SLOTS) - len(
-        set(fixed) & set(REQUIRED_MEAL_SLOTS)
-    )
+    variable_slots = tuple(slot for slot in REQUIRED_MEAL_SLOTS if slot not in fixed)
+    remaining_weight = sum((policy.weight(slot) for slot in variable_slots), Decimal(0))
+    centers = {} if target is None else {metric: (getattr(target, metric).lower + getattr(target, metric).upper) / 2 for metric in _METRICS}
+    residual = {metric: max(Decimal(0), center - sum((getattr(meal.nutrients, metric) for meal in fixed_meals), Decimal(0))) for metric, center in centers.items()}
+
+    def allocation_distance(meal: PlannedMeal) -> Decimal:
+        if not centers or not remaining_weight or meal.slot not in variable_slots:
+            return Decimal(0)
+        share = policy.weight(meal.slot) / remaining_weight
+        return sum((abs(getattr(meal.nutrients, metric) - residual[metric] * share) / max(center, Decimal(1)) for metric, center in centers.items()), Decimal(0))
 
     def shortlist_key(meal: PlannedMeal) -> tuple:
-        residual_distance = Decimal(0)
-        if target is not None and variable_count:
-            for metric in _METRICS:
-                bounds = getattr(target, metric)
-                center = (bounds.lower + bounds.upper) / 2
-                consumed = sum(
-                    (getattr(item.nutrients, metric) for item in fixed_meals),
-                    Decimal(0),
-                )
-                residual_distance += abs(
-                    getattr(meal.nutrients, metric)
-                    - (center - consumed) / variable_count
-                ) / max(center, Decimal(1))
         return (
-            residual_distance,
+            allocation_distance(meal),
             -preference_matches(meal, preferences),
             meal.recipe_id in recent,
             str(meal.recipe_id),
+            meal.portion_grams,
         )
 
-    # Keep only K values per slot even when the input spans many database pages.
-    shortlists: dict = {slot: [] for slot in REQUIRED_MEAL_SLOTS if slot not in fixed}
-    for meal in options:
-        if meal.slot not in shortlists or meal.recipe_id in fixed_ids:
-            continue
-        pool = shortlists[meal.slot]
-        pool.append(meal)
-        pool.sort(key=shortlist_key)
-        del pool[budget.options_per_slot:]
-    for slot, pool in shortlists.items():
+    shortlists = {slot: _Shortlist(budget.options_per_slot, policy.diversity_slots) for slot in variable_slots}
+    for option in options:
+        candidate = option if isinstance(option, SelectionCandidate) else SelectionCandidate(option)
+        meal = candidate.meal
+        if meal.slot in shortlists and meal.recipe_id not in fixed_ids:
+            shortlists[meal.slot].add(candidate, shortlist_key(meal))
+    finalized = {slot: shortlist.finish() for slot, shortlist in shortlists.items()}
+    # Record all slots before returning for an empty one, or a missing breakfast
+    # would incorrectly make the failure message claim lunch/dinner are missing too.
+    for slot, pool in finalized.items():
         diagnostics.slots[slot].shortlisted = len(pool)
     pools = []
     for slot in REQUIRED_MEAL_SLOTS:
-        pool = (fixed[slot],) if slot in fixed else tuple(shortlists[slot])
+        pool = (SelectionCandidate(fixed[slot]),) if slot in fixed else finalized[slot]
         if not pool:
             return ()
         pools.append(pool)
@@ -156,7 +241,7 @@ def select_meals(
         meal for meal in fixed_meals if meal.slot not in REQUIRED_MEAL_SLOTS
     )
 
-    def score(meals: tuple[PlannedMeal, ...]) -> tuple:
+    def score(candidates: tuple[SelectionCandidate, ...], meals: tuple[PlannedMeal, ...]) -> tuple:
         outside, midpoint = (
             (Decimal(0), Decimal(0)) if target is None else _distance(meals, target)
         )
@@ -165,8 +250,9 @@ def select_meals(
             outside,
             -sum(preference_matches(meal, preferences) for meal in meals),
             sum(meal.recipe_id in recent for meal in meals),
-            midpoint,
-            tuple(str(meal.recipe_id) for meal in meals),
+            midpoint + sum((allocation_distance(meal) for meal in meals), Decimal(0))
+            + policy.diversity_weight * sum((_similarity(left, right) for index, left in enumerate(candidates) for right in candidates[index + 1:]), Decimal(0)),
+            tuple((str(meal.recipe_id), meal.portion_grams) for meal in meals),
         )
 
     started = clock()
@@ -182,11 +268,11 @@ def select_meals(
             diagnostics.combination_stop = ScanStop.TIME
             break
         diagnostics.combinations += 1
-        meals = (*combination, *extra_fixed)
+        meals = (*(candidate.meal for candidate in combination), *extra_fixed)
         if len({meal.recipe_id for meal in meals}) != len(meals):
             diagnostics.duplicate_combinations += 1
             continue
-        rank = score(meals)
+        rank = score(combination, meals)
         if best_score is None or rank < best_score:
             best, best_score = meals, rank
     else:

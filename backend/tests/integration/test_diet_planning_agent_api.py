@@ -369,7 +369,9 @@ def test_same_planning_thread_adjusts_only_the_named_slot_and_replays_safe_event
             captured = session.query(PreferenceMemoryLedger).filter_by(
                 user_id=user.id, category="avoidance", deleted_at=None
             ).all()
-            assert len(captured) == 1
+            # A meal-scoped adjustment applies now; it must not become a future
+            # long-term exclusion after the temporary-preference separation.
+            assert captured == []
     finally:
         engine.dispose()
 

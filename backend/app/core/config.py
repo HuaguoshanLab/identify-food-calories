@@ -85,6 +85,15 @@ class Settings(BaseSettings):
     qwen_up_to_256k_output_cny_per_m: Decimal | None = None
     vision_timeout_seconds: int = 20
     vision_max_pixels: int = 20_000_000
+    planning_breakfast_weight: Decimal = Field(default=Decimal("25"), gt=0, le=1000)
+    planning_lunch_weight: Decimal = Field(default=Decimal("40"), gt=0, le=1000)
+    planning_dinner_weight: Decimal = Field(default=Decimal("35"), gt=0, le=1000)
+    planning_diversity_slots: int = Field(default=4, ge=0, le=64)
+    planning_diversity_weight: Decimal = Field(default=Decimal("0.05"), ge=0, le=1)
+    planning_portion_adjustment_enabled: bool = True
+    planning_portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
+    planning_portion_max_multiplier: Decimal = Field(default=Decimal("1.25"), ge=1, le=Decimal("1.5"))
+    planning_max_target_deviation: Decimal = Field(default=Decimal("0.10"), ge=0, le=Decimal("0.25"))
     planning_batch_size: int = Field(default=64, ge=1, le=512)
     planning_scan_per_slot: int = Field(default=2048, ge=1, le=100000)
     planning_options_per_slot: int = Field(default=12, ge=1, le=64)

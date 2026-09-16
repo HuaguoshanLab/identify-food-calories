@@ -12,7 +12,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
-from app.planning.selection import PlanningSearchBudget
+from app.planning.selection import MealSelectionPolicy, PlanningSearchBudget
 from app.nutrition.schemas import (
     FoodSearchInput,
     FoodSearchResult,
@@ -190,8 +190,10 @@ class SessionNutritionToolAdapter:
         embedding_provider: EmbeddingProvider | None = None,
         tracing: TracingRuntime | None = None,
         planning_search_budget: PlanningSearchBudget | None = None,
+        planning_selection_policy: MealSelectionPolicy | None = None,
     ) -> None:
         self._planning_search_budget = planning_search_budget
+        self._planning_selection_policy = planning_selection_policy
         self._session_factory = session_factory
         self._memory_provider = memory_provider
         self._embedding_provider = embedding_provider
@@ -297,6 +299,7 @@ class SessionNutritionToolAdapter:
         return session, PlanningService(
             repository=repository,
             search_budget=self._planning_search_budget,
+            selection_policy=self._planning_selection_policy,
             nutrition_port=NutritionService(
                 repository=SqlAlchemyNutritionRepository(session),
                 tracing=self._tracing,

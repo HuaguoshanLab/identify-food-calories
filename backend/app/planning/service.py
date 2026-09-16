@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 from itertools import islice
 from time import monotonic
 
@@ -45,6 +45,8 @@ from app.planning.schemas import (
 from app.nutrition.schemas import NutritionAction, NutritionCalculationInput, NutritionValues
 from app.planning.selection import (
     PlanningSearchBudget,
+    MealSelectionPolicy,
+    SelectionCandidate,
     SELECTION_POLICY_VERSION,
     matches_exclusion,
     normalized_label,
@@ -90,11 +92,13 @@ class PlanningService:
     def __init__(
         self, *, repository: PlanningRepository, nutrition_port: PlanningNutritionPort,
         search_budget: PlanningSearchBudget | None = None,
+        selection_policy: MealSelectionPolicy | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         self._repository = repository
         self._nutrition_port = nutrition_port
         self._search_budget = search_budget or PlanningSearchBudget()
+        self._selection_policy = selection_policy or MealSelectionPolicy()
         self._clock = clock
 
     def calculate_daily_target(
@@ -209,12 +213,25 @@ class PlanningService:
                 rule_id="planning-validation-pass",
                 safe_message="餐单通过确定性总量、宏量比例、重复度和约束校验。",
             )
+        if not failed_metric.endswith("-ratio"):
+            # Every target dimension must pass the cap, not only the first miss.
+            for metric in ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g"):
+                bounds = getattr(target, metric)
+                value = getattr(totals, metric)
+                edge = bounds.lower if value < bounds.lower else bounds.upper
+                deviation = max(bounds.lower - value, value - bounds.upper, Decimal(0))
+                if deviation > edge * self._selection_policy.max_target_deviation:
+                    return PlanValidationResult(
+                        action=PlanValidationAction.REPLAN,
+                        rule_id=f"{metric}-deviation-limit",
+                        safe_message="当前可用餐单与营养目标差距过大，不能自动放宽。请更换菜品或联系管理员补充合适菜谱。",
+                    )
         if allow_target_relaxation and not failed_metric.endswith("-ratio"):
             return PlanValidationResult(
                 action=PlanValidationAction.RELAX,
                 rule_id=f"{failed_metric}-target-relaxation",
                 relaxed_metric=failed_metric,
-                safe_message="可在保留已确认排除项和健康边界的前提下调整能量或宏量目标。",
+                safe_message="餐单部分指标未达到原目标，偏差在允许范围内；原目标和实际差距已保留，请查看后再使用。",
             )
         return PlanValidationResult(
             action=PlanValidationAction.REPLAN,
@@ -337,7 +354,7 @@ class PlanningService:
                 required_recipe_id=required_recipe_id, diagnostics=diagnostics,
             )
 
-        def controlled_options() -> Iterator[PlannedMeal]:
+        def controlled_options() -> Iterator[SelectionCandidate]:
             for slot in REQUIRED_MEAL_SLOTS:
                 if slot in {meal.slot for meal in fixed_meals}:
                     continue
@@ -358,7 +375,13 @@ class PlanningService:
                         continue
                     built = self._build_meal(recipe=recipe, slot=slot, preferences=preferences, stats=stats)
                     if built is not None:
-                        yield built
+                        food_ids = frozenset(ingredient.food_id for ingredient in recipe.ingredients)
+                        yield SelectionCandidate(built, food_ids)
+                        grams = self._adapted_portion(built, target, fixed_meals)
+                        if grams is not None:
+                            adjusted = self._build_meal(recipe=recipe, slot=slot, preferences=preferences, stats=stats, portion_grams=grams)
+                            if adjusted is not None:
+                                yield SelectionCandidate(adjusted, food_ids)
 
         meals = self._select_meals(options=controlled_options(), target=target, preferences=preferences, fixed_meals=fixed_meals, recent_recipe_ids=recent_recipe_ids, diagnostics=diagnostics)
         if not meals:
@@ -485,7 +508,7 @@ class PlanningService:
         diagnostics: SearchDiagnostics,
     ) -> MealCompositionResult:
         fixed_slots = {meal.slot for meal in fixed_meals}
-        def options() -> Iterator[PlannedMeal]:
+        def options() -> Iterator[SelectionCandidate]:
             for candidate in candidates:
                 stats = diagnostics.slots[candidate.meal_slot]
                 if candidate.meal_slot in fixed_slots or candidate.id in exclude_recipe_ids or (
@@ -496,7 +519,13 @@ class PlanningService:
                     continue
                 meal = self._build_managed_meal(candidate, preferences, stats=stats)
                 if meal is not None:
-                    yield meal
+                    food_ids = frozenset((candidate.nutrition_item_id,))
+                    yield SelectionCandidate(meal, food_ids)
+                    grams = self._adapted_portion(meal, target, fixed_meals)
+                    if grams is not None:
+                        adjusted = self._build_managed_meal(candidate, preferences, stats=stats, portion_grams=grams)
+                        if adjusted is not None:
+                            yield SelectionCandidate(adjusted, food_ids)
         meals = self._select_meals(options=options(), target=target, preferences=preferences, recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals, diagnostics=diagnostics)
         if not meals:
             failure = self._search_failure(diagnostics, fixed_meals)
@@ -508,7 +537,7 @@ class PlanningService:
         return MealCompositionResult(action=PlanValidationAction.PASS, meals=meals, safe_message="餐单营养值已按候选关联目录的每 100 克基准重算。")
 
     def _select_meals(
-        self, *, options: Iterable[PlannedMeal], target: DailyTarget | None,
+        self, *, options: Iterable[PlannedMeal | SelectionCandidate], target: DailyTarget | None,
         preferences: PreferenceReview, recent_recipe_ids: tuple[uuid.UUID, ...] = (),
         fixed_meals: tuple[PlannedMeal, ...] = (),
         diagnostics: SearchDiagnostics | None = None,
@@ -527,9 +556,36 @@ class PlanningService:
 
         return select_meals(options=options, target=target, preferences=preferences,
                             recent_recipe_ids=recent_recipe_ids, fixed_meals=fixed_meals,
-                            validation_rank=validation_rank, budget=self._search_budget, clock=self._clock, diagnostics=diagnostics)
+                            validation_rank=validation_rank, budget=self._search_budget, policy=self._selection_policy, clock=self._clock, diagnostics=diagnostics)
 
-    def _build_managed_meal(self, candidate, preferences: PreferenceReview, *, stats: SlotDiagnostics | None = None) -> PlannedMeal | None:
+    def _adapted_portion(self, meal: PlannedMeal, target: DailyTarget | None, fixed_meals: tuple[PlannedMeal, ...]) -> Decimal | None:
+        policy = self._selection_policy
+        fixed_slots = {item.slot for item in fixed_meals}
+        if not policy.portion_adjustment_enabled or target is None or meal.slot in fixed_slots or meal.nutrients.energy_kcal <= 0:
+            return None
+        slots = [slot for slot in REQUIRED_MEAL_SLOTS if slot not in fixed_slots]
+        weight = sum((policy.weight(slot) for slot in slots), Decimal(0))
+        if meal.slot not in slots or not weight:
+            return None
+        residual = max(Decimal(0), (target.energy_kcal.lower + target.energy_kcal.upper) / 2
+                       - sum((item.nutrients.energy_kcal for item in fixed_meals), Decimal(0)))
+        desired = meal.portion_grams * residual * policy.weight(meal.slot) / weight / meal.nutrients.energy_kcal
+        # Whole grams keep the displayed quantity and the calculator input aligned.
+        lower = (meal.portion_grams * policy.portion_min_multiplier).to_integral_value(rounding=ROUND_CEILING)
+        upper = min(Decimal("2000"), meal.portion_grams * policy.portion_max_multiplier).to_integral_value(rounding=ROUND_FLOOR)
+        if lower > upper or upper <= 0:
+            return None
+        grams = max(lower, min(upper, desired.to_integral_value(rounding=ROUND_HALF_UP)))
+        return grams if grams > 0 and grams != meal.portion_grams else None
+
+    @staticmethod
+    def _portion_description(original: str, base: Decimal, grams: Decimal) -> str:
+        if grams == base:
+            return original
+        # Do not retain household-unit counts such as “4 dumplings” after scaling.
+        return f"按目标调整份量（原份量 {base.normalize():f}g）"
+
+    def _build_managed_meal(self, candidate, preferences: PreferenceReview, *, stats: SlotDiagnostics | None = None, portion_grams: Decimal | None = None) -> PlannedMeal | None:
         stats = stats or SlotDiagnostics()
         # Cheap known-label exclusions precede nutrition I/O. Canonical aliases
         # are still checked after the authoritative catalog lookup below.
@@ -537,19 +593,23 @@ class PlanningService:
             stats.excluded += 1
             return None
         stats.nutrition_calls += 1
-        calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.nutrition_item_id, catalog_version=candidate.catalog_version, grams=candidate.portion_grams))
+        grams = candidate.portion_grams if portion_grams is None else portion_grams
+        calculation = self._nutrition_port.calculate_nutrition(NutritionCalculationInput(food_id=candidate.nutrition_item_id, catalog_version=candidate.catalog_version, grams=grams))
         if calculation.action is not NutritionAction.PASS or calculation.food is None or calculation.nutrients is None:
             stats.unavailable += 1
             return None
         if matches_exclusion(preferences.exclusions, (calculation.food.canonical_name, *calculation.food.aliases, candidate.display_name, *candidate.method_tags, *candidate.flavour_tags)):
             stats.excluded += 1
             return None
-        stats.eligible += 1
+        if portion_grams is None:
+            stats.eligible += 1
         summaries = tuple(f"偏好：{value}" for value in preferences.taste_preferences if normalized_label(value) in {normalized_label(tag) for tag in (*candidate.flavour_tags, *candidate.method_tags)})
-        return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=candidate.portion_description, portion_grams=candidate.portion_grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, matched_preference_summaries=summaries, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
+        return PlannedMeal(slot=candidate.meal_slot, recipe_id=candidate.id, display_name=candidate.display_name, portion_description=self._portion_description(candidate.portion_description, candidate.portion_grams, grams), portion_grams=grams, method_tags=candidate.method_tags, flavour_tags=candidate.flavour_tags, matched_preference_summaries=summaries, nutrients=PlanningNutritionValues(**calculation.nutrients.model_dump()))
 
-    def _build_meal(self, *, recipe, slot: MealSlot, preferences: PreferenceReview, stats: SlotDiagnostics | None = None) -> PlannedMeal | None:
+    def _build_meal(self, *, recipe, slot: MealSlot, preferences: PreferenceReview, stats: SlotDiagnostics | None = None, portion_grams: Decimal | None = None) -> PlannedMeal | None:
         stats = stats or SlotDiagnostics()
+        grams = recipe.portion_grams if portion_grams is None else portion_grams
+        factor = grams / recipe.portion_grams
         calculated: list[NutritionValues] = []
         for ingredient in recipe.ingredients:
             stats.nutrition_calls += 1
@@ -557,7 +617,7 @@ class PlanningService:
                 NutritionCalculationInput(
                     food_id=ingredient.food_id,
                     catalog_version=ingredient.catalog_version,
-                    grams=ingredient.grams,
+                    grams=ingredient.grams * factor,
                 )
             )
             if calculation.action is not NutritionAction.PASS:
@@ -571,7 +631,8 @@ class PlanningService:
             calculated.append(calculation.nutrients)
         if not calculated:
             return None
-        stats.eligible += 1
+        if portion_grams is None:
+            stats.eligible += 1
         preference_summaries = tuple(
             f"偏好：{preference}"
             for preference in self._matching_preferences(recipe=recipe, preferences=preferences)
@@ -580,8 +641,8 @@ class PlanningService:
             slot=slot,
             recipe_id=recipe.id,
             display_name=recipe.display_name,
-            portion_description=recipe.portion_description,
-            portion_grams=recipe.portion_grams,
+            portion_description=self._portion_description(recipe.portion_description, recipe.portion_grams, grams),
+            portion_grams=grams,
             method_tags=recipe.method_tags,
             flavour_tags=recipe.flavour_tags,
             matched_preference_summaries=preference_summaries,

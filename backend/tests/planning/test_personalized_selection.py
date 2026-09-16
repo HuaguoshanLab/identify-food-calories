@@ -14,7 +14,7 @@ from app.planning.schemas import (
     PreferenceReview,
     REQUIRED_MEAL_SLOTS,
 )
-from app.planning.selection import PlanningSearchBudget, matches_exclusion, select_meals
+from app.planning.selection import MealSelectionPolicy, PlanningSearchBudget, matches_exclusion, select_meals
 from app.planning.service import PlanningService
 from tests.planning.test_planning_service import (
     FakePlanningRepository,
@@ -94,7 +94,9 @@ def setup_pool():
     ]
     repository = FakePlanningRepository(candidates=[*small, *large])
     service = PlanningService(
-        repository=repository, nutrition_port=RecipeNutritionPort([*low, *high])
+        repository=repository, nutrition_port=RecipeNutritionPort([*low, *high]),
+        # These regressions isolate fixed-portion selection; adaptive portions have their own tests.
+        selection_policy=MealSelectionPolicy(portion_adjustment_enabled=False)
     )
     return service, repository, small, large
 
