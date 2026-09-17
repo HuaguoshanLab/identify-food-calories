@@ -1,0 +1,24 @@
+{
+  "database_total": 1500,
+  "active_staples": 325,
+  "database_changes": 321,
+  "files": [
+    {
+      "file": "菜谱候选-导入整理-批次1.csv",
+      "rows": 500,
+      "staples": 111
+    },
+    {
+      "file": "菜谱候选-导入整理-批次2.csv",
+      "rows": 500,
+      "staples": 79
+    },
+    {
+      "file": "菜谱候选-导入整理-批次3.csv",
+      "rows": 500,
+      "staples": 135
+    }
+  ],
+  "all_other_database_fields_preserved": true,
+  "backup": "/Users/mina/Documents/ChatGPT/identify-food-calories/outputs/recipe-classification-review/all-staple-slots-20260917T121651Z"
+}
