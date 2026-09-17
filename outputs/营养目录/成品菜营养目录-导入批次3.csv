@@ -104,7 +104,6 @@
 爆炒鱿鱼须,bao chao you yu xu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 铁板鱿鱼,tie ban you yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 蒸水蛋,zheng shui dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-煎蛋,jian dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 蒸蛋羹,zheng dan geng,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 茶叶鹌鹑蛋,cha ye an chun dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 卤鹌鹑蛋,lu an chun dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
@@ -211,46 +210,30 @@
 莴笋炒木耳,wo sun chao mu er,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 拍黄瓜拌木耳,pai huang gua ban mu er,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 白米饭,bai mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-糙米饭,cao mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-燕麦饭,yan mai fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-小米饭,xiao mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-玉米饭,yu mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-红豆饭,hong dou fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-绿豆饭,lv dou fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-黑米饭,hei mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 紫米饭,zi mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 玉米粥,yu mi zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 红薯粥,hong shu zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 莲子粥,lian zi zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 百合粥,bai he zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 芝麻粥,zhi ma zhou,600,18,50,18,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-花卷,hua juan,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 菜包子,cai bao zi,180,5.0,3.0,32.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 肉包子,rou bao zi,230,7.0,8.0,30.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 全麦馒头,quan mai man tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 窝窝头,wo wo tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-玉米饼,yu mi bing,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 全麦面包,quan mai mian bao,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 白面包,bai mian bao,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-燕麦片,yan mai pian,367,15.0,6.7,61.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-面条,mian tiao,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 汤面,tang mian,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 拌面,ban mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 炒面,chao mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 拉面,la mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-挂面,gua mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 意面,yi mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-米粉,mi fen,110,2.5,0.3,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-河粉,he fen,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 蒸土豆,zheng tu dou,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 煮玉米,zhu yu mi,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 紫薯饭,zi shu fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-荞麦面,qiao mai mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 全麦面条,quan mai mian tiao,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 红薯饭,hong shu fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 土豆泥,tu dou ni,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 玉米窝头,yu mi wo tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-蛋炒饭,dan chao fan,174,5.5,7.0,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 肉丝炒饭,rou si chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 鸡丁炒饭,ji ding chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 牛肉炒饭,niu rou chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
@@ -310,15 +293,10 @@
 清炒鸡毛菜,qing chao ji mao cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 鸡丝粥,ji si zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 鱼丸汤,yu wan tang,40,4.5,1.5,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-苹果,ping guo,52,0.3,0.2,13.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-香蕉,xiang jiao,91,1.1,0.3,22.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-橙子,cheng zi,47,0.9,0.2,11.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-纯牛奶,chun niu nai,60,3.2,3.3,4.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 水煮花生,shui zhu hua sheng,574,24.8,44.3,16.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 原味核桃,yuan wei he tao,646,14.9,58.8,19.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 原味杏仁,yuan wei xing ren,578,19.7,50.6,19.7,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 无糖豆浆,wu tang dou jiang,31,3.0,1.6,1.2,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-黑咖啡,hei ka fei,1,0.3,0,0.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 蒜蓉茼蒿,suan rong tong hao,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 清炒木耳菜,qing chao mu er cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 蒜蓉红薯叶,suan rong hong shu ye,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
@@ -387,5 +365,4 @@
 凉拌马兰头香干,liang ban ma lan tou xiang gan,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 炒荠菜,chao ji cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 荠菜豆腐羹,ji cai dou fu geng,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
-荆州鱼糕,jing zhou yu gao,130,13.0,5.0,10.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
 武威蒸羊羔肉,wu wei zheng yang gao rou,250,18.0,18.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
