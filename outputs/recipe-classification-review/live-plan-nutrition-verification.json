@@ -1,0 +1,17 @@
+{
+  "versions": [
+    1,
+    2,
+    3
+  ],
+  "checked_food_portions": 11,
+  "all_four_nutrients_match_catalog": true,
+  "meal_and_daily_totals_match": true,
+  "all_versions_within_targets": true,
+  "breakfast_and_dinner_snapshots_unchanged": true,
+  "lunch_by_version": [
+    "午餐组合餐",
+    "荞麦面条",
+    "全麦面条"
+  ]
+}

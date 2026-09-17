@@ -413,11 +413,24 @@ class CatalogCsvImportResponse(BaseModel):
 
 
 
-class RecipeCandidateCsvRow(BaseModel):
+RecipeMealSlot = Literal["breakfast", "lunch", "dinner", "snack"]
+
+
+class RecipeMealSlots(BaseModel):
+    meal_slots: tuple[RecipeMealSlot, ...] = Field(min_length=1, max_length=4)
+
+    @field_validator("meal_slots")
+    @classmethod
+    def validate_meal_slots(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError("duplicate meal slots")
+        return tuple(slot for slot in ("breakfast", "lunch", "dinner", "snack") if slot in value)
+
+
+class RecipeCandidateCsvRow(RecipeMealSlots):
     classification: RecipeClassification | None = None
     model_config = ConfigDict(extra="forbid", frozen=True)
     catalog_food_name: str = Field(min_length=1, max_length=200)
-    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
     portion_grams: Decimal = Field(gt=0, le=2000, max_digits=14, decimal_places=6)
     portion_description: str = Field(min_length=1, max_length=120)
     method_tags: tuple[str, ...] = Field(min_length=1, max_length=20)
@@ -462,6 +475,12 @@ class RecipeClassificationEntry(BaseModel):
     revision: int = Field(ge=1)
     catalog_food_name: str = Field(min_length=1, max_length=200)
     classification: RecipeClassification
+    meal_slots: tuple[RecipeMealSlot, ...] | None = None
+
+    @field_validator("meal_slots")
+    @classmethod
+    def check_slots(cls, value):
+        return RecipeMealSlots(meal_slots=value).meal_slots if value is not None else None
 
 
 class RecipeClassificationPreviewCommand(BaseModel):
@@ -503,12 +522,11 @@ class RecipeClassificationCommand(BaseModel):
         return value
 
 
-class RecipeCandidateResponse(BaseModel):
+class RecipeCandidateResponse(RecipeMealSlots):
     model_config = ConfigDict(extra="forbid", frozen=True)
     id: uuid.UUID
     classification: RecipeClassification | None = None
     catalog_food_name: str
-    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"]
     portion_grams: Decimal
     portion_description: str
     method_tags: tuple[str, ...]

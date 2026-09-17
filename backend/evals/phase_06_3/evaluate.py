@@ -394,7 +394,7 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
         session.add(ManagedRecipeCandidate(
             id=uuid.uuid4(), catalog_publication_id=baseline.id,
             catalog_food_name=baseline.snapshot["canonical_name"],
-            nutrition_catalog_version="admin-publication-v1", meal_slot=slot,
+            nutrition_catalog_version="admin-publication-v1", meal_slots=[slot],
             portion_grams=Decimal("650"), portion_description="合成评测份量",
             method_tags="评测", flavour_tags="清淡", status="enabled", revision=1,
             created_at=now, updated_at=now,

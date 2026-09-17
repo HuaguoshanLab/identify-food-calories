@@ -699,7 +699,7 @@ class AdminService:
                     ),
                     catalog_food_name=food.canonical_name,
                     nutrition_catalog_version=food.nutrition_catalog_version,
-                    meal_slot=row.meal_slot,
+                    meal_slots=list(row.meal_slots),
                     classification=row.classification.model_dump(mode="json") if row.classification else None,
                     portion_grams=row.portion_grams,
                     portion_description=row.portion_description,
@@ -725,7 +725,7 @@ class AdminService:
                         after_diff={
                             "nutrition_item_id": str(food.id),
                             "nutrition_catalog_version": food.nutrition_catalog_version,
-                            "meal_slot": candidate.meal_slot,
+                            "meal_slots": candidate.meal_slots,
                             "classification": candidate.classification,
                             "status": candidate.status,
                             "revision": 1,
@@ -795,21 +795,25 @@ class AdminService:
                     raise RecipeCandidateConflict("classification preview is stale")
                 if review and entry.classification.basis != "admin_review":
                     raise RecipeCandidateConflict("manual review requires review evidence")
+                if not review and entry.meal_slots is not None:
+                    raise RecipeCandidateConflict("meal slots require manual review")
                 if not review and entry.classification != classify_recipe(row.catalog_food_name):
                     raise RecipeCandidateConflict("classification preview changed")
             now = self._now()
             for entry, row in pairs:
-                before = {"classification": row.classification, "revision": row.revision}
+                before = {"classification": row.classification, "revision": row.revision, "meal_slots": list(row.meal_slots)}
                 if row.classification is not None:
                     before.update(classification_purpose=PURPOSE_LABELS[row.classification["purpose"]],
                                   classification_role=ROLE_LABELS[row.classification["role"]],
                                   classification_tags="、".join(TAG_LABELS[tag] for tag in row.classification["ingredient_tags"]) or "待确认")
                 row.classification = entry.classification.model_dump(mode="json")
+                if entry.meal_slots is not None:
+                    row.meal_slots = list(entry.meal_slots)
                 row.revision += 1
                 row.updated_at = now
                 self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
                     action="recipe_candidate.classified", object_type="managed_recipe_candidate", object_id=str(row.id), reason=command.reason,
-                    before_diff=before, after_diff={"classification": row.classification, "revision": row.revision, "classification_purpose": PURPOSE_LABELS[entry.classification.purpose], "classification_role": ROLE_LABELS[entry.classification.role], "classification_tags": "、".join(TAG_LABELS[tag] for tag in entry.classification.ingredient_tags) or "待确认"},
+                    before_diff=before, after_diff={"classification": row.classification, "meal_slots": list(row.meal_slots), "revision": row.revision, "classification_purpose": PURPOSE_LABELS[entry.classification.purpose], "classification_role": ROLE_LABELS[entry.classification.role], "classification_tags": "、".join(TAG_LABELS[tag] for tag in entry.classification.ingredient_tags) or "待确认"},
                     related_version="recipe-classification.v1", command_key=f"{batch_key}:{row.id}"))
             ids = [str(entry.id) for entry, _ in pairs]
             self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
@@ -2217,9 +2221,7 @@ class AdminService:
         return RecipeCandidateResponse(
             id=candidate.id,
             catalog_food_name=candidate.catalog_food_name,
-            meal_slot=cast(
-                Literal["breakfast", "lunch", "dinner", "snack"], candidate.meal_slot
-            ),
+            meal_slots=tuple(candidate.meal_slots),
             classification=candidate.classification,
             portion_grams=candidate.portion_grams,
             portion_description=candidate.portion_description,

@@ -226,7 +226,7 @@ class SqlAlchemyPlanningProfileRepository:
         component = classification["purpose"].astext.in_(("component", "both")) & classification["role"].astext.in_(("staple", "protein", "vegetable"))
         filters = [classification["role"].astext != "unknown", whole | component if include_components else whole]
         if meal_slot is not None:
-            filters.append(ManagedRecipeCandidateModel.meal_slot == meal_slot.value)
+            filters.append(ManagedRecipeCandidateModel.meal_slots.any(meal_slot.value))
         if after_id is not None:
             filters.append(ManagedRecipeCandidateModel.id > after_id)
         if food_ids is not None:
@@ -251,7 +251,7 @@ class SqlAlchemyPlanningProfileRepository:
         if limit is not None:
             statement = statement.order_by(ManagedRecipeCandidateModel.id).limit(limit)
         else:
-            statement = statement.order_by(ManagedRecipeCandidateModel.meal_slot, ManagedRecipeCandidateModel.updated_at, ManagedRecipeCandidateModel.id)
+            statement = statement.order_by(ManagedRecipeCandidateModel.updated_at, ManagedRecipeCandidateModel.id)
         rows = self._session.scalars(statement)
         return [
             ManagedRecipeCandidate(
@@ -263,7 +263,7 @@ class SqlAlchemyPlanningProfileRepository:
                 ),
                 catalog_version=candidate.nutrition_catalog_version,
                 display_name=candidate.catalog_food_name,
-                meal_slot=MealSlot(candidate.meal_slot),
+                meal_slot=slot,
                 classification=candidate.classification,
                 portion_grams=candidate.portion_grams,
                 portion_description=candidate.portion_description,
@@ -273,6 +273,7 @@ class SqlAlchemyPlanningProfileRepository:
                 revision=candidate.revision,
             )
             for candidate in rows
+            for slot in ([meal_slot] if meal_slot is not None else [MealSlot(value) for value in candidate.meal_slots])
         ]
 
     def list_recent_recipe_ids(

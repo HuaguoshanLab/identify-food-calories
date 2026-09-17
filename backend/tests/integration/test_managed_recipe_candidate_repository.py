@@ -47,7 +47,7 @@ def _candidate(item: FoodCatalogItem, *, status: str = "enabled", deleted_at=Non
     now = datetime.now(UTC)
     return ManagedRecipeCandidate(
         classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
-        id=uuid.uuid4(), food_catalog_item_id=item.id, meal_slot="breakfast", portion_grams=Decimal("180"),
+        id=uuid.uuid4(), food_catalog_item_id=item.id, meal_slots=["breakfast"], portion_grams=Decimal("180"),
         catalog_publication_id=None, catalog_food_name=item.canonical_name,
         nutrition_catalog_version="managed-test.v1",
         portion_description="一盘", method_tags="炒", flavour_tags="家常", status=status, revision=1,
@@ -113,7 +113,7 @@ def _published_candidate(db_session, *, canonical_name: str | None = None) -> Ma
         classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
         id=uuid.uuid4(), food_catalog_item_id=None,
         catalog_publication_id=publication.id, catalog_food_name=draft.canonical_name,
-        nutrition_catalog_version="admin-publication-v1", meal_slot="lunch",
+        nutrition_catalog_version="admin-publication-v1", meal_slots=["lunch"],
         portion_grams=Decimal("180"), portion_description="一份", method_tags="炒",
         flavour_tags="家常", status="enabled", revision=1,
         created_at=now, updated_at=now,
@@ -191,7 +191,7 @@ def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, con
     if condition == "no_recipe":
         db_session.delete(recipe)
     elif condition == "wrong_slot":
-        recipe.meal_slot = "breakfast"
+        recipe.meal_slots = ["breakfast"]
     elif condition == "component":
         recipe.classification = dict(recipe.classification, purpose="component", role="vegetable")
     elif condition == "disabled":
@@ -230,7 +230,7 @@ def _additional_recipe(session, original, slot):
         id=uuid.uuid4(), catalog_publication_id=original.catalog_publication_id,
         catalog_food_name=original.catalog_food_name,
         nutrition_catalog_version=original.nutrition_catalog_version,
-        meal_slot=slot, portion_grams=Decimal("100"), portion_description="一份",
+        meal_slots=[slot], portion_grams=Decimal("100"), portion_description="一份",
         method_tags="蒸", flavour_tags="清淡", status="enabled", revision=1,
         created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
     )
@@ -352,7 +352,7 @@ def test_keyset_pages_merge_catalog_sources_filter_slots_and_recheck_eligibility
     first = _candidate(item)
     first.id = uuid.UUID(int=1)
     other_slot = _candidate(item)
-    other_slot.meal_slot = "dinner"
+    other_slot.meal_slots = ["dinner"]
     other_slot.id = uuid.UUID(int=2)
     disabled = _candidate(item, status="disabled")
     disabled.id = uuid.UUID(int=3)
@@ -361,7 +361,7 @@ def test_keyset_pages_merge_catalog_sources_filter_slots_and_recheck_eligibility
     db_session.add_all([first, other_slot, disabled, later])
     published = _published_candidate(db_session)
     published.id = uuid.UUID(int=4)
-    published.meal_slot = "breakfast"
+    published.meal_slots = ["breakfast"]
     db_session.flush()
     repo = SqlAlchemyPlanningProfileRepository(db_session)
     sql = []
@@ -404,7 +404,7 @@ def test_large_real_catalog_composes_using_bounded_database_pages(db_session):
             method_tags=published.method_tags, flavour_tags=published.flavour_tags,
             status="enabled", revision=1, created_at=published.created_at, updated_at=published.updated_at,
         )
-        row.meal_slot = ("breakfast", "lunch", "dinner")[index % 3]
+        row.meal_slots = [("breakfast", "lunch", "dinner")[index % 3]]
         db_session.add(row)
     db_session.flush()
     page_sizes = []
@@ -442,7 +442,7 @@ def test_component_roles_are_filtered_before_pagination_and_explicit_selection(d
     else:
         food = _catalog_item(db_session)
         component, standalone = _candidate(food), _candidate(food)
-        component.meal_slot = standalone.meal_slot = "lunch"
+        component.meal_slots = standalone.meal_slots = ["lunch"]
         db_session.add_all((component, standalone))
     component.id = uuid.UUID(int=1)
     standalone.id = uuid.UUID(int=2)
@@ -487,7 +487,7 @@ def test_explicit_components_generate_real_calculated_meals_in_postgres(db_sessi
         food_map[food.id] = item
     for candidate in candidates:
         row = _candidate(food_map[candidate.nutrition_item_id])
-        row.meal_slot = candidate.meal_slot.value
+        row.meal_slots = [candidate.meal_slot.value]
         row.classification = candidate.classification.model_dump(mode="json")
         row.portion_grams = candidate.portion_grams
         db_session.add(row)
@@ -574,3 +574,38 @@ def test_drop_old_role_migration_preserves_classification_and_null_legacy_eviden
     assert values[rows[1].id]['role'] == 'vegetable'
     assert values[rows[1].id]['purpose'] == 'component'
     assert values[rows[2].id] is None
+
+
+def test_shared_candidate_is_available_for_both_meals_not_breakfast(db_session):
+    item = _catalog_item(db_session)
+    row = _candidate(item)
+    row.meal_slots = ['lunch', 'dinner']
+    row.classification = {'version': 'recipe-classification.v1', 'purpose': 'component', 'role': 'staple', 'ingredient_tags': ['rice'], 'evidence': '米饭适用于午晚餐', 'basis': 'admin_review'}
+    db_session.add(row)
+    db_session.flush()
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    for slot in (MealSlot.LUNCH, MealSlot.DINNER):
+        found = repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=slot, recipe_id=row.id, include_components=True)
+        assert len(found) == 1 and found[0].id == row.id and found[0].meal_slot == slot
+    assert repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.BREAKFAST, recipe_id=row.id, include_components=True) == []
+
+
+def test_meal_slots_migration_roundtrip_preserves_original_slot(db_session):
+    import importlib
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import text
+    row = _candidate(_catalog_item(db_session))
+    row.meal_slots = ['dinner']
+    db_session.add(row)
+    db_session.flush()
+    connection = db_session.connection()
+    migration = importlib.import_module('migrations.versions.0032_recipe_meal_slots')
+    # Other test fixtures may be multi-slot: scope the reversible check to this fixture.
+    with db_session.begin_nested():
+        connection.execute(text('DELETE FROM managed_recipe_candidates WHERE id <> :id'), {'id': row.id})
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.downgrade()
+            assert connection.execute(text('SELECT meal_slot FROM managed_recipe_candidates WHERE id=:id'), {'id': row.id}).scalar_one() == 'dinner'
+            migration.upgrade()
+        assert connection.execute(text('SELECT meal_slots FROM managed_recipe_candidates WHERE id=:id'), {'id': row.id}).scalar_one() == ['dinner']

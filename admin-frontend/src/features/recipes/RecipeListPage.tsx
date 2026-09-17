@@ -21,6 +21,7 @@ export function RecipeListPage() {
   const [editing, setEditing] = useState<RecipeCandidate>()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [selectionBatch, setSelectionBatch] = useState(0)
   const [selected, setSelected] = useState<string[]>([])
   const [reason, setReason] = useState('')
   const [classificationOpen, setClassificationOpen] = useState(false)
@@ -38,6 +39,8 @@ export function RecipeListPage() {
   const items = query.data?.items ?? []
   const total = query.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / pageSize))
+  const batchCount = Math.max(1, Math.ceil(total / maxBulkSelection))
+  const activeBatch = Math.min(selectionBatch, batchCount - 1)
   useEffect(() => {
     if (query.data && page > pages) setPage(pages)
   }, [page, pages, query.data])
@@ -46,26 +49,25 @@ export function RecipeListPage() {
 
   function toggleCurrentPage() {
     const idsOnPage = new Set(items.map(item => item.id))
-    setSelected(current => allSelected
-      ? current.filter(id => !idsOnPage.has(id))
-      : [...new Set([...current, ...idsOnPage])])
+    const next = allSelected ? selected.filter(id => !idsOnPage.has(id)) : [...new Set([...selected, ...idsOnPage])]
+    if (next.length > maxBulkSelection) { setError('一次最多选择 1000 条，请先处理或清空已选菜谱。'); return }
+    setSelected(next)
   }
 
   async function selectAll() {
     if (!accessToken) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const first = await listRecipeCandidates(accessToken, 1, 100)
-      if (first.total > maxBulkSelection) {
-        setError(`一次最多全选 ${maxBulkSelection} 条，请缩小范围后操作。`)
-        return
-      }
+      const startPage = activeBatch * (maxBulkSelection / 100) + 1
+      const first = await listRecipeCandidates(accessToken, startPage, 100)
+      const count = Math.min(maxBulkSelection, Math.max(0, first.total - activeBatch * maxBulkSelection))
+      if (!count) { setSelected([]); setError('数据已变化，请刷新列表后重新选择批次。'); return }
       const responses = await Promise.all(
-        Array.from({ length: Math.ceil(first.total / 100) - 1 }, (_, index) => listRecipeCandidates(accessToken, index + 2, 100)),
+        Array.from({ length: Math.ceil(count / 100) - 1 }, (_, index) => listRecipeCandidates(accessToken, startPage + index + 1, 100)),
       )
-      setSelected([...new Set([first, ...responses].flatMap(response => response.items.map(item => item.id)))])
+      setSelected([...new Set([first, ...responses].flatMap(response => response.items.map(item => item.id)))].slice(0, maxBulkSelection))
     } catch (requestError) {
-      if (!securityError(requestError)) setError('暂时无法读取全部菜谱候选，请稍后重试。')
+      if (!securityError(requestError)) setError('暂时无法读取所选批次菜谱候选，请稍后重试。')
     } finally { setBusy(false) }
   }
 
@@ -110,7 +112,9 @@ export function RecipeListPage() {
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t px-5 py-3 text-sm" aria-label="批量操作">
         <span aria-live="polite">已选 {selected.length} 条</span>
-        <button className={button} disabled={busy || query.isFetching || !total || total > maxBulkSelection} onClick={() => void selectAll()} type="button">全选全部（{total}）</button>
+        {total > maxBulkSelection && <label className="flex items-center gap-2">选择范围<select aria-label="选择批次" className="h-9 rounded-md border bg-card px-2" disabled={busy || query.isFetching} value={activeBatch} onChange={event => setSelectionBatch(Number(event.target.value))}>{Array.from({ length: batchCount }, (_, index) => <option key={index} value={index}>第 {index * maxBulkSelection + 1}–{Math.min((index + 1) * maxBulkSelection, total)} 条</option>)}</select></label>}
+        <button className={button} disabled={busy || query.isFetching || !total} onClick={() => void selectAll()} type="button">{total > maxBulkSelection ? '选择本批' : `全选全部（${total}）`}</button>
+        {total > maxBulkSelection && <span className="text-xs text-muted-foreground">每批最多 1000 条，选择本批会替换已选项；新增或删除后按最新列表分批。</span>}
         <button className={button} disabled={busy || query.isFetching || !selected.length} onClick={() => setClassificationOpen(true)} type="button">补齐三维分类</button>
         <button className={button} disabled={busy || query.isFetching || !selected.length} onClick={() => setOperation('enable')} type="button">批量启用</button>
         <button className={button} disabled={busy || query.isFetching || !selected.length} onClick={() => setOperation('disable')} type="button">批量停用</button>
@@ -121,7 +125,7 @@ export function RecipeListPage() {
         <table aria-busy={query.isFetching} className="w-full whitespace-nowrap text-left text-sm"><caption className="sr-only">菜谱候选列表</caption>
           <thead className="sticky top-0 z-10 border-y bg-slate-50 text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]"><tr><th className="px-4 py-3" scope="col"><input aria-label="全选当前页" checked={allSelected} className="size-4 cursor-pointer accent-blue-600" disabled={busy || query.isFetching || !items.length} onChange={toggleCurrentPage} ref={element => { if (element) element.indeterminate = selectedItems.length > 0 && !allSelected }} type="checkbox" /></th>{['目录菜品', '餐次', '配餐用途', '餐内角色', '食材标签', '单份克数', '份量说明', '做法', '口味', '状态', '操作'].map(label => <th className="px-4 py-3 font-medium" key={label} scope="col">{label}</th>)}</tr></thead>
           <tbody className="divide-y">
-            {query.isPending ? <tr><td className="p-12 text-center text-muted-foreground" colSpan={12}>正在加载菜谱候选…</td></tr> : query.isError ? <tr><td className="p-12 text-center" colSpan={12}><p role="alert">暂时无法加载菜谱候选。</p><button className={`${button} mt-3`} onClick={() => void query.refetch()} type="button">重试</button></td></tr> : !items.length ? <tr><td className="p-14 text-center" colSpan={12}><p className="font-medium">暂无菜谱候选</p><p className="mt-2 text-xs text-muted-foreground">下载模板后批量导入；导入行必须关联当前合格的营养目录。</p></td></tr> : items.map(item => <tr className="hover:bg-muted/20" key={item.id}><td className="px-4 py-3"><input aria-label={`选择 ${item.catalog_food_name}`} checked={selected.includes(item.id)} className="size-4 cursor-pointer accent-blue-600" disabled={busy || query.isFetching} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} type="checkbox" /></td><td className="px-4 py-3 font-medium">{item.catalog_food_name}</td><td className="px-4 py-3">{labels[item.meal_slot]}</td><td className="px-4 py-3">{item.classification ? purposeLabels[item.classification.purpose] : '未补齐'}</td><td className="px-4 py-3">{item.classification ? roleLabels[item.classification.role] : '未补齐'}</td><td className="max-w-64 whitespace-normal px-4 py-3" title={item.classification?.evidence}>{item.classification?.ingredient_tags.map(tag => ingredientTagLabels[tag]).join('、') || '待确认'}</td><td className="admin-numeric px-4 py-3">{item.portion_grams}g</td><td className="px-4 py-3">{item.portion_description}</td><td className="px-4 py-3">{item.method_tags.join('、')}</td><td className="px-4 py-3">{item.flavour_tags.join('、')}</td><td className="px-4 py-3"><span className={`inline-flex rounded px-2 py-1 text-xs ${statusStyles[item.status]}`}>{labels[item.status]}</span></td><td className="px-4 py-3"><button className={button} onClick={() => setEditing(item)} aria-label={`编辑 ${item.catalog_food_name} 分类`}>编辑分类</button></td></tr>)}
+            {query.isPending ? <tr><td className="p-12 text-center text-muted-foreground" colSpan={12}>正在加载菜谱候选…</td></tr> : query.isError ? <tr><td className="p-12 text-center" colSpan={12}><p role="alert">暂时无法加载菜谱候选。</p><button className={`${button} mt-3`} onClick={() => void query.refetch()} type="button">重试</button></td></tr> : !items.length ? <tr><td className="p-14 text-center" colSpan={12}><p className="font-medium">暂无菜谱候选</p><p className="mt-2 text-xs text-muted-foreground">下载模板后批量导入；导入行必须关联当前合格的营养目录。</p></td></tr> : items.map(item => <tr className="hover:bg-muted/20" key={item.id}><td className="px-4 py-3"><input aria-label={`选择 ${item.catalog_food_name}`} checked={selected.includes(item.id)} className="size-4 cursor-pointer accent-blue-600" disabled={busy || query.isFetching || (!selected.includes(item.id) && selected.length >= maxBulkSelection)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} type="checkbox" /></td><td className="px-4 py-3 font-medium">{item.catalog_food_name}</td><td className="px-4 py-3">{item.meal_slots.map(slot => labels[slot]).join('、')}</td><td className="px-4 py-3">{item.classification ? purposeLabels[item.classification.purpose] : '未补齐'}</td><td className="px-4 py-3">{item.classification ? roleLabels[item.classification.role] : '未补齐'}</td><td className="max-w-64 whitespace-normal px-4 py-3" title={item.classification?.evidence}>{item.classification?.ingredient_tags.map(tag => ingredientTagLabels[tag]).join('、') || '待确认'}</td><td className="admin-numeric px-4 py-3">{item.portion_grams}g</td><td className="px-4 py-3">{item.portion_description}</td><td className="px-4 py-3">{item.method_tags.join('、')}</td><td className="px-4 py-3">{item.flavour_tags.join('、')}</td><td className="px-4 py-3"><span className={`inline-flex rounded px-2 py-1 text-xs ${statusStyles[item.status]}`}>{labels[item.status]}</span></td><td className="px-4 py-3"><button className={button} onClick={() => setEditing(item)} aria-label={`编辑 ${item.catalog_food_name} 分类`}>编辑分类</button></td></tr>)}
           </tbody>
         </table>
       </div>

@@ -63,7 +63,7 @@ def setup():
     actor = _user(role="admin")
     rows = [
         ManagedRecipeCandidate(
-            id=uuid4(), catalog_food_name=name, revision=1
+            id=uuid4(), catalog_food_name=name, revision=1, meal_slots=["lunch"]
         )
         for name in ["白米饭", "一品锅"]
     ]
@@ -170,3 +170,18 @@ def test_unknown_recheck_cannot_overwrite_known_role():
     with pytest.raises(RecipeCandidateConflict):
         service.backfill_recipe_classification(actor_user_id=actor.id, command=command.model_copy(update={"review_unknown": True}), command_key="recheck")
     assert len(repo.events) == 0
+
+
+def test_review_meal_slots_records_audit_and_replays_without_second_change():
+    actor, rows, repo, service, command = setup()
+    entry = command.entries[0].model_copy(update={'meal_slots': ('lunch', 'dinner'), 'classification': command.entries[0].classification.model_copy(update={'basis': 'admin_review'})})
+    cmd = RecipeClassificationCommand(entries=[entry], reason='主食午晚共用', confirm=True)
+    args = dict(actor_user_id=actor.id, command=cmd, command_key='multi-slot-review', review=True)
+    assert service.backfill_recipe_classification(**args).changed_count == 1
+    row = repo.rows[entry.id]
+    assert row.meal_slots == ['lunch', 'dinner'] and row.revision == 2
+    assert service.backfill_recipe_classification(**args).changed_count == 1
+    assert row.revision == 2
+    event = next(e for e in repo.events if e.object_id == str(row.id))
+    assert event.before_diff['meal_slots'] == ['lunch']
+    assert event.after_diff['meal_slots'] == ['lunch', 'dinner']

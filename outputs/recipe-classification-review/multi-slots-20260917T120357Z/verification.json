@@ -1,0 +1,6 @@
+{
+  "migration": "0032",
+  "records_preserved": 1500,
+  "original_slots_preserved": true,
+  "all_other_fields_unchanged": true
+}

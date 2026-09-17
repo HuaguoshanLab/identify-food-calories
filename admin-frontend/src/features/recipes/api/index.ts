@@ -7,16 +7,18 @@ const roleSchema = z.enum(["staple", "protein", "vegetable", "mixed_main", "frui
 export const ingredientTagLabels = {"rice": "米及制品", "wheat": "麦及制品", "other_grain": "其他谷物", "tuber": "薯类", "pulses": "杂豆", "livestock": "畜肉", "poultry": "禽肉", "fish": "鱼类", "shellfish": "虾蟹贝类", "egg": "蛋类", "offal": "动物内脏", "soy": "大豆及豆制品", "other_plant_protein": "其他植物蛋白制品", "leafy_veg": "叶菜", "stem_flower_veg": "花茎类", "fruit_veg": "瓜茄类", "root_veg": "根菜", "mushroom": "菌菇", "algae": "藻类", "fruit": "水果", "dairy": "奶及奶制品", "plant_drink": "植物替代饮品", "nuts": "坚果", "seeds": "种子"} as const
 const ingredientTagSchema = z.enum(["rice", "wheat", "other_grain", "tuber", "pulses", "livestock", "poultry", "fish", "shellfish", "egg", "offal", "soy", "other_plant_protein", "leafy_veg", "stem_flower_veg", "fruit_veg", "root_veg", "mushroom", "algae", "fruit", "dairy", "plant_drink", "nuts", "seeds"])
 export const classificationSchema = z.object({ version: z.literal('recipe-classification.v1'), purpose: purposeSchema, role: roleSchema, ingredient_tags: z.array(ingredientTagSchema), evidence: z.string(), basis: z.enum(['name_only', 'name_and_legacy_role', 'admin_review']) }).strict()
-const classificationEntrySchema = z.object({ id: z.string().uuid(), revision: z.number().int().positive(), catalog_food_name: z.string(), classification: classificationSchema }).strict()
+export const mealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
+export const mealSlotsSchema = z.array(mealSlotSchema).min(1, '至少选择一个适用餐次').max(4).refine(slots => new Set(slots).size === slots.length, '餐次不能重复')
+export const mealSlotLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' } as const
+const classificationEntrySchema = z.object({ id: z.string().uuid(), revision: z.number().int().positive(), catalog_food_name: z.string(), classification: classificationSchema, meal_slots: mealSlotsSchema.nullable().optional() }).strict()
 export const classificationPreviewSchema = z.object({ entries: z.array(classificationEntrySchema), skipped_count: z.number().int().nonnegative() }).strict()
 export type ClassificationPreview = z.infer<typeof classificationPreviewSchema>
 
-const mealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const candidateSchema = z.object({
   id: z.string().uuid(),
   classification: classificationSchema.nullable().default(null),
   catalog_food_name: z.string().min(1),
-  meal_slot: mealSlotSchema,
+  meal_slots: mealSlotsSchema,
   portion_grams: z.string(),
   portion_description: z.string(),
   method_tags: z.array(z.string()),
@@ -27,7 +29,7 @@ const candidateSchema = z.object({
 const listResponseSchema = z.object({ items: z.array(candidateSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), page_size: z.number().int().positive() }).strict()
 const previewSchema = z.object({
   total_rows: z.number().int().nonnegative(), valid_rows: z.number().int().nonnegative(),
-  rows: z.array(z.object({ catalog_food_name: z.string(), meal_slot: mealSlotSchema, classification: classificationSchema.nullable(), portion_grams: z.string(), portion_description: z.string(), method_tags: z.array(z.string()), flavour_tags: z.array(z.string()), status: z.enum(['pending', 'disabled']) }).strict()),
+  rows: z.array(z.object({ catalog_food_name: z.string(), meal_slots: mealSlotsSchema, classification: classificationSchema.nullable(), portion_grams: z.string(), portion_description: z.string(), method_tags: z.array(z.string()), flavour_tags: z.array(z.string()), status: z.enum(['pending', 'disabled']) }).strict()),
   errors: z.array(z.object({ row: z.number().int().positive(), field: z.string(), message: z.string() }).strict()),
 }).strict()
 

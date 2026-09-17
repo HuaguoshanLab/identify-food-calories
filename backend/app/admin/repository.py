@@ -904,7 +904,7 @@ class SqlAlchemyAdminRepository:
                 ManagedRecipeCandidate.catalog_food_name.icontains(search, autoescape=True)
             )
         if meal_slot:
-            statement = statement.where(ManagedRecipeCandidate.meal_slot == meal_slot)
+            statement = statement.where(ManagedRecipeCandidate.meal_slots.any(meal_slot))
         if status:
             statement = statement.where(ManagedRecipeCandidate.status == status)
         total = int(

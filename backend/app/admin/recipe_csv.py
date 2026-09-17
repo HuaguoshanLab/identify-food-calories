@@ -17,7 +17,7 @@ from app.admin.schemas import (
 
 RECIPE_CSV_COLUMNS = {
     "关联目录菜品名称": "catalog_food_name",
-    "餐次": "meal_slot",
+    "餐次": "meal_slots",
     "单份克数": "portion_grams",
     "份量说明": "portion_description",
     "做法标签": "method_tags",
@@ -76,9 +76,7 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
             raw["flavour_tags"] = tuple(
                 value.strip() for value in str(raw["flavour_tags"]).split("|")
             )
-            raw["meal_slot"] = {label: key for key, label in MEAL_LABELS.items()}.get(
-                str(raw["meal_slot"]).strip(), raw["meal_slot"]
-            )
+            raw["meal_slots"] = tuple({label: key for key, label in MEAL_LABELS.items()}.get(value.strip(), value.strip()) for value in str(raw["meal_slots"]).split("|"))
             raw["status"] = {label: key for key, label in STATUS_LABELS.items()}.get(
                 str(raw["status"]).strip(), raw["status"]
             )
@@ -105,8 +103,8 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
                         )
                     )
                 continue
-            key = (candidate.catalog_food_name.casefold(), candidate.meal_slot)
-            if key in seen:
+            keys = {(candidate.catalog_food_name.casefold(), slot) for slot in candidate.meal_slots}
+            if keys & seen:
                 errors.append(
                     RecipeCandidateCsvError(
                         row=reader.line_num,
@@ -115,7 +113,7 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
                     )
                 )
                 continue
-            seen.add(key)
+            seen.update(keys)
             rows.append(candidate)
     except csv.Error as error:
         raise RecipeCandidateCsvInvalid("CSV 格式无效，请检查引号和分隔符。") from error
@@ -136,7 +134,7 @@ def write_recipe_candidate_csv(
         values = row.model_dump() | {
             "method_tags": "|".join(row.method_tags),
             "flavour_tags": "|".join(row.flavour_tags),
-            "meal_slot": MEAL_LABELS[str(row.meal_slot)],
+            "meal_slots": "|".join(MEAL_LABELS[slot] for slot in row.meal_slots),
             "status": STATUS_LABELS[str(row.status)],
             "purpose": PURPOSE_LABELS[row.classification.purpose] if row.classification else "",
             "role": ROLE_LABELS[row.classification.role] if row.classification else "",

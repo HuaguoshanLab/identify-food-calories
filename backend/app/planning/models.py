@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.auth.models import Base
@@ -191,7 +191,7 @@ class ManagedRecipeCandidate(Base):
     __tablename__ = "managed_recipe_candidates"
     __table_args__ = (
         CheckConstraint("classification IS NULL OR jsonb_typeof(classification) = 'object'", name="ck_recipe_classification_object"),
-        CheckConstraint("meal_slot IN ('breakfast', 'lunch', 'dinner', 'snack')", name="ck_managed_recipe_candidates_meal_slot"),
+        CheckConstraint("cardinality(meal_slots) BETWEEN 1 AND 4 AND meal_slots <@ ARRAY['breakfast','lunch','dinner','snack']::varchar[] AND array_position(meal_slots, NULL) IS NULL", name="ck_managed_recipe_candidates_meal_slots"),
         CheckConstraint("portion_grams > 0", name="ck_managed_recipe_candidates_portion_grams_positive"),
         CheckConstraint("portion_description = btrim(portion_description) AND portion_description <> ''", name="ck_managed_recipe_candidates_portion_description"),
         CheckConstraint("method_tags = btrim(method_tags) AND method_tags <> ''", name="ck_managed_recipe_candidates_method_tags"),
@@ -203,7 +203,7 @@ class ManagedRecipeCandidate(Base):
             "OR (food_catalog_item_id IS NULL AND catalog_publication_id IS NOT NULL)",
             name="ck_managed_recipe_candidates_one_catalog_reference",
         ),
-        Index("ix_managed_recipe_candidates_planning_eligibility", "meal_slot", "food_catalog_item_id", "catalog_publication_id", postgresql_where=text("status = 'enabled' AND deleted_at IS NULL")),
+        Index("ix_managed_recipe_candidates_planning_eligibility", "food_catalog_item_id", "catalog_publication_id", postgresql_where=text("status = 'enabled' AND deleted_at IS NULL")),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -211,7 +211,7 @@ class ManagedRecipeCandidate(Base):
     catalog_publication_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("catalog_publications.id", ondelete="RESTRICT"), nullable=True)
     catalog_food_name: Mapped[str] = mapped_column(String(200), nullable=False)
     nutrition_catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
-    meal_slot: Mapped[str] = mapped_column(String(16), nullable=False)
+    meal_slots: Mapped[list[str]] = mapped_column(ARRAY(String(16)), nullable=False)
     classification: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     portion_grams: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
     portion_description: Mapped[str] = mapped_column(String(120), nullable=False)

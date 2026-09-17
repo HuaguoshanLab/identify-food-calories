@@ -10,7 +10,7 @@ import { RecipeListPage } from './RecipeListPage'
 vi.mock('@/auth/AdminAuthProvider', () => ({ useAdminAuth: () => ({ accessToken: 'test-runtime-token', clearSession: vi.fn() }) }))
 
 const base = '/api/v1/admin/recipe-candidates'
-const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slot: 'lunch', portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
+const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slots: ['lunch'], portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
 
 function setup() {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RecipeListPage /></QueryClientProvider>)
@@ -121,13 +121,14 @@ it('编辑三维分类校验原因、依据，并在失败重试时复用请求�
   const keys: string[] = []
   mswServer.use(http.get(base, () => HttpResponse.json({ items: [candidate], total: 1, page: 1, page_size: 20 })), http.post(`${base}/classification-review`, async ({ request }) => {
     keys.push(request.headers.get('Idempotency-Key')!)
-    expect(await request.json()).toMatchObject({ entries: [{ id: candidate.id, revision: 1, classification: { purpose: 'component', role: 'protein', ingredient_tags: ['livestock'], basis: 'admin_review', evidence: '根据菜品配料确认' } }], reason: '纠正用途' })
+    expect(await request.json()).toMatchObject({ entries: [{ id: candidate.id, revision: 1, meal_slots: ['lunch', 'dinner'], classification: { purpose: 'component', role: 'protein', ingredient_tags: ['livestock'], basis: 'admin_review', evidence: '根据菜品配料确认' } }], reason: '纠正用途' })
     return keys.length === 1 ? HttpResponse.json({}, { status: 503 }) : HttpResponse.json({ changed_count: 1 })
   }))
   setup()
   await user.click(await screen.findByRole('button', { name: '编辑 辣椒炒肉 分类' }))
   await user.click(screen.getByRole('button', { name: '保存修改' }))
   expect(await screen.findByText('请填写分类依据')).toBeVisible()
+  await user.click(screen.getByLabelText('晚餐', { exact: true }))
   await user.selectOptions(screen.getByLabelText('配餐用途'), 'component')
   await user.selectOptions(screen.getByLabelText('餐内角色'), 'protein')
   await user.click(screen.getByLabelText('畜肉'))
@@ -139,4 +140,35 @@ it('编辑三维分类校验原因、依据，并在失败重试时复用请求�
   expect(await screen.findByText('分类已更新，将用于新配餐。')).toBeVisible()
   expect(keys).toHaveLength(2)
   expect(keys[0]).toBe(keys[1])
+})
+
+
+it('1500 条候选按 1000 和 500 分批选择，切换批次不累加且提交对应 ID', async () => {
+  const user = userEvent.setup()
+  const candidates = Array.from({ length: 1500 }, (_, index) => ({ ...candidate, id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, catalog_food_name: `分批菜${index + 1}` }))
+  let submitted: string[] = []
+  mswServer.use(http.get(base, ({ request }) => {
+    const url = new URL(request.url)
+    const page = Number(url.searchParams.get('page'))
+    const size = Number(url.searchParams.get('page_size'))
+    return HttpResponse.json({ items: candidates.slice((page - 1) * size, page * size), total: candidates.length, page, page_size: size })
+  }), http.post(`${base}/enable`, async ({ request }) => {
+    submitted = (await request.json() as { ids: string[] }).ids
+    return HttpResponse.json(candidates.slice(1000))
+  }))
+  setup()
+  await screen.findByRole('checkbox', { name: '选择 分批菜1' })
+  await user.click(screen.getByRole('button', { name: '选择本批' }))
+  expect(await screen.findByText('已选 1000 条')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '下一页' }))
+  await screen.findByRole('checkbox', { name: '选择 分批菜21' })
+  await user.selectOptions(screen.getByLabelText('选择批次'), '1')
+  await user.click(screen.getByRole('button', { name: '选择本批' }))
+  expect(await screen.findByText('已选 500 条')).toBeVisible()
+  expect(screen.getByRole('checkbox', { name: '选择 分批菜21' })).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: '批量启用' }))
+  await user.type(screen.getByLabelText('操作原因'), '处理第二批')
+  await user.click(screen.getByRole('button', { name: '确认操作' }))
+  await screen.findByText('已启用 500 条菜谱候选。')
+  expect(submitted).toEqual(candidates.slice(1000).map(item => item.id))
 })

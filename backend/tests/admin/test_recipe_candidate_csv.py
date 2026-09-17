@@ -24,7 +24,7 @@ from app.admin.schemas import (
 def row(*, name: str = "辣椒炒肉", slot: str = "lunch") -> RecipeCandidateCsvRow:
     return RecipeCandidateCsvRow(
         catalog_food_name=name,
-        meal_slot=slot,
+        meal_slots=(slot,),
         portion_grams="200",
         portion_description="一份",
         method_tags=("炒",),
@@ -73,7 +73,7 @@ def test_recipe_candidate_export_neutralizes_formulas_and_template_columns_are_s
             RecipeCandidateResponse(
                 id=uuid.uuid4(),
                 catalog_food_name="=1+1",
-                meal_slot="breakfast",
+                meal_slots=("breakfast",),
                 portion_grams="100",
                 portion_description="一份",
                 method_tags=("炒",),
@@ -122,3 +122,14 @@ def test_classification_roundtrip_and_unclassified_seven_columns():
         assert parse_recipe_candidate_csv(modern.replace("叶菜|菌菇", invalid)).valid_rows == 0
     with pytest.raises(RecipeCandidateCsvInvalid):
         parse_recipe_candidate_csv(unclassified.replace("状态\n", "状态,餐内角色\n").replace("待审核\n", "待审核,蔬菜\n"))
+
+
+def test_multi_slot_csv_roundtrip_and_overlap():
+    multi = row().model_copy(update={"meal_slots": ("lunch", "dinner")})
+    parsed = parse_recipe_candidate_csv(csv_text(multi))
+    assert not parsed.errors
+    assert parsed.rows[0].meal_slots == ("lunch", "dinner")
+    assert "午餐|晚餐" in csv_text(multi)
+    assert parse_recipe_candidate_csv(csv_text(multi, row(slot="dinner"))).errors
+    for value in ("午餐|午餐", "午餐|", "宵夜", ""):
+        assert parse_recipe_candidate_csv(csv_text(multi).replace("午餐|晚餐", value)).errors
