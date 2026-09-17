@@ -1,0 +1,15 @@
+{
+  "database": "food_agent_dev",
+  "deleted_candidates": 623,
+  "remaining_candidates": 0,
+  "protected_table_counts": {
+    "food_catalog_items": 50,
+    "catalog_publications": 645,
+    "diet_plans": 14,
+    "diet_plan_versions": 40,
+    "admin_audit_events": 3984,
+    "controlled_recipes": 9,
+    "controlled_recipe_ingredients": 29
+  },
+  "backup": "../outputs/recipe-classification-review/clear-recipes-20260917T071618747896Z/recipe-candidates-backup.json"
+}
