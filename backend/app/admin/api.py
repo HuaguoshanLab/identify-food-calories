@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.core.logging import current_request_id
+
 import uuid
 from decimal import Decimal
 from typing import Literal
@@ -998,6 +1000,6 @@ def _error(*, status_code: int, code: str, message: str) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={
-            "error": {"code": code, "message": message, "request_id": str(uuid.uuid4())}
+            "error": {"code": code, "message": message, "request_id": current_request_id()}
         },
     )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 import logging
+from app.core.logging import observed
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -143,24 +144,29 @@ class NutritionServiceToolAdapter:
         self._context_service = context_service
         self._explicit_preference_capture_service = explicit_preference_capture_service
 
+    @observed("tool")
     async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
         return await self._service.search_food_catalog(request)
 
+    @observed("tool")
     def calculate_nutrition(
         self, request: NutritionCalculationInput
     ) -> NutritionCalculationResult:
         return self._service.calculate_nutrition(request)
 
+    @observed("tool")
     def validate_nutrition_result(
         self, request: NutritionValidationInput
     ) -> NutritionValidationResult:
         return self._service.validate_nutrition_result(request)
 
+    @observed("tool")
     def retrieve_personal_context(self, *, user_id: uuid.UUID, query: str, catalog_version: str | None = None) -> list[RetrievedContextItem]:
         if self._context_service is None:
             return []
         return self._context_service.retrieve(user_id=user_id, query=query, catalog_version=catalog_version)  # type: ignore[union-attr,attr-defined,arg-type]
 
+    @observed("tool")
     def capture_explicit_preferences(
         self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
     ) -> tuple[CapturedPreferenceSummary, ...]:
@@ -212,6 +218,7 @@ class SessionNutritionToolAdapter:
             tracing=self._tracing,
         )
 
+    @observed("tool")
     async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
         return await asyncio.to_thread(self._search_food_catalog_in_thread, request)
 
@@ -229,6 +236,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def calculate_nutrition(
         self, request: NutritionCalculationInput
     ) -> NutritionCalculationResult:
@@ -238,6 +246,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def validate_nutrition_result(
         self, request: NutritionValidationInput
     ) -> NutritionValidationResult:
@@ -247,6 +256,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def retrieve_personal_context(self, *, user_id: uuid.UUID, query: str, catalog_version: str | None = None) -> list[RetrievedContextItem]:
         from app.memory.providers import FakeMemoryProvider
         from app.memory.repository import SqlAlchemyMemoryLedgerRepository
@@ -264,6 +274,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def capture_explicit_preferences(
         self, *, user_id: uuid.UUID, run_id: uuid.UUID, statement: str
     ) -> tuple[CapturedPreferenceSummary, ...]:
@@ -306,6 +317,7 @@ class SessionNutritionToolAdapter:
             ),
         )
 
+    @observed("tool")
     def calculate_daily_target(
         self, *, profile: PlanningProfileInput, preferences: PreferenceReview
     ) -> TargetCalculationResult:
@@ -315,6 +327,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def compose_daily_plan(
         self, *, user_id: uuid.UUID, target: DailyTarget, preferences: PreferenceReview, replan_count: int
     ) -> MealCompositionResult:
@@ -332,6 +345,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def keep_replaceable_food_identities(
         self,
         *,
@@ -351,6 +365,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def list_replacement_recipes(
         self, *, food_id: uuid.UUID, catalog_version: str, affected_slot: MealSlot,
         current_recipe_id: uuid.UUID, preferences: PreferenceReview,
@@ -364,6 +379,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def replace_planning_slot(
         self,
         *,
@@ -411,6 +427,7 @@ class SessionNutritionToolAdapter:
         finally:
             session.close()
 
+    @observed("tool")
     def validate_daily_plan(
         self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...], allow_target_relaxation: bool
     ) -> PlanValidationResult:
@@ -424,11 +441,13 @@ class SessionNutritionToolAdapter:
             logging.getLogger("app.planning.diagnostics").info(
                 "planning_validation action=%s rule=%s relaxation=%s",
                 result.action.value, result.rule_id, allow_target_relaxation,
+                extra={"event": "planning_validation", "reason": result.rule_id, "status": result.action.value, "metrics": {"relaxation": allow_target_relaxation}},
             )
             return result
         finally:
             session.close()
 
+    @observed("tool")
     def upsert_planning_profile(
         self, *, user_id: uuid.UUID, profile: PlanningProfileInput, command_key: str
     ) -> None:

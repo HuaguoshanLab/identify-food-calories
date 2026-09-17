@@ -27,10 +27,22 @@ uv sync --extra dev --locked
 uv run alembic upgrade head
 uv run python scripts/bootstrap_local_planning_data.py
 uv run python scripts/setup_local_checkpointer.py
-uv run uvicorn app.main:app --reload
+uv run python -m app.core.run
 ```
 
 运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
+
+### 运行日志与查询
+
+后端使用 Python 标准日志库，统一输出到标准输出；本地在启动终端查询，不自动保存文件。`.env` 可设置 `LOG_LEVEL=INFO`（可选 DEBUG/WARNING/ERROR/CRITICAL）和 `LOG_FORMAT=text`（可选 json）。第三方默认 WARNING；非结构化消息原文不会输出。需要开发自动重载时使用 `uv run python -m app.core.run --reload`，不要绕过该入口启用原始 Uvicorn 访问日志。
+
+每次 HTTP 请求返回服务端生成的 `X-Request-ID`；已有错误响应的 `error.request_id` 与其一致。浏览器网络面板查看响应头，在终端按编号搜索 `http_complete`，再查看相同编号的 Agent、工具和模型事件。`execution_id` 仅关联本次 Agent 执行，恢复追问会生成新编号，不保证跨请求或跨重启关联。SSE 耗时包含整个连接持续时间。
+
+常用事件：`http_failed`、`agent_start/complete/failed`、`tool_start/complete/failed`、`planning_search`、`planning_validation`、`deepseek_call_complete`、`qwen_vision_complete`。模型指标中的 cost 由 Provider 已有价格快照计算；DeepSeek 为 USD、Qwen 为 CNY。日志不记录饮食和身体资料、用户身份、请求/响应正文、查询参数、密钥或完整模型思维链。异常只保留类型与不含源代码/局部变量的堆栈位置。
+
+当前根 Docker Compose 没有后端服务，不能用 `docker compose logs backend` 查本项目应用日志。将来容器化时由 Docker 收集标准输出，建议配置 `max-size: "10m"`、`max-file: "3"`；跨重启留存与集中搜索需要运行环境另行提供。管理员审计仍在 PostgreSQL，不能用尽力输出的运行日志代替。输出失败不会中断业务，但日志可能丢失。
+
+验证：`uv run pytest tests/unit/test_operational_logging.py tests/planning/test_search_diagnostics.py -q`。回滚恢复日志基础设施、编号处理和匹配的启动入口，无数据库迁移；管理员审计不变。
 
 ### 餐单筛选预算
 

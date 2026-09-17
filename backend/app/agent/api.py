@@ -6,6 +6,8 @@ only its provider/tool ports; SSE merely replays safe persisted events and never
 
 from __future__ import annotations
 
+from app.core.logging import current_request_id, observed
+
 import asyncio
 import hashlib
 import uuid
@@ -157,6 +159,7 @@ def _image_state(*, image_id: uuid.UUID, reference: ValidatedImageReference) -> 
     )
 
 
+@observed("agent", execution=True)
 async def _execute(
     *,
     service: AgentService,
@@ -205,6 +208,9 @@ async def _execute(
             planning_command=planning_command,
             graph_kind=graph_kind,
         )
+        if completed_run is not None:
+            import logging
+            logging.getLogger(__name__).info("", extra={"event": "agent_result", "status": completed_run.status.value})
         if trace_span is not None and completed_run is not None:
             trace_span.update(
                 output={
@@ -596,4 +602,4 @@ def _runtime_admission_rejected() -> JSONResponse:
 
 
 def _error(status_code: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message, "request_id": str(uuid.uuid4())}})
+    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message, "request_id": current_request_id()}})

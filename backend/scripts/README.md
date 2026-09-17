@@ -20,4 +20,4 @@
 | 自动化测试 | `run_initialized_app.py` | 隔离 E2E/集成环境的 reset、迁移、Checkpointer、seed 和 Uvicorn 统一入口；不得对开发库运行。 |
 | 自动化测试 | `setup_checkpointer.py` | 只对 guard 验证后的 `TEST_DATABASE_URL` 创建 Checkpointer schema。 |
 
-日常启动不需要新的包装脚本：完成必要初始化后，直接运行 `uv run alembic upgrade head` 和 `uv run uvicorn app.main:app --reload`。本目录当前没有废弃脚本。
+日常启动：完成必要初始化后，运行 `uv run alembic upgrade head` 和 `uv run python -m app.core.run`。后者关闭 Uvicorn 原始访问日志，并使用应用的安全日志配置；不自动初始化或修改数据库。本目录当前没有废弃脚本。

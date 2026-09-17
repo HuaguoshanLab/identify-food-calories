@@ -118,7 +118,7 @@ class PostgresLeaseSupervisor:
                 # database connection must not take down HTTP fallback retrieval. Log
                 # no job payload, but retain the traceback needed to diagnose a worker
                 # that would otherwise silently leave durable jobs pending forever.
-                logger.exception("catalog embedding worker pass failed")
+                logger.exception("", extra={"event": "catalog_embedding_worker_failed"})
             try:
                 await asyncio.wait_for(
                     self._embedding_worker_stop.wait(), timeout=poll_interval.total_seconds()

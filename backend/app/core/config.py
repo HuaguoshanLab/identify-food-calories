@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     deepseek_price_snapshot_version: str | None = None
     deepseek_input_usd_per_m: Decimal | None = None
     deepseek_output_usd_per_m: Decimal | None = None
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    log_format: Literal["text", "json"] = "text"
     tracing_enabled: bool = False
     tracing_backend: TracingBackend = "phoenix"
     tracing_collector_endpoint: str | None = None

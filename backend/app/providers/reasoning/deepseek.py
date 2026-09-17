@@ -1,6 +1,7 @@
 """DeepSeek Responses adapter with a narrow, safe, retry-bounded provider boundary."""
 
 from __future__ import annotations
+from app.core.logging import observed
 
 import json
 import logging
@@ -70,6 +71,7 @@ class DeepSeekReasoningModelProvider:
         self._transport = transport
         self._tracing = tracing or DisabledTracingRuntime()
 
+    @observed("provider")
     async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
         payload, metadata = await self._request(
             operation="parse_meal",
@@ -82,6 +84,7 @@ class DeepSeekReasoningModelProvider:
         except ValidationError as error:
             raise _schema_error(metadata) from error
 
+    @observed("provider")
     async def apply_correction(self, request: ApplyCorrectionRequest) -> ApplyCorrectionResult:
         payload, metadata = await self._request(
             operation="apply_correction",
@@ -93,6 +96,7 @@ class DeepSeekReasoningModelProvider:
         except ValidationError as error:
             raise _schema_error(metadata) from error
 
+    @observed("provider")
     async def generate_weekly_review(self, request: WeeklyReviewRequest) -> WeeklyReviewResult:
         payload, metadata = await self._request(
             operation="generate_weekly_review",
@@ -299,11 +303,4 @@ def _schema_error(metadata: ProviderCallMetadataDTO | None) -> ProviderCallError
 def _safe_log(metadata: ProviderCallMetadataDTO) -> None:
     """Log only identifiers and accounting values, never payload, output, or credentials."""
 
-    LOGGER.info(
-        "deepseek_call_complete request_id=%s model=%s tokens=%s cost=%s latency_ms=%s",
-        metadata.provider_request_id,
-        metadata.model_alias,
-        metadata.usage.total_tokens,
-        metadata.usage.cost_usd,
-        metadata.latency_ms,
-    )
+    LOGGER.info("", extra={"event": "deepseek_call_complete", "provider_request_id": metadata.provider_request_id, "model": metadata.model_alias, "tokens": metadata.usage.total_tokens, "cost": str(metadata.usage.cost_usd), "elapsed_ms": metadata.latency_ms})

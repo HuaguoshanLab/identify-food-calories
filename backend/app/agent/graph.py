@@ -343,6 +343,7 @@ class MealAnalysisGraph:
                     "vision_provider_failed kind=%s code=%s",
                     error.kind.value,
                     error.code,
+                    extra={"event": "vision_provider_failed", "status": error.kind.value, "reason": error.code},
                 )
                 if error.kind is ProviderFailureKind.TRANSIENT and attempts < 2:
                     continue

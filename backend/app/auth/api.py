@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.core.logging import current_request_id
+
 import hashlib
 import uuid
 from urllib.parse import urlsplit
@@ -485,7 +487,7 @@ def _error(
     error: dict[str, str | int] = {
         "code": code,
         "message": message,
-        "request_id": str(uuid.uuid4()),
+        "request_id": current_request_id(),
     }
     if retry_after is not None:
         error["retry_after"] = retry_after

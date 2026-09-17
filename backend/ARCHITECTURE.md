@@ -23,7 +23,7 @@ Provider SDK → app/providers/<kind>/（DTO + Port + Factory + Adapter）
 | 位置 | 责任 | 新代码落点 |
 |---|---|---|
 | `app/main.py` | FastAPI 工厂、router 注册、Agent 生命周期装配 | 新模块 router 只在这里注册；不写业务逻辑。 |
-| `app/core/` | Settings、数据库 Session/Engine、tracing | 无业务语义的运行基础设施；不放领域 DTO、Service 或模型。 |
+| `app/core/` | Settings、数据库 Session/Engine、tracing、统一安全日志与请求上下文 | 无业务语义的运行基础设施；不放领域 DTO、Service 或模型。日志不承担业务存储或管理员审计职责。 |
 | `app/auth/` | 注册、登录、会话、JWT、认证 Principal | 认证协议、Cookie、密码/Token 安全原语，以及所有受保护资源路由共用的 `AuthenticatedPrincipal`。 |
 | `app/accounts/` | 密码恢复 | 账户恢复用例；邮件经 `notifications` Port，不复制 auth 登录代码。 |
 | `app/admin/` | 后端 RBAC、审计、CLI 提升 | 管理员授权与审计；不放管理前端。 |

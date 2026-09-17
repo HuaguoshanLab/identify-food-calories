@@ -1,6 +1,7 @@
 """Qwen-VL HTTP adapter: transient image bytes exist only inside one outbound request."""
 
 from __future__ import annotations
+from app.core.logging import observed
 
 import base64
 import json
@@ -88,6 +89,7 @@ class QwenVisionModelProvider:
             image_loader=lambda reference: repository.read_path(reference).read_bytes(),
         )
 
+    @observed("provider")
     async def analyze_meal_image(self, request: VisionMealRequest) -> VisionMealResult:
         if request.pixel_budget > self._max_pixels:
             raise ProviderCallError(kind=ProviderFailureKind.PERMANENT, code="VISION_PIXEL_BUDGET_EXCEEDED")
@@ -225,4 +227,4 @@ def _safe_identifier(value: object) -> str | None:
 def _safe_log(metadata: VisionCallMetadataDTO, image_digest: str) -> None:
     """Only an irreversible digest and aggregate accounting are operationally useful."""
 
-    LOGGER.info("qwen_vision_complete request_id=%s model=%s tokens=%s cost_cny=%s latency_ms=%s image_digest=%s", metadata.provider_request_id, metadata.model_alias, metadata.usage.total_tokens, metadata.usage.cost_cny, metadata.latency_ms, image_digest)
+    LOGGER.info("", extra={"event": "qwen_vision_complete", "provider_request_id": metadata.provider_request_id, "model": metadata.model_alias, "tokens": metadata.usage.total_tokens, "cost": str(metadata.usage.cost_cny), "elapsed_ms": metadata.latency_ms, "image_digest": image_digest})

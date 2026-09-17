@@ -1,6 +1,7 @@
 """Deterministic reasoning-provider substitute for tests and local development."""
 
 from __future__ import annotations
+from app.core.logging import observed
 
 from collections import deque
 from dataclasses import dataclass
@@ -137,6 +138,7 @@ class FakeReasoningModelProvider:
             )
         )
 
+    @observed("provider")
     async def parse_meal(self, request: ParseMealRequest) -> ParseMealResult:
         del request  # Input can contain meal text; trace storage must not retain it.
         outcome = _next_parse_outcome(self._parse_outcomes)

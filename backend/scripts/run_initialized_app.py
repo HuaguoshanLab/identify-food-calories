@@ -102,8 +102,7 @@ def launch_uvicorn(_database_url: str, host: str, port: int) -> None:
         [
             sys.executable,
             "-m",
-            "uvicorn",
-            "app.main:app",
+            "app.core.run",
             "--host",
             host,
             "--port",

@@ -14,11 +14,8 @@ logger = logging.getLogger(__name__)
 
 def configure_planning_diagnostics() -> None:
     """Enable the dedicated safe log without changing application-wide log levels."""
-    logger.setLevel(logging.INFO)
-    if not logger.hasHandlers():
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
-        logger.addHandler(handler)
+    # Configuration belongs to the application-wide logging infrastructure.
+    pass
 
 
 class ScanStop(StrEnum):
@@ -65,4 +62,4 @@ class SearchDiagnostics(BaseModel):
     def emit(self, *, action: str, reason: str | None, policy: str) -> None:
         # The payload is deliberately assembled from a closed schema, never from
         # a command, exception, meal, preference, provider response or ORM object.
-        logger.info("planning_search policy=%s action=%s reason=%s metrics=%s", policy, action, reason or "none", self.model_dump_json())
+        logger.info("planning_search policy=%s action=%s reason=%s metrics=%s", policy, action, reason or "none", self.model_dump_json(), extra={"event": "planning_search", "policy": policy, "action": action, "reason": reason or "none", "metrics": self.model_dump(mode="json")})

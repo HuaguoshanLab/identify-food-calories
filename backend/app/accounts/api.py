@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import uuid
+from app.core.logging import current_request_id
+
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
@@ -257,7 +258,7 @@ def _error(
     error: dict[str, str | int] = {
         "code": code,
         "message": message,
-        "request_id": str(uuid.uuid4()),
+        "request_id": current_request_id(),
     }
     if retry_after is not None:
         error["retry_after"] = retry_after

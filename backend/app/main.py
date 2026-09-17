@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -14,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.planning.selection import MealSelectionPolicy, PlanningSearchBudget
-from app.planning.diagnostics import configure_planning_diagnostics
+from app.core.logging import configure_logging, current_request_id, RequestLoggingMiddleware
 from app.auth.api import router as auth_router, users_router
 from app.admin.api import router as admin_router
 from app.agent.api import router as agent_router
@@ -220,7 +219,7 @@ def create_app(
     """Build the HTTP application from already validated runtime settings."""
 
     active_settings = settings or get_settings()
-    configure_planning_diagnostics()
+    configure_logging(active_settings.log_level, active_settings.log_format)
     application = FastAPI(
         title="Food Agent API",
         version="0.1.0",
@@ -236,7 +235,9 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
+    application.add_middleware(RequestLoggingMiddleware, cors_origins=active_settings.cors_origins)
     application.include_router(auth_router)
     application.include_router(users_router)
     application.include_router(admin_router)
@@ -259,7 +260,7 @@ def create_app(
                 "error": {
                     "code": "VALIDATION_ERROR",
                     "message": "请求字段不符合要求。",
-                    "request_id": str(uuid.uuid4()),
+                    "request_id": current_request_id(),
                 }
             },
         )
@@ -269,11 +270,12 @@ def create_app(
         # Provider/database exceptions stay server-side and never become response details.
         return JSONResponse(
             status_code=500,
+            headers={"X-Request-ID": _request.state.request_id},
             content={
                 "error": {
                     "code": "INTERNAL_ERROR",
                     "message": "服务暂时不可用，请稍后重试。",
-                    "request_id": str(uuid.uuid4()),
+                    "request_id": _request.state.request_id,
                 }
             },
         )
