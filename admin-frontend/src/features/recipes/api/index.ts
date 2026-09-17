@@ -55,8 +55,19 @@ function authorized(token: string, extra: HeadersInit = {}) {
   return { Authorization: `Bearer ${token}`, ...extra }
 }
 
-export async function listRecipeCandidates(token: string, page: number, pageSize: number) {
-  const response = await request(`/api/v1/admin/recipe-candidates?page=${page}&page_size=${pageSize}`, { headers: authorized(token) })
+export const recipeFiltersSchema = z.object({ search: z.string().trim().max(200), meal_slot: mealSlotSchema.or(z.literal('')), status: candidateSchema.shape.status.or(z.literal('')) })
+export type RecipeFilters = z.infer<typeof recipeFiltersSchema>
+
+function filterParams(filters?: RecipeFilters) {
+  const params = new URLSearchParams()
+  if (filters) Object.entries(recipeFiltersSchema.parse(filters)).forEach(([key, value]) => { if (value) params.set(key, value) })
+  return params
+}
+
+export async function listRecipeCandidates(token: string, page: number, pageSize: number, filters?: RecipeFilters) {
+  const params = filterParams(filters)
+  params.set('page', String(page)); params.set('page_size', String(pageSize))
+  const response = await request(`/api/v1/admin/recipe-candidates?${params}`, { headers: authorized(token) })
   return listResponseSchema.parse(await response.json())
 }
 
@@ -74,8 +85,9 @@ export async function changeRecipeCandidates(token: string, operation: RecipeCan
   await request(`/api/v1/admin/recipe-candidates/${operation}`, { method: 'POST', headers: authorized(token, { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey }), body: JSON.stringify({ ids, reason, confirm: true }) })
 }
 
-export async function downloadRecipeCandidates(token: string, template = false) {
-  const response = await request(`/api/v1/admin/recipe-candidates/${template ? 'template' : 'export'}`, { headers: authorized(token) })
+export async function downloadRecipeCandidates(token: string, template = false, filters?: RecipeFilters) {
+  const params = template ? '' : filterParams(filters).toString()
+  const response = await request(`/api/v1/admin/recipe-candidates/${template ? 'template' : 'export'}${params ? `?${params}` : ''}`, { headers: authorized(token) })
   const url = URL.createObjectURL(await response.blob())
   const link = document.createElement('a')
   link.href = url

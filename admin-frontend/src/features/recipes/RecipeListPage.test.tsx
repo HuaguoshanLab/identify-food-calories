@@ -17,6 +17,34 @@ function setup() {
 }
 
 describe('RecipeListPage', () => {
+  it('组合筛选重置分页和选择，全选仅查询筛选范围，重置恢复全部', async () => {
+    const user = userEvent.setup()
+    const requests: URL[] = []
+    mswServer.use(http.get(base, ({ request }) => {
+      const url = new URL(request.url)
+      requests.push(url)
+      return HttpResponse.json({ items: [candidate], total: url.searchParams.has('search') ? 1 : 21, page: Number(url.searchParams.get('page')), page_size: Number(url.searchParams.get('page_size')) })
+    }))
+    setup()
+    await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get('page')).toBe('2'))
+    await user.type(screen.getByLabelText('菜名关键词'), ' 辣椒 ')
+    await user.selectOptions(screen.getByLabelText('筛选餐次'), 'lunch')
+    await user.selectOptions(screen.getByLabelText('筛选状态'), 'pending')
+    await user.click(screen.getByRole('button', { name: '筛选' }))
+    await screen.findByRole('button', { name: '全选全部（1）' })
+    expect(screen.getByText('已选 0 条')).toBeVisible()
+    expect(requests.at(-1)?.searchParams.get('page')).toBe('1')
+    await user.click(screen.getByRole('button', { name: '全选全部（1）' }))
+    await screen.findByText('已选 1 条')
+    expect(Object.fromEntries(requests.at(-1)!.searchParams)).toMatchObject({ search: '辣椒', meal_slot: 'lunch', status: 'pending', page_size: '100' })
+    await user.click(screen.getByRole('button', { name: '重置' }))
+    await screen.findByRole('button', { name: '全选全部（21）' })
+    expect(screen.getByLabelText('菜名关键词')).toHaveValue('')
+    expect(screen.getByText('已选 0 条')).toBeVisible()
+    expect(requests.at(-1)?.searchParams.has('search')).toBe(false)
+  })
   it('可选择当前页并提交批量启用，带上审计原因和幂等键', async () => {
     const user = userEvent.setup()
     mswServer.use(http.get(base, () => HttpResponse.json({ items: [candidate], total: 1, page: 1, page_size: 100 })), http.post(`${base}/enable`, async ({ request }) => {

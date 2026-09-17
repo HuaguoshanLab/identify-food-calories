@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 
 import { useAdminAuth } from '@/auth/AdminAuthProvider'
 import { RecipeClassificationEditDialog } from './RecipeClassificationEditDialog'
-import { type RecipeCandidate } from './api'
+import { type RecipeCandidate, type RecipeFilters, recipeFiltersSchema, mealSlotLabels } from './api'
 import { RecipeClassificationDialog } from './RecipeClassificationDialog'
 import { RecipeDialog } from './RecipeDialog'
 import { RecipeImportDialog } from './RecipeImportDialog'
@@ -14,6 +16,7 @@ const button = 'inline-flex h-9 items-center justify-center gap-2 whitespace-now
 const labels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐', pending: '待审核', enabled: '已启用', disabled: '已停用' } as const
 const statusStyles = { pending: 'bg-amber-50 text-amber-700', enabled: 'bg-emerald-50 text-emerald-700', disabled: 'bg-slate-100 text-slate-700' }
 const maxBulkSelection = 1000
+const emptyFilters: RecipeFilters = { search: '', meal_slot: '', status: '' }
 
 export function RecipeListPage() {
   const queryClient = useQueryClient()
@@ -21,6 +24,12 @@ export function RecipeListPage() {
   const [editing, setEditing] = useState<RecipeCandidate>()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [filters, setFilters] = useState<RecipeFilters>(emptyFilters)
+  const filterForm = useForm<RecipeFilters>({ resolver: zodResolver(recipeFiltersSchema), defaultValues: emptyFilters })
+  const hasFilters = Object.values(filters).some(Boolean)
+  function applyFilters(next: RecipeFilters) {
+    setFilters(next); setPage(1); setSelectionBatch(0); setSelected([]); setError(''); setNotice('')
+  }
   const [selectionBatch, setSelectionBatch] = useState(0)
   const [selected, setSelected] = useState<string[]>([])
   const [reason, setReason] = useState('')
@@ -30,7 +39,7 @@ export function RecipeListPage() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const query = useQuery({ queryKey: ['recipe-candidates', page, pageSize], queryFn: () => listRecipeCandidates(accessToken!, page, pageSize), enabled: Boolean(accessToken), retry: false })
+  const query = useQuery({ queryKey: ['recipe-candidates', page, pageSize, filters], queryFn: () => listRecipeCandidates(accessToken!, page, pageSize, filters), enabled: Boolean(accessToken), retry: false })
 
   useEffect(() => {
     if (query.error instanceof RecipeCandidateApiError && query.error.status === 401) clearSession()
@@ -59,11 +68,11 @@ export function RecipeListPage() {
     setBusy(true); setError(''); setNotice('')
     try {
       const startPage = activeBatch * (maxBulkSelection / 100) + 1
-      const first = await listRecipeCandidates(accessToken, startPage, 100)
+      const first = await listRecipeCandidates(accessToken, startPage, 100, filters)
       const count = Math.min(maxBulkSelection, Math.max(0, first.total - activeBatch * maxBulkSelection))
       if (!count) { setSelected([]); setError('数据已变化，请刷新列表后重新选择批次。'); return }
       const responses = await Promise.all(
-        Array.from({ length: Math.ceil(count / 100) - 1 }, (_, index) => listRecipeCandidates(accessToken, startPage + index + 1, 100)),
+        Array.from({ length: Math.ceil(count / 100) - 1 }, (_, index) => listRecipeCandidates(accessToken, startPage + index + 1, 100, filters)),
       )
       setSelected([...new Set([first, ...responses].flatMap(response => response.items.map(item => item.id)))].slice(0, maxBulkSelection))
     } catch (requestError) {
@@ -81,7 +90,7 @@ export function RecipeListPage() {
   async function download(template = false) {
     if (!accessToken) return
     setBusy(true); setError('')
-    try { await downloadRecipeCandidates(accessToken, template); setNotice(template ? '菜谱导入模板已下载。' : '菜谱候选已导出。') }
+    try { await downloadRecipeCandidates(accessToken, template, filters); setNotice(template ? '菜谱导入模板已下载。' : '当前筛选结果已导出。') }
     catch (requestError) { if (!securityError(requestError)) setError('暂时无法下载文件，请稍后重试。') }
     finally { setBusy(false) }
   }
@@ -110,6 +119,14 @@ export function RecipeListPage() {
         <div><h2 className="text-base font-semibold" id="recipe-list-title">菜谱管理</h2><p className="mt-1 text-xs text-muted-foreground">候选菜必须关联当前合格的营养目录；已启用且分类明确的整餐候选可直接参选；午餐、晚餐也可由主食、蛋白质菜与蔬菜搭配。</p></div>
         <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => setImportOpen(true)} type="button">导入</button><button className={button} disabled={busy} onClick={() => void download()} type="button">导出</button><button className={button} disabled={busy} onClick={() => void download(true)} type="button">下载模板</button><button aria-label="刷新菜谱候选" className={button} disabled={busy || query.isFetching} onClick={() => void query.refetch()} type="button">刷新</button></div>
       </div>
+      <form aria-label="菜谱筛选" className="flex flex-wrap items-end gap-3 border-t px-5 py-4 text-sm" onSubmit={filterForm.handleSubmit(applyFilters)}>
+        <label className="grid gap-2">菜名关键词<input className="h-9 w-60 rounded-md border bg-card px-3" placeholder="输入目录菜品名称" maxLength={200} disabled={busy} {...filterForm.register('search')} /></label>
+        <label className="grid gap-2">筛选餐次<select className="h-9 rounded-md border bg-card px-3" disabled={busy} {...filterForm.register('meal_slot')}><option value="">全部餐次</option>{Object.entries(mealSlotLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label className="grid gap-2">筛选状态<select className="h-9 rounded-md border bg-card px-3" disabled={busy} {...filterForm.register('status')}><option value="">全部状态</option>{(['pending', 'enabled', 'disabled'] as const).map(value => <option key={value} value={value}>{labels[value]}</option>)}</select></label>
+        <button className={button} disabled={busy} type="submit">筛选</button>
+        <button className={button} disabled={busy} type="button" onClick={() => { filterForm.reset(emptyFilters); applyFilters(emptyFilters) }}>重置</button>
+        <span className="self-center text-xs text-muted-foreground">{hasFilters ? '已应用筛选。' : ''}全选与导出仅作用于当前筛选结果；修改条件后点击筛选。</span>
+      </form>
       <div className="flex flex-wrap items-center gap-3 border-t px-5 py-3 text-sm" aria-label="批量操作">
         <span aria-live="polite">已选 {selected.length} 条</span>
         {total > maxBulkSelection && <label className="flex items-center gap-2">选择范围<select aria-label="选择批次" className="h-9 rounded-md border bg-card px-2" disabled={busy || query.isFetching} value={activeBatch} onChange={event => setSelectionBatch(Number(event.target.value))}>{Array.from({ length: batchCount }, (_, index) => <option key={index} value={index}>第 {index * maxBulkSelection + 1}–{Math.min((index + 1) * maxBulkSelection, total)} 条</option>)}</select></label>}
