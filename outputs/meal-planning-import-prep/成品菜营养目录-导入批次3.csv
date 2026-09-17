@@ -1,0 +1,391 @@
+﻿菜品名称,别名,能量(kcal/100g),蛋白质(g/100g),脂肪(g/100g),碳水(g/100g),来源名称,来源链接,授权状态
+青椒炒肉丝,qing jiao chao rou si,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜薹炒肉丝,suan tai chao rou si,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+茭白炒肉丝,jiao bai chao rou si,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+冬笋炒肉片,dong sun chao rou pian,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芦笋炒牛柳,lu sun chao niu liu,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西芹炒牛肉,xi qin chao niu rou,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芦笋炒鸡肉,lu sun chao ji rou,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西兰花炒虾仁,xi lan hua chao xia ren,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+荷兰豆炒腊肉,he lan dou chao la rou,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜苗炒腊肉,suan miao chao la rou,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒炒腊肠,qing jiao chao la chang,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+腊味炒芥兰,la wei chao jie lan,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+粉蒸排骨,fen zheng pai gu,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸排骨,qing zheng pai gu,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+花生炖猪蹄,hua sheng dun zhu ti,574,24.8,44.3,16.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧猪蹄,hong shao zhu ti,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧狮子头,hong shao shi zi tou,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸狮子头,qing zheng shi zi tou,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+糖醋排骨,tang cu pai gu,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+椒盐排骨,jiao yan pai gu,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸鲳鱼,qing zheng chang yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸鲫鱼,qing zheng ji yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧鲫鱼,hong shao ji yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧带鱼,hong shao dai yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+干炸带鱼,gan zha dai yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+糖醋带鱼,tang cu dai yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄炖鱼,fan qie dun yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒炒猪肝,qing jiao chao zhu gan,130,19.0,4.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+溜肝尖,liu gan jian,130,19.0,4.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+卤猪肝,lu zhu gan,130,19.0,4.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白切羊肉,bai qie yang rou,200,17.0,14.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+葱爆羊肉片,cong bao yang rou pian,200,17.0,14.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+孜然羊肉片,zi ran yang rou pian,200,17.0,14.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧羊肉,hong shao yang rou,200,17.0,14.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+羊肉萝卜煲,yang rou luo bo bao,200,17.0,14.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炖羊肉,qing dun yang rou,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+煎牛排,jian niu pai,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黑椒牛柳,hei jiao niu liu,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒牛肉丝,qing jiao niu rou si,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芹菜牛肉丝,qin cai niu rou si,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄炖牛腩,fan qie dun niu nan,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+萝卜炖牛腩,luo bo dun niu nan,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧牛肉,hong shao niu rou,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酱牛肉,jiang niu rou,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+卤牛肉,lu niu rou,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+牛肉汤,niu rou tang,45,4.5,2.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+牛肉炒芹菜,niu rou chao qin cai,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇滑鸡,xiang gu hua ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇蒸鸡,xiang gu zheng ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸鸡,qing zheng ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+辣子鸡丁,la zi ji ding,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鸡丁炒青椒,ji ding chao qing jiao,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+洋葱炒鸡丁,yang cong chao ji ding,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+土豆焖鸡,tu dou men ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+板栗焖鸡,ban li men ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炖鸡,xiang gu dun ji,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+乌鸡炖汤,wu ji dun tang,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+菠萝炒鸡,bo luo chao ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+柠檬鸡,ning meng ji,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炸鸡块,zha ji kuai,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鸡排,ji pai,200,15.0,14.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+盐焗鸡胸肉,yan ju ji xiong rou,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+煎鸡胸肉,jian ji xiong rou,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+水煮鸡胸肉,shui zhu ji xiong rou,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+照烧鸡腿,zhao shao ji tui,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+奥尔良烤翅,ao er liang kao chi,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧鸡翅,hong shao ji chi,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+卤鸡翅,lu ji chi,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉蒸虾,suan rong zheng xia,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+茄汁虾,jia zhi xia,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒虾仁,chao xia ren,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西芹炒虾仁,xi qin chao xia ren,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黄瓜炒虾仁,huang gua chao xia ren,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+虾仁豆腐,xia ren dou fu,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧豆腐,hong shao dou fu,140,9.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧冻豆腐,hong shao dong dou fu,140,9.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+砂锅豆腐,sha guo dou fu,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+小葱拌豆腐,xiao cong ban dou fu,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+皮蛋豆腐,pi dan dou fu,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香椿拌豆腐,xiang chun ban dou fu,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香干炒芹菜,xiang gan chao qin cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香干炒韭菜,xiang gan chao jiu cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒炒豆干,qing jiao chao dou gan,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+豆芽炒韭菜,dou ya chao jiu cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+韭菜炒鸡蛋,jiu cai chao ji dan,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+葱花炒蛋,cong hua chao dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+菠菜炒鸡蛋,bo cai chao ji dan,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+银鱼炒鸡蛋,yin yu chao ji dan,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蛤蜊蒸蛋,ge li zheng dan,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+生蚝煎蛋,sheng hao jian dan,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼花螺,bai zhuo hua luo,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+爆炒花蛤,bao chao hua ha,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+辣炒花蛤,la chao hua ha,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉蒸生蚝,suan rong zheng sheng hao,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸扇贝,qing zheng shan bei,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+椒盐皮皮虾,jiao yan pi pi xia,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸梭子蟹,qing zheng suo zi xie,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香辣蟹,xiang la xie,100,16.0,2.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸石斑,qing zheng shi ban,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清蒸多宝鱼,qing zheng duo bao yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香煎三文鱼,xiang jian san wen yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+三文鱼刺身,san wen yu ci shen,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+爆炒鱿鱼须,bao chao you yu xu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+铁板鱿鱼,tie ban you yu,130,18.0,5.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒸水蛋,zheng shui dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+煎蛋,jian dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒸蛋羹,zheng dan geng,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+茶叶鹌鹑蛋,cha ye an chun dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+卤鹌鹑蛋,lu an chun dan,150,11.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒上海青,qing chao shang hai qing,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒小白菜,qing chao xiao bai cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒油菜,qing chao you cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒菠菜,qing chao bo cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒茼蒿,qing chao tong hao,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒空心菜,qing chao kong xin cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒油麦菜,qing chao you mai cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒生菜,qing chao sheng cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒芥兰,qing chao jie lan,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒菜心,qing chao cai xin,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒菠菜,suan rong chao bo cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒生菜,suan rong chao sheng cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒油麦菜,suan rong chao you mai cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒菜心,suan rong chao cai xin,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒芥兰,suan rong chao jie lan,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼芥兰,bai zhuo jie lan,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼生菜,bai zhuo sheng cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+上汤菠菜,shang tang bo cai,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+上汤苋菜,shang tang xian cai,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒豆苗,qing chao dou miao,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒韭菜,qing chao jiu cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒芹菜,qing chao qin cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芹菜炒豆芽,qin cai chao dou ya,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芹菜炒土豆丝,qin cai chao tu dou si,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒三丝,chao san si,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒茭白,qing chao jiao bai,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+茭白丝炒青椒,jiao bai si chao qing jiao,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧茭白,hong shao jiao bai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒藕片,chao ou pian,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+糖醋藕片,tang cu ou pian,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌藕片,liang ban ou pian,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+干锅包菜,gan guo bao cai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+干锅土豆片,gan guo tu dou pian,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+干锅茶树菇,gan guo cha shu gu,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+醋溜包菜,cu liu bao cai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+包菜粉丝,bao cai fen si,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒包菜,qing chao bao cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酸辣白菜,suan la bai cai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白菜粉丝汤,bai cai fen si tang,25,1.5,0.5,3.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+上汤白菜,shang tang bai cai,25,1.5,0.5,3.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌白菜心,liang ban bai cai xin,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒丝瓜,qing chao si gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+丝瓜炒毛豆,si gua chao mao dou,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+丝瓜豆腐汤,si gua dou fu tang,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+拍黄瓜,pai huang gua,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黄瓜炒鸡蛋,huang gua chao ji dan,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黄瓜炒肉片,huang gua chao rou pian,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒苦瓜,suan rong chao ku gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+苦瓜炒肉,ku gua chao rou,160,12.0,8.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒南瓜,qing chao nan gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒南瓜,suan rong chao nan gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+南瓜炒百合,nan gua chao bai he,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒冬瓜,qing chao dong gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧冬瓜,hong shao dong gua,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+虾皮炒冬瓜,xia pi chao dong gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+冬瓜海米汤,dong gua hai mi tang,25,1.5,0.5,3.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌西葫芦,liang ban xi hu lu,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒西葫芦,qing chao xi hu lu,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西葫芦炒番茄,xi hu lu chao fan qie,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄炒菜花,fan qie chao cai hua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄炖豆腐,fan qie dun dou fu,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+糖拌番茄,tang ban fan qie,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒茄子,suan rong chao qie zi,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒸茄子,zheng qie zi,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌茄子,liang ban qie zi,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒土豆片,chao tu dou pian,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+土豆烧茄子,tu dou shao qie zi,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+土豆烧青椒,tu dou shao qing jiao,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酸辣土豆丝,suan la tu dou si,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒土豆丝,qing jiao tu dou si,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒胡萝卜丝,chao hu luo bo si,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+胡萝卜炒木耳,hu luo bo chao mu er,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+胡萝卜炒鸡蛋,hu luo bo chao ji dan,170,16.0,9.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌胡萝卜丝,liang ban hu luo bo si,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蓝莓山药,lan mei shan yao,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+山药炒木耳,shan yao chao mu er,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西芹炒百合,xi qin chao bai he,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西芹炒木耳,xi qin chao mu er,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西芹炒腰果,xi qin chao yao guo,600,18,50,18,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇青菜,xiang gu qing cai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炒油菜,xiang gu chao you cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炒生菜,xiang gu chao sheng cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炒冬瓜,xiang gu chao dong gua,40,1.2,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炒芦笋,xiang gu chao lu sun,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒双菇,chao shuang gu,55,2.5,2.0,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香菇炒花菜,xiang gu chao hua cai,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蚝油娃娃菜,hao you wa wa cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒西兰花,qing chao xi lan hua,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼西兰花,bai zhuo xi lan hua,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西兰花炒胡萝卜,xi lan hua chao hu luo bo,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西兰花炒香菇,xi lan hua chao xiang gu,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌海带丝,liang ban hai dai si,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+海带炒豆芽,hai dai chao dou ya,35,2.0,0.8,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+海带炖豆腐,hai dai dun dou fu,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌裙带菜,liang ban qun dai cai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌秋葵,liang ban qiu kui,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼秋葵,bai zhuo qiu kui,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉秋葵,suan rong qiu kui,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌莴笋丝,liang ban wo sun si,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒莴笋丝,qing chao wo sun si,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+莴笋炒木耳,wo sun chao mu er,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+拍黄瓜拌木耳,pai huang gua ban mu er,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白米饭,bai mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+糙米饭,cao mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+燕麦饭,yan mai fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+小米饭,xiao mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+玉米饭,yu mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红豆饭,hong dou fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+绿豆饭,lv dou fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黑米饭,hei mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+紫米饭,zi mi fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+玉米粥,yu mi zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红薯粥,hong shu zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+莲子粥,lian zi zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+百合粥,bai he zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+芝麻粥,zhi ma zhou,600,18,50,18,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+花卷,hua juan,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+菜包子,cai bao zi,180,5.0,3.0,32.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+肉包子,rou bao zi,230,7.0,8.0,30.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+全麦馒头,quan mai man tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+窝窝头,wo wo tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+玉米饼,yu mi bing,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+全麦面包,quan mai mian bao,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白面包,bai mian bao,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+燕麦片,yan mai pian,367,15.0,6.7,61.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+面条,mian tiao,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+汤面,tang mian,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+拌面,ban mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒面,chao mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+拉面,la mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+挂面,gua mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+意面,yi mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+米粉,mi fen,110,2.5,0.3,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+河粉,he fen,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒸土豆,zheng tu dou,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+煮玉米,zhu yu mi,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+紫薯饭,zi shu fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+荞麦面,qiao mai mian,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+全麦面条,quan mai mian tiao,110,3.5,0.6,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红薯饭,hong shu fan,130,2.7,0.3,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+土豆泥,tu dou ni,80,2.0,0.3,18.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+玉米窝头,yu mi wo tou,220,7.0,1.5,45.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蛋炒饭,dan chao fan,174,5.5,7.0,22.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+肉丝炒饭,rou si chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鸡丁炒饭,ji ding chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+牛肉炒饭,niu rou chao fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+虾仁炒饭,xia ren chao fan,180,9.0,5.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酱油炒饭,jiang you chao fan,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+咖喱牛肉饭,ga li niu rou fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+咖喱鸡肉饭,ga li ji rou fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄牛肉饭,fan qie niu rou fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+牛肉盖饭,niu rou gai fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鸡排饭,ji pai fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+猪排饭,zhu pai fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+照烧鸡排饭,zhao shao ji pai fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+麻婆豆腐饭,ma po dou fu fan,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+宫保鸡丁饭,gong bao ji ding fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鱼香肉丝饭,yu xiang rou si fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+豆角焖面,dou jiao men mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+茄子焖面,qie zi men mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+肉沫茄子饭,rou mo qie zi fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄鸡蛋盖饭,fan qie ji dan gai fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+青椒肉丝饭,qing jiao rou si fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+西兰花牛肉饭,xi lan hua niu rou fan,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+三鲜炒面,san xian chao mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+什锦炒饭,shi jin chao fan,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+腊肠炒饭,la chang chao fan,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+培根炒饭,pei gen chao fan,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蟹粉拌面,xie fen ban mian,170,5.0,6.0,28.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+牛肉炒河粉,niu rou chao he fen,200,8.5,8.0,25.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄鸡蛋汤,fan qie ji dan tang,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+冬瓜排骨汤,dong gua pai gu tang,50,4.0,3.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+山药排骨汤,shan yao pai gu tang,50,4.0,3.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+萝卜排骨汤,luo bo pai gu tang,50,4.0,3.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白菜豆腐汤,bai cai dou fu tang,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+丝瓜蛋汤,si gua dan tang,25,1.5,0.5,3.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+菌菇鸡汤,jun gu ji tang,35,4.0,1.5,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炖鸡汤,qing dun ji tang,35,4.0,1.5,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+老母鸡汤,lao mu ji tang,35,4.0,1.5,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+参鸡汤,can ji tang,35,4.0,1.5,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+番茄牛肉汤,fan qie niu rou tang,45,4.5,2.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+萝卜牛肉汤,luo bo niu rou tang,45,4.5,2.0,1.5,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+羊肉萝卜汤,yang rou luo bo tang,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鲫鱼豆腐汤,ji yu dou fu tang,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鱼头豆腐汤,yu tou dou fu tang,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+银耳莲子汤,yin er lian zi tang,60,1.5,0.2,13.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+绿豆汤,lv dou tang,60,1.5,0.2,13.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红豆汤,hong dou tang,60,1.5,0.2,13.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酒酿小圆子,jiu niang xiao yuan zi,60,1.5,0.2,13.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酸辣汤,suan la tang,45,3.0,1.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+疙瘩汤,ge da tang,45,3.0,1.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+面片汤,mian pian tang,45,3.0,1.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+馄饨汤,hun tun tang,45,3.0,1.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+肉片汤,rou pian tang,45,3.0,1.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼牛肉,bai zhuo niu rou,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+红烧牛尾,hong shao niu wei,180,18.0,10.0,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉空心菜,suan rong kong xin cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒苋菜,chao xian cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌生菜,liang ban sheng cai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒鸡毛菜,qing chao ji mao cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鸡丝粥,ji si zhou,46,1.1,0.3,9.9,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+鱼丸汤,yu wan tang,40,4.5,1.5,2.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+苹果,ping guo,52,0.3,0.2,13.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+香蕉,xiang jiao,91,1.1,0.3,22.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+橙子,cheng zi,47,0.9,0.2,11.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+纯牛奶,chun niu nai,60,3.2,3.3,4.8,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+水煮花生,shui zhu hua sheng,574,24.8,44.3,16.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+原味核桃,yuan wei he tao,646,14.9,58.8,19.1,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+原味杏仁,yuan wei xing ren,578,19.7,50.6,19.7,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+无糖豆浆,wu tang dou jiang,31,3.0,1.6,1.2,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+黑咖啡,hei ka fei,1,0.3,0,0.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉茼蒿,suan rong tong hao,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒木耳菜,qing chao mu er cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉红薯叶,suan rong hong shu ye,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒韭菜花,qing chao jiu cai hua,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌折耳根,liang ban zhe er gen,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌马齿苋,liang ban ma chi xian,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉炒荷兰豆,suan rong chao he lan dou,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒西兰花梗,qing chao xi lan hua geng,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+白灼芦笋,bai zhuo lu sun,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌芦笋,liang ban lu sun,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒茭白丝,chao jiao bai si,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+葱油茭白,cong you jiao bai,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌茭白丝,liang ban jiao bai si,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒茭白,chao jiao bai,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒豌豆苗,qing chao wan dou miao,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+上汤豆苗,shang tang dou miao,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌莴笋,liang ban wo sun,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒莴笋,qing chao wo sun,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒藕带,chao ou dai,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌藕带,liang ban ou dai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+酸辣藕丁,suan la ou ding,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒菱角,chao ling jiao,45,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒荸荠,chao bi qi,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌荸荠,liang ban bi qi,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒慈姑,qing chao ci gu,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒水芹,chao shui qin,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌水芹,liang ban shui qin,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒莼菜,qing chao chun cai,35,2.0,0.8,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+莼菜汤,chun cai tang,35,2.5,1.0,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒鸡头米,chao ji tou mi,45,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+桂花鸡头米,gui hua ji tou mi,60,1.5,0.2,13.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒菱白,qing chao ling bai,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+蒜蓉西兰花梗,suan rong xi lan hua geng,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌海带结,liang ban hai dai jie,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌海蜇皮,liang ban hai zhe pi,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒海带丝,chao hai dai si,35,2.0,0.8,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌裙带菜豆腐,liang ban qun dai cai dou fu,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒石花菜,chao shi hua cai,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌鹿角菜,liang ban lu jiao cai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒羊栖菜,chao yang qi cai,35,2.0,0.8,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌发菜,liang ban fa cai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒紫菜苔,chao zi cai tai,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌紫菜苔,liang ban zi cai tai,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒红菜苔,chao hong cai tai,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+清炒芥兰头,qing chao jie lan tou,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌芥兰头,liang ban jie lan tou,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒球茎茴香,chao qiu jing hui xiang,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌茴香根,liang ban hui xiang gen,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒菊芋,chao ju yu,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌菊芋丝,liang ban ju yu si,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒草石蚕,chao cao shi can,60,1.8,2.5,8.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌草石蚕,liang ban cao shi can,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒葛花,chao ge hua,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌葛花,liang ban ge hua,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒洋槐花,chao yang huai hua,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+槐花麦饭,huai hua mai fan,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒榆钱,chao yu qian,50,2.0,2.5,6.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+榆钱饭,yu qian fan,50,1.8,2.5,5.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒柳树芽,chao liu shu ya,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌柳树芽,liang ban liu shu ya,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒花椒叶,chao hua jiao ye,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌花椒叶,liang ban hua jiao ye,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒枸杞头,chao gou qi tou,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌枸杞头,liang ban gou qi tou,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒马兰头,chao ma lan tou,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+凉拌马兰头香干,liang ban ma lan tou xiang gan,40,1.5,2.5,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+炒荠菜,chao ji cai,45,1.8,3.0,4.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+荠菜豆腐羹,ji cai dou fu geng,35,2.5,1.5,3.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+荆州鱼糕,jing zhou yu gao,130,13.0,5.0,10.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
+武威蒸羊羔肉,wu wei zheng yang gao rou,250,18.0,18.0,1.0,中国食物成分表（第6版）,https://www.cnsoc.org/,已授权
