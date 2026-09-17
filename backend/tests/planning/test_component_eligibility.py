@@ -1,4 +1,6 @@
 """Explicit components must not escape via generation or replacement paths."""
+from app.planning.classification import RecipeClassification
+
 import pytest
 
 from app.planning.schemas import MealSlot, PreferenceReview, PlanValidationAction
@@ -9,7 +11,7 @@ from tests.planning.test_planning_service import FakePlanningRepository, RecipeN
 @pytest.mark.parametrize("role", ["staple", "protein", "vegetable", "side", "drink"])
 def test_components_never_become_standalone_meals_even_with_a_permissive_repository(role):
     food = qualified_food(name="不根据名称推断", energy="200")
-    rows = [managed_candidate(slot=slot, food=food).model_copy(update={"meal_role": role}) for slot in (MealSlot.BREAKFAST, MealSlot.LUNCH, MealSlot.DINNER)]
+    rows = [managed_candidate(slot=slot, food=food).model_copy(update={"classification": RecipeClassification(purpose="component", role=role, ingredient_tags=(), evidence="test")}) for slot in (MealSlot.BREAKFAST, MealSlot.LUNCH, MealSlot.DINNER)]
     service = PlanningService(repository=FakePlanningRepository(candidates=rows), nutrition_port=RecipeNutritionPort([food]))
     preferences = PreferenceReview(confirmed=True)
     result = service.compose_daily_meals(catalog_version=None, preferences=preferences)

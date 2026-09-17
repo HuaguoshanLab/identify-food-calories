@@ -190,7 +190,7 @@ class ManagedRecipeCandidate(Base):
 
     __tablename__ = "managed_recipe_candidates"
     __table_args__ = (
-        CheckConstraint("meal_role IN ('standalone', 'staple', 'protein', 'vegetable', 'side', 'drink')", name="ck_managed_recipe_candidates_meal_role"),
+        CheckConstraint("classification IS NULL OR jsonb_typeof(classification) = 'object'", name="ck_recipe_classification_object"),
         CheckConstraint("meal_slot IN ('breakfast', 'lunch', 'dinner', 'snack')", name="ck_managed_recipe_candidates_meal_slot"),
         CheckConstraint("portion_grams > 0", name="ck_managed_recipe_candidates_portion_grams_positive"),
         CheckConstraint("portion_description = btrim(portion_description) AND portion_description <> ''", name="ck_managed_recipe_candidates_portion_description"),
@@ -212,7 +212,7 @@ class ManagedRecipeCandidate(Base):
     catalog_food_name: Mapped[str] = mapped_column(String(200), nullable=False)
     nutrition_catalog_version: Mapped[str] = mapped_column(String(80), nullable=False)
     meal_slot: Mapped[str] = mapped_column(String(16), nullable=False)
-    meal_role: Mapped[str] = mapped_column(String(16), nullable=False, default="standalone", server_default="standalone")
+    classification: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     portion_grams: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
     portion_description: Mapped[str] = mapped_column(String(120), nullable=False)
     method_tags: Mapped[str] = mapped_column(Text, nullable=False)

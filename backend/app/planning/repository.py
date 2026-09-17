@@ -221,9 +221,10 @@ class SqlAlchemyPlanningProfileRepository:
             publication_statement = publication_statement.where(
                 ManagedRecipeCandidateModel.nutrition_catalog_version == catalog_version
             )
-        # Callers must explicitly opt into components; named standalone replacements stay narrow.
-        roles = ("standalone", "staple", "protein", "vegetable") if include_components else ("standalone",)
-        filters = [ManagedRecipeCandidateModel.meal_role.in_(roles)]
+        classification = ManagedRecipeCandidateModel.classification
+        whole = classification["purpose"].astext.in_(("whole_meal", "both"))
+        component = classification["purpose"].astext.in_(("component", "both")) & classification["role"].astext.in_(("staple", "protein", "vegetable"))
+        filters = [classification["role"].astext != "unknown", whole | component if include_components else whole]
         if meal_slot is not None:
             filters.append(ManagedRecipeCandidateModel.meal_slot == meal_slot.value)
         if after_id is not None:
@@ -263,7 +264,7 @@ class SqlAlchemyPlanningProfileRepository:
                 catalog_version=candidate.nutrition_catalog_version,
                 display_name=candidate.catalog_food_name,
                 meal_slot=MealSlot(candidate.meal_slot),
-                meal_role=candidate.meal_role,
+                classification=candidate.classification,
                 portion_grams=candidate.portion_grams,
                 portion_description=candidate.portion_description,
                 method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),

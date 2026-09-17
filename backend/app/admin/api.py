@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.catalog_csv import CatalogCsvInvalid
 from app.admin.schemas import (
+    RecipeClassificationCommand, RecipeClassificationPreviewCommand, RecipeClassificationPreview,
     AdminAuditPageResponse,
     AdminAuditQuery,
     AdminRunDetailResponse,
@@ -62,8 +63,7 @@ from app.admin.schemas import (
     ModelServiceSummary,
     ModelServicesResponse,
     RecipeCandidateBulkCommand,
-    RecipeCandidateRoleCommand,
-    RecipeCandidateRoleResponse,
+    RecipeClassificationResponse,
     RecipeCandidateCsvPreview,
     RecipeCandidateImportCommand,
     RecipeCandidateImportResponse,
@@ -426,23 +426,43 @@ def import_recipe_candidates(
         ) from error
 
 
-@router.post("/recipe-candidates/meal-role", response_model=RecipeCandidateRoleResponse)
-def change_recipe_candidate_role(
-    command: RecipeCandidateRoleCommand,
-    principal: AuthenticatedPrincipal,
-    idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
-    admin_service: AdminService = Depends(get_admin_service),
-):
+@router.post("/recipe-candidates/classification-preview", response_model=RecipeClassificationPreview)
+def preview_recipe_classification(command: RecipeClassificationPreviewCommand, principal: AuthenticatedPrincipal,
+                                  admin_service: AdminService = Depends(get_admin_service)):
     try:
-        return admin_service.change_recipe_candidate_role(
-            actor_user_id=principal, command=command, command_key=idempotency_key,
-        )
+        return admin_service.preview_recipe_classification(actor_user_id=principal, command=command)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="recipe candidate not found") from error
+
+
+@router.post("/recipe-candidates/classification-backfill", response_model=RecipeClassificationResponse)
+def backfill_recipe_classification(command: RecipeClassificationCommand, principal: AuthenticatedPrincipal,
+        idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+        admin_service: AdminService = Depends(get_admin_service)):
+    try:
+        return admin_service.backfill_recipe_classification(actor_user_id=principal, command=command, command_key=idempotency_key)
     except AdminPermissionDenied:
         return _forbidden()
     except KeyError as error:
         raise HTTPException(status_code=404, detail="recipe candidate not found") from error
     except RecipeCandidateConflict as error:
-        raise HTTPException(status_code=409, detail="recipe candidate command conflict") from error
+        raise HTTPException(status_code=409, detail="classification preview changed; refresh preview") from error
+
+
+@router.post("/recipe-candidates/classification-review", response_model=RecipeClassificationResponse)
+def review_recipe_classification(command: RecipeClassificationCommand, principal: AuthenticatedPrincipal,
+        idempotency_key: str = Header(alias="Idempotency-Key", min_length=16, max_length=160),
+        admin_service: AdminService = Depends(get_admin_service)):
+    try:
+        return admin_service.backfill_recipe_classification(actor_user_id=principal, command=command, command_key=idempotency_key, review=True)
+    except AdminPermissionDenied:
+        return _forbidden()
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="recipe candidate not found") from error
+    except RecipeCandidateConflict as error:
+        raise HTTPException(status_code=409, detail="classification preview changed; refresh preview") from error
 
 
 @router.post("/recipe-candidates/{operation}")

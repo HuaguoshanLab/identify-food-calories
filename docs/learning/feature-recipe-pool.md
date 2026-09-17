@@ -2,7 +2,7 @@
 
 [返回功能学习总目录](README.md)
 
-管理员维护可用于餐单的成品菜候选，指定关联营养目录、单份重量、餐次、餐内角色和口味标签。规划服务从这些候选里组合餐单。
+管理员维护可用于餐单的成品菜候选，指定关联营养目录、单份重量、餐次、三维分类和口味标签。规划服务从这些候选里组合餐单。
 
 ## 1. 先看一个实际例子
 
@@ -109,7 +109,7 @@ candidate = ManagedRecipeCandidate(
     catalog_food_name=food.canonical_name,
     nutrition_catalog_version=food.nutrition_catalog_version,
     meal_slot=row.meal_slot,
-    meal_role=row.meal_role,
+    classification=row.classification.model_dump(mode="json") if row.classification else None,
     portion_grams=row.portion_grams,
     portion_description=row.portion_description,
     method_tags="|".join(row.method_tags),
@@ -144,7 +144,11 @@ candidate = ManagedRecipeCandidate(
 以下为删减主逻辑，省略计数、别名忌口校验、份量调整和卡片组装：
 
 ```python
-if candidate.meal_role != "standalone":
+classification = candidate.classification
+if classification is None or classification.role == "unknown" or not (
+    classification.purpose in ("whole_meal", "both") if not allow_component else
+    classification.purpose in ("component", "both") and classification.role in BUNDLE_ROLES
+):
     stats.filtered += 1
     return None
 calculation = self._nutrition_port.calculate_nutrition(
@@ -158,7 +162,7 @@ calculation = self._nutrition_port.calculate_nutrition(
 
 **为什么这样写**
 
-单独候选可作为一餐；午餐、晚餐还可通过 `planning/bundles.py` 的 `BundlePool` 将主食、蛋白质菜、蔬菜各一项拼成一餐。数据库默认只返回单独候选，组合路径才显式允许这三类组成菜品，领域服务再次检查；任意一个组成菜品都不能单独成为整餐。之后仍按目录每 100g 基准重算营养，并核对菜名、别名和已知标签中的忌口；不会从菜名猜完整配料。
+用途为整餐候选或两者皆可的菜可作为一餐；午餐、晚餐还可通过 `planning/bundles.py` 的 `BundlePool` 将主食、蛋白质菜、蔬菜各一项拼成一餐。数据库默认只返回整餐用途候选，组合路径才显式允许这三类组成菜品，领域服务再次检查；任意一个组成菜品都不能单独成为整餐。之后仍按目录每 100g 基准重算营养，并核对菜名、别名和已知标签中的忌口；不会从菜名猜完整配料。
 
 **处理后变成什么，交给谁**
 
@@ -166,26 +170,13 @@ calculation = self._nutrition_port.calculate_nutrition(
 
 > 语法小注：`PlannedMeal | None` 表示既可能返回餐次，也可能返回“此项不可用”。
 
-### 4.4 明确标记餐内角色
+### 4.4 三个维度只维护一套分类
 
-分类决定午餐、晚餐如何组合；它由管理员维护，模型和菜名都不能替代这份证据。
+配餐用途有整餐候选、组合组成项、两者皆可、待确认；餐内角色包括主食、蛋白质菜、蔬菜菜肴、混合主餐、水果、奶及替代品、坚果种子、汤羹、饮品、其他配菜、待确认；食材标签支持固定类别多选。枚举与运行时校验见 [classification.py](../../backend/app/planning/classification.py)。
 
-| CSV / 后台标签 | 保存值 | 当前用途 |
-|---|---|---|
-| 单独候选 | `standalone` | 沿用原有每餐一个候选的行为，不代表营养搭配完整 |
-| 主食 | `staple` | 午餐、晚餐组合的主食项 |
-| 蛋白质菜 | `protein` | 午餐、晚餐组合的蛋白质菜项 |
-| 蔬菜 | `vegetable` | 午餐、晚餐组合的蔬菜项 |
-| 其他配菜 | `side` | 暂不参与规划 |
-| 饮品 | `drink` | 暂不参与规划 |
+新模板共十一列：原七列后增加“配餐用途、餐内角色、食材标签、分类依据”。用途、角色、依据需一起填写，食材标签用 `|` 分隔；全部分类列为空时保留未分类。不带分类的七列文件仍可导入，旧八列角色模板明确拒绝。导出携带三个维度及依据，导入仍只新增候选，不覆盖已有记录，也不直接启用。
 
-新模板在原七列末尾增加“餐内角色”，支持表中中文或保存值。新列存在时必须填写有效值，不能留空或写“自动”。完整的旧七列模板仍可导入，默认 `standalone`，系统不会因名称含“蔬菜”或“牛奶”而自动改分类。迁移也将现有行保留为 `standalone`。
-
-后台“菜谱管理”可勾选已有记录，点击“设置餐内角色”，填写角色与原因。这比导出后重新导入更适合修正旧数据：重新导入会新增候选，不会覆盖原记录。
-
-入口是 [RecipeRoleDialog.tsx](../../admin-frontend/src/features/recipes/RecipeRoleDialog.tsx)，公开接口为 `POST /api/v1/admin/recipe-candidates/meal-role`，业务函数是 `AdminService.change_recipe_candidate_role`。每批最多 1000 条：验证当前管理员 → 对选中记录按 ID 排序加锁 → 全批检查 → 修改角色和版本 → 同事务写审计。缺失或已删除成员使整批失败；同一请求键重复提交返回原计数，不重复修改版本。角色未变化的行不增加版本，返回计数只统计真正修改的行。
-
-角色变更会影响新的候选扫描和换餐确认，已归档餐单不被回写。若所有候选都标成配菜，系统会报告缺少可用餐次，不会偷偷回退到初始种子菜谱。分类由管理员明确提供，不是模型推断，也不是营养资质认证。
+后台每行“编辑分类”入口为 [RecipeClassificationEditDialog.tsx](../../admin-frontend/src/features/recipes/RecipeClassificationEditDialog.tsx)，调用 `classification-review`。先检查管理员权限、版本及整批记录，再保存并写审计。历史快照不随分类修改。已废弃的旧角色按钮、接口、DTO 和数据库列均已删除，0031 迁移保护已有分类。
 
 ## 5. 换一种输入，会走哪条路
 
@@ -201,9 +192,9 @@ calculation = self._nutrition_port.calculate_nutrition(
 核心测试入口：
 
 - [CSV 兼容与校验](../../backend/tests/admin/test_recipe_candidate_csv.py)：新分类往返、旧模板默认、空值与非法角色。
-- [管理服务](../../backend/tests/admin/test_recipe_role_service.py)：当前角色授权、审计、重试、整批失败与无效命令。
-- [规划过滤](../../backend/tests/planning/test_recipe_meal_roles.py)：即使替身仓储错误返回配菜，生成和换餐仍会拒绝，且不调用营养计算。
-- [真实 PostgreSQL](../../backend/tests/integration/test_managed_recipe_candidate_repository.py)：两种目录来源均在分页前过滤，数据库拒绝非法角色。
+- [管理服务](../../backend/tests/admin/test_recipe_classification.py)：当前角色授权、审计、重试、整批失败与无效命令。
+- [规划过滤](../../backend/tests/planning/test_component_eligibility.py)：即使替身仓储错误返回配菜，生成和换餐仍会拒绝，且不调用营养计算。
+- [真实 PostgreSQL](../../backend/tests/integration/test_managed_recipe_candidate_repository.py)：两种目录来源均在分页前过滤，删列迁移保护已有分类。
 - [后台交互](../../admin-frontend/tests/e2e/recipe-management.spec.ts)：旧模板、新分类导入、批量修改、刷新和审计。
 
 2026-09-16 已执行相关规划、后台与图单测 259 项，真实 PostgreSQL 集成测试 31 项，另有迁移升级/降级与旧数据回填测试 1 项；后台定向组件测试 9 项、类型检查和构建通过。真实后台端到端流程 1 条通过，覆盖旧模板与新分类导入、启停删除、批量修改、刷新和审计。内置浏览器已在隔离环境通过实际登录 → 菜谱管理 → 设置角色 → 保存，看到成功提示与列表更新。测试使用隔离数据，尚未对真实菜谱库做分类；不能证明现有菜品已经有完整营养搭配。
@@ -218,3 +209,44 @@ calculation = self._nutrition_port.calculate_nutrition(
 
 
 组合餐的本轮测试、真实页面验收和未验证范围见[生成一日餐单的组合餐验证](feature-daily-planning.md#组合餐验证2026-09-16)。分类完成只是必要条件，候选还必须启用、目录合格、符合已知忌口，并通过全天营养校验。
+
+## 三维分类回填（2026-09-17）
+
+新增能力是给旧候选补齐“配餐用途、餐内角色、已知食材标签”，并在后台展示。当前 `classification` 已直接驱动规划，废弃的候选 `meal_role` 已由0031删除。不能把名称回填当作人工核实完整配料，更不能用于过敏原排除的保证。
+
+业务场景：旧“单独候选”只说明过去如何选择，不能证明一盘肉或一碗汤能独立成餐。新增维度保存在同一条候选上，不重新导入、不改份量营养、不重写历史。用途支持整餐候选、组合组成项、两者皆可、待确认；角色支持主食、蛋白质菜、蔬菜菜肴、混合主餐、水果、奶及替代品、坚果种子、汤羹、饮品、其他配菜、待确认。食材标签采用固定多选词表，无证据时为空，页面显示待确认。
+
+执行流程：勾选候选 → “补齐三维分类” → 后端读取当前名称与参考资料生成预览 → 检查分类及待确认条目 → 填写原因保存 → 后端逐条锁定并校验版本 → 整批写入及审计 → 刷新列表。已分类条目会跳过，版本冲突整批拒绝；同一提交重试复用幂等键。
+
+关键入口：
+
+- `backend/app/admin/recipe_classification.py`：确定性名称线索与例外；例如鱼香肉丝不据此添加鱼标签，红烧鸡枞不添加禽肉标签。隐含配料不推断。
+- `backend/app/admin/schemas.py`：三维词表和请求运行时校验；`Literal` 约束允许值，元组保存多选标签，拒绝重复标签和重复 ID。
+- `AdminService.preview_recipe_classification` / `backfill_recipe_classification`：预览、当前 RBAC、版本检查、幂等、原子写入和审计。以排序后的 ID 加行锁，降低重叠批次死锁风险。
+- `backend/migrations/versions/0030_recipe_classification.py`：只新增可空 JSONB 字段与对象约束；旧行默认未分类。
+- `admin-frontend/src/features/recipes/RecipeClassificationDialog.tsx`：分类预览和原因表单。审计存储保留完整对象，公开审计只显示三个平铺摘要，兼容既有审计合同。
+
+CSV 现为十一列，支持三个维度和依据；七列无分类格式仍接受，八列旧角色格式已停用。回填前后的完整证据保存在 `outputs/recipe-classification-review/`。现在支持逐项编辑分类并直接使用新配餐规则。
+
+验证入口：`tests/admin/test_recipe_classification.py`、`tests/unit/test_recipe_classification_api.py`、`tests/integration/test_managed_recipe_candidate_repository.py`、后台 `RecipeListPage.test.tsx` 和 `tests/e2e/recipe-management.spec.ts`。覆盖名称例外、未知保留、字段校验、整批冲突不部分写入、审计、重试、持久化、刷新和再次跳过。
+
+
+## 三维分类编辑及直接配餐（2026-09-17）
+
+这次把已保存的分类接入真实选择链路，避免“页面有分类、算法仍用旧角色”。后台每行可编辑配餐用途、餐内角色和已知食材标签，并填写依据与修改原因；待确认不会被强制填成确定类别。
+
+流程：编辑表单 → `classification-review` → 当前管理员权限校验 → 幂等及候选修订检查 → 原子保存分类和审计 → 新配餐查询按用途、角色筛选 → Service 再校验并检查已知食材类别忌口 → 原有营养工具计算、有限组合和全天校验 → 归档快照。旧历史不读取当前分类重算。
+
+关键入口：
+
+- `backend/app/planning/classification.py`：共享分类合同和已知食材类别词；`Literal` 限定枚举，`tuple` 保持已验证分类不可变。
+- `backend/app/planning/repository.py:list_managed_recipe_candidates`：在数据库分页前筛掉未知分类和不适用用途，避免无效条目占满搜索预算。
+- `backend/app/planning/service.py:_compose_managed_candidates`：`both` 同时提供整餐与组成项选择；`_build_managed_meal` 再次校验，防止宽松 Repository 绕过规则。
+- `backend/app/planning/bundles.py:BundlePool`：组合位置读取新角色，仍仅午晚餐主食＋蛋白质菜＋蔬菜。
+- `admin-frontend/src/features/recipes/RecipeClassificationEditDialog.tsx`：依据、原因、多个食材标签及稳定重试标识；冲突需刷新后重新编辑。
+
+`classification` 的 JSONB 使用 `none_as_null=True`，让 Python 的 `None` 表示数据库空值，而非 JSON null，满足对象约束。分类结构版本继续为 `recipe-classification.v1`，选择规则提升为 `planning-selection.v11`。
+
+验证入口新增 `tests/planning/test_classification_selection.py`，覆盖用途/角色矩阵、旧角色不再控制选择、未分类不回退以及已知食材标签忌口。后台组件覆盖编辑必填和失败重试复用标识；真实 PostgreSQL 覆盖分页前筛选。具体执行结果和开发库复核清单见 `outputs/recipe-classification-review/接入结果.md`。
+
+0031 清理验证：开发库623条记录除旧角色列外全部字段不变；删列前快照与核查结果保存在 `outputs/recipe-classification-review/before-drop-legacy-role.json` 和 `drop-legacy-role-verification.json`。历史组合项的同名角色字段不是可变候选字段，不删除。

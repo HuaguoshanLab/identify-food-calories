@@ -1,0 +1,6 @@
+{
+  "migration": "0031",
+  "records_preserved": 623,
+  "old_column_removed": true,
+  "all_remaining_fields_unchanged": true
+}

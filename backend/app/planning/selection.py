@@ -23,7 +23,7 @@ from app.planning.schemas import (
 )
 
 
-SELECTION_POLICY_VERSION = "planning-selection.v10"
+SELECTION_POLICY_VERSION = "planning-selection.v11"
 
 
 class PlanningSearchBudget(BaseModel):

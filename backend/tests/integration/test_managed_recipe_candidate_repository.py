@@ -46,6 +46,7 @@ def _catalog_item(db_session, *, qualified: bool = True, complete_nutrients: boo
 def _candidate(item: FoodCatalogItem, *, status: str = "enabled", deleted_at=None) -> ManagedRecipeCandidate:
     now = datetime.now(UTC)
     return ManagedRecipeCandidate(
+        classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
         id=uuid.uuid4(), food_catalog_item_id=item.id, meal_slot="breakfast", portion_grams=Decimal("180"),
         catalog_publication_id=None, catalog_food_name=item.canonical_name,
         nutrition_catalog_version="managed-test.v1",
@@ -109,6 +110,7 @@ def _published_candidate(db_session, *, canonical_name: str | None = None) -> Ma
     ))
     db_session.flush()
     candidate = ManagedRecipeCandidate(
+        classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
         id=uuid.uuid4(), food_catalog_item_id=None,
         catalog_publication_id=publication.id, catalog_food_name=draft.canonical_name,
         nutrition_catalog_version="admin-publication-v1", meal_slot="lunch",
@@ -122,6 +124,8 @@ def _published_candidate(db_session, *, canonical_name: str | None = None) -> Ma
 
 
 def test_repository_only_returns_enabled_candidates_linked_to_current_qualified_catalog_items(db_session) -> None:
+    # Ignore committed fixtures from prior end-to-end runs in the isolated test DB.
+    db_session.execute(delete(ManagedRecipeCandidate))
     qualified = _catalog_item(db_session)
     disabled = _catalog_item(db_session)
     unqualified = _catalog_item(db_session, qualified=False)
@@ -189,7 +193,7 @@ def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, con
     elif condition == "wrong_slot":
         recipe.meal_slot = "breakfast"
     elif condition == "component":
-        recipe.meal_role = "vegetable"
+        recipe.classification = dict(recipe.classification, purpose="component", role="vegetable")
     elif condition == "disabled":
         recipe.status = "disabled"
     elif condition == "deleted":
@@ -222,6 +226,7 @@ def test_replacement_filters_unusable_catalog_hits_in_postgresql(db_session, con
 
 def _additional_recipe(session, original, slot):
     recipe = ManagedRecipeCandidate(
+        classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
         id=uuid.uuid4(), catalog_publication_id=original.catalog_publication_id,
         catalog_food_name=original.catalog_food_name,
         nutrition_catalog_version=original.nutrition_catalog_version,
@@ -390,6 +395,7 @@ def test_large_real_catalog_composes_using_bounded_database_pages(db_session):
     published = _published_candidate(db_session)
     for index in range(1200):
         row = ManagedRecipeCandidate(
+        classification={"version": "recipe-classification.v1", "purpose": "whole_meal", "role": "mixed_main", "ingredient_tags": [], "evidence": "test", "basis": "admin_review"},
             id=uuid.UUID(int=index + 1), food_catalog_item_id=None,
             catalog_publication_id=published.catalog_publication_id,
             catalog_food_name=published.catalog_food_name,
@@ -440,49 +446,17 @@ def test_component_roles_are_filtered_before_pagination_and_explicit_selection(d
         db_session.add_all((component, standalone))
     component.id = uuid.UUID(int=1)
     standalone.id = uuid.UUID(int=2)
-    component.meal_role = "vegetable"
+    component.classification = dict(component.classification, purpose="component", role="vegetable")
     db_session.flush()
-    assert standalone.meal_role == "standalone"
     repo = SqlAlchemyPlanningProfileRepository(db_session)
     assert repo.has_managed_recipe_candidates()
     page = repo.list_managed_recipe_candidates(catalog_version=None, meal_slot=MealSlot.LUNCH, limit=1)
     assert [row.id for row in page] == [standalone.id]
-    assert page[0].meal_role == "standalone"
     assert repo.list_managed_recipe_candidates(catalog_version=None, recipe_id=component.id) == []
-    standalone.meal_role = "drink"
+    standalone.classification = dict(standalone.classification, purpose="component", role="drink")
     db_session.flush()
     assert repo.list_managed_recipe_candidates(catalog_version=None) == []
     assert repo.has_managed_recipe_candidates()  # Do not reactivate bootstrap recipes.
-
-
-def test_postgres_rejects_unknown_roles(db_session):
-    from sqlalchemy.exc import IntegrityError
-    candidate = _candidate(_catalog_item(db_session))
-    db_session.add(candidate)
-    db_session.flush()
-    with pytest.raises(IntegrityError), db_session.begin_nested():
-        candidate.meal_role = "invented"
-        db_session.flush()
-
-
-def test_role_migration_roundtrip_preserves_candidates_and_backfills_legacy_rows(db_session):
-    import importlib
-    from alembic.migration import MigrationContext
-    from alembic.operations import Operations
-    from sqlalchemy import inspect, text
-
-    row = _candidate(_catalog_item(db_session))
-    row.meal_role = "side"
-    db_session.add(row)
-    db_session.flush()
-    connection = db_session.connection()
-    migration = importlib.import_module("migrations.versions.0029_recipe_meal_role")
-    # DDL stays inside the isolated fixture transaction; no committed data is altered.
-    with Operations.context(MigrationContext.configure(connection)):
-        migration.downgrade()
-        assert "meal_role" not in {column["name"] for column in inspect(connection).get_columns("managed_recipe_candidates")}
-        migration.upgrade()
-    assert connection.execute(text("SELECT meal_role, revision FROM managed_recipe_candidates WHERE id = :id"), {"id": row.id}).one() == ("standalone", 1)
 
 
 def test_explicit_components_generate_real_calculated_meals_in_postgres(db_session):
@@ -514,7 +488,7 @@ def test_explicit_components_generate_real_calculated_meals_in_postgres(db_sessi
     for candidate in candidates:
         row = _candidate(food_map[candidate.nutrition_item_id])
         row.meal_slot = candidate.meal_slot.value
-        row.meal_role = candidate.meal_role
+        row.classification = candidate.classification.model_dump(mode="json")
         row.portion_grams = candidate.portion_grams
         db_session.add(row)
     db_session.flush()
@@ -527,8 +501,76 @@ def test_explicit_components_generate_real_calculated_meals_in_postgres(db_sessi
     assert result.meals[1].nutrients.energy_kcal == Decimal('540')
     # Current qualification, not the administrator's role label, controls eligibility.
     for candidate in candidates:
-        if candidate.meal_role == 'vegetable':
+        if candidate.classification.role == 'vegetable':
             food_map[candidate.nutrition_item_id].is_qualified = False
     db_session.flush()
     failure = _planning_service(db_session).compose_daily_meals(catalog_version=None, target=target, preferences=PreferenceReview(confirmed=True))
     assert failure.action is PlanValidationAction.REPLAN and failure.meals == ()
+
+
+def test_classification_roundtrip_keeps_planning_role_and_audits(db_session):
+    from app.admin.schemas import RecipeClassificationPreviewCommand, RecipeClassificationCommand
+    from app.admin.service import AdminService
+    from app.auth.models import User
+    from app.admin.models import AdminAuditEvent
+    actor = User(id=uuid.uuid4(), email=f'classifier-{uuid.uuid4()}@example.test', password_hash='not-a-login-hash', role='admin', is_active=True, email_verified_at=datetime.now(UTC), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+    row = _candidate(_catalog_item(db_session))
+    row.classification = None
+    row.catalog_food_name = '白米饭'
+    db_session.add_all([actor, row])
+    db_session.flush()
+    service = AdminService(repository=SqlAlchemyAdminRepository(db_session), commit=db_session.flush, rollback=db_session.rollback)
+    preview = service.preview_recipe_classification(actor_user_id=actor.id, command=RecipeClassificationPreviewCommand(ids=[row.id]))
+    command = RecipeClassificationCommand(entries=preview.entries, reason='隔离分类验证', confirm=True)
+    assert service.backfill_recipe_classification(actor_user_id=actor.id, command=command, command_key='classification-test-0001').changed_count == 1
+    db_session.expire(row)
+    assert row.classification['role'] == 'staple'
+    assert row.classification['ingredient_tags'] == ['rice']
+    event = db_session.scalar(select(AdminAuditEvent).where(AdminAuditEvent.object_id == str(row.id), AdminAuditEvent.action == 'recipe_candidate.classified'))
+    assert event.before_diff['classification'] is None
+    assert event.after_diff['classification'] == row.classification
+
+    projection = service._audit_response(event)
+    assert "classification" not in projection.after
+    assert projection.after["classification_role"] == "主食"
+
+
+def test_new_classification_filters_before_limit_without_legacy_fallback(db_session):
+    db_session.execute(delete(ManagedRecipeCandidate))
+    food = _catalog_item(db_session)
+    rows = [_candidate(food) for _ in range(4)]
+    for index, row in enumerate(rows):
+        row.id = uuid.UUID(int=index + 1)
+    rows[0].classification = None
+    rows[1].classification = dict(rows[1].classification, purpose='unknown', role='unknown')
+    rows[2].classification = dict(rows[2].classification, purpose='component', role='protein')
+    rows[3].classification = dict(rows[3].classification, purpose='both', role='protein')
+    db_session.add_all(rows)
+    db_session.flush()
+    repo = SqlAlchemyPlanningProfileRepository(db_session)
+    assert [r.id for r in repo.list_managed_recipe_candidates(catalog_version=None, limit=1)] == [rows[3].id]
+    assert [r.id for r in repo.list_managed_recipe_candidates(catalog_version=None, limit=1, include_components=True)] == [rows[2].id]
+
+
+def test_drop_old_role_migration_preserves_classification_and_null_legacy_evidence(db_session):
+    import importlib
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import inspect, text
+    rows = [_candidate(_catalog_item(db_session)) for _ in range(3)]
+    rows[1].classification = rows[2].classification = None
+    db_session.add_all(rows)
+    db_session.flush()
+    before = rows[0].classification.copy()
+    connection = db_session.connection()
+    migration = importlib.import_module('migrations.versions.0031_drop_legacy_recipe_role')
+    with Operations.context(MigrationContext.configure(connection)):
+        migration.downgrade()
+        connection.execute(text("UPDATE managed_recipe_candidates SET meal_role='vegetable' WHERE id=:id"), {'id': rows[1].id})
+        migration.upgrade()
+        assert 'meal_role' not in {c['name'] for c in inspect(connection).get_columns('managed_recipe_candidates')}
+    values = dict(connection.execute(text('SELECT id, classification FROM managed_recipe_candidates WHERE id = ANY(:ids)'), {'ids': [r.id for r in rows]}).all())
+    assert values[rows[0].id] == before
+    assert values[rows[1].id]['role'] == 'vegetable'
+    assert values[rows[1].id]['purpose'] == 'component'
+    assert values[rows[2].id] is None

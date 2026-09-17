@@ -210,7 +210,7 @@ async def _execute(
         )
         if completed_run is not None:
             import logging
-            logging.getLogger(__name__).info("", extra={"event": "agent_result", "status": completed_run.status.value})
+            logging.getLogger(__name__).info("", extra={"event": "agent_result", "status": completed_run.status})
         if trace_span is not None and completed_run is not None:
             trace_span.update(
                 output={

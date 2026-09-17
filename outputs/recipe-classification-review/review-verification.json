@@ -1,0 +1,32 @@
+{
+  "total": 623,
+  "changed": 70,
+  "role_counts": {
+    "mixed_main": 157,
+    "unknown": 82,
+    "side": 68,
+    "protein": 230,
+    "drink": 6,
+    "soup": 22,
+    "vegetable": 10,
+    "staple": 37,
+    "dairy": 10,
+    "fruit": 1
+  },
+  "purpose_counts": {
+    "whole_meal": 157,
+    "unknown": 82,
+    "component": 384
+  },
+  "original_fields_unchanged": true,
+  "audit": [
+    {
+      "action": "recipe_candidate.classified",
+      "count": 70
+    },
+    {
+      "action": "recipe_candidate.classified_batch",
+      "count": 3
+    }
+  ]
+}

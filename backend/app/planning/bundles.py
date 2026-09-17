@@ -48,7 +48,7 @@ class BundlePool:
         self.weight_sum = sum(getattr(policy, f"bundle_{role}_weight") for role in BUNDLE_ROLES)
 
     def add(self, candidate: ManagedRecipeCandidate, meal: PlannedMeal) -> None:
-        role = candidate.meal_role
+        role = candidate.classification.role if candidate.classification is not None else "unknown"
         if role not in self.pools:
             return
         desired = self.energy * getattr(self.policy, f"bundle_{role}_weight") / self.weight_sum if self.energy is not None else None
@@ -71,7 +71,7 @@ class BundlePool:
 
     @staticmethod
     def _item(candidate: ManagedRecipeCandidate, meal: PlannedMeal) -> PlannedMealItem:
-        role = candidate.meal_role
+        role = candidate.classification.role if candidate.classification is not None else "unknown"
         assert role == "staple" or role == "protein" or role == "vegetable"
         return PlannedMealItem(
             recipe_id=candidate.id, recipe_revision=candidate.revision,

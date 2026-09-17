@@ -2,6 +2,8 @@
 from decimal import Decimal
 from uuid import uuid4
 
+from app.planning.classification import RecipeClassification
+
 import pytest
 from pydantic import ValidationError
 
@@ -21,19 +23,19 @@ from tests.planning.test_plan_archive import FakeArchive, NOW, OWNER
 def fixtures(*, alternatives=1):
     foods, rows = [], []
     for name, role, grams, nutrients in (
-        ('早餐', 'standalone', '100', ('400', '20', '10', '60')),
+        ('早餐', 'mixed_main', '100', ('400', '20', '10', '60')),
         ('米饭', 'staple', '200', ('150', '3', '1', '32')),
         ('鸡胸肉', 'protein', '100', ('180', '25', '8', '2')),
         ('青菜', 'vegetable', '150', ('40', '2', '1', '6')),
     ):
-        for index in range(alternatives if role != 'standalone' else 1):
+        for index in range(alternatives if role != 'mixed_main' else 1):
             food = qualified_food(name=f'{name}{index}', energy=nutrients[0]).model_copy(update={
                 'nutrients_per_100g': NutritionValues(**dict(zip(('energy_kcal', 'protein_g', 'fat_g', 'carbohydrate_g'), map(Decimal, nutrients), strict=True)))
             })
             foods.append(food)
-            for slot in ([MealSlot.BREAKFAST] if role == 'standalone' else [MealSlot.LUNCH, MealSlot.DINNER]):
+            for slot in ([MealSlot.BREAKFAST] if role == 'mixed_main' else [MealSlot.LUNCH, MealSlot.DINNER]):
                 rows.append(managed_candidate(slot=slot, food=food).model_copy(update={
-                    'meal_role': role, 'portion_grams': Decimal(grams), 'flavour_tags': ('清淡',),
+                    'classification': RecipeClassification(purpose='whole_meal' if role == 'mixed_main' else 'component', role='mixed_main' if role == 'mixed_main' else role, ingredient_tags=(), evidence='test'), 'portion_grams': Decimal(grams), 'flavour_tags': ('清淡',),
                 }))
     target = DailyTarget.model_validate({
         'energy_kcal': {'lower': '1460', 'upper': '1500'},
@@ -81,7 +83,7 @@ def test_incomplete_or_unsafe_bundles_never_escape_as_whole_meals(case):
     prefs = PreferenceReview(confirmed=True)
     policy = {}
     if case == 'missing_role':
-        rows = [row for row in rows if row.meal_role != 'vegetable']
+        rows = [row for row in rows if row.classification.role != 'vegetable']
     if case == 'excluded':
         prefs = PreferenceReview(confirmed=True, exclusions=('青菜',))
     if case == 'unavailable':
@@ -89,8 +91,8 @@ def test_incomplete_or_unsafe_bundles_never_escape_as_whole_meals(case):
     if case == 'disabled':
         policy['bundle_enabled'] = False
     if case == 'same_food':
-        same = next(row.nutrition_item_id for row in rows if row.meal_role == 'protein')
-        rows = [row.model_copy(update={'nutrition_item_id': same}) if row.meal_role == 'vegetable' else row for row in rows]
+        same = next(row.nutrition_item_id for row in rows if row.classification.role == 'protein')
+        rows = [row.model_copy(update={'nutrition_item_id': same}) if row.classification.role == 'vegetable' else row for row in rows]
     service = service_for(foods, rows, **policy)
     result = service.compose_daily_meals(catalog_version=None, target=target, preferences=prefs)
     assert result.action is PlanValidationAction.REPLAN and not result.meals
@@ -107,7 +109,7 @@ def test_replacing_a_bundle_preserves_fixed_component_snapshots_and_rejects_the_
     assert result.meals[1].recipe_id != original[1].recipe_id
     assert len(result.meals[1].items) == 3
     # A single unknown/spicy component must not inherit "清淡" from its companions.
-    rows = [row.model_copy(update={'flavour_tags': ('麻辣',)}) if row.meal_role == 'protein' else row for row in rows]
+    rows = [row.model_copy(update={'flavour_tags': ('麻辣',)}) if row.classification.role == 'protein' else row for row in rows]
     failure = compose(service_for(foods, rows), target, fixed_meals=(original[0], original[2]), required_slot=MealSlot.LUNCH, feedback_intent='lighter')
     assert failure.action is PlanValidationAction.REPLAN
 

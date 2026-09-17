@@ -9,6 +9,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 from itertools import islice
 from time import monotonic
 
+from app.planning.classification import ingredient_exclusion_labels
 from app.planning.bundles import BUNDLE_ROLES, BUNDLE_SLOTS, BundlePool
 from app.planning.diagnostics import SearchDiagnostics, SlotDiagnostics, ScanStop
 from app.planning.models import PlanningCompletionProjection, PlanningProfile
@@ -536,13 +537,15 @@ class PlanningService:
                 ) or (feedback_intent == "lighter" and candidate.meal_slot is required_slot and "清淡" not in {normalized_label(tag) for tag in candidate.flavour_tags}):
                     stats.filtered += 1
                     continue
-                if candidate.meal_role != "standalone":
-                    if candidate.meal_slot in bundles and candidate.meal_role in BUNDLE_ROLES:
-                        meal = self._build_managed_meal(candidate, preferences, stats=stats, allow_component=True)
-                        if meal is not None:
-                            bundles[candidate.meal_slot].add(candidate, meal)
-                    else:
-                        stats.filtered += 1
+                classification = candidate.classification
+                if classification is None or classification.role == "unknown" or classification.purpose == "unknown":
+                    stats.filtered += 1
+                    continue
+                if classification.purpose in ("component", "both") and candidate.meal_slot in bundles and classification.role in BUNDLE_ROLES:
+                    meal = self._build_managed_meal(candidate, preferences, stats=stats, allow_component=True)
+                    if meal is not None:
+                        bundles[candidate.meal_slot].add(candidate, meal)
+                if classification.purpose not in ("whole_meal", "both"):
                     continue
                 meal = self._build_managed_meal(candidate, preferences, stats=stats)
                 if meal is not None:
@@ -623,12 +626,16 @@ class PlanningService:
 
     def _build_managed_meal(self, candidate, preferences: PreferenceReview, *, stats: SlotDiagnostics | None = None, portion_grams: Decimal | None = None, allow_component: bool = False) -> PlannedMeal | None:
         stats = stats or SlotDiagnostics()
-        if candidate.meal_role != "standalone" and not (allow_component and candidate.meal_role in BUNDLE_ROLES):
+        classification = candidate.classification
+        if classification is None or classification.role == "unknown" or not (
+            classification.purpose in ("whole_meal", "both") if not allow_component else
+            classification.purpose in ("component", "both") and classification.role in BUNDLE_ROLES
+        ):
             stats.filtered += 1
             return None
         # Cheap known-label exclusions precede nutrition I/O. Canonical aliases
         # are still checked after the authoritative catalog lookup below.
-        if matches_exclusion(preferences.exclusions, (candidate.display_name, *candidate.method_tags, *candidate.flavour_tags)):
+        if matches_exclusion(preferences.exclusions, (candidate.display_name, *candidate.method_tags, *candidate.flavour_tags, *ingredient_exclusion_labels(classification.ingredient_tags))):
             stats.excluded += 1
             return None
         stats.nutrition_calls += 1

@@ -8,6 +8,7 @@ from decimal import Decimal
 from enum import Enum, StrEnum
 from typing import Literal
 
+from app.planning.classification import RecipeClassification
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -261,12 +262,12 @@ class ManagedRecipeCandidate(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    classification: RecipeClassification | None = None
     id: uuid.UUID
     nutrition_item_id: uuid.UUID
     catalog_version: str = Field(min_length=1, max_length=80)
     display_name: str = Field(min_length=1, max_length=200)
     meal_slot: MealSlot
-    meal_role: Literal["standalone", "staple", "protein", "vegetable", "side", "drink"] = "standalone"
     portion_grams: Decimal = Field(gt=0, le=Decimal("2000"))
     portion_description: str = Field(min_length=1, max_length=120)
     method_tags: tuple[str, ...] = Field(min_length=1)

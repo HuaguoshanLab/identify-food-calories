@@ -118,7 +118,7 @@ def test_equal_total_grams_do_not_collapse_different_component_portions():
     grams = {'staple': Decimal(190), 'protein': Decimal(110), 'vegetable': Decimal(150)}
 
     def redistribute(row, meal, desired):
-        return service._build_managed_meal(row, PreferenceReview(confirmed=True), allow_component=True, portion_grams=grams[row.meal_role])
+        return service._build_managed_meal(row, PreferenceReview(confirmed=True), allow_component=True, portion_grams=grams[row.classification.role])
 
     options = list(pool.finish(excluded=(), adapt=redistribute))
     assert options[0].meal.portion_grams == options[1].meal.portion_grams == 450

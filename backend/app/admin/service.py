@@ -46,7 +46,9 @@ from app.admin.recipe_csv import (
     parse_recipe_candidate_csv,
     write_recipe_candidate_csv,
 )
+from app.admin.recipe_classification import classify_recipe, PURPOSE_LABELS, ROLE_LABELS, TAG_LABELS
 from app.admin.schemas import (
+    RecipeClassificationCommand, RecipeClassificationPreviewCommand, RecipeClassificationPreview, RecipeClassificationEntry,
     AdminAuditEventResponse,
     AdminAuditPageResponse,
     AdminRunDetailResponse,
@@ -96,8 +98,7 @@ from app.admin.schemas import (
     RuntimeConfigCommand,
     RuntimeConfigResponse,
     RecipeCandidateBulkCommand,
-    RecipeCandidateRoleCommand,
-    RecipeCandidateRoleResponse,
+    RecipeClassificationResponse,
     RecipeCandidateCsvPreview,
     RecipeCandidateImportCommand,
     RecipeCandidateImportResponse,
@@ -699,7 +700,7 @@ class AdminService:
                     catalog_food_name=food.canonical_name,
                     nutrition_catalog_version=food.nutrition_catalog_version,
                     meal_slot=row.meal_slot,
-                    meal_role=row.meal_role,
+                    classification=row.classification.model_dump(mode="json") if row.classification else None,
                     portion_grams=row.portion_grams,
                     portion_description=row.portion_description,
                     method_tags="|".join(row.method_tags),
@@ -725,7 +726,7 @@ class AdminService:
                             "nutrition_item_id": str(food.id),
                             "nutrition_catalog_version": food.nutrition_catalog_version,
                             "meal_slot": candidate.meal_slot,
-                            "meal_role": candidate.meal_role,
+                            "classification": candidate.classification,
                             "status": candidate.status,
                             "revision": 1,
                         },
@@ -757,54 +758,68 @@ class AdminService:
             raise
         return RecipeCandidateImportResponse(imported_count=len(ids), candidate_ids=ids)
 
-    def change_recipe_candidate_role(
-        self, *, actor_user_id: uuid.UUID, command: RecipeCandidateRoleCommand,
-        command_key: str,
-    ) -> RecipeCandidateRoleResponse:
+    def preview_recipe_classification(self, *, actor_user_id, command: RecipeClassificationPreviewCommand):
+        self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
+        entries = []
+        skipped = 0
+        for identity in sorted(command.ids):
+            row = self._repository.get_recipe_candidate(identity)
+            if row is None or row.deleted_at is not None:
+                raise KeyError("recipe candidate not found")
+            if row.classification is not None and not (command.review_unknown and row.classification.get("role") == "unknown" and classify_recipe(row.catalog_food_name).role != "unknown"):
+                skipped += 1
+                continue
+            entries.append(RecipeClassificationEntry(id=row.id, revision=row.revision,
+                catalog_food_name=row.catalog_food_name, classification=classify_recipe(row.catalog_food_name)))
+        return RecipeClassificationPreview(entries=entries, skipped_count=skipped)
+
+    def backfill_recipe_classification(self, *, actor_user_id, command: RecipeClassificationCommand, command_key: str, review: bool = False):
         actor = self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
-        batch_key = "recipe-role:" + hashlib.sha256(f"{actor.id}:{command_key}".encode()).hexdigest()
-        request_hash = self._request_hash("recipe-role", command.model_dump())
+        operation = "recipe-classification-review" if review else "recipe-classification"
+        batch_key = operation + ":" + hashlib.sha256(f"{actor.id}:{command_key}".encode()).hexdigest()
+        request_hash = self._request_hash(operation, command.model_dump())
         self._repository.acquire_recipe_candidate_lock(batch_key)
         replay = self._repository.get_audit_event_by_command_key(batch_key)
         if replay is not None:
             if replay.after_diff.get("request_hash") != request_hash:
-                raise RecipeCandidateConflict("Idempotency-Key was reused for a different command")
-            return RecipeCandidateRoleResponse(changed_count=len(replay.after_diff["candidate_ids"]))
-        now = self._now()
-        changed_ids = []
+                raise RecipeCandidateConflict("command changed")
+            return RecipeClassificationResponse(changed_count=len(replay.after_diff["candidate_ids"]))
         try:
-            # Stable row-lock order avoids deadlocks between overlapping batches.
-            candidates = [self._repository.get_recipe_candidate(identity, for_update=True)
-                          for identity in sorted(command.ids)]
-            if any(item is None or item.deleted_at is not None for item in candidates):
-                raise KeyError("recipe candidate not found")
-            for candidate in candidates:
-                if candidate.meal_role == command.meal_role:
-                    continue
-                before = {"meal_role": candidate.meal_role, "revision": candidate.revision}
-                candidate.meal_role = command.meal_role
-                candidate.revision += 1
-                candidate.updated_at = now
-                changed_ids.append(str(candidate.id))
-                self._repository.add_audit_event(AdminAuditEvent(
-                    id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
-                    action="recipe_candidate.role_changed", object_type="managed_recipe_candidate",
-                    object_id=str(candidate.id), reason=command.reason, before_diff=before,
-                    after_diff={"meal_role": candidate.meal_role, "revision": candidate.revision},
-                    related_version=None, command_key=f"{batch_key}:{candidate.id}",
-                ))
-            self._repository.add_audit_event(AdminAuditEvent(
-                id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
-                action="recipe_candidate.role_changed_batch", object_type="managed_recipe_candidate_batch",
-                object_id=command_key, reason=command.reason, before_diff={},
-                after_diff={"request_hash": request_hash, "candidate_ids": changed_ids},
-                related_version=None, command_key=batch_key,
-            ))
+            pairs = [(entry, self._repository.get_recipe_candidate(entry.id, for_update=True))
+                     for entry in sorted(command.entries, key=lambda entry: entry.id)]
+            # Validate the entire preview before mutating any member of the batch.
+            for entry, row in pairs:
+                if row is None or row.deleted_at is not None:
+                    raise KeyError("recipe candidate not found")
+                if row.revision != entry.revision or (not review and row.classification is not None and not (command.review_unknown and row.classification.get("role") == "unknown")) or row.catalog_food_name != entry.catalog_food_name:
+                    raise RecipeCandidateConflict("classification preview is stale")
+                if review and entry.classification.basis != "admin_review":
+                    raise RecipeCandidateConflict("manual review requires review evidence")
+                if not review and entry.classification != classify_recipe(row.catalog_food_name):
+                    raise RecipeCandidateConflict("classification preview changed")
+            now = self._now()
+            for entry, row in pairs:
+                before = {"classification": row.classification, "revision": row.revision}
+                if row.classification is not None:
+                    before.update(classification_purpose=PURPOSE_LABELS[row.classification["purpose"]],
+                                  classification_role=ROLE_LABELS[row.classification["role"]],
+                                  classification_tags="、".join(TAG_LABELS[tag] for tag in row.classification["ingredient_tags"]) or "待确认")
+                row.classification = entry.classification.model_dump(mode="json")
+                row.revision += 1
+                row.updated_at = now
+                self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+                    action="recipe_candidate.classified", object_type="managed_recipe_candidate", object_id=str(row.id), reason=command.reason,
+                    before_diff=before, after_diff={"classification": row.classification, "revision": row.revision, "classification_purpose": PURPOSE_LABELS[entry.classification.purpose], "classification_role": ROLE_LABELS[entry.classification.role], "classification_tags": "、".join(TAG_LABELS[tag] for tag in entry.classification.ingredient_tags) or "待确认"},
+                    related_version="recipe-classification.v1", command_key=f"{batch_key}:{row.id}"))
+            ids = [str(entry.id) for entry, _ in pairs]
+            self._repository.add_audit_event(AdminAuditEvent(id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
+                action="recipe_candidate.classified_batch", object_type="managed_recipe_candidate_batch", object_id=command_key, reason=command.reason,
+                before_diff={}, after_diff={"candidate_ids": ids, "request_hash": request_hash}, related_version="recipe-classification.v1", command_key=batch_key))
             self._commit()
         except Exception:
             self._rollback()
             raise
-        return RecipeCandidateRoleResponse(changed_count=len(changed_ids))
+        return RecipeClassificationResponse(changed_count=len(ids))
 
     def change_recipe_candidate_status(
         self,
@@ -2205,7 +2220,7 @@ class AdminService:
             meal_slot=cast(
                 Literal["breakfast", "lunch", "dinner", "snack"], candidate.meal_slot
             ),
-            meal_role=candidate.meal_role,
+            classification=candidate.classification,
             portion_grams=candidate.portion_grams,
             portion_description=candidate.portion_description,
             method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),
@@ -2621,8 +2636,10 @@ class AdminService:
             object_type=event.object_type,
             object_id=event.object_id,
             reason=event.reason,
-            before=event.before_diff,
-            after=event.after_diff,
+            # Full classification remains in authoritative audit storage; the
+            # public audit contract exposes its three bounded display fields.
+            before={key: value for key, value in event.before_diff.items() if key != "classification"},
+            after={key: value for key, value in event.after_diff.items() if key != "classification"},
             related_version=event.related_version,
             command_key=event.command_key,
         )

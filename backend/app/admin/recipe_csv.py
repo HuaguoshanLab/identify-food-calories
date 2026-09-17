@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pydantic import ValidationError
 
 from app.admin.catalog_csv import MAX_CSV_BYTES, MAX_IMPORT_ROWS, _safe_cell
+from app.admin.recipe_classification import PURPOSE_LABELS, ROLE_LABELS, TAG_LABELS
 from app.admin.schemas import (
     RecipeCandidateCsvError,
     RecipeCandidateCsvPreview,
@@ -22,10 +23,12 @@ RECIPE_CSV_COLUMNS = {
     "做法标签": "method_tags",
     "口味标签": "flavour_tags",
     "状态": "status",
-    "餐内角色": "meal_role",
+    "配餐用途": "purpose",
+    "餐内角色": "role",
+    "食材标签": "ingredient_tags",
+    "分类依据": "evidence",
 }
-LEGACY_RECIPE_CSV_COLUMNS = {label: field for label, field in RECIPE_CSV_COLUMNS.items() if field != "meal_role"}
-ROLE_LABELS = {"standalone": "单独候选", "staple": "主食", "protein": "蛋白质菜", "vegetable": "蔬菜", "side": "其他配菜", "drink": "饮品"}
+UNCLASSIFIED_CSV_COLUMNS = dict(list(RECIPE_CSV_COLUMNS.items())[:7])
 MEAL_LABELS = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
 STATUS_LABELS = {"pending": "待审核", "enabled": "已启用", "disabled": "已停用"}
 
@@ -44,7 +47,7 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
             io.StringIO(content.lstrip("\ufeff"), newline=""), strict=True
         )
         header = next(reader, None)
-        columns = LEGACY_RECIPE_CSV_COLUMNS if header == list(LEGACY_RECIPE_CSV_COLUMNS) else RECIPE_CSV_COLUMNS
+        columns = UNCLASSIFIED_CSV_COLUMNS if header == list(UNCLASSIFIED_CSV_COLUMNS) else RECIPE_CSV_COLUMNS
         if header != list(columns):
             raise RecipeCandidateCsvInvalid(
                 "表头不匹配，请下载并使用导入模板，保留列名与顺序。"
@@ -79,9 +82,16 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
             raw["status"] = {label: key for key, label in STATUS_LABELS.items()}.get(
                 str(raw["status"]).strip(), raw["status"]
             )
-            if "meal_role" in raw:
-                role = str(raw["meal_role"]).strip()
-                raw["meal_role"] = {label: key for key, label in ROLE_LABELS.items()}.get(role, role)
+            if "purpose" in raw:
+                purpose, role, tags, evidence = (str(raw.pop(key)).strip() for key in ("purpose", "role", "ingredient_tags", "evidence"))
+                if any((purpose, role, tags, evidence)):
+                    raw["classification"] = {
+                        "purpose": {label: key for key, label in PURPOSE_LABELS.items()}.get(purpose, purpose),
+                        "role": {label: key for key, label in ROLE_LABELS.items()}.get(role, role),
+                        "ingredient_tags": tuple({label: key for key, label in TAG_LABELS.items()}.get(value.strip(), value.strip()) for value in tags.split("|") if value.strip()),
+                        "evidence": evidence,
+                        "basis": "admin_review",
+                    }
             try:
                 candidate = RecipeCandidateCsvRow.model_validate(raw)
             except ValidationError as error:
@@ -90,7 +100,7 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
                     errors.append(
                         RecipeCandidateCsvError(
                             row=reader.line_num,
-                            field=labels.get(str(issue["loc"][0]), "整行"),
+                            field=labels.get(str(issue["loc"][1] if issue["loc"][0] == "classification" and len(issue["loc"]) > 1 else issue["loc"][0]), "分类"),
                             message="字段缺失或格式不正确，请核对模板。",
                         )
                     )
@@ -128,7 +138,10 @@ def write_recipe_candidate_csv(
             "flavour_tags": "|".join(row.flavour_tags),
             "meal_slot": MEAL_LABELS[str(row.meal_slot)],
             "status": STATUS_LABELS[str(row.status)],
-            "meal_role": ROLE_LABELS[row.meal_role],
+            "purpose": PURPOSE_LABELS[row.classification.purpose] if row.classification else "",
+            "role": ROLE_LABELS[row.classification.role] if row.classification else "",
+            "ingredient_tags": "|".join(TAG_LABELS[tag] for tag in row.classification.ingredient_tags) if row.classification else "",
+            "evidence": row.classification.evidence if row.classification else "",
         }
         writer.writerow(
             [_safe_cell(values[field]) for field in RECIPE_CSV_COLUMNS.values()]

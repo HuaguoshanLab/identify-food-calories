@@ -10,7 +10,7 @@ import { RecipeListPage } from './RecipeListPage'
 vi.mock('@/auth/AdminAuthProvider', () => ({ useAdminAuth: () => ({ accessToken: 'test-runtime-token', clearSession: vi.fn() }) }))
 
 const base = '/api/v1/admin/recipe-candidates'
-const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slot: 'lunch', meal_role: 'standalone', portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
+const candidate = { id: 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2', catalog_food_name: '辣椒炒肉', meal_slot: 'lunch', portion_grams: '180', portion_description: '1 盘', method_tags: ['炒'], flavour_tags: ['微辣'], status: 'pending', revision: 1 }
 
 function setup() {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RecipeListPage /></QueryClientProvider>)
@@ -31,28 +31,6 @@ describe('RecipeListPage', () => {
     await user.type(screen.getByLabelText('操作原因'), '核对完毕')
     await user.click(screen.getByRole('button', { name: '确认操作' }))
     expect(await screen.findByRole('status')).toHaveTextContent('已启用 1 条菜谱候选')
-  })
-
-  it('明确显示角色，要求原因并通过后端批量修改', async () => {
-    const user = userEvent.setup()
-    let changed = false
-    mswServer.use(http.get(base, () => HttpResponse.json({ items: [{ ...candidate, meal_role: changed ? 'vegetable' : 'standalone' }], total: 1, page: 1, page_size: 20 })), http.post(`${base}/meal-role`, async ({ request }) => {
-      expect(await request.json()).toEqual({ ids: [candidate.id], meal_role: 'vegetable', reason: '根据实际食材分类', confirm: true })
-      expect(request.headers.get('Idempotency-Key')).toBeTruthy()
-      changed = true
-      return HttpResponse.json({ changed_count: 1 })
-    }))
-    setup()
-    await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
-    await user.click(screen.getByRole('button', { name: '设置餐内角色' }))
-    expect(screen.getByText(/缺少任一角色时不会拼餐/)).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '保存角色' }))
-    expect(await screen.findByText('请填写修改原因。')).toBeVisible()
-    await user.selectOptions(screen.getByLabelText('餐内角色'), 'vegetable')
-    await user.type(screen.getByLabelText('修改原因'), '根据实际食材分类')
-    await user.click(screen.getByRole('button', { name: '保存角色' }))
-    expect(await screen.findByText('已更新 1 条菜谱的餐内角色。')).toBeVisible()
-    expect(await screen.findByRole('cell', { name: '蔬菜' })).toBeVisible()
   })
 
   it('导入显示逐行校验错误并禁止确认', async () => {
@@ -106,4 +84,59 @@ describe('RecipeListPage', () => {
     await user.click(screen.getByRole('button', { name: '全选全部（21）' }))
     expect(await screen.findByText('已选 21 条')).toBeVisible()
   })
+})
+
+it('预览三维分类，重试沿用幂等键并保存后展示分类', async () => {
+  const user = userEvent.setup()
+  const classification = { version: 'recipe-classification.v1', purpose: 'component', role: 'protein', ingredient_tags: ['livestock'], evidence: '根据菜名', basis: 'name_and_legacy_role' }
+  let saved = false
+  const keys: string[] = []
+  mswServer.use(
+    http.get(base, () => HttpResponse.json({ items: [{ ...candidate, classification: saved ? classification : null }], total: 1, page: 1, page_size: 20 })),
+    http.post(`${base}/classification-preview`, () => HttpResponse.json({ entries: [{ id: candidate.id, revision: 1, catalog_food_name: candidate.catalog_food_name, classification }], skipped_count: 0 })),
+    http.post(`${base}/classification-backfill`, async ({ request }) => {
+      keys.push(request.headers.get('Idempotency-Key')!)
+      const body = await request.json() as { reason: string }
+      expect(body.reason).toBe('回填旧数据')
+      if (keys.length === 1) return new HttpResponse(null, { status: 503 })
+      saved = true
+      return HttpResponse.json({ changed_count: 1 })
+    }),
+  )
+  setup()
+  await user.click(await screen.findByRole('checkbox', { name: '选择 辣椒炒肉' }))
+  await user.click(screen.getByRole('button', { name: '补齐三维分类' }))
+  expect(await screen.findByText(/待补齐 1 条/)).toBeVisible()
+  await user.type(screen.getByLabelText('修改原因'), '回填旧数据')
+  await user.click(screen.getByRole('button', { name: '保存分类' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('保存未确认')
+  await user.click(screen.getByRole('button', { name: '保存分类' }))
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('已补齐 1 条'))
+  expect(keys[0]).toBe(keys[1])
+  expect(await screen.findByText('畜肉')).toBeVisible()
+})
+
+it('编辑三维分类校验原因、依据，并在失败重试时复用请求标识', async () => {
+  const user = userEvent.setup()
+  const keys: string[] = []
+  mswServer.use(http.get(base, () => HttpResponse.json({ items: [candidate], total: 1, page: 1, page_size: 20 })), http.post(`${base}/classification-review`, async ({ request }) => {
+    keys.push(request.headers.get('Idempotency-Key')!)
+    expect(await request.json()).toMatchObject({ entries: [{ id: candidate.id, revision: 1, classification: { purpose: 'component', role: 'protein', ingredient_tags: ['livestock'], basis: 'admin_review', evidence: '根据菜品配料确认' } }], reason: '纠正用途' })
+    return keys.length === 1 ? HttpResponse.json({}, { status: 503 }) : HttpResponse.json({ changed_count: 1 })
+  }))
+  setup()
+  await user.click(await screen.findByRole('button', { name: '编辑 辣椒炒肉 分类' }))
+  await user.click(screen.getByRole('button', { name: '保存修改' }))
+  expect(await screen.findByText('请填写分类依据')).toBeVisible()
+  await user.selectOptions(screen.getByLabelText('配餐用途'), 'component')
+  await user.selectOptions(screen.getByLabelText('餐内角色'), 'protein')
+  await user.click(screen.getByLabelText('畜肉'))
+  await user.type(screen.getByLabelText('分类依据'), '根据菜品配料确认')
+  await user.type(screen.getByLabelText('修改原因'), '纠正用途')
+  await user.click(screen.getByRole('button', { name: '保存修改' }))
+  expect(await screen.findByText(/保存未确认/)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '保存修改' }))
+  expect(await screen.findByText('分类已更新，将用于新配餐。')).toBeVisible()
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).toBe(keys[1])
 })

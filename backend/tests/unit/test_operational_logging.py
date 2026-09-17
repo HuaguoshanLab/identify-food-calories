@@ -244,3 +244,17 @@ def test_stream_forwarding_and_disconnect(app_and_logs):
         assert request_id.get() is None
 
     asyncio.run(scenario())
+
+
+def test_completed_database_string_status_does_not_fail_success_response():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from app.agent.api import _execute
+    from app.core.tracing import DisabledTracingRuntime
+
+    # ORM statuses are strings after a flush/reload, even if callers use StrEnum.
+    completed = SimpleNamespace(status='completed', model_calls=0, tool_calls=0, elapsed_ms=1)
+    service = SimpleNamespace(execute_run=AsyncMock(return_value=completed))
+    runtime = SimpleNamespace(tracing=DisabledTracingRuntime(), supervisor=SimpleNamespace(claim=Mock()), graph=object(), checkpointer=object())
+    asyncio.run(_execute(service=service, runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))
+    service.execute_run.assert_awaited_once()

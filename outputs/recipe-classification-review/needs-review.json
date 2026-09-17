@@ -1,0 +1,4139 @@
+[
+  {
+    "id": "0112ccb3-a7d5-4dc7-9a73-60e986e70dab",
+    "name": "扬州狮子头火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "016e49bc-41f0-42bd-bad0-82e4150a5cbd",
+    "name": "炸冰淇淋",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0236b146-37cf-489f-82e2-6fffb9f26ade",
+    "name": "港式奶茶",
+    "slot": "snack",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "039ec354-3408-47a0-84f8-90f242d67ff2",
+    "name": "桂花糯米藕",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "rice"
+      ]
+    }
+  },
+  {
+    "id": "03aa5acd-73bf-487f-92b5-75e52f91becf",
+    "name": "五香卷",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "05c5fe78-7066-4bdb-9c57-624fc1271efd",
+    "name": "河北羊汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "078083a9-9ba0-4701-b6bb-e43544eb1e05",
+    "name": "蟹壳黄",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "07fff73c-9d32-4b3d-b32a-a0c54f6f99d9",
+    "name": "冰糖葫芦",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "08618745-7e5c-4103-8c3b-a8421ad58264",
+    "name": "桂平甜糍粑",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "08fe2af2-3d9e-4239-8ee2-366b3f9eb793",
+    "name": "重庆火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "092f1bea-b92b-47d9-a41f-4f4bfb93ac28",
+    "name": "锅包肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0a105520-ee1b-4945-b369-585f843ecaca",
+    "name": "牛丸汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0a48653d-052c-42b3-b823-3f401d0e8e3e",
+    "name": "锅贴",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0b20b0a4-27fc-4d99-ae08-d6bfc26bd4c2",
+    "name": "回锅肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0bc0e308-4e8e-44b6-9916-646a15aec476",
+    "name": "蒙古火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0be04908-bcb2-4965-8570-7663f99f27b8",
+    "name": "炸肝饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0dc9a322-7e72-467c-bceb-5d96f989135a",
+    "name": "秦腔蒸肉包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0f150832-a150-43d6-8dd4-2a3e500be359",
+    "name": "哈尔滨红肠",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0f1f910e-b778-432a-bb7d-252ad932c4ef",
+    "name": "粉蒸肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0f316703-2a1a-4a19-af8c-319d2522facd",
+    "name": "马拉糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "0f502fc2-c39f-4e14-846f-c594b3237b06",
+    "name": "客家河粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "1022d4b7-c5cb-48f3-be2d-f019e509f261",
+    "name": "蓬莱小面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "115c4f4c-b08c-41d5-93db-57eaac3e1b65",
+    "name": "叉烧",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "121109bc-4a10-4d3d-bb82-879259bfd695",
+    "name": "地三鲜",
+    "slot": "lunch",
+    "classification": {
+      "role": "vegetable",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "121ecb28-e07f-4acc-a54a-ed5f72f24089",
+    "name": "湖南腊肉",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "131c1f9e-bc59-4264-8aab-6ae4553307b9",
+    "name": "重庆米豆腐",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "13743295-b2cc-4e08-ae48-945511f9c84d",
+    "name": "重庆冰粉",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "138d4ed4-ce45-48c8-bbfa-955fbb34b072",
+    "name": "肉夹馍",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "13f90085-fffd-4129-bf62-c59634b01180",
+    "name": "片儿川",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "1503a441-498c-46d4-b5c1-17a85e0f59c6",
+    "name": "米肠子面肺子",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "16df4ad2-c322-4312-8be9-80aa20d17d90",
+    "name": "酸菜炖粉条",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "leafy_veg"
+      ]
+    }
+  },
+  {
+    "id": "171feb3f-2b41-4fdf-b8e8-e4d645665056",
+    "name": "煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "1819b497-98e2-4af1-b033-8c65e96dc5ec",
+    "name": "宣威火腿",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "185282ba-e8c6-40ff-a0a7-10b3b5485583",
+    "name": "炸玉米饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "other_grain"
+      ]
+    }
+  },
+  {
+    "id": "188b4576-b02d-48e1-a332-e909da328c1e",
+    "name": "贾三灌汤包",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "18c83732-277b-412e-8b6a-34ac3d814ab0",
+    "name": "鲜花饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "19b2e3ae-22bc-4d27-bc99-3a18f9161e50",
+    "name": "宜宾燃面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "19d29e29-6b92-4793-bbab-f321428b44a4",
+    "name": "南昌拌粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "1cb257f9-8ab2-44a4-ada4-dffc0b7f70f0",
+    "name": "新疆炸南瓜饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit_veg"
+      ]
+    }
+  },
+  {
+    "id": "1e80fed1-3e62-475c-8286-0f3b61ba15e0",
+    "name": "抓饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "206b37bb-18cd-413e-93a7-755ccaf65790",
+    "name": "椰子冻",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit"
+      ]
+    }
+  },
+  {
+    "id": "20ae8be9-5939-4d44-84e9-041f4fc9f5da",
+    "name": "凉皮",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "216cf424-50bf-4c6f-857a-53e9ff98b112",
+    "name": "沙茶面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "21cc9caf-fc86-427c-ab7a-36c49fb18c43",
+    "name": "酸菜煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "leafy_veg"
+      ]
+    }
+  },
+  {
+    "id": "23044e66-8fb1-4de4-9c79-d583dd2a019f",
+    "name": "豆沙年糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "23917033-c3c5-4adc-a3e7-5d8286352c55",
+    "name": "东山羊火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "24b01b38-4677-4a14-8465-4cbcc24d319b",
+    "name": "艾草粄",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "263e3c9a-64b0-45de-b901-625f2f4199f4",
+    "name": "黄山烧饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "27f6fb33-450a-4c67-b78a-ad18b4c562ef",
+    "name": "鱼香肉丝",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2817372e-e93d-45ad-b431-db189bc8f075",
+    "name": "嘉兴粽子",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "286422d9-0c52-458a-901c-86160d9bb747",
+    "name": "咕噜肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "28b588da-52df-4023-b46c-ad2a3e21a4cb",
+    "name": "奶渣饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "dairy"
+      ]
+    }
+  },
+  {
+    "id": "28fe346e-b53c-4cc4-adf5-d085512097dc",
+    "name": "姜撞奶",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "29fd5de0-b45f-4f68-9484-2410cd84728e",
+    "name": "潮州粥",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2a3378aa-b0fb-4ea2-966c-5ba807703124",
+    "name": "石台炒米粿",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "rice"
+      ]
+    }
+  },
+  {
+    "id": "2a433a1a-e08e-4045-afc0-e9ab5dfc862b",
+    "name": "临洮炒搅团",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2a57f668-c7ce-4515-9eba-f2ab10e8c0ea",
+    "name": "罗宋汤",
+    "slot": "dinner",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2cb64210-4c16-4f14-95f9-171e86c37a42",
+    "name": "荔枝肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2cffe8ae-c1b5-4e1d-b077-4f9569b6f17e",
+    "name": "甜水面",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2d3a1f4e-1847-4298-b53b-40cf1bff6709",
+    "name": "奶黄包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2d50d0e6-2093-46ab-a2ea-58cfd42222f0",
+    "name": "红烧河豚",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2d597a41-7c5a-4d07-af53-f45463197729",
+    "name": "沙县扁肉",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2d7f0c43-2268-4f3d-b498-18eed3645ca1",
+    "name": "河北粉条炖肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "2f21c750-1c20-4bb1-83a8-7f3c49000a75",
+    "name": "南宁老友粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "30ab0743-a9b3-499d-acf4-428b434f8223",
+    "name": "宁波炒年糕",
+    "slot": "lunch",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "31a94142-8e86-4a4b-a478-e1a4fcd56f39",
+    "name": "客家小炒",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "32f51e1f-2a38-4239-a439-8e5e64dab552",
+    "name": "定西土豆粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "3303e957-0a20-4bc2-9b44-8e7de3942aa3",
+    "name": "客家芋头丸",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "33633588-032a-4098-8c7e-2aabd7582fbc",
+    "name": "磁器口陈麻花",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "33b25fd7-9bcc-4c34-8902-f79bd3deda58",
+    "name": "蜜麻花",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "33bb1b4b-c32f-4c2a-8e53-318e778b8bc0",
+    "name": "拔丝地瓜",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "3674e372-d6a6-4610-a533-39eea2f216c9",
+    "name": "豆浆粥",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "soy",
+        "plant_drink"
+      ]
+    }
+  },
+  {
+    "id": "36b93f21-0b01-41dd-bbb5-b0330a54785e",
+    "name": "海南粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "36ec9734-7421-4207-9887-ae39e9096729",
+    "name": "宿州撒汤",
+    "slot": "breakfast",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3849f117-6df3-423f-b6c6-36bf20415d7d",
+    "name": "乳扇",
+    "slot": "snack",
+    "classification": {
+      "role": "dairy",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "39ec0e3e-f6a8-4575-94af-86f4535234de",
+    "name": "蒜泥白肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3af4a0b4-16e4-421f-9028-6ebee45ca487",
+    "name": "豌豆黄",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "pulses"
+      ]
+    }
+  },
+  {
+    "id": "3b697900-25c0-4731-b430-6bb1f9fc1b7e",
+    "name": "藏式麻花",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3cb084dc-7a27-402f-94a1-1e91e8c05381",
+    "name": "葱烧海参",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3cc4c3d5-353c-4f32-81cb-c47de42cc268",
+    "name": "玫瑰花糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3d2d4514-acd1-4c53-ba20-799f2a922263",
+    "name": "佛跳墙",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3f571951-4094-417d-83ec-9301649c1dba",
+    "name": "土笋冻",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "3fdac868-bada-465b-878d-ec35d77f5287",
+    "name": "门钉肉饼",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "40216b2e-4859-4783-bf17-354a1f599df8",
+    "name": "豆汁",
+    "slot": "breakfast",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "40275cea-b61c-44ac-8f3d-46ce1a9f0c14",
+    "name": "上海菜饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "420df166-e5f1-46db-bcf2-c16e1d87fbcf",
+    "name": "菠萝包",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4297ed82-029d-43ba-b925-081a40f4dcf7",
+    "name": "京酱肉丝",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "430ad72e-eda5-4257-b4dc-eb6609bcad16",
+    "name": "炸酱面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "48cc1951-3046-42ae-a881-82fd217aac36",
+    "name": "架子肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4a9c748d-85f2-48c6-9503-460f66ff7e52",
+    "name": "河北汤圆",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4ac7c967-cd4a-4813-bced-93f6b6e689d3",
+    "name": "云南野生菌火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "mushroom"
+      ]
+    }
+  },
+  {
+    "id": "4c8701cc-3cfe-4b88-8f2d-4122e0727b5d",
+    "name": "梅菜蒸肉饼",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "leafy_veg"
+      ]
+    }
+  },
+  {
+    "id": "4de3b261-85b4-4cb6-ae55-24c830285f79",
+    "name": "蜜汁火方",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4e6e8e5a-5578-42c0-b8bb-8f8f8964410e",
+    "name": "吉林拌粉条",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4f314e09-303b-4d8c-b962-316374a90574",
+    "name": "炸酱包",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "4f3478b9-ba8c-4164-9d8b-afd9423db4fe",
+    "name": "抱罗粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "51a6ebea-a924-4922-8b0a-a31b26837813",
+    "name": "东坡肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "51b6dbfc-c982-48d4-999b-a189cc5629a8",
+    "name": "炒年糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5202b7ff-66e1-4597-a56a-7df0ea2c7274",
+    "name": "川北凉粉",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "522b1a77-d53c-4be0-9709-c32a957dda0f",
+    "name": "曲曲儿",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "52490a76-496c-470a-8965-fe8109b94c0b",
+    "name": "蜂蜜凉粽子",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "53b2c1fd-a9e9-479e-be14-4e2ef082fa7f",
+    "name": "腊味合蒸",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5441657a-62c0-4a69-8fa5-8e4cfc0b4f8e",
+    "name": "脆皮烧肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "548aaeac-0900-43d3-a32e-666423bf0589",
+    "name": "宁波年糕汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "54f95cc0-4cb9-47b9-aef3-4bd504255388",
+    "name": "肠旺面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "55554ffc-29c9-412b-8052-37a8c4cd7c6d",
+    "name": "上海冷面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "55698a09-b467-4445-8f70-1b30e82436c9",
+    "name": "蒸玉米饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "other_grain"
+      ]
+    }
+  },
+  {
+    "id": "5583feb8-8150-4261-8752-34d30ec884eb",
+    "name": "唐山地瓜丸",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "5592fd70-db01-404a-aa0b-0b99c152b868",
+    "name": "卤煮火烧",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "56357aea-5651-40d5-a31d-b1684fb020e0",
+    "name": "辣椒炒肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "571af508-30b6-431d-9b13-f54c6ff55f6f",
+    "name": "天水凉皮",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "575656e6-f655-4d3b-89bd-3df2ea490a21",
+    "name": "肠粉",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "58155e93-7b9c-4786-b52f-89e04f8c7628",
+    "name": "椰子饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit"
+      ]
+    }
+  },
+  {
+    "id": "585694a3-69cd-4710-9e93-5135dc82bba4",
+    "name": "新疆抓饭汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5953702e-49c0-4978-a990-27e4ed92d140",
+    "name": "玉门油饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5a319216-9dde-4de5-81f8-e73182338a7b",
+    "name": "胡辣汤",
+    "slot": "breakfast",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5b946ea1-4f4d-413b-9ccd-5ff66da090e0",
+    "name": "常德牛肉粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "livestock"
+      ]
+    }
+  },
+  {
+    "id": "5bd26f52-1350-4e10-8dbe-94ab2b9a9e6e",
+    "name": "红烧河鳗",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5bf57a19-57fe-41c7-ac27-1cdb095bf35e",
+    "name": "张掖夹沙包",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5c2c923b-7a73-4320-923d-96f262013526",
+    "name": "虾饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "shellfish"
+      ]
+    }
+  },
+  {
+    "id": "5cc89ae6-2bbb-449a-98f1-bcbcb807f829",
+    "name": "油炸柿子饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit"
+      ]
+    }
+  },
+  {
+    "id": "5d0a8f91-5673-4f56-8a28-dd93dd8e47de",
+    "name": "桂林油茶",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5e2aefb5-2de9-4f90-9fe1-57a1b9440bdb",
+    "name": "煲仔饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5ef3e85f-5bf1-4562-975f-0ddbc9b77912",
+    "name": "驴打滚",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "5f579c5e-53d3-4888-bc6f-df2556f5c2ab",
+    "name": "镇江肴肉",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6004557b-d7c3-4ec7-85e3-004105fa764f",
+    "name": "馕",
+    "slot": "lunch",
+    "classification": {
+      "role": "staple",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "617d3256-e83a-4e0a-8eab-03fed97346c1",
+    "name": "周村烧饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6201b07b-0dab-4c3d-9071-be691d91a83c",
+    "name": "保定炸糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6202d3d1-7bc6-4d87-886d-38ea6616ac20",
+    "name": "酥油茶",
+    "slot": "snack",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "62583d52-c683-49dd-b854-09952b776533",
+    "name": "大救驾",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "643291d7-5e8f-4ab2-bf89-043a3dfede05",
+    "name": "上海葱油饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "64b5f172-ef2b-4d6b-98cf-591e14d7b094",
+    "name": "香辣牛蛙",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "654e5ca7-e7f7-4333-82de-b0de3e6c3398",
+    "name": "炸云吞",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6622a024-6e21-4515-a556-ab3d3ec6b3b8",
+    "name": "荞面饸饹",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "other_grain"
+      ]
+    }
+  },
+  {
+    "id": "66db974c-1d89-4b82-90e3-566c5de28250",
+    "name": "奶汤蒲菜",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "67280ad1-766f-4e4a-ba03-64597db3e252",
+    "name": "四喜丸子",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6793871e-c5b5-4a33-af26-30e241ab0160",
+    "name": "静宁油糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "67e3cd85-94a8-4d65-87e0-17300208e3be",
+    "name": "奶油炸糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "680eb6ec-8afb-401a-b2d0-6308ed4ae2f9",
+    "name": "黄山双石",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "685c1b20-a116-4a8e-90f5-a43fbf3eb06c",
+    "name": "叉烧包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "687a3147-131c-4c42-8f8b-48377b141033",
+    "name": "口味螺",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "68ce5322-873b-49da-a9e7-f8972a4bcfa1",
+    "name": "宁波汤圆",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6a608d5c-6be6-4a34-87a0-aa8aa7252d29",
+    "name": "天津麻花",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6a853f84-dea6-4a2d-bdf3-243440cfb64d",
+    "name": "鲜肉月饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6ad244c2-544c-4a69-9d3c-6fc9b6da8836",
+    "name": "蒙古牛肉饼",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "livestock"
+      ]
+    }
+  },
+  {
+    "id": "6b9d7fe4-c033-408e-a146-c4159286618a",
+    "name": "藏式甜米饭",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "rice"
+      ]
+    }
+  },
+  {
+    "id": "6c56813d-3fc5-43c6-8a66-6fb7c71d59e6",
+    "name": "小笼包",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "6fa37b7c-f1c6-412f-bc6d-e4d2920057ed",
+    "name": "酸辣粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "702ede4a-d83e-45c6-b9e2-c08fc65d8bc9",
+    "name": "玛仁糖",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "70890ee4-8292-426a-a4fa-82b492c48626",
+    "name": "扬州三套早",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "70e0de7c-d75b-4d26-a350-9c2dad811d2f",
+    "name": "螺蛳肉粽",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7126a173-ebac-4474-a73a-9d2e5d98777b",
+    "name": "甘肃酿皮",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "72590305-d9ab-4f63-b658-5e261915f82e",
+    "name": "夫妻肺片",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "73c2dc2c-7c04-4ed5-a328-281c7175eae3",
+    "name": "延吉辣炒年糕",
+    "slot": "lunch",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "73fc89ac-5621-44f5-b53d-24b5242521c3",
+    "name": "福鼎肉片",
+    "slot": "lunch",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "745e91eb-b0a2-4f5b-a94d-28bb1bb0a4a2",
+    "name": "济南把子肉",
+    "slot": "lunch",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "74b6797d-83b7-4cb2-82a5-5e946e0567a8",
+    "name": "孔府一品锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7533cc62-0ad8-422c-a10d-c886968d9cef",
+    "name": "毛血旺",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "769ca436-cc78-4d54-8994-eb3d9f0f0d7a",
+    "name": "酸奶米布丁",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "dairy"
+      ]
+    }
+  },
+  {
+    "id": "76d12105-476a-414a-b825-4627381a042e",
+    "name": "阳春面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "771cf304-b351-45aa-92e7-e5207e35e035",
+    "name": "客家算盘子",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "78638640-a101-408b-887f-6389a7384750",
+    "name": "奥灶面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7b0f5539-2db8-42d0-b81d-f862c37f6eb1",
+    "name": "腾冲大救驾",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7db4ae18-9890-4539-abda-3562731db736",
+    "name": "担担面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7dba3a94-3725-4c3e-a134-dec8d9ee1c7e",
+    "name": "汉中热米皮",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "rice"
+      ]
+    }
+  },
+  {
+    "id": "7e763808-3626-452d-afc5-a59dbef1ec4c",
+    "name": "绩溪挞粿",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7f058205-e12c-4899-90ca-5289b28c8d2d",
+    "name": "莆田卤面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "7ff6dc50-8163-4230-bad4-dc08fb622baa",
+    "name": "螺蛳粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "817fbdee-9a41-473a-b49d-ddd1e867c678",
+    "name": "麻辣香锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "81d4b270-4971-41d2-9d23-5aba0e7b0ba2",
+    "name": "石家庄鸡蛋饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "egg"
+      ]
+    }
+  },
+  {
+    "id": "832eafa4-f1c3-4486-9996-0dabbb06bb2e",
+    "name": "栲栳栳",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "83d8f64c-c09e-45d7-be74-3d1c629a9747",
+    "name": "卷筒粉",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "844efe74-bfc9-420c-a03c-980ce2b773ad",
+    "name": "大煮干丝",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "84f151e6-5f36-40cb-b68d-d06ff43a9161",
+    "name": "杨凌蘸水面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "852e4799-1e64-4177-b989-cfa4c810b74b",
+    "name": "宫廷牛肉饼",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "livestock"
+      ]
+    }
+  },
+  {
+    "id": "8576699c-53d7-4941-891c-4c4d98501fb3",
+    "name": "河池竹筒饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "staple",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8578d066-615f-4415-899f-e554e0cd7380",
+    "name": "山东煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "877c80ba-7405-4313-a363-66a59ad90dbb",
+    "name": "糖油粑粑",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "87a11997-ed12-4ff6-8461-d335859ccca2",
+    "name": "糖火烧",
+    "slot": "breakfast",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8834e00b-8c6a-461a-896e-3413d73177fe",
+    "name": "艾窝窝",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8a000d22-8318-45ea-bbb8-496b520eb73c",
+    "name": "炸响铃",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8a511a6b-654a-437e-a92d-710f3bc184c2",
+    "name": "葫芦头泡馍",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8aed753f-4bea-4aee-b8be-53e44b67ec35",
+    "name": "山城小汤圆",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8c08ee7d-3e34-4a1d-8207-5c8d47a420dc",
+    "name": "biangbiang面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8c9ec6f8-8a62-4d21-ae1b-34f8e57b91bb",
+    "name": "平凉锅盔",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8d52fbec-01a0-4494-8f2d-654216dc227a",
+    "name": "潍坊朝天锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8d673650-a531-4639-b8fa-1a8ee0313bf8",
+    "name": "户县软面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8f43efe1-dacb-4352-8d84-9f0e8f792888",
+    "name": "烧卖",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "8f5609d3-3ade-4051-8a06-3a001d5b767e",
+    "name": "清补凉",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "924a903e-7d65-4cd4-8ca3-4aee7f93e97d",
+    "name": "三丁包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "94c62de6-668f-44aa-a0aa-f6f1aa4c7c2c",
+    "name": "肉馕",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "94d1e670-705e-4b73-877c-94e617208003",
+    "name": "北京地瓜球",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "970859ed-5f83-4d2b-b6bb-3af475d5f528",
+    "name": "菠萝饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit"
+      ]
+    }
+  },
+  {
+    "id": "986285f2-b01b-4cfa-94b9-82e496c1c08a",
+    "name": "黄桂柿子饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit"
+      ]
+    }
+  },
+  {
+    "id": "9906da26-2831-4c7d-a415-8a44e1cca877",
+    "name": "汉中面皮汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "99f76aab-a27a-45af-adef-57d2497585ca",
+    "name": "瓜州驼蹄冻",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "9a7a70c9-ace5-4643-a8c3-96077f51fc91",
+    "name": "博山酥锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "9b902129-5f2e-4b38-a8bd-b14058c8b315",
+    "name": "藏式土豆饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "9e275a53-85a7-495a-9f2e-0ebe29b11698",
+    "name": "龙抄手",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "9ecd226d-dd8f-4f8f-a4a1-2721961fdde4",
+    "name": "萨其马",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "9f4b2c1f-5724-4bc2-b79a-bb5b228458ab",
+    "name": "客家粄粽",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "9f908cad-d2e4-492a-9261-f0e64c5e5071",
+    "name": "洞庭甲鱼",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a0b426cc-e243-4c67-a00f-64fe0bb6ac3b",
+    "name": "济南油旋",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a10a6c52-a3dd-46a7-88fb-c1fdae0bc133",
+    "name": "长沙米豆腐",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a1b2a27b-893d-4674-86fb-4bd6f7ebeb25",
+    "name": "牛腩面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a3571d1c-3f62-44e0-85f1-d26ad8ec7a7e",
+    "name": "石花膏",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a50a0238-9a5f-412a-ad66-4ad2f4934590",
+    "name": "蛇羹",
+    "slot": "dinner",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a62bd6dd-7b01-46c5-9e5a-129e4be18219",
+    "name": "豌杂面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a73ffdb5-8b4f-4ef8-94b7-cd858a847851",
+    "name": "乳饼",
+    "slot": "snack",
+    "classification": {
+      "role": "dairy",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a91b5890-5f82-46d1-a177-1fd6025ff044",
+    "name": "海南粽子",
+    "slot": "snack",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "a9b9fe12-4c39-408d-9d50-01c46a51e4b0",
+    "name": "火腿月饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "aab42074-a157-4340-b3c6-c2387cad194f",
+    "name": "台州麦饼",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "aba9a2cb-606e-426e-835a-7378b842737e",
+    "name": "纳仁",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "abb60339-2a45-4dfe-bf8c-25309f801e19",
+    "name": "丽江粑粑",
+    "slot": "breakfast",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ac304471-47db-4a68-8557-22371b5a199c",
+    "name": "徽州炖甲鱼",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ac428b02-d4aa-4f3c-b0f7-6d0120588d7f",
+    "name": "奶皮卷",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "dairy"
+      ]
+    }
+  },
+  {
+    "id": "ac6ab5e6-0996-45ad-9215-6207bd9c1c05",
+    "name": "延边冷面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ace48192-bfa1-4197-a865-f77a1502796d",
+    "name": "黄面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ad9abd64-aea2-485a-b615-a07bf16ab695",
+    "name": "福州锅边糊",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "adccec95-db48-44eb-aa1c-38691d13fcf2",
+    "name": "洛阳水席",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ae047d0d-8665-4441-aa87-ebf621576455",
+    "name": "山东大包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ae5139fb-4184-482d-8858-196c49794d22",
+    "name": "闽南薄饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "aec25581-dd79-43ec-b623-309755de2c19",
+    "name": "瓦罐汤",
+    "slot": "dinner",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "aeed7823-d322-45a6-acf2-01e11c79f2c3",
+    "name": "串串香",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b00c4595-22e2-4ef7-ae1d-0a5a8bf2a2a5",
+    "name": "合川肉片",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b0abc99e-0815-4cf9-8a39-a3aac377173d",
+    "name": "上海红烧肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b0ddf584-8032-433b-99f9-732f4c319ece",
+    "name": "馕包肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b3dd4368-49a1-4860-aea1-e62269001382",
+    "name": "藏式肉饼",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b4041b60-0c4f-4ab2-9193-e6a30c75ba0d",
+    "name": "担担饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b5197f98-a4d5-420e-b7e1-3e45402d2c38",
+    "name": "玉林腐乳煲",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b5887f73-ac63-4be4-8295-6dc06efd007f",
+    "name": "霸王别姬",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b6bd4457-8878-4e89-b5f8-a20cb0595243",
+    "name": "酿苦瓜",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "fruit_veg"
+      ]
+    }
+  },
+  {
+    "id": "b70cb7f6-aa6a-4023-8042-e181ef52cdff",
+    "name": "藏式炖菜",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b7777fbf-0b1a-4704-8cb7-7e413630e4ca",
+    "name": "拉条子",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "b9333b81-c979-4e16-86c0-230c4fc27db2",
+    "name": "芝麻烧饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "seeds"
+      ]
+    }
+  },
+  {
+    "id": "bb769f85-dd16-473e-95c4-810be22aa590",
+    "name": "泡菜煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "bd45edc0-d578-45f9-b10c-8254e559432c",
+    "name": "大理饵丝",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "bdf47e63-16dd-40da-9ad6-aca2b0fdfb81",
+    "name": "诺邓火腿",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "c1345f5e-2209-4d7a-9c19-c3d88cca0c4a",
+    "name": "孝感米酒",
+    "slot": "snack",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "c2284e06-5c15-4489-b387-e9f3131af3f4",
+    "name": "岐山臊子面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "c4a806e3-d2e5-47b3-888f-1c1ad31aed79",
+    "name": "麻酱面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "c7c180bf-e54c-4c08-b9e0-f9c4797f8b5d",
+    "name": "平南粉汤",
+    "slot": "lunch",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "cbcfdd15-d23e-40dd-9a2b-f5764e18fa4f",
+    "name": "刀削面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "cbfd25c0-547b-4602-bda1-63a97d370568",
+    "name": "东北大拉皮",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "cc2a248a-f369-4431-a826-f3c94ee0a233",
+    "name": "油泼面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "cc5362ce-5811-48ed-bb7f-81d8a9f82eb7",
+    "name": "焦圈",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ccbcc040-6a0e-41bf-8719-cfa1f87f0998",
+    "name": "三鲜豆皮",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ccd21094-6872-4f8a-877c-b2b9c1aadddf",
+    "name": "丁丁汤饭",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "cd87fdb8-1246-4693-b2a4-92aae00b6a5a",
+    "name": "太平燕",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ce5b1cb8-71a0-4023-afad-9a0bb200ee20",
+    "name": "客家酿腐皮卷",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "soy"
+      ]
+    }
+  },
+  {
+    "id": "d008ddfb-1110-4db4-84a5-bc6105807f57",
+    "name": "酸豆角肉末",
+    "slot": "lunch",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d10d73f5-8709-4bf2-9be8-cf89c0eefdb9",
+    "name": "海南春卷",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d199b8b6-504d-46cc-99f5-3abd0e9a4129",
+    "name": "山东葱油饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d1be72df-f4cd-490d-9943-87430119adaa",
+    "name": "璧山兔",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d33f684c-3e59-4749-a73b-34f4a9b59ed8",
+    "name": "冒菜",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d3e5aa65-f284-4901-9226-461343434ed1",
+    "name": "热干面",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d3f89c26-578e-4b00-aa7f-a18b7d8a59f7",
+    "name": "火腿炒饵块",
+    "slot": "lunch",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d4e6fb22-728e-4917-ad9a-3a013d41ded0",
+    "name": "条头糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d56a3692-8cdd-4a9c-897b-6ba3dda5dce3",
+    "name": "榆中煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d5b03b9b-e14e-4e57-8554-f52d0dc86c93",
+    "name": "开封灌汤包",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d63823da-8910-4de7-9c20-25ed66ef57a1",
+    "name": "炸灌肠",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d6a3487b-45b9-4f85-b8f6-78034040f675",
+    "name": "萍乡小炒肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d8f47d44-28f8-429e-98f3-867a4463e845",
+    "name": "泡椒凤爪",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d921d73b-e53d-4bb2-8843-20aceee3f4fa",
+    "name": "馕坑肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "d946a295-4886-42a7-92b2-2e65b50f046c",
+    "name": "一品锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "da48efc0-33bb-41f0-b98a-bdc2c56562a5",
+    "name": "黑山羊火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "db4afb1f-ab2b-468d-9979-6d0c2173e012",
+    "name": "毛氏红烧肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "db932ab8-8b1d-4e5d-a7b1-4a8d33fd8121",
+    "name": "红糖糍粑",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "dc1c8205-04d1-4e46-a98e-161144707594",
+    "name": "狮子头",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "dcf4d4f8-996f-4641-99c7-3378f92db8f5",
+    "name": "炸两",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "de9371d7-269b-4d6a-9e5a-c8a91be2ab95",
+    "name": "河北夹馅饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "dfefb3c6-c218-42d7-a002-9c338e1725e4",
+    "name": "干炒牛河",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e0263f1e-b533-43ed-91e7-44059769f3c5",
+    "name": "蒙古奶茶",
+    "slot": "snack",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e0db5ad0-7ee5-4dd2-9544-f54bc03af793",
+    "name": "折耳根凉拌",
+    "slot": "snack",
+    "classification": {
+      "role": "vegetable",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e19cce25-b1c7-4146-86e0-3cba970ff54b",
+    "name": "吉林玉米饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "other_grain"
+      ]
+    }
+  },
+  {
+    "id": "e1dd5cd9-e20b-43b4-9945-e4c526675b8d",
+    "name": "子长煎饼",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e463d56a-6c66-4432-8065-238ef1a78738",
+    "name": "新疆奶茶",
+    "slot": "snack",
+    "classification": {
+      "role": "drink",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e534a8d5-fb26-45b8-bc67-9fb4d7390587",
+    "name": "丝娃娃",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e56ae307-bcc1-43aa-a408-2ecdc964cc17",
+    "name": "四川火锅",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "e9cf3169-375b-47e6-abca-a814030b22d0",
+    "name": "炸奶球",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ec47f62b-8dc8-4783-87f3-9668da14e706",
+    "name": "肉丸胡辣汤",
+    "slot": "breakfast",
+    "classification": {
+      "role": "soup",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ecbe1fd3-f67e-4e4b-a1cc-218edf9ba544",
+    "name": "李鸿章杂烩",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ed0ebd01-e006-4dc8-bac4-53641160ec32",
+    "name": "锅盔",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ed5ebd36-32bf-4fec-839a-4d1407ff349d",
+    "name": "煎饼果子",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "ed9f92ff-d5b5-4552-b719-95efa23769cd",
+    "name": "吉林凉粉",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f09895af-875c-4b73-9187-8d3507d066b9",
+    "name": "云吞面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f10177a8-0765-4868-a11a-ebd61720160f",
+    "name": "七里河油香",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f15480f7-76da-4e14-92d8-d2b27552f2cf",
+    "name": "甑糕",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f15cc036-6490-4c08-9b41-26ec091222ef",
+    "name": "四川糍粑",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f25fd768-ccab-47c8-b9d7-9c6d3b1ab54a",
+    "name": "重庆小面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f2c9d135-1757-48bc-90f4-4d52b4752d11",
+    "name": "白银洋芋搅团",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "tuber"
+      ]
+    }
+  },
+  {
+    "id": "f307b4a7-d2e7-4d19-9626-0dcbd29fdc06",
+    "name": "面窝",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f31187e3-c06f-4002-95ba-f7ede393fd6a",
+    "name": "藏式血肠",
+    "slot": "snack",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f36225c2-f741-4fb9-9b29-ef66a622867c",
+    "name": "面茶",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f3faa985-d2f0-4f6f-8976-c8c6eb625eab",
+    "name": "糌粑",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f477de0c-f3e8-4250-9c87-d40953dd8e44",
+    "name": "土家合渣",
+    "slot": "dinner",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f4a75003-b8db-477a-8b4e-333efad05d6e",
+    "name": "鸭血卷粉",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "poultry"
+      ]
+    }
+  },
+  {
+    "id": "f551f187-03b5-47a6-a4cb-c5f606824dfd",
+    "name": "贺州肠粉",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f6034d64-51eb-41ce-a207-4cecf0743d5d",
+    "name": "双皮奶",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f69a285e-27d7-481c-a862-d19dd4caca94",
+    "name": "粢饭团",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f72dd1cf-2873-4bc9-a1d2-f4a1f338d0b1",
+    "name": "奶茶粥",
+    "slot": "breakfast",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "菜名明确归类；依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f7b536dc-a139-4caf-879c-08963f46cb15",
+    "name": "黄桥烧饼",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f80bd177-0e25-43e0-bb1a-5af4a5b74e5e",
+    "name": "漳州卤面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f93bf844-f350-4bdf-b76f-373ecad13f9d",
+    "name": "河北麻花",
+    "slot": "snack",
+    "classification": {
+      "role": "side",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "f95cf1fc-e364-4b5b-843f-e8b4a5e4a977",
+    "name": "客家擂茶",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "fbe12cd0-b019-4196-b6b1-a1b55801fd73",
+    "name": "板凳面",
+    "slot": "lunch",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "fbe5a6a8-6b61-4998-84c5-a36b04a4f326",
+    "name": "酒酿圆子",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "fbf6ceeb-1c7d-4396-8cb8-67306c569aca",
+    "name": "秦镇米皮",
+    "slot": "lunch",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认",
+      "ingredient_tags": [
+        "rice"
+      ]
+    }
+  },
+  {
+    "id": "fd6549cc-b8ca-48f8-a49d-fd9aacce585a",
+    "name": "炙子烤肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "fdfdb8d9-cd59-4f44-a2e8-46e64e7f334e",
+    "name": "生煎包",
+    "slot": "breakfast",
+    "classification": {
+      "role": "mixed_main",
+      "basis": "name_and_legacy_role",
+      "purpose": "whole_meal",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "fe094184-477c-47f9-96b8-c4671fac056c",
+    "name": "石子馍",
+    "slot": "snack",
+    "classification": {
+      "role": "unknown",
+      "basis": "name_and_legacy_role",
+      "purpose": "unknown",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；地方菜名或混合构成不明确，用途和角色待确认；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  },
+  {
+    "id": "feb61122-6b1e-4eff-b6c6-3c2a2ed0e0cd",
+    "name": "荷叶粉蒸肉",
+    "slot": "dinner",
+    "classification": {
+      "role": "protein",
+      "basis": "name_and_legacy_role",
+      "purpose": "component",
+      "version": "recipe-classification.v1",
+      "evidence": "依据菜名可识别线索；未推断未明示配料；暂无足够食材标签证据",
+      "ingredient_tags": []
+    }
+  }
+]

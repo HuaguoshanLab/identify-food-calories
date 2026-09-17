@@ -39,7 +39,7 @@ test('分类菜品组合成餐，换餐保留其他明细，失格后历史仍�
     await post(`/admin/catalog-drafts/${draft.id}/review`, reason, draft.revision)
     await post(`/admin/catalog-drafts/${draft.id}/publish`, reason, draft.revision)
     const slots = food.role === '单独候选' ? ['早餐'] : ['午餐', '晚餐']
-    const imported = await post('/admin/recipe-candidates/import', { ...reason, csv_text: '关联目录菜品名称,餐次,单份克数,份量说明,做法标签,口味标签,状态,餐内角色\n' + slots.map(slot => `${food.name},${slot},${food.grams},一份,蒸,清淡,待审核,${food.role}\n`).join('') })
+    const imported = await post('/admin/recipe-candidates/import', { ...reason, csv_text: '关联目录菜品名称,餐次,单份克数,份量说明,做法标签,口味标签,状态,配餐用途,餐内角色,食材标签,分类依据\n' + slots.map(slot => `${food.name},${slot},${food.grams},一份,蒸,清淡,待审核,${food.role === "单独候选" ? "整餐候选,混合主餐" : `组合组成项,${food.role === "蔬菜" ? "蔬菜菜肴" : food.role}`},,隔离测试分类\n`).join('') })
     await post('/admin/recipe-candidates/enable', { ...reason, ids: imported.candidate_ids })
     if (food.role === '蔬菜') vegetableIds.push(...imported.candidate_ids)
   }
