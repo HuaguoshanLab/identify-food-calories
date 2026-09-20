@@ -378,7 +378,7 @@ def test_nonexact_planning_substitution_waits_then_passes_only_offered_identity(
     assert tools.selected_food_calls[-1] == (food_id, "catalog-v1")
 
 
-def test_planning_text_adapter_accepts_only_an_offered_candidate_identity(monkeypatch) -> None:
+def test_planning_text_adapter_accepts_only_an_offered_candidate_identity() -> None:
     tools = FakePlanningTools()
     food_id = uuid.uuid4()
     food = FoodSearchCandidate(
@@ -389,14 +389,15 @@ def test_planning_text_adapter_accepts_only_an_offered_candidate_identity(monkey
     original = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(_state()))
     waiting = asyncio.run(DietPlanningGraph(tools=tools).ainvoke(original, resume={"feedback": "午餐换成西红柿炒鸡蛋"}))
 
-    async def load(**_kwargs):
-        return waiting
+    class StateReader:
+        async def aget_state(self, _thread_id):
+            return waiting
 
-    monkeypatch.setattr(AgentService, "_load_checkpoint", staticmethod(load))
+    graph = StateReader()
     service = AgentService(repository=object())
     text = json.dumps({"candidate_id": str(food_id), "catalog_version": "catalog-v1"})
-    payload = asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=text, graph_kind=AgentGraphKind.DIET_PLANNING))
-    invalid = asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=json.dumps({"candidate_id": str(food_id), "catalog_version": "catalog-v1", "score": 1}), graph_kind=AgentGraphKind.DIET_PLANNING))
+    payload = asyncio.run(service.resume_payload_for_text(graph=graph, thread_id=waiting.thread_id, text=text, graph_kind=AgentGraphKind.DIET_PLANNING))
+    invalid = asyncio.run(service.resume_payload_for_text(graph=graph, thread_id=waiting.thread_id, text=json.dumps({"candidate_id": str(food_id), "catalog_version": "catalog-v1", "score": 1}), graph_kind=AgentGraphKind.DIET_PLANNING))
 
     assert payload == {"candidate_id": str(food_id), "catalog_version": "catalog-v1"}
     assert invalid is None
@@ -550,16 +551,18 @@ def test_recipe_selection_rejects_unoffered_or_changed_recipe(change):
         assert result.report["stage"] == "needs_input"
 
 
-def test_recipe_selection_text_contract_rejects_internal_fields_and_boolean_revision(monkeypatch):
+def test_recipe_selection_text_contract_rejects_internal_fields_and_boolean_revision():
     _, _, waiting = _recipe_waiting_state()
-    async def load(**_kwargs):
-        return waiting
-    monkeypatch.setattr(AgentService, "_load_checkpoint", staticmethod(load))
+    class StateReader:
+        async def aget_state(self, _thread_id):
+            return waiting
+
+    graph = StateReader()
     service = AgentService(repository=object())
     chosen = waiting.pending_recipe_candidates[0]
     payload = {"recipe_id": str(chosen.recipe_id), "recipe_revision": chosen.revision}
     def parse(value):
-        return asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=waiting.thread_id, text=json.dumps(value), graph_kind=AgentGraphKind.DIET_PLANNING))
+        return asyncio.run(service.resume_payload_for_text(graph=graph, thread_id=waiting.thread_id, text=json.dumps(value), graph_kind=AgentGraphKind.DIET_PLANNING))
     assert parse(payload) == payload
     assert parse({**payload, "food_id": str(chosen.food_id)}) is None
     assert parse({**payload, "recipe_revision": True}) is None

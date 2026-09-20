@@ -49,7 +49,7 @@ def test_frozen_cases_keep_calls_and_minimal_ledger_stable(case: Mapping[str, ob
     assert result.ledger == case["ledger"]
     assert result.ledger_metadata == {
         "facts_digest": case["facts"]["facts_digest"], "prompt_version": "weekly-review-prompt.v1",
-        "schema_version": "weekly-review-schema.v1", "graph_version": "weekly-review-graph.v1",
+        "schema_version": "weekly-review-schema.v1", "graph_version": "weekly-review-graph.v2",
         "runtime_config_version": case["config"]["runtime_config_version"],
     }
 
@@ -72,3 +72,23 @@ def test_unknown_outcome_is_never_replayed() -> None:
     result = asyncio.run(graph.ainvoke_fixture(case))
     assert result.code == "PROVIDER_OUTCOME_UNKNOWN"
     assert result.model_calls == len(provider.calls) == 1
+
+
+def test_weekly_review_uses_distinct_compiled_state_graph_nodes() -> None:
+    case = next(case for case in _cases() if case["id"] == "case-01-sufficient-variety")
+    graph, _ = _graph(case)
+
+    drawable = graph._compiled.get_graph()  # noqa: SLF001 - architecture regression assertion
+
+    assert {
+        "validate_facts",
+        "admit",
+        "call_provider",
+        "validate_semantics",
+        "prepare_retry",
+        "complete",
+        "abstain",
+    } <= set(drawable.nodes)
+    assert ("prepare_retry", "call_provider") in {
+        (edge.source, edge.target) for edge in drawable.edges
+    }

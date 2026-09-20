@@ -40,7 +40,7 @@ def test_conversion_does_not_depend_on_ambient_decimal_precision() -> None:
 
 @pytest.mark.parametrize("structured", [False, True])
 @pytest.mark.parametrize("value", ["100g", "0.1kg", "0.2斤", "2两"])
-def test_plain_and_json_answers_share_the_parser(monkeypatch, structured: bool, value: str) -> None:
+def test_plain_and_json_answers_share_the_parser(structured: bool, value: str) -> None:
     from app.agent.service import AgentService
     from app.agent.state import AgentNextAction, ClarificationQuestion
     from tests.unit.test_runtime_foundation import _initial_state
@@ -50,12 +50,16 @@ def test_plain_and_json_answers_share_the_parser(monkeypatch, structured: bool, 
         "clarification_questions": (ClarificationQuestion(item_id="item-1", field="grams", message="weight"),),
     })
 
-    async def load(**_kwargs):
-        return state
+    class StateReader:
+        async def aget_state(self, _thread_id):
+            return state
 
-    monkeypatch.setattr(AgentService, "_load_checkpoint", staticmethod(load))
     # This path only reads the supplied checkpoint; a repository call would fail.
     service = AgentService(repository=object())
     text = json.dumps({"answers": {"item-1": {"grams": value}}}) if structured else value
-    payload = asyncio.run(service.resume_payload_for_text(checkpointer=object(), thread_id=state.thread_id, text=text))
+    payload = asyncio.run(
+        service.resume_payload_for_text(
+            graph=StateReader(), thread_id=state.thread_id, text=text
+        )
+    )
     assert Decimal(payload["answers"]["item-1"]["grams"]) == Decimal("100")

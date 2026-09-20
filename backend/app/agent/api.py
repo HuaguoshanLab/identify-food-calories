@@ -34,7 +34,7 @@ from app.agent.schemas import (
     SafeStreamStage,
     SafeStreamStageEvent,
 )
-from app.agent.service import AgentRuntimeAdmissionDenied, DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentLeaseUnavailable, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
+from app.agent.service import AgentRuntimeAdmissionDenied, DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentLeaseUnavailable, AgentService, AgentThreadUnavailable, PersistedAgentGraph, RetentionPolicy, safe_meal_stream_stage
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminService
 from app.agent.state import AgentGraphKind, StateImageReference
@@ -206,11 +206,11 @@ async def _execute(
         except OperationalError as error:
             raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
         try:
+            graph = cast(PersistedAgentGraph, runtime.graph.for_kind(graph_kind))
             completed_run = await service.execute_run(
                 run_id=run_id,
                 user_id=user_id,
-                graph=runtime.graph,
-                checkpointer=runtime.checkpointer,
+                graph=graph,
                 input_text=text,
                 image_reference=image_reference,
                 resume_payload=resume_payload,
@@ -508,7 +508,14 @@ async def submit_agent_input(
             return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(existing.status))
     try:
         resume_payload = await service.resume_payload_for_text(
-            checkpointer=runtime.checkpointer,
+            graph=cast(
+                PersistedAgentGraph,
+                runtime.graph.for_kind(
+                    AgentGraphKind.DIET_PLANNING
+                    if planning_thread
+                    else AgentGraphKind.MEAL_ANALYSIS
+                ),
+            ),
             thread_id=thread_id,
             text=payload.text,
             graph_kind=AgentGraphKind.DIET_PLANNING if planning_thread else AgentGraphKind.MEAL_ANALYSIS,

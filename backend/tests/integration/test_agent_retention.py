@@ -188,10 +188,18 @@ def test_lifespan_retention_enforces_exact_boundaries_and_tenant_isolation() -> 
                     text("SELECT count(*) FROM agent_threads WHERE id = :thread_id"),
                     {"thread_id": owner_thread},
                 ).scalar_one() == 0
-                assert session.execute(
-                    text("SELECT count(*) FROM checkpoints WHERE thread_id = :thread_id"),
-                    {"thread_id": str(owner_thread)},
-                ).scalar_one() == 0
+                for checkpoint_table in (
+                    "checkpoints",
+                    "checkpoint_blobs",
+                    "checkpoint_writes",
+                ):
+                    assert session.execute(
+                        text(
+                            f"SELECT count(*) FROM {checkpoint_table} "  # noqa: S608 - fixed allowlist
+                            "WHERE thread_id = :thread_id"
+                        ),
+                        {"thread_id": str(owner_thread)},
+                    ).scalar_one() == 0
                 # A second tenant must remain completely untouched by the owner's cascade.
                 assert session.execute(
                     text("SELECT count(*) FROM agent_threads WHERE id = :thread_id AND user_id = :user_id"),
@@ -200,7 +208,17 @@ def test_lifespan_retention_enforces_exact_boundaries_and_tenant_isolation() -> 
                 assert session.execute(
                     text("SELECT count(*) FROM checkpoints WHERE thread_id = :thread_id"),
                     {"thread_id": str(other_thread)},
-                ).scalar_one() == 1
+                ).scalar_one() > 0
+
+                async def load_other_checkpoint():
+                    return await application.state.agent_runtime.checkpointer.aget_tuple(
+                        {"configurable": {"thread_id": str(other_thread)}}
+                    )
+
+                other_checkpoint = client.portal.call(load_other_checkpoint)
+                assert other_checkpoint is not None
+                checkpoint_state = other_checkpoint.checkpoint["channel_values"]["state"]
+                assert uuid.UUID(str(checkpoint_state["thread_id"])) == other_thread
 
                 activity = clock.now()
                 session.execute(

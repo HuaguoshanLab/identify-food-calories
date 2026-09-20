@@ -784,7 +784,7 @@ def test_lease_wait_does_not_block_event_loop() -> None:
     async def scenario():
         runtime = SimpleNamespace(
             supervisor=SimpleNamespace(claim=claim, release=release),
-            graph=None,
+            graph=SimpleNamespace(for_kind=lambda _kind: object()),
             checkpointer=None,
         )
         task = asyncio.create_task(_execute(service=Service(), runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))

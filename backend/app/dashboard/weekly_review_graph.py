@@ -7,6 +7,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from time import monotonic
+from typing import TypedDict
+
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.providers.reasoning.dto import (
@@ -19,7 +22,7 @@ from app.providers.reasoning.dto import (
 from app.providers.reasoning.ports import ReasoningModelProvider
 
 
-GRAPH_VERSION = "weekly-review-graph.v1"
+GRAPH_VERSION = "weekly-review-graph.v2"
 PROMPT_VERSION = "weekly-review-prompt.v1"
 SCHEMA_VERSION = "weekly-review-schema.v1"
 _FACTS_LIMIT_BYTES = 8 * 1024
@@ -59,12 +62,28 @@ class WeeklyReviewGraphResult:
     suggestions: tuple[str, ...] = ()
 
 
+class _WeeklyReviewState(TypedDict, total=False):
+    """Transient graph state. The graph is deliberately compiled without a checkpointer."""
+
+    facts: Mapping[str, object]
+    facts_digest: str
+    request: WeeklyReviewRequest
+    output: WeeklyReviewOutputDTO
+    started_at: float
+    model_calls: int
+    cost_usd: Decimal
+    attempt: int
+    failure_code: str
+    result: WeeklyReviewGraphResult
+
+
 class WeeklyReviewGraph:
     """One safe provider operation plus one correction retry; never persists payload bodies."""
 
     def __init__(self, *, provider: ReasoningModelProvider, config: WeeklyReviewGraphConfig) -> None:
         self._provider = provider
         self._config = config
+        self._compiled = self._build_graph()
 
     async def ainvoke_fixture(self, fixture: Mapping[str, object]) -> WeeklyReviewGraphResult:
         """Test-only fixture adapter; input content is transformed and discarded in this call."""
@@ -85,58 +104,165 @@ class WeeklyReviewGraph:
     async def ainvoke(
         self, *, facts: Mapping[str, object], facts_digest: str
     ) -> WeeklyReviewGraphResult:
-        try:
-            request = self._request_from_facts(facts)
-        except (ValidationError, ValueError):
-            return self._abstain("WEEKLY_REVIEW_FACTS_INVALID", 0, facts_digest)
-        metadata = self._ledger_metadata(facts_digest)
-        if not request.facts.coverage_sufficient:
-            return self._abstain("INSUFFICIENT_COVERAGE", 0, facts_digest, metadata)
-        if not self._config.provider_enabled:
-            return self._abstain("PROVIDER_DISABLED", 0, facts_digest, metadata)
-        if self._config.call_cap == 0 or self._config.per_run_cost_cap_usd <= 0:
-            return self._abstain("BUDGET_DENIED", 0, facts_digest, metadata)
+        state = await self._compiled.ainvoke(
+            {
+                "facts": facts,
+                "facts_digest": facts_digest,
+                "started_at": monotonic(),
+                "model_calls": 0,
+                "cost_usd": Decimal("0"),
+                "attempt": 0,
+            },
+            config={"recursion_limit": 12},
+        )
+        return state["result"]
 
-        started = monotonic()
-        cost = Decimal("0")
-        calls = 0
-        for attempt in range(2):
-            if calls >= self._config.call_cap or calls >= 2:
-                return self._abstain("BUDGET_DENIED", calls, facts_digest, metadata)
-            remaining = self._config.timeout_ms / 1000 - (monotonic() - started)
-            if remaining <= 0:
-                return self._abstain("WEEKLY_REVIEW_TIMEOUT", calls, facts_digest, metadata)
-            try:
-                async with asyncio.timeout(remaining):
-                    result = await self._provider.generate_weekly_review(request)
-                calls += 1
-                cost += result.metadata.usage.cost_usd
-                if result.metadata.usage.completion_tokens > 360 or cost > self._config.per_run_cost_cap_usd:
-                    return self._abstain("BUDGET_DENIED", calls, facts_digest, metadata)
-                validate_weekly_review_semantics(result.value, request.facts)
-                return WeeklyReviewGraphResult(
-                    code="COMPLETED", model_calls=calls,
-                    ledger=_ledger("completed", None, calls), ledger_metadata=metadata,
-                    suggestions=tuple(suggestion.text for suggestion in result.value.suggestions),
+    def _build_graph(self):
+        builder = StateGraph(_WeeklyReviewState)
+        builder.add_node("validate_facts", self._validate_facts_node)
+        builder.add_node("admit", self._admission_node)
+        builder.add_node("call_provider", self._provider_node)
+        builder.add_node("validate_semantics", self._semantic_validation_node)
+        builder.add_node("prepare_retry", self._retry_node)
+        builder.add_node("complete", self._complete_node)
+        builder.add_node("abstain", self._abstain_node)
+        builder.add_edge(START, "validate_facts")
+        builder.add_conditional_edges(
+            "validate_facts", self._route_failure, {"continue": "admit", "abstain": "abstain"}
+        )
+        builder.add_conditional_edges(
+            "admit", self._route_failure, {"continue": "call_provider", "abstain": "abstain"}
+        )
+        builder.add_conditional_edges(
+            "call_provider",
+            self._route_provider,
+            {"validate": "validate_semantics", "retry": "prepare_retry", "abstain": "abstain"},
+        )
+        builder.add_conditional_edges(
+            "validate_semantics",
+            self._route_semantics,
+            {"complete": "complete", "retry": "prepare_retry", "abstain": "abstain"},
+        )
+        builder.add_edge("prepare_retry", "call_provider")
+        builder.add_edge("complete", END)
+        builder.add_edge("abstain", END)
+        return builder.compile()
+
+    def _validate_facts_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        try:
+            request = self._request_from_facts(state["facts"])
+        except (ValidationError, ValueError):
+            return {"failure_code": "WEEKLY_REVIEW_FACTS_INVALID"}
+        return {"request": request}
+
+    def _admission_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        request = state["request"]
+        if not request.facts.coverage_sufficient:
+            return {"failure_code": "INSUFFICIENT_COVERAGE"}
+        if not self._config.provider_enabled:
+            return {"failure_code": "PROVIDER_DISABLED"}
+        if self._config.call_cap == 0 or self._config.per_run_cost_cap_usd <= 0:
+            return {"failure_code": "BUDGET_DENIED"}
+        return {}
+
+    async def _provider_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        calls = state["model_calls"]
+        if calls >= self._config.call_cap or calls >= 2:
+            return {"failure_code": "BUDGET_DENIED"}
+        remaining = self._config.timeout_ms / 1000 - (monotonic() - state["started_at"])
+        if remaining <= 0:
+            return {"failure_code": "WEEKLY_REVIEW_TIMEOUT"}
+        try:
+            async with asyncio.timeout(remaining):
+                provider_result = await self._provider.generate_weekly_review(state["request"])
+        except TimeoutError:
+            return {"model_calls": calls + 1, "failure_code": "WEEKLY_REVIEW_TIMEOUT"}
+        except ProviderCallError as error:
+            update: dict[str, object] = {"model_calls": calls + 1}
+            if error.kind is ProviderFailureKind.OUTCOME_UNKNOWN:
+                update["failure_code"] = "PROVIDER_OUTCOME_UNKNOWN"
+            elif error.code == "PROVIDER_SCHEMA_INVALID" and state["attempt"] == 0:
+                update["failure_code"] = "RETRY_SCHEMA"
+            else:
+                update["failure_code"] = (
+                    "WEEKLY_REVIEW_SCHEMA_INVALID"
+                    if error.code == "PROVIDER_SCHEMA_INVALID"
+                    else "PROVIDER_FAILURE"
                 )
-            except TimeoutError:
-                calls += 1
-                return self._abstain("WEEKLY_REVIEW_TIMEOUT", calls, facts_digest, metadata)
-            except ProviderCallError as error:
-                calls += 1
-                if error.kind is ProviderFailureKind.OUTCOME_UNKNOWN:
-                    return self._abstain("PROVIDER_OUTCOME_UNKNOWN", calls, facts_digest, metadata)
-                if error.code == "PROVIDER_SCHEMA_INVALID" and attempt == 0:
-                    request = request.model_copy(update={"retry_reason": "schema_or_safety_invalid"})
-                    continue
-                code = "WEEKLY_REVIEW_SCHEMA_INVALID" if error.code == "PROVIDER_SCHEMA_INVALID" else "PROVIDER_FAILURE"
-                return self._abstain(code, calls, facts_digest, metadata)
-            except ValueError:
-                if attempt == 0:
-                    request = request.model_copy(update={"retry_reason": "schema_or_safety_invalid"})
-                    continue
-                return self._abstain("WEEKLY_REVIEW_SAFETY_REJECTED", calls, facts_digest, metadata)
-        return self._abstain("WEEKLY_REVIEW_SCHEMA_INVALID", calls, facts_digest, metadata)
+            return update
+
+        cost = state["cost_usd"] + provider_result.metadata.usage.cost_usd
+        update = {
+            "model_calls": calls + 1,
+            "cost_usd": cost,
+            "output": provider_result.value,
+            "failure_code": "",
+        }
+        if (
+            provider_result.metadata.usage.completion_tokens > 360
+            or cost > self._config.per_run_cost_cap_usd
+        ):
+            update["failure_code"] = "BUDGET_DENIED"
+        return update
+
+    def _semantic_validation_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        try:
+            validate_weekly_review_semantics(state["output"], state["request"].facts)
+        except ValueError:
+            return {
+                "failure_code": (
+                    "RETRY_SAFETY"
+                    if state["attempt"] == 0
+                    else "WEEKLY_REVIEW_SAFETY_REJECTED"
+                )
+            }
+        return {"failure_code": ""}
+
+    def _retry_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        return {
+            "request": state["request"].model_copy(
+                update={"retry_reason": "schema_or_safety_invalid"}
+            ),
+            "attempt": state["attempt"] + 1,
+            "failure_code": "",
+        }
+
+    def _complete_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        calls = state["model_calls"]
+        return {
+            "result": WeeklyReviewGraphResult(
+                code="COMPLETED",
+                model_calls=calls,
+                ledger=_ledger("completed", None, calls),
+                ledger_metadata=self._ledger_metadata(state["facts_digest"]),
+                suggestions=tuple(item.text for item in state["output"].suggestions),
+            )
+        }
+
+    def _abstain_node(self, state: _WeeklyReviewState) -> dict[str, object]:
+        return {
+            "result": self._abstain(
+                state["failure_code"], state["model_calls"], state["facts_digest"]
+            )
+        }
+
+    @staticmethod
+    def _route_failure(state: _WeeklyReviewState) -> str:
+        return "abstain" if state.get("failure_code") else "continue"
+
+    @staticmethod
+    def _route_provider(state: _WeeklyReviewState) -> str:
+        failure = state.get("failure_code")
+        if failure == "RETRY_SCHEMA":
+            return "retry"
+        return "abstain" if failure else "validate"
+
+    @staticmethod
+    def _route_semantics(state: _WeeklyReviewState) -> str:
+        failure = state.get("failure_code")
+        if failure == "RETRY_SAFETY":
+            return "retry"
+        return "abstain" if failure else "complete"
 
     def _request_from_facts(self, facts: Mapping[str, object]) -> WeeklyReviewRequest:
         provider_facts = {key: value for key, value in facts.items() if key != "facts_digest"}
@@ -153,7 +279,8 @@ class WeeklyReviewGraph:
         queue_error = getattr(self._provider, "queue_weekly_review_error", None)
         if not isinstance(script, Mapping) or not callable(queue) or not callable(queue_error):
             return
-        patterns = list(facts.get("allowed_patterns", []))
+        raw_patterns = facts.get("allowed_patterns", [])
+        patterns = list(raw_patterns) if isinstance(raw_patterns, (list, tuple)) else []
         category = patterns[0] if patterns else "food_variety"
         for event in script.get("events", []):
             if not isinstance(event, Mapping):
@@ -165,7 +292,14 @@ class WeeklyReviewGraph:
                 violation = event.get("violation")
                 unsafe_category = "meal_balance" if category != "meal_balance" else "food_variety"
                 text = "This diagnoses a disease." if violation not in {"UNSUPPORTED_CATEGORY"} else "Consider a general food choice in recorded meals."
-                queue(WeeklyReviewOutputDTO(suggestions=[{"category": unsafe_category, "text": text}], disclaimer=_SAFE_DISCLAIMER))
+                queue(
+                    WeeklyReviewOutputDTO.model_validate(
+                        {
+                            "suggestions": [{"category": unsafe_category, "text": text}],
+                            "disclaimer": _SAFE_DISCLAIMER,
+                        }
+                    )
+                )
             elif kind == "invalid_result":
                 queue_error(kind=ProviderFailureKind.PERMANENT, code="PROVIDER_SCHEMA_INVALID")
             elif kind == "timeout":

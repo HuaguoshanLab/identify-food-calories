@@ -111,17 +111,6 @@ class PersistedAgentRuntimeFactory:
             max_pixels=self._settings.image_max_pixels,
             ttl_seconds=self._settings.image_ttl_seconds,
         )
-        meal_graph = MealAnalysisGraph(
-            provider=provider,
-            vision_provider=vision_provider,
-            vision_model_alias=self._settings.qwen_model or "fake-vision-v1",
-            vision_pixel_budget=self._settings.vision_max_pixels,
-            tools=tools,
-        )
-        graph = RoutedAgentGraph(
-            meal_graph=meal_graph,
-            diet_planning_graph=DietPlanningGraph(tools=tools),
-        )
         supervisor = PostgresLeaseSupervisor(
             session_factory=session_factory,
             holder_id=f"fastapi-agent-runtime:{uuid.uuid4().hex}",
@@ -144,6 +133,23 @@ class PersistedAgentRuntimeFactory:
         )
         self._saver_context = context
         checkpointer = await context.__aenter__()
+        # Both durable workflows share the lifespan-owned saver connection pool. Each graph is
+        # compiled independently so LangGraph owns checkpoint creation and resume semantics.
+        meal_graph = MealAnalysisGraph(
+            provider=provider,
+            vision_provider=vision_provider,
+            vision_model_alias=self._settings.qwen_model or "fake-vision-v1",
+            vision_pixel_budget=self._settings.vision_max_pixels,
+            tools=tools,
+            checkpointer=checkpointer,
+        )
+        graph = RoutedAgentGraph(
+            meal_graph=meal_graph,
+            diet_planning_graph=DietPlanningGraph(
+                tools=tools,
+                checkpointer=checkpointer,
+            ),
+        )
         await supervisor.start_retention(
             checkpointer=checkpointer,
             policy=RetentionPolicy(

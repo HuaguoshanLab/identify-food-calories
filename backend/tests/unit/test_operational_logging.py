@@ -257,7 +257,12 @@ def test_completed_database_string_status_does_not_fail_success_response():
     service = SimpleNamespace(execute_run=AsyncMock(return_value=completed))
     lease = SimpleNamespace(holder_id="test-holder")
     supervisor = SimpleNamespace(claim=Mock(return_value=lease), release=Mock())
-    runtime = SimpleNamespace(tracing=DisabledTracingRuntime(), supervisor=supervisor, graph=object(), checkpointer=object())
+    runtime = SimpleNamespace(
+        tracing=DisabledTracingRuntime(),
+        supervisor=supervisor,
+        graph=SimpleNamespace(for_kind=lambda _kind: object()),
+        checkpointer=object(),
+    )
     asyncio.run(_execute(service=service, runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))
     service.execute_run.assert_awaited_once()
     supervisor.release.assert_called_once()

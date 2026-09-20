@@ -14,10 +14,11 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from typing import Protocol
+from typing import Annotated, Any, Protocol, TypedDict, cast
 from collections.abc import Callable
 
 from app.agent.state import (
+    AgentGraphKind,
     AgentNextAction,
     AgentRuntimeStatus,
     ClarificationQuestion,
@@ -52,9 +53,11 @@ from app.providers.reasoning.ports import ReasoningModelProvider
 from app.providers.vision.dto import VisionMealRequest, VisionMealResult
 from app.providers.vision.ports import VisionModelProvider
 from app.agent.runtime_errors import AgentRuntimeStageError
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 
-GRAPH_VERSION = "meal-agent-graph.v1"
+GRAPH_VERSION = "meal-agent-graph.v2"
 LOGGER = logging.getLogger(__name__)
 _EXPLICIT_GRAMS = re.compile(
     r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:g(?![A-Za-z])|克)", re.IGNORECASE
@@ -78,12 +81,45 @@ class AgentGraph(Protocol):
         self, state: MealAgentState | DietPlanningState, *, resume: dict[str, object] | None = None
     ) -> MealAgentState | DietPlanningState: ...
 
+    async def aget_state(
+        self, thread_id: object
+    ) -> MealAgentState | DietPlanningState | None: ...
+
+
+def _json_state(_current: object, update: object) -> dict[str, object]:
+    """Keep checkpoints portable under the strict JSON/msgpack serializer."""
+
+    if isinstance(update, (MealAgentState, DietPlanningState)):
+        return cast(dict[str, object], update.model_dump(mode="json"))
+    if isinstance(update, dict):
+        return cast(dict[str, object], update)
+    raise TypeError("graph state update must be a JSON object")
+
+
+class _MealGraphState(TypedDict, total=False):
+    state: Annotated[object, _json_state]
+    resume: dict[str, object] | None
+    started_ms: int
+
+
+class _PlanningGraphState(TypedDict, total=False):
+    state: Annotated[object, _json_state]
+    resume: dict[str, object] | None
+
+
+def _meal_state(flow: _MealGraphState) -> MealAgentState:
+    return MealAgentState.model_validate(flow["state"])
+
+
+def _planning_state(flow: _PlanningGraphState) -> DietPlanningState:
+    return DietPlanningState.model_validate(flow["state"])
+
 
 @dataclass(frozen=True, slots=True)
 class AgentRuntime:
     """Long-lived runtime dependencies created once by FastAPI lifespan."""
 
-    graph: AgentGraph
+    graph: RoutedAgentGraph
     tools: NutritionToolAdapter
     checkpointer: object
     supervisor: object
@@ -132,6 +168,7 @@ class MealAnalysisGraph:
         vision_model_alias: str = "fake-vision-v1",
         vision_pixel_budget: int = 20_000_000,
         monotonic_ms: Callable[[], int] | None = None,
+        checkpointer: object | None = None,
     ) -> None:
         self._provider = provider
         self._tools = tools
@@ -141,127 +178,220 @@ class MealAnalysisGraph:
             raise ValueError("vision pixel budget is invalid")
         self._vision_pixel_budget = vision_pixel_budget
         self._monotonic_ms = monotonic_ms or _monotonic_ms
+        self._checkpointer = checkpointer
+        self._compiled: Any = self._build_graph().compile(checkpointer=cast(Any, checkpointer))
+
+    def _build_graph(self) -> StateGraph[_MealGraphState]:
+        """Build the native meal workflow; provider and tool phases stay independently resumable."""
+
+        graph: Any = StateGraph(_MealGraphState)
+        graph.add_node("prepare_input", self._meal_prepare_node)
+        graph.add_node("personal_context", self._meal_context_node)
+        graph.add_node("vision_recognition", self._meal_vision_node)
+        graph.add_node("text_parsing", self._meal_parse_node)
+        graph.add_node("catalog_and_nutrition", self._meal_resolve_node)
+        graph.add_node("deterministic_validation", self._meal_validation_node)
+        graph.add_node("prepare_clarification", self._meal_finish_node)
+        graph.add_node("clarification", self._meal_interrupt_node)
+        graph.add_node("report", self._meal_report_node)
+        graph.add_edge(START, "prepare_input")
+        graph.add_edge("prepare_input", "personal_context")
+        graph.add_conditional_edges(
+            "personal_context", self._meal_route,
+            {
+                "vision": "vision_recognition",
+                "parse": "text_parsing",
+                "resolve": "catalog_and_nutrition",
+                "wait": "clarification",
+                "report": "report",
+                "stop": END,
+            },
+        )
+        graph.add_conditional_edges("vision_recognition", self._meal_after_perception,
+                                    {"resolve": "catalog_and_nutrition", "stop": END})
+        graph.add_conditional_edges("text_parsing", self._meal_after_perception,
+                                    {"resolve": "catalog_and_nutrition", "stop": END})
+        graph.add_edge("catalog_and_nutrition", "deterministic_validation")
+        graph.add_conditional_edges("deterministic_validation", self._meal_after_execute,
+                                    {"wait": "prepare_clarification", "report": "report", "stop": END})
+        graph.add_edge("prepare_clarification", "clarification")
+        graph.add_conditional_edges(
+            "clarification", self._meal_after_interrupt,
+            {"resolve": "catalog_and_nutrition", "wait": END, "stop": END},
+        )
+        graph.add_conditional_edges("report", self._meal_after_report,
+                                    {"resolve": "catalog_and_nutrition", "stop": END})
+        return cast(StateGraph[_MealGraphState], graph)
+
+    async def _meal_prepare_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = self._capture_fresh_text_preferences(_meal_state(flow))
+        resume = flow.get("resume")
+        if resume is not None and state.next_action is AgentNextAction.ASK_USER:
+            state = self._apply_resume(state, resume)
+            resume = None
+        elif resume is not None and state.next_action is AgentNextAction.REPORT:
+            state = self._apply_correction(state, resume)
+            resume = None
+        if state.status not in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            state = _begin_transition(state)
+        return {"state": state, "resume": resume, "started_ms": self._monotonic_ms()}
+
+    async def _meal_context_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = _meal_state(flow)
+        if state.messages and not state.context_hints:
+            retrieve = getattr(self._tools, "retrieve_personal_context", None)
+            if callable(retrieve):
+                try:
+                    hints = retrieve(user_id=state.user_id, query=state.messages[-1])
+                except Exception as error:
+                    raise AgentRuntimeStageError.from_exception(stage="context_retrieval", error=error) from None
+                state = state.model_copy(update={"context_hints": tuple(
+                    StateContextHint(source=item.source, summary=item.summary) for item in hints[:9])})
+        return {**flow, "state": state}
+
+    def _meal_route(self, flow: _MealGraphState) -> str:
+        state = _meal_state(flow)
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return "stop"
+        return {
+            AgentNextAction.VISION: "vision",
+            AgentNextAction.PARSE: "parse",
+            AgentNextAction.RESOLVE_CATALOG: "resolve",
+            AgentNextAction.CALCULATE: "resolve",
+            AgentNextAction.VALIDATE: "resolve",
+            AgentNextAction.ASK_USER: "wait",
+            AgentNextAction.REPORT: "report",
+            AgentNextAction.STOP: "stop",
+        }[state.next_action]
+
+    async def _meal_vision_node(self, flow: _MealGraphState) -> _MealGraphState:
+        return {**flow, "state": await self._observe_image(_meal_state(flow))}
+
+    def _meal_after_perception(self, flow: _MealGraphState) -> str:
+        return "resolve" if _meal_state(flow).status is AgentRuntimeStatus.ACCEPTED else "stop"
+
+    async def _meal_parse_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = _meal_state(flow)
+        if state.next_action is not AgentNextAction.PARSE or len(state.messages) != 1:
+            failed = state.model_copy(update={"status": AgentRuntimeStatus.FAILED,
+                                              "next_action": AgentNextAction.STOP})
+            return {**flow, "state": failed}
+        parsed, current = await self._parse_with_one_transient_retry(state)
+        if parsed is None:
+            return {**flow, "state": current}
+        items = tuple(StateMealItem(item_id=item.item_id, normalized_name=item.food_name,
+                                    grams=item.grams, portion_description=item.quantity_text,
+                                    input_version="v1", is_dirty=True,
+                                    search_query=item.catalog_query or item.food_name)
+                      for item in parsed.value.items)
+        recovered = _recover_single_explicit_grams(message=state.messages[0], items=items)
+        if recovered is not None:
+            items = tuple(item.model_copy(update={"grams": recovered[1]})
+                          if item.item_id == recovered[0] else item for item in items)
+        portion = _recover_single_portion_description(message=state.messages[0], items=items)
+        if portion is not None:
+            items = tuple(item.model_copy(update={"portion_description": portion[1]})
+                          if item.item_id == portion[0] else item for item in items)
+        missing = tuple(f"{field.item_id}:{field.field}" for field in parsed.value.missing_fields
+                        if recovered is None or (field.item_id, field.field) != (recovered[0], "grams"))
+        return {**flow, "state": current.model_copy(update={"items": items, "messages": (),
+                                                              "missing_fields": missing})}
+
+    async def _meal_resolve_node(self, flow: _MealGraphState) -> _MealGraphState:
+        return {**flow, "state": await self._resolve(_meal_state(flow))}
+
+    async def _meal_validation_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = _meal_state(flow)
+        if state.next_action is AgentNextAction.REPORT:
+            invalid = tuple(
+                item.item_id for item in state.items
+                if item.item_id not in state.unaccounted_items and item.nutrients is None
+            )
+            if invalid:
+                state = state.model_copy(update={
+                    "validation_issues": invalid,
+                    "status": AgentRuntimeStatus.FAILED,
+                    "next_action": AgentNextAction.STOP,
+                })
+            elif not isinstance(state.report, dict) or "totals" not in state.report:
+                state = state.model_copy(update={
+                    "validation_issues": ("report:missing_totals",),
+                    "status": AgentRuntimeStatus.FAILED,
+                    "next_action": AgentNextAction.STOP,
+                })
+        return {**flow, "state": state}
+
+    async def _meal_finish_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = self._finish_transition(_meal_state(flow), flow.get("started_ms", self._monotonic_ms()))
+        return {**flow, "state": state}
+
+    def _meal_after_execute(self, flow: _MealGraphState) -> str:
+        state = _meal_state(flow)
+        if state.next_action is AgentNextAction.ASK_USER:
+            return "wait"
+        if state.next_action is AgentNextAction.REPORT:
+            return "report"
+        return "stop"
+
+    async def _meal_interrupt_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = _meal_state(flow)
+        supplied = flow.get("resume")
+        if supplied is None:
+            supplied = cast(dict[str, object], interrupt({
+                "kind": "meal_clarification",
+                "questions": [item.model_dump(mode="json") for item in state.clarification_questions],
+            }))
+        resumed = self._apply_resume(state, supplied)
+        if resumed is not state:
+            resumed = _begin_transition(resumed)
+        return {"state": resumed, "resume": None}
+
+    def _meal_after_interrupt(self, flow: _MealGraphState) -> str:
+        state = _meal_state(flow)
+        if state.next_action is AgentNextAction.ASK_USER:
+            return "wait"
+        if state.next_action in {AgentNextAction.RESOLVE_CATALOG, AgentNextAction.CALCULATE, AgentNextAction.VALIDATE}:
+            return "resolve"
+        return "stop"
+
+    async def _meal_report_node(self, flow: _MealGraphState) -> _MealGraphState:
+        state = _meal_state(flow)
+        resume = flow.get("resume")
+        if resume is not None:
+            state = self._apply_correction(state, resume)
+        state = self._finish_transition(state, flow.get("started_ms", self._monotonic_ms()))
+        return {**flow, "state": state, "resume": None}
+
+    def _meal_after_report(self, flow: _MealGraphState) -> str:
+        return "resolve" if _meal_state(flow).next_action is AgentNextAction.RESOLVE_CATALOG else "stop"
 
     async def ainvoke(
         self, state: MealAgentState, *, resume: dict[str, object] | None = None
     ) -> MealAgentState:
-        """Advance a pure state machine; the service owns persistence and idempotency.
-
-        A waiting state never calls the provider again.  The previous parse/search work is
-        already in the checkpoint, so an invalid resume is a no-op and a valid answer only marks
-        the affected item dirty before deterministic tools are called again.
-        """
-
-        started_ms = self._monotonic_ms()
-        state = self._capture_fresh_text_preferences(state)
-        if state.status is AgentRuntimeStatus.LIMIT_REACHED:
+        if resume is None and state.next_action in {AgentNextAction.ASK_USER, AgentNextAction.REPORT, AgentNextAction.STOP}:
             return state
-        if state.messages and not state.context_hints:
-            retrieve_context = getattr(self._tools, "retrieve_personal_context", None)
-            if callable(retrieve_context):
-                # Context is optional guidance and is deliberately collected before parsing. It
-                # cannot alter the deterministic Nutrition Service calls below.
-                try:
-                    hints = retrieve_context(user_id=state.user_id, query=state.messages[-1])
-                except Exception as error:
-                    raise AgentRuntimeStageError.from_exception(
-                        stage="context_retrieval", error=error
-                    ) from None
-                state = state.model_copy(
-                    update={
-                        "context_hints": tuple(
-                            StateContextHint(source=hint.source, summary=hint.summary)
-                            for hint in hints[:9]
-                        )
-                    }
+        if resume is not None and self._checkpointer is None:
+            if state.next_action is AgentNextAction.ASK_USER and self._apply_resume(state, resume) is state:
+                return state
+            if state.next_action is AgentNextAction.REPORT and self._apply_correction(state, resume) is state:
+                return state
+        config = {"configurable": {"thread_id": str(state.thread_id)}, "recursion_limit": 30}
+        if resume is not None and self._checkpointer is not None:
+            snapshot = await self._compiled.aget_state(config)
+            if snapshot.values and snapshot.next:
+                result = await self._compiled.ainvoke(
+                    Command(resume=resume, update={"state": state}), config=config
                 )
-        resumed = False
-        # Invalid/no-answer resumes are a no-op, not a graph transition.  Charging a new step
-        # here would make a client typo consume the autonomous-work budget.
-        if state.next_action is AgentNextAction.ASK_USER:
-            if resume is None:
-                return state
-            preview = self._apply_resume(state, resume)
-            if preview is state:
-                return state
-            state = preview
-            resumed = True
-        elif state.next_action is AgentNextAction.REPORT:
-            if resume is None:
-                return state
-            preview = self._apply_correction(state, resume)
-            if preview is state:
-                return state
-            state = preview
-            resumed = True
-        if state.next_action is AgentNextAction.VISION:
-            state = _begin_transition(state)
-            if state.status is AgentRuntimeStatus.LIMIT_REACHED:
-                return state
-            observed = await self._observe_image(state)
-            if observed.status is not AgentRuntimeStatus.ACCEPTED:
-                return self._finish_transition(observed, started_ms)
-            return self._finish_transition(await self._resolve(observed), started_ms)
-        state = _begin_transition(state)
-        if state.status is AgentRuntimeStatus.LIMIT_REACHED:
-            return state
-        if resumed:
-            return self._finish_transition(await self._resolve(state), started_ms)
-        if state.next_action is AgentNextAction.ASK_USER:
-            result = await self._resolve(state)
-            return self._finish_transition(result, started_ms)
-        if state.next_action is AgentNextAction.REPORT:
-            result = await self._resolve(state)
-            return self._finish_transition(result, started_ms)
-        if state.next_action is not AgentNextAction.PARSE or len(state.messages) != 1:
-            return self._finish_transition(state.model_copy(
-                update={"status": AgentRuntimeStatus.FAILED, "next_action": AgentNextAction.STOP}
-            ), started_ms)
-        parsed, parsed_state = await self._parse_with_one_transient_retry(state)
-        if parsed is None:
-            return self._finish_transition(parsed_state, started_ms)
-        items = tuple(
-            StateMealItem(
-                item_id=item.item_id,
-                normalized_name=item.food_name,
-                grams=item.grams,
-                portion_description=item.quantity_text,
-                input_version="v1",
-                is_dirty=True,
-                search_query=item.catalog_query or item.food_name,
-            )
-            for item in parsed.value.items
-        )
-        recovered_grams = _recover_single_explicit_grams(
-            message=state.messages[0], items=items
-        )
-        if recovered_grams is not None:
-            item_id, grams = recovered_grams
-            items = tuple(
-                item.model_copy(update={"grams": grams}) if item.item_id == item_id else item
-                for item in items
-            )
-        recovered_portion = _recover_single_portion_description(
-            message=state.messages[0], items=items
-        )
-        if recovered_portion is not None:
-            item_id, portion_description = recovered_portion
-            items = tuple(
-                item.model_copy(update={"portion_description": portion_description})
-                if item.item_id == item_id
-                else item
-                for item in items
-            )
-        missing = tuple(
-            f"{field.item_id}:{field.field}"
-            for field in parsed.value.missing_fields
-            if recovered_grams is None
-            or field.item_id != recovered_grams[0]
-            or field.field != "grams"
-        )
-        return self._finish_transition(await self._resolve(
-            parsed_state.model_copy(update={"items": items, "messages": (), "missing_fields": missing})
-        ), started_ms)
+                return MealAgentState.model_validate(result["state"])
+        result = await self._compiled.ainvoke({"state": state, "resume": resume}, config=config)
+        return MealAgentState.model_validate(result["state"])
+
+    async def aget_state(self, thread_id: object) -> MealAgentState | None:
+        config = {"configurable": {"thread_id": str(thread_id)}}
+        snapshot = await self._compiled.aget_state(config)
+        if not snapshot.values:
+            return None
+        return MealAgentState.model_validate(snapshot.values["state"])
 
     def _capture_fresh_text_preferences(self, state: MealAgentState) -> MealAgentState:
         """Persist deterministic first-person preferences once through the graph's narrow port."""
@@ -945,102 +1075,214 @@ def diet_planning_not_available(state: MealAgentState) -> MealAgentState:
 class DietPlanningGraph:
     """Bounded planning subgraph that can only invoke the typed planning tool port."""
 
-    def __init__(self, *, tools: PlanningToolAdapter) -> None:
+    def __init__(self, *, tools: PlanningToolAdapter, checkpointer: object | None = None) -> None:
         self._tools = tools
+        self._checkpointer = checkpointer
+        self._compiled: Any = self._build_graph().compile(checkpointer=cast(Any, checkpointer))
+
+    def _build_graph(self) -> StateGraph[_PlanningGraphState]:
+        graph: Any = StateGraph(_PlanningGraphState)
+        graph.add_node("read_profile", self._planning_read_profile)
+        graph.add_node("calculate_targets", self._planning_calculate_targets)
+        graph.add_node("save_profile", self._planning_save_profile)
+        graph.add_node("compose_plan", self._planning_compose)
+        graph.add_node("validate_plan", self._planning_validate)
+        graph.add_node("prepare_clarification", self._planning_prepare_clarification)
+        graph.add_node("clarification", self._planning_interrupt)
+        graph.add_node("adjust_plan", self._planning_adjust)
+        graph.add_node("complete", self._planning_passthrough)
+        graph.add_edge(START, "read_profile")
+        graph.add_conditional_edges(
+            "read_profile", self._planning_route,
+            {"targets": "calculate_targets", "wait": "prepare_clarification", "adjust": "adjust_plan", "complete": "complete", "stop": END},
+        )
+        graph.add_conditional_edges("calculate_targets", self._planning_after_target,
+                                    {"save": "save_profile", "compose": "compose_plan", "stop": END})
+        graph.add_edge("save_profile", "compose_plan")
+        graph.add_conditional_edges(
+            "compose_plan", self._planning_after_compose,
+            {"validate": "validate_plan", "stop": END},
+        )
+        graph.add_conditional_edges(
+            "adjust_plan", self._planning_after_adjust,
+            {"wait": "prepare_clarification", "complete": "complete", "stop": END},
+        )
+        graph.add_conditional_edges(
+            "clarification", self._planning_after_interrupt,
+            {"adjust": "adjust_plan", "wait": END, "stop": END},
+        )
+        graph.add_edge("prepare_clarification", "clarification")
+        graph.add_conditional_edges("validate_plan", self._planning_after_validate,
+                                    {"complete": "complete", "stop": END})
+        graph.add_edge("complete", END)
+        return cast(StateGraph[_PlanningGraphState], graph)
+
+    async def _planning_passthrough(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        return flow
+
+    async def _planning_read_profile(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return flow
+        if not state.preferences.confirmed:
+            state = state.model_copy(update={
+                "status": AgentRuntimeStatus.WAITING_INPUT,
+                "next_action": DietPlanningAction.NEEDS_INPUT,
+                "report": {"stage": "needs_input", "message": "请确认本次资料与饮食偏好后继续。"},
+            })
+        return {"state": state}
+
+    async def _planning_prepare_clarification(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        if state.status is AgentRuntimeStatus.WAITING_INPUT:
+            return flow
+        return flow
+
+    def _planning_route(self, flow: _PlanningGraphState) -> str:
+        state = _planning_state(flow)
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return "stop"
+        if flow.get("resume") is not None:
+            return "adjust"
+        if state.status is AgentRuntimeStatus.COMPLETED:
+            return "complete"
+        if not state.preferences.confirmed or state.next_action is DietPlanningAction.NEEDS_INPUT:
+            return "wait"
+        return "targets"
+
+    async def _planning_calculate_targets(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        if state.budget.tool_calls >= 12 or state.replan_count >= 3:
+            return {"state": self._budget_limit(state)}
+        result = await asyncio.to_thread(self._tools.calculate_daily_target,
+                                         profile=state.profile, preferences=state.preferences)
+        current = self._record_tool(state, "calculate_targets", result.action.value, result)
+        if result.action is not PlanValidationAction.PASS or result.target is None:
+            current = self._safe_terminal(current, result.action, result.safe_message)
+        else:
+            current = current.model_copy(update={"target": result.target,
+                                                 "next_action": DietPlanningAction.COMPOSE_PLAN})
+        return {"state": current}
+
+    def _planning_after_target(self, flow: _PlanningGraphState) -> str:
+        state = _planning_state(flow)
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return "stop"
+        return "save" if state.save_profile and not state.profile_save_completed else "compose"
+
+    async def _planning_save_profile(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        if state.budget.tool_calls >= 12:
+            return {"state": self._budget_limit(state)}
+        return {"state": self._call_profile_upsert(state)}
+
+    async def _planning_compose(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        if state.target is None or state.budget.tool_calls >= 12 or state.replan_count >= 3:
+            return {"state": self._budget_limit(state)}
+        result = await asyncio.to_thread(self._tools.compose_daily_plan, user_id=state.user_id,
+                                         target=state.target, preferences=state.preferences,
+                                         replan_count=state.replan_count)
+        current = self._record_tool(state, "compose_plan", result.action.value, result)
+        if result.action is not PlanValidationAction.PASS:
+            current = self._safe_terminal(current, result.action, result.safe_message)
+        else:
+            current = current.model_copy(update={"meals": result.meals,
+                                                 "next_action": DietPlanningAction.VALIDATE_PLAN})
+        return {"state": current}
+
+    def _planning_after_compose(self, flow: _PlanningGraphState) -> str:
+        return "stop" if _planning_state(flow).status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED} else "validate"
+
+    async def _planning_validate(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        assert state.target is not None
+        current, validation = self._validate_composed_meals(state, state.target, state.meals)
+        if validation is None:
+            return {"state": current}
+        if validation.action in {PlanValidationAction.PASS, PlanValidationAction.RELAX}:
+            report = _planning_report(target=state.target, meals=state.meals)
+            if validation.action is PlanValidationAction.RELAX:
+                report.update(_relaxation_projection(target=state.target, meals=state.meals,
+                                                     reason=validation.safe_message))
+            current = current.model_copy(update={"next_action": DietPlanningAction.COMPLETE,
+                                                 "status": AgentRuntimeStatus.COMPLETED, "report": report})
+        else:
+            current = self._safe_terminal(current, validation.action, validation.safe_message)
+        return {"state": current}
+
+    def _planning_after_validate(self, flow: _PlanningGraphState) -> str:
+        return "complete" if _planning_state(flow).status is AgentRuntimeStatus.COMPLETED else "stop"
+
+    async def _planning_adjust(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        return {"state": await self._apply_adjustment(_planning_state(flow), flow.get("resume") or {}),
+                "resume": None}
+
+    def _planning_after_adjust(self, flow: _PlanningGraphState) -> str:
+        state = _planning_state(flow)
+        if state.status is AgentRuntimeStatus.WAITING_INPUT:
+            return "wait"
+        if state.status is AgentRuntimeStatus.COMPLETED:
+            return "complete"
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return "stop"
+        return "validate"
+
+    async def _planning_interrupt(self, flow: _PlanningGraphState) -> _PlanningGraphState:
+        state = _planning_state(flow)
+        supplied = flow.get("resume")
+        if supplied is None:
+            supplied = cast(dict[str, object], interrupt({
+                "kind": "planning_clarification",
+                "report": state.report or {},
+            }))
+        return {"state": await self._apply_adjustment(state, supplied), "resume": None}
+
+    def _planning_after_interrupt(self, flow: _PlanningGraphState) -> str:
+        state = _planning_state(flow)
+        if state.status is AgentRuntimeStatus.WAITING_INPUT:
+            return "wait"
+        if state.status in {AgentRuntimeStatus.FAILED, AgentRuntimeStatus.LIMIT_REACHED}:
+            return "stop"
+        return "adjust"
 
     async def ainvoke(
         self, state: DietPlanningState, *, resume: dict[str, object] | None = None
     ) -> DietPlanningState:
-        if state.status in {
-            AgentRuntimeStatus.LIMIT_REACHED,
+        if resume is None and state.status in {
+            AgentRuntimeStatus.WAITING_INPUT,
+            AgentRuntimeStatus.COMPLETED,
             AgentRuntimeStatus.FAILED,
+            AgentRuntimeStatus.LIMIT_REACHED,
         }:
             return state
-        if resume is not None:
-            return await self._apply_adjustment(state, resume)
-        if state.status is AgentRuntimeStatus.COMPLETED:
+        if (
+            resume is not None
+            and self._checkpointer is None
+            and state.pending_adjustment_intent is not None
+            and not state.pending_food_candidates
+            and not state.pending_recipe_candidates
+            and resume.get("slot") not in {meal.slot.value for meal in state.meals}
+            and not isinstance(resume.get("feedback"), str)
+        ):
             return state
-        if not state.preferences.confirmed:
-            return state.model_copy(
-                update={
-                    "status": AgentRuntimeStatus.WAITING_INPUT,
-                    "next_action": DietPlanningAction.NEEDS_INPUT,
-                    "report": {
-                        "stage": "needs_input",
-                        "message": "请确认本次资料与饮食偏好后继续。",
-                    },
-                }
-            )
-
-        current = state
-        if current.budget.tool_calls >= 12 or current.replan_count >= 3:
-            return self._budget_limit(current)
-        target_result = await asyncio.to_thread(
-            self._tools.calculate_daily_target,
-            profile=current.profile,
-            preferences=current.preferences,
-        )
-        current = self._record_tool(current, "calculate_targets", target_result.action.value, target_result)
-        if target_result.action is not PlanValidationAction.PASS or target_result.target is None:
-            return self._safe_terminal(current, target_result.action, target_result.safe_message)
-        current = current.model_copy(
-            update={"target": target_result.target, "next_action": DietPlanningAction.COMPOSE_PLAN}
-        )
-        # A health-scope refusal must not persist the transient command as a profile.  Saving is
-        # intentionally deferred until the deterministic health guard has accepted the request.
-        if current.save_profile and not current.profile_save_completed:
-            if current.budget.tool_calls >= 12:
-                return self._budget_limit(current)
-            current = self._call_profile_upsert(current)
-
-        if current.replan_count >= 3 or current.budget.tool_calls >= 12:
-            return self._budget_limit(current)
-        composition = await asyncio.to_thread(
-            self._tools.compose_daily_plan,
-            user_id=current.user_id,
-            target=target_result.target,
-            preferences=current.preferences,
-            replan_count=current.replan_count,
-        )
-        current = self._record_tool(current, "compose_plan", composition.action.value, composition)
-        if composition.action is not PlanValidationAction.PASS:
-            # A deterministic search with unchanged inputs has no useful retry.
-            # Preserve the actual cause instead of replacing it with a loop-limit message.
-            return self._safe_terminal(current, composition.action, composition.safe_message)
-        current, validation = self._validate_composed_meals(current, target_result.target, composition.meals)
-        if validation is None:
-            return current
-        if validation.action is PlanValidationAction.PASS:
-            report = _planning_report(target=target_result.target, meals=composition.meals)
-            return current.model_copy(
-                update={
-                    "meals": composition.meals,
-                    "next_action": DietPlanningAction.COMPLETE,
-                    "status": AgentRuntimeStatus.COMPLETED,
-                    "report": report,
-                }
-            )
-        if validation.action is PlanValidationAction.RELAX:
-            # Relaxation is a bounded, deterministic fallback.  It must remain
-            # visible in the public report instead of being mistaken for a hard
-            # target pass or falling through into a meaningless retry loop.
-            report = _planning_report(target=target_result.target, meals=composition.meals)
-            report.update(
-                _relaxation_projection(
-                    target=target_result.target,
-                    meals=composition.meals,
-                    reason=validation.safe_message,
+        config = {"configurable": {"thread_id": str(state.thread_id)}, "recursion_limit": 30}
+        if resume is not None and self._checkpointer is not None:
+            snapshot = await self._compiled.aget_state(config)
+            if snapshot.values and snapshot.next:
+                result = await self._compiled.ainvoke(
+                    Command(resume=resume, update={"state": state}), config=config
                 )
-            )
-            return current.model_copy(
-                update={
-                    "meals": composition.meals,
-                    "next_action": DietPlanningAction.COMPLETE,
-                    "status": AgentRuntimeStatus.COMPLETED,
-                    "report": report,
-                }
-            )
-        return self._safe_terminal(current, validation.action, validation.safe_message)
+                return DietPlanningState.model_validate(result["state"])
+        result = await self._compiled.ainvoke({"state": state, "resume": resume}, config=config)
+        return DietPlanningState.model_validate(result["state"])
+
+    async def aget_state(self, thread_id: object) -> DietPlanningState | None:
+        config = {"configurable": {"thread_id": str(thread_id)}}
+        snapshot = await self._compiled.aget_state(config)
+        if not snapshot.values:
+            return None
+        return DietPlanningState.model_validate(snapshot.values["state"])
 
     def _validate_composed_meals(
         self, state: DietPlanningState, target: DailyTarget, meals: tuple[PlannedMeal, ...],
@@ -1196,7 +1438,7 @@ class DietPlanningGraph:
                 selected_food_id, selected_catalog_version = eligible_identities[0]
                 current = current.model_copy(update={"pending_food_query": None})
             elif search.candidates:
-                eligible_identities = set(
+                eligible_identity_set = set(
                     self._tools.keep_replaceable_food_identities(
                         identities=tuple((food.food_id, food.catalog_version) for food in search.candidates),
                         affected_slot=slot,
@@ -1207,7 +1449,7 @@ class DietPlanningGraph:
                 eligible_candidates = tuple(
                     food
                     for food in search.candidates
-                    if (food.food_id, food.catalog_version) in eligible_identities
+                    if (food.food_id, food.catalog_version) in eligible_identity_set
                 )
                 if not eligible_candidates:
                     return current.model_copy(
@@ -1427,6 +1669,13 @@ class RoutedAgentGraph:
     def __init__(self, *, meal_graph: MealAnalysisGraph, diet_planning_graph: DietPlanningGraph) -> None:
         self._meal_graph = meal_graph
         self._diet_planning_graph = diet_planning_graph
+
+    def for_kind(self, kind: AgentGraphKind) -> MealAnalysisGraph | DietPlanningGraph:
+        if kind is AgentGraphKind.MEAL_ANALYSIS:
+            return self._meal_graph
+        return self._diet_planning_graph
+
+    graph_for = for_kind
 
     async def ainvoke(
         self, state: MealAgentState | DietPlanningState, *, resume: dict[str, object] | None = None

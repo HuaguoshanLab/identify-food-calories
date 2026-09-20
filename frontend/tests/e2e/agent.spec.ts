@@ -14,6 +14,7 @@ test.describe('phase 2 direct grams contract', () => {
     await registerAndActivate(page, request, account)
     await login(page, account, '/app/analyze')
 
+    await page.getByRole('button', { name: '改为文字描述这餐' }).click()
     await page.getByLabel('餐食描述').fill('米饭 100 克')
     await page.getByRole('button', { name: '开始分析' }).click()
 
@@ -37,6 +38,7 @@ test.describe('phase 2 direct grams contract', () => {
       password: 'correct-horse-battery-staple',
     }, '/app/analyze')
 
+    await page.getByRole('button', { name: '改为文字描述这餐' }).click()
     await page.getByLabel('餐食描述').fill('米饭 100 克')
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
@@ -61,6 +63,7 @@ test.describe('phase 2 direct grams contract', () => {
     await registerAndActivate(page, request, owner)
     await login(page, owner, '/app/analyze')
 
+    await page.getByRole('button', { name: '改为文字描述这餐' }).click()
     await page.getByLabel('餐食描述').fill('米饭')
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('region', { name: '集中补充信息' })).toBeVisible()
@@ -94,6 +97,7 @@ test.describe('phase 2 direct grams contract', () => {
     await page.goto('/register')
     await registerAndActivate(page, request, deleting)
     await login(page, deleting, '/app/analyze')
+    await page.getByRole('button', { name: '改为文字描述这餐' }).click()
     await page.getByLabel('餐食描述').fill('米饭 100 克')
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
@@ -147,6 +151,7 @@ test.describe('phase 4 direct preference memory', () => {
     await registerAndActivate(page, request, memoryAccount)
     await login(page, memoryAccount, '/app/analyze')
 
+    await page.getByRole('button', { name: '改为文字描述这餐' }).click()
     await page.getByLabel('餐食描述').fill('米饭 100 克，我不吃辣')
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()

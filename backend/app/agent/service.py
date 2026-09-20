@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Protocol
 
 from app.agent.models import (
     AgentDeletionIntent,
@@ -30,10 +31,7 @@ from app.agent.state import (
     DietPlanningState,
     MealAgentState,
     StateImageReference,
-    checkpoint_namespace_for_kind,
-    state_codec_for_kind,
 )
-from app.agent.graph import AgentGraph
 from app.agent.runtime_errors import AgentRuntimeStageError
 from app.agent.schemas import DietPlanningStartCommand
 from app.agent.weight import parse_weight_grams
@@ -60,7 +58,22 @@ class AgentRuntimeAdmissionDenied(RuntimeError):
     """No new provider-facing run may start without an active policy snapshot."""
 
 
-GRAPH_VERSION = "meal-agent-graph.v1"
+class PersistedAgentGraph(Protocol):
+    """Narrow compiled-graph surface used by the application transaction boundary."""
+
+    async def ainvoke(
+        self,
+        state: MealAgentState | DietPlanningState,
+        *,
+        resume: dict[str, object] | None = None,
+    ) -> MealAgentState | DietPlanningState: ...
+
+    async def aget_state(
+        self, thread_id: object
+    ) -> MealAgentState | DietPlanningState | None: ...
+
+
+GRAPH_VERSION = "meal-agent-graph.v2"
 PROMPT_VERSION = "reasoning-parse.v2"
 TOOL_VERSION = "nutrition-tools-v1"
 VISION_OPERATION_VERSION = "vision-meal.v1"
@@ -249,8 +262,7 @@ class AgentService:
         *,
         run_id: uuid.UUID,
         user_id: uuid.UUID,
-        graph: AgentGraph,
-        checkpointer: object,
+        graph: PersistedAgentGraph,
         input_text: str | None = None,
         image_reference: StateImageReference | None = None,
         resume_payload: dict[str, object] | None = None,
@@ -283,9 +295,7 @@ class AgentService:
         )
         try:
             try:
-                previous = await self._load_checkpoint(
-                    checkpointer=checkpointer, thread_id=run.thread_id, graph_kind=graph_kind
-                )
+                previous = await graph.aget_state(run.thread_id)
             except Exception as error:
                 return await self._fail_run(
                     run=run, user_id=user_id, code="RUNTIME_FAILURE",
@@ -364,11 +374,6 @@ class AgentService:
                 run=run, user_id=user_id, code="RUNTIME_FAILURE",
                 stage="graph_execution", error_class=type(error).__name__[:80],
             )
-        try:
-            await self._persist_checkpoint(checkpointer=checkpointer, state=finished)
-        except Exception:
-            # The report is not resumable until its checkpoint is durable, so fail closed.
-            return await self._fail_run(run=run, user_id=user_id, code="CHECKPOINT_PERSIST_FAILED")
         run = self._repository.get_run_for_user(run_id=run.id, user_id=user_id, for_update=True)
         assert run is not None
         if isinstance(finished, MealAgentState):
@@ -594,7 +599,7 @@ class AgentService:
             )
 
     async def resume_payload_for_text(
-        self, *, checkpointer: object, thread_id: uuid.UUID, text: str,
+        self, *, graph: PersistedAgentGraph, thread_id: uuid.UUID, text: str,
         graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS,
     ) -> dict[str, object] | None:
         """Turn the existing public text command into a narrow validated resume payload.
@@ -604,9 +609,7 @@ class AgentService:
         Invalid text returns ``None`` and leaves the checkpoint waiting.
         """
 
-        state = await self._load_checkpoint(
-            checkpointer=checkpointer, thread_id=thread_id, graph_kind=graph_kind
-        )
+        state = await graph.aget_state(thread_id)
         if state is None:
             return None
         if graph_kind is AgentGraphKind.DIET_PLANNING:
@@ -669,53 +672,6 @@ class AgentService:
                     if normalized in {str(index), " ".join(food.label.casefold().split())}:
                         return {"answers": {question.item_id: {"candidate_id": str(food.food_id)}}}
         return None
-
-    @staticmethod
-    async def _load_checkpoint(
-        *, checkpointer: object, thread_id: uuid.UUID, graph_kind: AgentGraphKind = AgentGraphKind.MEAL_ANALYSIS
-    ) -> MealAgentState | DietPlanningState | None:
-        saver = checkpointer
-        checkpoint_tuple = await saver.aget_tuple(  # type: ignore[attr-defined]
-            {"configurable": {"thread_id": str(thread_id), "checkpoint_ns": checkpoint_namespace_for_kind(graph_kind)}}
-        )
-        if checkpoint_tuple is None:
-            return None
-        values = checkpoint_tuple.checkpoint.get("channel_values", {})
-        raw_state = values.get("agent_state")
-        return state_codec_for_kind(graph_kind).model_validate(raw_state) if isinstance(raw_state, dict) else None
-
-    @staticmethod
-    async def _persist_checkpoint(*, checkpointer: object, state: MealAgentState | DietPlanningState) -> None:
-        """Persist short-lived graph state after terminal routing without exposing it as a snapshot."""
-
-        from langgraph.checkpoint.base import empty_checkpoint
-
-        saver = checkpointer
-        checkpoint = empty_checkpoint()
-        # This application keeps one latest resumable meal-analysis snapshot per thread.  The
-        # saver orders arbitrary checkpoint IDs lexically, so a fresh `empty_checkpoint()` ID
-        # can make an older waiting state look newer than a completed resume.  A stable thread
-        # UUID turns this into an intentional upsert while the business ledger remains the
-        # authority for ownership, audit and SSE.
-        checkpoint["id"] = str(state.thread_id)
-        checkpoint["channel_values"] = {"agent_state": state.model_dump(mode="json")}
-        # Every persisted state is a new immutable blob version.  Reusing a version would leave
-        # the checkpoint row pointing at an old waiting snapshot after a successful resume.
-        state_version = uuid.uuid4().hex
-        checkpoint["channel_versions"] = {"agent_state": state_version}
-        await saver.aput(  # type: ignore[attr-defined]
-            {
-                "configurable": {
-                    "thread_id": str(state.thread_id),
-                    "checkpoint_ns": checkpoint_namespace_for_kind(
-                        AgentGraphKind.MEAL_ANALYSIS if isinstance(state, MealAgentState) else AgentGraphKind.DIET_PLANNING
-                    ),
-                }
-            },
-            checkpoint,
-            {"source": "loop", "step": 1, "parents": {}},
-            {"agent_state": state_version},
-        )
 
     def append_safe_event(
         self,

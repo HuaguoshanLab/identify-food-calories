@@ -175,7 +175,18 @@ export function PlanPage() {
     setAdjusting(true); setAdjustmentError(''); setStatusKind('working'); setStatusMessage(undefined); setProgressStage('tool_calculation')
     try {
       const accepted = await submitDietPlanningAdjustment(request, threadId, normalized, pendingSubmission.current.key)
-      await applySnapshot(await getPlanningSnapshot(request, threadId), true)
+      // The adjustment endpoint is asynchronous. The original planning stream has already
+      // closed after the first completed plan, so keeping the same thread id does not remount
+      // the stream hook. Poll the authoritative ledger snapshot for this submitted command;
+      // otherwise a fast 202/slow graph race leaves the page permanently on the old version.
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const response = await getPlanningSnapshot(request, threadId)
+        if (!response.ok) throw new Error('planning snapshot request failed')
+        const snapshot = safeSnapshotSchema.parse(await response.clone().json())
+        await applySnapshot(response, snapshot.status !== 'partial')
+        if (snapshot.status !== 'partial') break
+        await new Promise((resolve) => window.setTimeout(resolve, 100))
+      }
       // An uncertain response keeps its key for retry; a confirmed command frees
       // identical wording to express a new user action on the next submission.
       if (accepted.status !== 'partial') pendingSubmission.current = undefined

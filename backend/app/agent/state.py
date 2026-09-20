@@ -242,7 +242,6 @@ class MealAgentState(BaseModel):
             raise ValueError("completed state requires a report")
         return self
 
-
 class StateRecipeCandidate(BaseModel):
     """Version-bound recipe offer, separate from domain and provider DTOs."""
 
@@ -305,21 +304,3 @@ class DietPlanningState(BaseModel):
             if self.report is None or len(self.meals) != 3:
                 raise ValueError("completed planning state requires a three-meal report")
         return self
-
-
-def checkpoint_namespace_for_kind(kind: AgentGraphKind) -> str:
-    """Map only trusted internal graph kinds to saver namespaces."""
-
-    return {
-        AgentGraphKind.MEAL_ANALYSIS: "meal-analysis",
-        AgentGraphKind.DIET_PLANNING: "diet-planning",
-    }[kind]
-
-
-def state_codec_for_kind(kind: AgentGraphKind):
-    """Return a strict state decoder; cross-kind blobs must fail closed."""
-
-    return {
-        AgentGraphKind.MEAL_ANALYSIS: MealAgentState,
-        AgentGraphKind.DIET_PLANNING: DietPlanningState,
-    }[kind]

@@ -86,7 +86,6 @@ def test_only_one_transient_provider_retry_is_allowed() -> None:
 def test_real_postgres_saver_reopens_the_same_thread_checkpoint() -> None:
     """A process restart reads the newest persisted state, never an in-memory substitute."""
 
-    from app.agent.service import AgentService
     from app.core.config import Settings, validate_test_database_configuration
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -102,14 +101,24 @@ def test_real_postgres_saver_reopens_the_same_thread_checkpoint() -> None:
         check=True,
     )
     conninfo = make_url(test_url).set(drivername="postgresql").render_as_string(hide_password=False)
-    state = _state()
+    state = _state(budget=AgentBudget(model_calls=4))
 
     async def persist_then_reopen() -> MealAgentState | None:
         serde = JsonPlusSerializer(pickle_fallback=False, allowed_msgpack_modules=None)
         async with AsyncPostgresSaver.from_conn_string(conninfo, serde=serde) as first:
-            await AgentService._persist_checkpoint(checkpointer=first, state=state)
+            graph = MealAnalysisGraph(
+                provider=FakeReasoningModelProvider(),
+                tools=cast(NutritionToolAdapter, _UnusedTools()),
+                checkpointer=first,
+            )
+            await graph.ainvoke(state)
         async with AsyncPostgresSaver.from_conn_string(conninfo, serde=serde) as second:
-            return await AgentService._load_checkpoint(checkpointer=second, thread_id=state.thread_id)
+            reopened_graph = MealAnalysisGraph(
+                provider=FakeReasoningModelProvider(),
+                tools=cast(NutritionToolAdapter, _UnusedTools()),
+                checkpointer=second,
+            )
+            return await reopened_graph.aget_state(state.thread_id)
 
     reopened = asyncio.run(persist_then_reopen())
     assert reopened is not None
