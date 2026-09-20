@@ -239,7 +239,7 @@ uv run python -m app.admin.cli promote \
 
 两条命令都只接受已存在的账号；角色变化和 `admin_role_audit` 记录在同一个数据库事务内提交。CLI 拒绝匿名、未验证/inactive/non-admin actor、自我提升和空 reason。
 
-## Phase 6 调试路径
+## 看板与后台调试路径
 
 ```bash
 # Dashboard / weekly-review 的 fake-repository 单测与冻结 eval
@@ -253,7 +253,7 @@ uv run python tests/run_pg.py --env-file .env.test.example -- \
   uv run pytest tests/integration/test_dashboard_repository.py tests/integration/test_dashboard_overview_projection.py tests/integration/test_catalog_publish_eligibility.py -q
 ```
 
-Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit）、`0017`（catalog draft）、`0018`（catalog lifecycle）与 `0019`（runtime config）。Phase 6.1 再接 `0020`（餐次）、`0021`（计划存档）、`0022`（餐食目录版本）、`0023`（成品菜候选）和 `0024`（候选可引用后台已发布目录）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
+迁移沿单一链顺延： `0011/0012` 后依次使用 `0013`（本地日）、`0014`（completion projection）、`0015`（weekly cache）、`0016`（admin audit）、`0017`（catalog draft）、`0018`（catalog lifecycle）与 `0019`（runtime config）。随后是 `0020`（餐次）、`0021`（计划存档）、`0022`（餐食目录版本）、`0023`（成品菜候选）和 `0024`（候选可引用后台已发布目录）。只运行 `uv run alembic upgrade head`；不要手写 revision、跳过前驱或对开发库做测试 reset。
 
 ## 文件索引
 
@@ -273,7 +273,7 @@ Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013
 | `app/` | FastAPI 应用代码 |
 | `openapi-agent-v1.json` | 从运行时 FastAPI 生成并冻结的 Agent v1 公开合同；前端生成器会逐字校验 |
 | `migrations/` | Alembic schema 变更脚本目录 |
-| `evals/` | 无真实用户数据的 Phase 2 文字与 Phase 3 多模态冻结评测案例、Fake 回放和离线 hash/语义校验器 |
+| `evals/` | 无真实用户数据的 文字与多模态冻结评测案例、Fake 回放和离线 hash/语义校验器 |
 | `scripts/` | 受保护的测试数据库初始化、开发规划种子与 Checkpointer 初始化、应用启动入口 |
 | `tests/` | 单元、集成和 API 合约测试 |
 | `app/dashboard/` | 用户看板读模型、签名 cursor、facts-first 周复盘 cache 与安全 graph |
@@ -282,7 +282,7 @@ Phase 6 迁移沿单一链顺延：Phase 5 的 `0011/0012` 后依次使用 `0013
 
 ### 正式餐单存档
 
-`planning/archive_*` 提供 `/api/v1/planning/plans`（历史）、`/today`、`/{id}?version=N` 和 DELETE。运行完成与餐单版本同事务保存；迁移 `0021` 新增两张表。日期沿用确认的统计时区，旧临时结果不自动补存。详见 [教学文档](../docs/after/daily-plan-archive.md)。
+`planning/archive_*` 提供 `/api/v1/planning/plans`（历史）、`/today`、`/{id}?version=N` 和 DELETE。运行完成与餐单版本同事务保存；迁移 `0021` 新增两张表。日期沿用确认的统计时区，旧临时结果不自动补存。详见 [教学文档](../docs/learning/feature-plan-archive.md)。
 
 ### 旧菜谱三维分类整理
 

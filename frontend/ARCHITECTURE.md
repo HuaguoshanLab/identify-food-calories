@@ -76,4 +76,4 @@ components/ui → React / Base UI / 样式工具
 
 ## 变更门禁
 
-新建业务 feature 根目录时增加 README；常规子目录和普通文件增删不连锁维护索引。每次改动至少执行与范围匹配的测试；页面、表单、路由、上传或图表改动还必须走一次真实浏览器路径验收。完整命令见 `README.md`，H5 视觉约束见 `../docs/ui/h5-foundation.md`。
+新建业务 feature 根目录时增加 README；常规子目录和普通文件增删不连锁维护索引。每次改动至少执行与范围匹配的测试；页面、表单、路由、上传或图表改动还必须走一次真实浏览器路径验收。完整命令见 `README.md`，H5 视觉约束见 `../docs/ui/h5-design-guidelines.md`。

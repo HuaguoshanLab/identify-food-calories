@@ -1,19 +1,16 @@
 # 基于 LangGraph 的多模态饮食健康智能 Agent
 
-本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；Phase 6 的真实浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
+本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；用户看板与后台的历史浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/2026-09-04-dashboard-admin-browser.md`](docs/verification/2026-09-04-dashboard-admin-browser.md)。
 
 当前编排实现是 Python 业务状态机，使用 LangGraph 的 PostgreSQL Checkpointer 保存与恢复状态；尚未采用原生 `StateGraph` 节点、条件边和 `interrupt()`。餐单由确定性规则生成：目标驱动候选组合、受控标签约束调整、目录重算与最终校验。真实模型效果与原生图编排能力不能从这些流程测试中推导。
 
 日常变更门禁见 [Application quality](.github/workflows/quality.yml)：完整后端测试、两个前端的类型检查/单测/构建，以及餐单生成调整、后台运行配置和权限两组公开浏览器流程。其余历史 E2E 套件与 macOS 专用截图不在此门禁范围，真实模型评测独立于 CI。
 
-## 交付状态
+## 产品与验证边界
 
-- Phase 1–06.3 共 129 个计划均已执行并产生 Summary；Phase 6、06.2 和 06.3 的最终验证已通过。
-- Phase 2 已由用户手动接受为阶段完成，但当前 Spearman 发布报告仍为 `FAIL`，不得宣称该发布门禁已通过。
-- Phase 5 的规划实现和组件证据已完成，但真实“生成后调整餐单”的 E2E 路径仍需人工复验。
-- Phase 7“评测、安全与上线”尚未开始；项目当前不等于生产就绪。截止停用 GSD 时的历史追踪见 [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md)、[`.planning/ROADMAP.md`](.planning/ROADMAP.md) 和 [`.planning/STATE.md`](.planning/STATE.md)。
+产品场景、业务规则与验收条件见 [产品说明](docs/product.md)，待解决的问题见 [后续事项](docs/backlog.md)。
 
-> 流程状态：项目自 2026-09-15 起不再使用 GSD。`.planning/` 中的需求、路线图、阶段计划、Summary 和 Verification 均保留为历史证据，不再作为强制开发流程或实时状态。
+本地餐单生成、调整、刷新与历史版本已有[验收记录](docs/verification/2026-09-15-planning-optimization.md)。文本 Agent 的保留发布报告仍为 `FAIL`；真实模型质量、完整安全验收和生产部署不能从离线流程测试中推导。
 
 ## 职责
 
@@ -31,7 +28,7 @@
 
 ## 本地基础设施
 
-Plan 01-01 提供独立开发/测试 pgvector 数据库与 Mailpit：
+本地基础设施提供独立开发/测试 pgvector 数据库与 Mailpit：
 
 ```bash
 docker compose up -d --wait postgres postgres-test mailpit
@@ -132,9 +129,9 @@ E2E_ADMIN_BACKEND_PORT=8003 E2E_ADMIN_USER_FRONTEND_PORT=5183 E2E_ADMIN_FRONTEND
 
 `records-dashboard.spec.ts` 在 Shanghai 和 Los Angeles Chromium 时区上下文中观察 records-owned 统计时区确认先于看板读取；`records-weekly-review.spec.ts` 覆盖同一公开前置后的低覆盖安全投影；`admin-management.spec.ts` 覆盖管理员管理路径。它们是跨栈自动化证据，不替代 Codex 内置浏览器验收，也不宣称 UTC/DST/周一起点的精确数学；后者由确定性单元/API 测试负责，详见验收记录。
 
-Phase 06.3 的混合菜品检索、受控索引构建和激活命令见 [`docs/after/phase-06.3-hybrid-food-search.md`](docs/after/phase-06.3-hybrid-food-search.md)。release 不依赖 Langfuse 或付费 Provider：必须在真实 PostgreSQL 上运行完整测试及 `evaluate.py --verify-release`。只有 hash-bound PASS 证据、数据库管理员身份和明确 immutable build 同时存在时，才可按 `activate.py --help` 请求原子激活；不要猜测或复制生产参数。
+混合菜品检索、受控索引构建和激活命令见 [检索评测与发布说明](backend/evals/phase_06_3/README.md)。release 不依赖 Langfuse 或付费 Provider：必须在真实 PostgreSQL 上运行完整测试及 `evaluate.py --verify-release`。只有 hash-bound PASS 证据、数据库管理员身份和明确 immutable build 同时存在时，才可按 `activate.py --help` 请求原子激活；不要猜测或复制生产参数。
 
-Phase 06.3 的 GitHub CI 门禁定义在 [`.github/workflows/phase-063-frozen-retrieval.yml`](.github/workflows/phase-063-frozen-retrieval.yml)。它只启动 `postgres-test`，并固定执行：受保护初始化与 seed → 在 CI 临时目录生成 release → `--verify-release` → 相关真实 PostgreSQL 集成测试。需要本地复现时，在已启动 `postgres-test` 的前提下，从 `backend/` 依次运行：
+混合检索的 GitHub CI 门禁定义在 [`.github/workflows/phase-063-frozen-retrieval.yml`](.github/workflows/phase-063-frozen-retrieval.yml)。它只启动 `postgres-test`，并固定执行：受保护初始化与 seed → 在 CI 临时目录生成 release → `--verify-release` → 相关真实 PostgreSQL 集成测试。需要本地复现时，在已启动 `postgres-test` 的前提下，从 `backend/` 依次运行：
 
 ```bash
 uv run python tests/run_pg.py --env-file .env.test.example -- uv run python scripts/run_initialized_app.py --prepare-only
@@ -165,7 +162,7 @@ flowchart LR
 - 后端读模型、cursor、facts-first cache：[`backend/app/dashboard/service.py`](backend/app/dashboard/service.py)、[`backend/tests/dashboard/test_dashboard_service.py`](backend/tests/dashboard/test_dashboard_service.py)。
 - SSE 安全阶段：[`backend/app/agent/api.py`](backend/app/agent/api.py)、[`backend/tests/agent/test_safe_stream_stage_mapping.py`](backend/tests/agent/test_safe_stream_stage_mapping.py)。
 - 管理员 DB RBAC、不可变目录和运行配置快照：[`backend/app/admin/service.py`](backend/app/admin/service.py)、[`backend/tests/admin/test_catalog_lifecycle_service.py`](backend/tests/admin/test_catalog_lifecycle_service.py)、[`backend/tests/admin/test_runtime_config_service.py`](backend/tests/admin/test_runtime_config_service.py)。
-- 真实浏览器成功路径、边界和未完成项：[`docs/verification/phase-06-browser-acceptance.md`](docs/verification/phase-06-browser-acceptance.md)。
+- 真实浏览器成功路径、边界和未完成项：[`docs/verification/2026-09-04-dashboard-admin-browser.md`](docs/verification/2026-09-04-dashboard-admin-browser.md)。
 
 管理员创建、真实 Provider 评测和图片冻结评测都不是日常启动步骤。请分别查看 [`backend/README.md`](backend/README.md)、[`docs/learning/README.md`](docs/learning/README.md) 与 [`docs/verification/README.md`](docs/verification/README.md)；任何会调用付费 Provider 的评测都需要当次明确授权。
 
@@ -181,7 +178,6 @@ flowchart LR
 | `docker-compose.yml` | 本地 pgvector 双库与 Mailpit 编排 |
 | `docker-compose.langfuse.yml` | 默认关闭、仅环回暴露的本地 Langfuse 开发栈；含 Web、Worker、Redis、独立数据库与对象存储。 |
 | `docs/` | 中文教学与工程使用文档 |
-| `.planning/` | 截至 2026-09-15 的 GSD 历史规划、需求、路线图与执行证据；不再实时更新 |
 
 ## 文档维护
 
@@ -189,4 +185,4 @@ flowchart LR
 
 ### 今日计划存档
 
-成功生成的三餐自动保存到 PostgreSQL，计划页刷新后恢复今日餐单；历史入口可查看旧版本并删除整日计划。个人身体资料仍由用户显式选择保存，计划不会直接计入实际摄入。升级执行 `cd backend && .venv/bin/python -m alembic upgrade head`。设计与验证方法见 [中文教学](docs/after/daily-plan-archive.md)。
+成功生成的三餐自动保存到 PostgreSQL，计划页刷新后恢复今日餐单；历史入口可查看旧版本并删除整日计划。个人身体资料仍由用户显式选择保存，计划不会直接计入实际摄入。升级执行 `cd backend && .venv/bin/python -m alembic upgrade head`。设计与验证方法见 [中文教学](docs/learning/feature-plan-archive.md)。

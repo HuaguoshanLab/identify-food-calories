@@ -2,7 +2,7 @@
 
 ## 职责
 
-`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供认证、餐食分析、显式保存的餐食记录、records dashboard、周复盘和长期偏好管理。后台是 Phase 6 的独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
+`frontend/` 是独立的 React + TypeScript + Vite 用户端 SPA。当前提供认证、餐食分析、显式保存的餐食记录、records dashboard、周复盘和长期偏好管理。后台是独立 `admin-frontend/` 项目，本用户 H5 不创建后台目录、路由或调用。
 
 ## 允许依赖
 
@@ -10,7 +10,7 @@
 - React Hook Form、Zod 与 `@hookform/resolvers` 负责客户端表单体验；FastAPI 始终是输入校验权威。
 - Tailwind CSS、shadcn、Base UI 与 Lucide 是批准的 UI 工具。
 - Vitest、Testing Library、MSW 与 Playwright 负责前端和跨栈测试。
-- `promptfoo==0.122.0` 仅作为 Phase 2 已批准、lockfile 固定的发布评测 CLI；不得用于用户端运行时，也不得用临时 `npx` 下载替代。
+- `promptfoo==0.122.0` 仅作为已批准、lockfile 固定的发布评测 CLI；不得用于用户端运行时，也不得用临时 `npx` 下载替代。
 - 禁止导入 backend 源码、数据库客户端、服务端密钥或 Next.js 运行时。
 
 ## 本地运行
@@ -40,9 +40,9 @@ Vite 同时运行 React 与 Tailwind CSS v4 插件；Vitest 使用 jsdom 和 Tes
 npm run test:e2e
 ```
 
-该命令覆盖认证与 Records 的隔离真实 E2E；Records 当前窗口、跨 IANA 冲突与零 dashboard-read 合约由 `frontend/tests/e2e/records-dashboard.spec.ts` 守护。已实测的公开页面路径、结果及浏览器与 Playwright 的分层证据见 [`../docs/verification/phase-06-browser-acceptance.md`](../docs/verification/phase-06-browser-acceptance.md)。
+该命令覆盖认证与 Records 的隔离真实 E2E；Records 当前窗口、跨 IANA 冲突与零 dashboard-read 合约由 `frontend/tests/e2e/records-dashboard.spec.ts` 守护。已实测的公开页面路径、结果及浏览器与 Playwright 的分层证据见 [`../docs/verification/2026-09-04-dashboard-admin-browser.md`](../docs/verification/2026-09-04-dashboard-admin-browser.md)。
 
-### Phase 6 前端调试
+### 看板与后台联调
 
 ```bash
 # records DTO、保存 IANA 时区、history cursor 与组件行为
@@ -57,11 +57,11 @@ npm test -- --run \
 npm test -- --run src/features/agent/components/SafeProgressStages.test.tsx src/features/agent/stream/useAgentEventStream.test.ts
 ```
 
-Promptfoo 的真实 Provider 评测需要 Phase 02-17 单独的人类费用授权；授权后只允许使用已有 lockfile 的 CLI：`npx --no-install promptfoo`。不能运行 `npx promptfoo` 或 `npx -y`，因为它们会绕过锁定版本并下载未知依赖。
+Promptfoo 的真实 Provider 评测需要当次明确的费用授权；授权后只允许使用已有 lockfile 的 CLI：`npx --no-install promptfoo`。不能运行 `npx promptfoo` 或 `npx -y`，因为它们会绕过锁定版本并下载未知依赖。
 
 Playwright 先从仓库根启动并等待隔离的 `postgres-test` 与 Mailpit，再从 `backend/` 通过 `.env.test.example` 和 `tests/run_pg.py` 启动唯一初始化器。初始化器只使用 guard 返回的测试 URL，固定执行安全 reset、迁移、Checkpointer setup、seed apply，再启动 FastAPI；`DATABASE_URL` 始终保留开发哨兵，`TEST_DATABASE_URL` 始终保留隔离库。认证用例从 Mailpit HTTP test API 读取刚发送的验证码，绝不伪造验证码、令牌或调用内部服务；应用进程由 Playwright 进程组清理，Docker 测试服务可被后续用例安全复用。
 
-图片 E2E 使用真实登录、文件选择和公开 multipart API；页面只显示“估算重量”、partial 或安全恢复动作，不展示 Provider 原文、图片字节或内部图状态。冻结评测与一次真实浏览器验证的证据边界见 [`../docs/after/phase-03-multimodal-meal-analysis.md`](../docs/after/phase-03-multimodal-meal-analysis.md)。
+图片 E2E 使用真实登录、文件选择和公开 multipart API；页面只显示“估算重量”、partial 或安全恢复动作，不展示 Provider 原文、图片字节或内部图状态。图片处理链路与测试边界见 [图片识别教学](../docs/learning/feature-image-analysis.md)，冻结评测入口见 [评测说明](../backend/evals/README.md)。
 
 ## 文件索引
 

@@ -2,7 +2,7 @@
 
 ## 职责
 
-`admin-frontend/` 是 Phase 6 的独立桌面优先 React SPA。它为管理员提供运行概览、营养目录版本治理、Agent 运行审计、模型服务和操作审计界面。模型服务页完整展示 DeepSeek 文字理解、通义千问图片识别与 DashScope 菜品向量检索；只有 DeepSeek 的未来运行策略可在页面修改，视觉与向量服务保持服务端环境只读配置。
+`admin-frontend/` 是独立桌面优先 React SPA。它为管理员提供运行概览、营养目录版本治理、Agent 运行审计、模型服务和操作审计界面。模型服务页完整展示 DeepSeek 文字理解、通义千问图片识别与 DashScope 菜品向量检索；只有 DeepSeek 的未来运行策略可在页面修改，视觉与向量服务保持服务端环境只读配置。
 
 它不是用户 H5 的扩展：不得导入 `frontend/src`、不得向用户 H5 注册后台路由，也不得读取数据库或服务端源码。所有数据只能通过公开的 `/api/v1/admin/*` HTTP 合约取得；最终授权始终由后端读取 PostgreSQL 当前角色决定。
 
@@ -48,7 +48,7 @@ npm run test:e2e
 
 `npm run test:e2e -- --grep admin-management` 使用独立 Playwright runner：固定 backend `8003`、用户 SPA `5183`、admin SPA `5184`，每次从受 `run_pg.py` 验证的 `food_agent_test` reset 开始，并以 Mailpit 公共 HTTP 完成浏览器邮箱验证。它严格验证“验证账户 → audited first-admin CLI → Guard Bearer probe 200 → RuntimeConfig UI POST 201 → catalog lifecycle/audit”；普通用户必须获得真实 probe 403，且不能渲染 AdminShell 或私有数据。CLI 仅写首位角色审计，绝不创建 RuntimeConfig 或替代端点 RBAC。该命令必须在可访问本机 Docker 的隔离测试环境中运行；未实际运行时不能将配置存在、Vitest、构建或手工观察表述为 Playwright PASS。
 
-### Phase 6 后台调试
+### 后台调试
 
 ```bash
 # feature-owned strict DTO、页面与 RBAC 会话体验
@@ -84,4 +84,4 @@ npm run typecheck && VITE_ADMIN_API_BASE_URL=/api/v1/admin npm run build
 
 ## 后续变更
 
-Phase 6 计划仅作历史证据。后续功能按 `AGENTS.md` 的 S/M/L 风险分级执行：先在所属 feature 定义严格 API 合约，再实现页面和范围匹配的测试，不再创建 GSD Plan 或 Summary。
+功能变更按 `AGENTS.md` 的 S/M/L 风险分级执行：先在所属 feature 定义严格 API 合约，再实现页面和范围匹配的测试。
