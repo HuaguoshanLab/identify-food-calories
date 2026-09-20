@@ -1,18 +1,20 @@
+import { lazy, Suspense } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AdminLoginPage } from './auth/AdminLoginPage'
 import { AdminRouteGuard } from './auth/AdminRouteGuard'
-import { AdminAuditPage } from './features/audit/AuditPage'
-import { AdminCatalogListPage } from './features/catalog/CatalogListPage'
-import { AdminCatalogLifecyclePage } from './features/catalog/CatalogLifecyclePage'
-import { AdminRuntimeConfigSummaryPage } from './features/config/ConfigSummaryPage'
-import { AdminOverviewRoute } from './features/overview/AdminOverviewPage'
-import { AdminRunsPage } from './features/runs/RunsPage'
-import { AdminRolesPage } from './features/system/RolesPage'
-import { AdminUsersPage } from './features/system/UsersPage'
-import { RecipeListPage } from './features/recipes/RecipeListPage'
-import { VectorRetrievalPage } from './features/vector-retrieval/VectorRetrievalPage'
 import { AdminShell } from './layouts/AdminShell'
+
+const AdminAuditPage = lazy(() => import('./features/audit/AuditPage').then((module) => ({ default: module.AdminAuditPage })))
+const AdminCatalogListPage = lazy(() => import('./features/catalog/CatalogListPage').then((module) => ({ default: module.AdminCatalogListPage })))
+const AdminCatalogLifecyclePage = lazy(() => import('./features/catalog/CatalogLifecyclePage').then((module) => ({ default: module.AdminCatalogLifecyclePage })))
+const AdminRuntimeConfigSummaryPage = lazy(() => import('./features/config/ConfigSummaryPage').then((module) => ({ default: module.AdminRuntimeConfigSummaryPage })))
+const AdminOverviewRoute = lazy(() => import('./features/overview/AdminOverviewPage').then((module) => ({ default: module.AdminOverviewRoute })))
+const AdminRunsPage = lazy(() => import('./features/runs/RunsPage').then((module) => ({ default: module.AdminRunsPage })))
+const AdminRolesPage = lazy(() => import('./features/system/RolesPage').then((module) => ({ default: module.AdminRolesPage })))
+const AdminUsersPage = lazy(() => import('./features/system/UsersPage').then((module) => ({ default: module.AdminUsersPage })))
+const RecipeListPage = lazy(() => import('./features/recipes/RecipeListPage').then((module) => ({ default: module.RecipeListPage })))
+const VectorRetrievalPage = lazy(() => import('./features/vector-retrieval/VectorRetrievalPage').then((module) => ({ default: module.VectorRetrievalPage })))
 
 function ForbiddenPage() { return <main className="admin-runtime-root mx-auto max-w-2xl" aria-labelledby="admin-forbidden-title"><h1 className="text-[28px] font-semibold" id="admin-forbidden-title">无后台访问权限</h1><p className="mt-4">你的当前账号没有管理权限。请使用管理员账号登录。</p><div className="mt-6 flex gap-3"><Link className="rounded-md border px-4 py-2" to="/admin/login">重新登录</Link><a className="rounded-md border px-4 py-2" href="/app">返回用户端</a></div></main> }
 
@@ -22,6 +24,7 @@ function ForbiddenPage() { return <main className="admin-runtime-root mx-auto ma
  */
 export function App() {
   return (
+    <Suspense fallback={<p className="p-6 text-sm text-muted-foreground" role="status">正在加载后台页面…</p>}>
     <Routes>
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/forbidden" element={<ForbiddenPage />} />
@@ -39,5 +42,6 @@ export function App() {
       </Route>
       <Route path="*" element={<Navigate replace to="/admin/overview" />} />
     </Routes>
+    </Suspense>
   )
 }

@@ -7,6 +7,7 @@ checkpointer after AgentService has already proved thread ownership.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -590,19 +591,23 @@ class MealAnalysisGraph:
                 catalog_version = search.selected_food.catalog_version
             if tool_calls >= 12:
                 return _limit_state(state)
-            calculation = self._tools.calculate_nutrition(
+            calculation = await asyncio.to_thread(
+                self._tools.calculate_nutrition,
                 NutritionCalculationInput(
                     food_id=selected_food_id,
                     catalog_version=catalog_version,
                     grams=item.grams,
                     portion_description=item.portion_description,
-                )
+                ),
             )
             tool_calls += 1
             summaries.append(_summary(item.item_id, "calculate", calculation.action.value, calculation))
             if tool_calls >= 12:
                 return _limit_state(state)
-            validation = self._tools.validate_nutrition_result(NutritionValidationInput(calculation=calculation))
+            validation = await asyncio.to_thread(
+                self._tools.validate_nutrition_result,
+                NutritionValidationInput(calculation=calculation),
+            )
             tool_calls += 1
             summaries.append(_summary(item.item_id, "validate", validation.action.value, validation))
             if calculation.nutrients is None or calculation.food is None or validation.action.value not in {"PASS", "WARN"}:
@@ -970,8 +975,10 @@ class DietPlanningGraph:
         current = state
         if current.budget.tool_calls >= 12 or current.replan_count >= 3:
             return self._budget_limit(current)
-        target_result = self._tools.calculate_daily_target(
-            profile=current.profile, preferences=current.preferences
+        target_result = await asyncio.to_thread(
+            self._tools.calculate_daily_target,
+            profile=current.profile,
+            preferences=current.preferences,
         )
         current = self._record_tool(current, "calculate_targets", target_result.action.value, target_result)
         if target_result.action is not PlanValidationAction.PASS or target_result.target is None:
@@ -988,9 +995,12 @@ class DietPlanningGraph:
 
         if current.replan_count >= 3 or current.budget.tool_calls >= 12:
             return self._budget_limit(current)
-        composition = self._tools.compose_daily_plan(
-            user_id=current.user_id, target=target_result.target,
-            preferences=current.preferences, replan_count=current.replan_count,
+        composition = await asyncio.to_thread(
+            self._tools.compose_daily_plan,
+            user_id=current.user_id,
+            target=target_result.target,
+            preferences=current.preferences,
+            replan_count=current.replan_count,
         )
         current = self._record_tool(current, "compose_plan", composition.action.value, composition)
         if composition.action is not PlanValidationAction.PASS:

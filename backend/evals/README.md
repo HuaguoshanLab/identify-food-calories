@@ -25,7 +25,7 @@
 | `expert-signoff-phase2-85971eb9.template.md` | 绑定当前 `phase2-code-eval.json` 文件 SHA-256 `85971eb9…` 的双角色复审工作表；本轮已由于女士、陈先生实际填写，旧表不得转写为本轮正式签署。 |
 | `expert-signoff-phase2-85971eb9.json` | 从于女士与陈先生实际填写的当前工作表、以及本轮独立 Judge 分数物化的 hash-bound 正式签署；通过 `validate-signoff`。 |
 | `expert-signoff-phase2.reference.md` | 与空白表相同案例顺序的格式参考；展示五个具名确认、Medium 评分与独立 Judge 分数的正确写法，不是签署证据。 |
-| `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-json-thinking-disabled.v4`，启用严格唯一 `{"score": 1-5整数}`、OpenAI-compatible `response_format: {type: json_object}`，并经 Promptfoo 0.122.0 OpenAI provider 的 `passthrough` 发送 `thinking: {type: disabled}`。证据只记录该请求合同，不记录 reasoning/response 内容；v4 与旧 v1–v3 运行不可直接比较。 |
+| `promptfooconfig.yaml` | 12 个固定 Medium 文案样本 × 3 次、固定 `maxRetries: 0`/512 output tokens/串行/无缓存的正式 Judge 配置；当前为 `phase02-judge-rubric-json-thinking-disabled.v5`，明确注入 `case_id` 与待评文案，并提供固定 1–5 分锚点；启用严格唯一 `{"score": 1-5整数}`、OpenAI-compatible `response_format: {type: json_object}`，并经 Promptfoo 0.122.0 OpenAI provider 的 `passthrough` 发送 `thinking: {type: disabled}`。证据只记录该请求合同，不记录 reasoning/response 内容；v5 与旧 v1–v4 运行不可直接比较。 |
 | `promptfoo-pilot-phase2.yaml` | 非发布的固定 8 次 Promptfoo pilot；串行、无缓存、`maxRetries: 0`，绝不替代 12×3 发布合同。 |
 | `run_promptfoo_pilot.py` | 仅在本地子进程读取 `.env` 的安全 pilot 执行器：调用前按价格快照预留上限、每次后按 usage 复算并在首个异常停止。 |
 | `promptfoo-pilot-phase2.json` | 不含原始文案、输出或密钥的 pilot 证据：调用数、usage、成本、hash、失败类别与非发布标识。 |

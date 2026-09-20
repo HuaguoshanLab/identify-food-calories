@@ -4,7 +4,7 @@ import type * as Contract from './schemas.generated'
 export type AgentApiRequest = (path: string, init?: RequestInit) => Promise<Response>
 
 export async function createAgentThread(request: AgentApiRequest, payload: Contract.AgentThreadCreateRequest): Promise<Response> {
-  return request(`/agent/threads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return request(`/agent/threads`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'respond-async' }, body: JSON.stringify(payload) })
 }
 export type createAgentThreadResponse = Contract.AgentThreadSnapshot
 
@@ -24,12 +24,12 @@ export async function streamAgentEvents(request: AgentApiRequest, thread_id: str
 export type streamAgentEventsResponse = unknown
 
 export async function uploadAgentMealImage(request: AgentApiRequest, thread_id: string, image: File, commandKey: string): Promise<Response> {
-  return request(`/agent/threads/${encodeURIComponent(thread_id)}/images`, { method: 'POST', headers: { 'Idempotency-Key': commandKey }, body: (() => { const form = new FormData(); form.append('image', image); return form })() })
+  return request(`/agent/threads/${encodeURIComponent(thread_id)}/images`, { method: 'POST', headers: { 'Idempotency-Key': commandKey, Prefer: 'respond-async' }, body: (() => { const form = new FormData(); form.append('image', image); return form })() })
 }
 export type uploadAgentMealImageResponse = Contract.AgentImageAcceptedResponse
 
 export async function submitAgentInput(request: AgentApiRequest, thread_id: string, payload: Contract.AgentInputRequest): Promise<Response> {
-  return request(`/agent/threads/${encodeURIComponent(thread_id)}/input`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return request(`/agent/threads/${encodeURIComponent(thread_id)}/input`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'respond-async' }, body: JSON.stringify(payload) })
 }
 export type submitAgentInputResponse = Contract.AgentCommandAcceptedResponse
 
@@ -39,7 +39,7 @@ export async function retryAgentRun(request: AgentApiRequest, thread_id: string)
 export type retryAgentRunResponse = Contract.AgentCommandAcceptedResponse
 
 export async function createDietPlanningThread(request: AgentApiRequest, payload: Contract.DietPlanningStartCommand): Promise<Response> {
-  return request(`/agent/threads/diet-planning`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  return request(`/agent/threads/diet-planning`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'respond-async' }, body: JSON.stringify(payload) })
 }
 export type createDietPlanningThreadResponse = Contract.AgentThreadSnapshot
 
@@ -47,4 +47,3 @@ export async function createAgentImageThread(request: AgentApiRequest): Promise<
   return request(`/agent/threads/image`, { method: 'POST' })
 }
 export type createAgentImageThreadResponse = Contract.AgentThreadSnapshot
-

@@ -397,6 +397,12 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
             nutrition_catalog_version="admin-publication-v1", meal_slots=[slot],
             portion_grams=Decimal("650"), portion_description="合成评测份量",
             method_tags="评测", flavour_tags="清淡", status="enabled", revision=1,
+            classification={
+                "version": "recipe-classification.v1", "purpose": "whole_meal",
+                "role": "mixed_main", "ingredient_tags": [],
+                "evidence": "phase 06.3 synthetic frozen evaluation fixture",
+                "basis": "admin_review",
+            },
             created_at=now, updated_at=now,
         ))
     session.flush()
@@ -453,8 +459,14 @@ class _EvaluationPlanningTools:
         self.compose_calls += 1
         return self._planning_service.compose_daily_meals(user_id=user_id, catalog_version=None, preferences=preferences)
 
-    def validate_daily_plan(self, *, target: object, meals: tuple[object, ...], replan_count: int) -> PlanValidationResult:
-        return self._planning_service.validate_plan(target=target, meals=meals, allow_target_relaxation=replan_count >= 2)  # type: ignore[arg-type]
+    def validate_daily_plan(
+        self, *, target: object, meals: tuple[object, ...],
+        allow_target_relaxation: bool = False,
+    ) -> PlanValidationResult:
+        return self._planning_service.validate_plan(
+            target=target, meals=meals,
+            allow_target_relaxation=allow_target_relaxation,
+        )  # type: ignore[arg-type]
 
     def upsert_planning_profile(self, **_kwargs: object) -> None:
         raise AssertionError("frozen evaluation must not persist planning profiles")

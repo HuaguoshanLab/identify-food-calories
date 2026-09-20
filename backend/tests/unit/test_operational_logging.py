@@ -255,6 +255,9 @@ def test_completed_database_string_status_does_not_fail_success_response():
     # ORM statuses are strings after a flush/reload, even if callers use StrEnum.
     completed = SimpleNamespace(status='completed', model_calls=0, tool_calls=0, elapsed_ms=1)
     service = SimpleNamespace(execute_run=AsyncMock(return_value=completed))
-    runtime = SimpleNamespace(tracing=DisabledTracingRuntime(), supervisor=SimpleNamespace(claim=Mock()), graph=object(), checkpointer=object())
+    lease = SimpleNamespace(holder_id="test-holder")
+    supervisor = SimpleNamespace(claim=Mock(return_value=lease), release=Mock())
+    runtime = SimpleNamespace(tracing=DisabledTracingRuntime(), supervisor=supervisor, graph=object(), checkpointer=object())
     asyncio.run(_execute(service=service, runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))
     service.execute_run.assert_awaited_once()
+    supervisor.release.assert_called_once()

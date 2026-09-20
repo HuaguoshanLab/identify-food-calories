@@ -71,7 +71,10 @@ jobs:
       - if: matrix.app == 'frontend'
         run: npm run lint
       - run: npm test
-      - run: npm run build
+      - if: matrix.app == 'frontend'
+        run: npm run verify:production-bundle
+      - if: matrix.app == 'admin-frontend'
+        run: npm run verify:production-bundle
 
   browser:
     runs-on: ubuntu-24.04

@@ -81,15 +81,29 @@ def test_direct_grams_real_pg_api_sse_and_checkpoint() -> None:
             application = create_app(settings)
             application.dependency_overrides[get_authentication_service] = lambda: authentication
             with TestClient(application) as client:
-                response = client.post("/api/v1/agent/threads", json={"input_text": "米饭 100 克"}, headers={"Authorization": f"Bearer {token}"})
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Prefer": "respond-async",
+                }
+                response = client.post(
+                    "/api/v1/agent/threads",
+                    json={"input_text": "米饭 100 克"},
+                    headers=headers,
+                )
                 assert response.status_code == 201, response.text
                 snapshot = response.json()
-                assert snapshot["status"] == "completed"
-                assert snapshot["report"]["totals"]["energy_kcal"] == "130.0"
+                assert snapshot["status"] == "partial"
                 thread_id = snapshot["thread_id"]
-                stream = client.get(f"/api/v1/agent/threads/{thread_id}/events", headers={"Authorization": f"Bearer {token}"})
+                stream = client.get(
+                    f"/api/v1/agent/threads/{thread_id}/events", headers=headers
+                )
                 assert stream.status_code == 200
                 assert "event: agent" in stream.text and "米饭" not in stream.text and "130.0" not in stream.text
+                snapshot = client.get(
+                    f"/api/v1/agent/threads/{thread_id}", headers=headers
+                ).json()
+                assert snapshot["status"] == "completed"
+                assert snapshot["report"]["totals"]["energy_kcal"] == "130.0"
                 assert client.get(f"/api/v1/agent/threads/{thread_id}", headers={"Authorization": f"Bearer {other_token}"}).status_code == 404
 
             assert session.query(AgentThread).filter_by(user_id=user.id).count() == 1

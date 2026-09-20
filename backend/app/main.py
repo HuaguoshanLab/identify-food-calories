@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.planning.selection import MealSelectionPolicy, PlanningSearchBudget
 from app.core.logging import configure_logging, current_request_id, RequestLoggingMiddleware
@@ -121,7 +124,8 @@ class PersistedAgentRuntimeFactory:
         )
         supervisor = PostgresLeaseSupervisor(
             session_factory=session_factory,
-            holder_id="fastapi-agent-runtime",
+            holder_id=f"fastapi-agent-runtime:{uuid.uuid4().hex}",
+            lease_duration=timedelta(seconds=60),
             tracing=tracing_runtime,
         )
         await supervisor.start()
@@ -283,6 +287,24 @@ def create_app(
     @application.get("/api/v1/health", tags=["system"])
     def health() -> dict[str, str]:
         return {"status": "ok", "version": "v1"}
+
+    @application.get("/api/v1/ready", tags=["system"], response_model=None)
+    async def ready() -> dict[str, str] | JSONResponse:
+        """Prove both runtime initialization and database reachability for deployment probes."""
+
+        runtime = cast(AgentRuntime | None, getattr(application.state, "agent_runtime", None))
+        if runtime is None:
+            return JSONResponse(status_code=503, content={"status": "unavailable"})
+
+        def probe_database() -> None:
+            with cast(Any, runtime.session_factory)() as session:
+                session.execute(text("SELECT 1"))
+
+        try:
+            await asyncio.to_thread(probe_database)
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "unavailable"})
+        return {"status": "ready", "version": "v1"}
 
     return application
 

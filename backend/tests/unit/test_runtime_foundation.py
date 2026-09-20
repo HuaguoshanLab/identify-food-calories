@@ -632,6 +632,9 @@ def test_health_endpoint_has_versioned_stable_contract() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "version": "v1"}
+    readiness = client.get("/api/v1/ready")
+    assert readiness.status_code == 503
+    assert readiness.json() == {"status": "unavailable"}
 
 
 class _FakeAgentRepository:
@@ -769,13 +772,21 @@ def test_lease_wait_does_not_block_event_loop() -> None:
     def claim(**kwargs):
         entered.set()
         assert released.wait(timeout=2), "lease blocked the event loop"
+        return SimpleNamespace(holder_id="attempt-1")
+
+    def release(**kwargs):
+        assert kwargs["holder_id"] == "attempt-1"
 
     class Service:
         async def execute_run(self, **kwargs):
             return None
 
     async def scenario():
-        runtime = SimpleNamespace(supervisor=SimpleNamespace(claim=claim), graph=None, checkpointer=None)
+        runtime = SimpleNamespace(
+            supervisor=SimpleNamespace(claim=claim, release=release),
+            graph=None,
+            checkpointer=None,
+        )
         task = asyncio.create_task(_execute(service=Service(), runtime=runtime, run_id=uuid.uuid4(), user_id=uuid.uuid4()))
         try:
             while not entered.is_set():

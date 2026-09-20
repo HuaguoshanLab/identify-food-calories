@@ -30,7 +30,7 @@ uv run python scripts/setup_local_checkpointer.py
 uv run python -m app.core.run
 ```
 
-运行后可访问 `http://127.0.0.1:8000/api/v1/health`。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
+运行后可访问 `http://127.0.0.1:8000/api/v1/health`；部署就绪探针使用 `http://127.0.0.1:8000/api/v1/ready`，它同时检查 Agent 运行时和数据库连接。用户 H5 由 `frontend` 的 5178 端口代理公开 `/api/v1`；独立后台由 `admin-frontend` 的 5179 端口代理公开 `/api/v1/admin/*` 以及登录必要的公开认证路径。不要将两个 SPA 的端口、开发代理或管理员 access token 当作生产授权边界。
 
 ### 运行日志与查询
 

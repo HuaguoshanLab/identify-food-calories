@@ -15,7 +15,7 @@ export async function startDietPlanning(request: PlanningApiRequest, command: Di
   const payload = dietPlanningStartCommandSchema.parse(command)
   const response = await request('/agent/threads/diet-planning', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': commandKey },
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': commandKey, Prefer: 'respond-async' },
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw await getPlanningApiError(response, '暂时无法生成计划。请检查资料和网络后重试；若问题持续，请稍后再试。')
@@ -35,7 +35,7 @@ export async function submitDietPlanningAdjustment(
   const payload = dietPlanningAdjustmentSchema.parse({ kind: 'description', text })
   const response = await request(`/agent/threads/${encodeURIComponent(threadId)}/input`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': commandKey },
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': commandKey, Prefer: 'respond-async' },
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw await getPlanningApiError(response, '暂时无法提交调整。请检查网络后重试。')

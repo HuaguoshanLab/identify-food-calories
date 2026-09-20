@@ -98,7 +98,11 @@ def test_release_prompt_uses_a_new_strict_json_contract() -> None:
         Path("evals/promptfooconfig.yaml").read_bytes()
     )
 
-    assert version == "phase02-judge-json-thinking-disabled.v4"
+    assert version == "phase02-judge-rubric-json-thinking-disabled.v5"
+    assert "{{case_id}}" in prompt
+    assert "{{text}}" in prompt
+    assert "5 分：准确、清楚、可直接行动" in prompt
+    assert "1 分：无关、不可用、危险" in prompt
     assert '精确为 {"score": <1-5 的整数>}' in prompt
     assert "额外键" in prompt
     assert _judge_response_format(Path("evals/promptfooconfig.yaml").read_bytes()) == {

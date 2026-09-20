@@ -55,6 +55,7 @@ def test_reused_waiting_adjustment_does_not_resume_a_newer_checkpoint(monkeypatc
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, Mock
     from uuid import uuid4
+    from starlette.requests import Request
     from app.agent import api
     from app.agent.schemas import AgentInputRequest
 
@@ -65,6 +66,7 @@ def test_reused_waiting_adjustment_does_not_resume_a_newer_checkpoint(monkeypatc
         service = SimpleNamespace(create_or_reuse_run=Mock(return_value=run))
         response = asyncio.run(api._submit_agent_input_after_admission(
             thread_id=uuid4(), payload=AgentInputRequest(kind="description", text="午餐换一份"),
+            request=Request({"type": "http", "headers": []}),
             principal=uuid4(), service=service, runtime=SimpleNamespace(), latest=run,
             planning_thread=True, resume_payload={"feedback": "午餐换一份"}, planning_key="submission",
         ))

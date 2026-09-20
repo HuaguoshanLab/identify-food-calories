@@ -11,7 +11,7 @@ from app.core.logging import current_request_id, observed
 import asyncio
 import hashlib
 import uuid
-from collections.abc import Generator, Iterator
+from collections.abc import AsyncIterator, Generator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, cast
 
@@ -34,7 +34,7 @@ from app.agent.schemas import (
     SafeStreamStage,
     SafeStreamStageEvent,
 )
-from app.agent.service import AgentRuntimeAdmissionDenied, DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
+from app.agent.service import AgentRuntimeAdmissionDenied, DIET_PLANNING_GRAPH_VERSION, AgentCommandConflict, AgentLeaseUnavailable, AgentService, AgentThreadUnavailable, RetentionPolicy, safe_meal_stream_stage
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminService
 from app.agent.state import AgentGraphKind, StateImageReference
@@ -85,21 +85,27 @@ def get_agent_service(request: Request) -> Generator[AgentService, None, None]:
 
     session = cast(Any, _runtime(request).session_factory())
     try:
-        yield AgentService(
-            repository=SqlAlchemyAgentRepository(session),
-            commit=session.commit,
-            rollback=session.rollback,
-            planning_archive_writer=PlanArchiveService(repository=SqlAlchemyPlanArchiveRepository(session)),
-            planning_completion_writer=PlanningCompletionProjectionService(
-                repository=SqlAlchemyPlanningProfileRepository(session)
-            ),
-            runtime_config_admitter=AdminService(
-                repository=SqlAlchemyAdminRepository(session),
-                now=lambda: datetime.now(UTC),
-            ),
-        )
+        yield _build_agent_service(session)
     finally:
         session.close()
+
+
+def _build_agent_service(session: Any) -> AgentService:
+    return AgentService(
+        repository=SqlAlchemyAgentRepository(session),
+        commit=session.commit,
+        rollback=session.rollback,
+        planning_archive_writer=PlanArchiveService(
+            repository=SqlAlchemyPlanArchiveRepository(session)
+        ),
+        planning_completion_writer=PlanningCompletionProjectionService(
+            repository=SqlAlchemyPlanningProfileRepository(session)
+        ),
+        runtime_config_admitter=AdminService(
+            repository=SqlAlchemyAdminRepository(session),
+            now=lambda: datetime.now(UTC),
+        ),
+    )
 
 
 def _status(run_status: str | None) -> AgentThreadStatus:
@@ -189,25 +195,35 @@ async def _execute(
                         "text" if text is not None else "image" if image_reference is not None
                         else "resume" if resume_payload is not None else "diet_planning"
                     ),
-                    **({"text": text} if text is not None else {}),
                 }
             )
         # The supervisor owns its Session; a database lock wait must not block HTTP dispatch.
+        supervisor = cast(PostgresLeaseSupervisor, runtime.supervisor)
         try:
-            await asyncio.to_thread(cast(PostgresLeaseSupervisor, runtime.supervisor).claim, run_id=run_id, user_id=user_id)
+            lease = await asyncio.to_thread(
+                supervisor.claim, run_id=run_id, user_id=user_id
+            )
         except OperationalError as error:
             raise HTTPException(status_code=503, detail="Agent execution is temporarily busy.") from error
-        completed_run = await service.execute_run(
-            run_id=run_id,
-            user_id=user_id,
-            graph=runtime.graph,
-            checkpointer=runtime.checkpointer,
-            input_text=text,
-            image_reference=image_reference,
-            resume_payload=resume_payload,
-            planning_command=planning_command,
-            graph_kind=graph_kind,
-        )
+        try:
+            completed_run = await service.execute_run(
+                run_id=run_id,
+                user_id=user_id,
+                graph=runtime.graph,
+                checkpointer=runtime.checkpointer,
+                input_text=text,
+                image_reference=image_reference,
+                resume_payload=resume_payload,
+                planning_command=planning_command,
+                graph_kind=graph_kind,
+            )
+        finally:
+            await asyncio.to_thread(
+                supervisor.release,
+                run_id=run_id,
+                user_id=user_id,
+                holder_id=lease.holder_id,
+            )
         if completed_run is not None:
             import logging
             logging.getLogger(__name__).info("", extra={"event": "agent_result", "status": completed_run.status})
@@ -222,6 +238,68 @@ async def _execute(
             )
 
 
+async def _execute_detached(
+    *,
+    runtime: AgentRuntime,
+    cleanup_reference: ValidatedImageReference | None = None,
+    cleanup_image_id: uuid.UUID | None = None,
+    **command: Any,
+) -> None:
+    """Execute with a fresh transaction boundary after the HTTP request has returned."""
+
+    session = cast(Any, runtime.session_factory())
+    service = _build_agent_service(session)
+    try:
+        try:
+            await _execute(service=service, runtime=runtime, **command)
+        except AgentLeaseUnavailable:
+            # A duplicate dispatch found the original attempt still running. It must not
+            # overwrite that attempt's eventual result with a synthetic failure.
+            return
+        except Exception:
+            await service.fail_dispatched_run(
+                run_id=cast(uuid.UUID, command["run_id"]),
+                user_id=cast(uuid.UUID, command["user_id"]),
+                code="DISPATCH_EXECUTION_FAILED",
+            )
+            raise
+    finally:
+        if cleanup_reference is not None and cleanup_image_id is not None:
+            safety = cast(ImageSafetyService, runtime.image_safety)
+            try:
+                safety.delete(cleanup_reference)
+                service.mark_image_deleted(
+                    image_id=cleanup_image_id, user_id=cast(uuid.UUID, command["user_id"])
+                )
+            except Exception:
+                service.mark_image_deletion_failed(
+                    image_id=cleanup_image_id, user_id=cast(uuid.UUID, command["user_id"])
+                )
+        session.close()
+
+
+def _dispatch(runtime: AgentRuntime, **command: Any) -> None:
+    cast(PostgresLeaseSupervisor, runtime.supervisor).submit_execution(
+        _execute_detached(runtime=runtime, **command)
+    )
+
+
+async def _start_execution(
+    *, request: Request, service: AgentService, runtime: AgentRuntime, **command: Any
+) -> None:
+    """Honor the standard async preference while retaining a synchronous API fallback."""
+
+    preferences = {
+        item.strip().casefold()
+        for item in request.headers.get("prefer", "").split(",")
+        if item.strip()
+    }
+    if "respond-async" in preferences:
+        _dispatch(runtime, **command)
+        return
+    await _execute(service=service, runtime=runtime, **command)
+
+
 @router.post("/threads", operation_id="createAgentThread", response_model=AgentThreadSnapshot, status_code=status.HTTP_201_CREATED, responses=_ERROR_RESPONSES)
 async def create_agent_thread(payload: AgentThreadCreateRequest, request: Request, principal: AgentPrincipal, service: AgentService = Depends(get_agent_service)) -> AgentThreadSnapshot | JSONResponse:
     thread = service.create_thread(user_id=principal)
@@ -229,7 +307,11 @@ async def create_agent_thread(payload: AgentThreadCreateRequest, request: Reques
         run = service.create_or_reuse_run(thread_id=thread.id, user_id=principal, command_key=f"initial-{uuid.uuid4()}", canonical_command=_command_hash(payload.input_text))
     except AgentRuntimeAdmissionDenied:
         return _runtime_admission_rejected()
-    await _execute(service=service, runtime=_runtime(request), run_id=run.id, user_id=principal, text=payload.input_text)
+    runtime = _runtime(request)
+    await _start_execution(
+        request=request, service=service, runtime=runtime,
+        run_id=run.id, user_id=principal, text=payload.input_text,
+    )
     return _snapshot(service, thread_id=thread.id, user_id=principal)
 
 
@@ -260,9 +342,9 @@ async def create_diet_planning_thread(
             graph_kind=AgentGraphKind.DIET_PLANNING,
         )
         if run.status != "completed":
-            await _execute(
-                service=service,
-                runtime=_runtime(request),
+            runtime = _runtime(request)
+            await _start_execution(
+                request=request, service=service, runtime=runtime,
                 run_id=run.id,
                 user_id=principal,
                 planning_command=payload,
@@ -354,13 +436,24 @@ async def upload_agent_meal_image(
             request_key=f"{run.id.hex}-{image_record.id.hex}",
             model_alias=settings.qwen_model or "fake-vision-v1",
         )
-        await _execute(
-            service=service,
-            runtime=runtime,
-            run_id=run.id,
-            user_id=principal,
-            image_reference=image_state,
-        )
+        if "respond-async" in request.headers.get("prefer", "").casefold():
+            _dispatch(
+                runtime, run_id=run.id, user_id=principal,
+                image_reference=image_state, cleanup_reference=reference,
+                cleanup_image_id=image_record.id,
+            )
+        else:
+            await _execute(
+                service=service, runtime=runtime, run_id=run.id,
+                user_id=principal, image_reference=image_state,
+            )
+            try:
+                safety.delete(reference)
+                service.mark_image_deleted(image_id=image_record.id, user_id=principal)
+            except Exception:
+                service.mark_image_deletion_failed(
+                    image_id=image_record.id, user_id=principal
+                )
     except PlanArchiveConflict as error:
         return _error(status.HTTP_409_CONFLICT, "PLAN_ARCHIVE_CONFLICT", str(error))
     except AgentCommandConflict:
@@ -372,11 +465,6 @@ async def upload_agent_meal_image(
     except Exception:
         safety.delete(reference)
         raise
-    try:
-        safety.delete(reference)
-        service.mark_image_deleted(image_id=image_record.id, user_id=principal)
-    except Exception:
-        service.mark_image_deletion_failed(image_id=image_record.id, user_id=principal)
     return AgentImageAcceptedResponse(
         thread_id=thread_id,
         image_id=image_record.id,
@@ -429,7 +517,8 @@ async def submit_agent_input(
         return _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "INVALID_WEIGHT", str(error))
     try:
         return await _submit_agent_input_after_admission(
-            thread_id=thread_id, payload=payload, principal=principal, service=service,
+            thread_id=thread_id, payload=payload, request=request,
+            principal=principal, service=service,
             runtime=runtime, latest=latest, planning_thread=planning_thread, resume_payload=resume_payload,
             planning_key=planning_key,
         )
@@ -445,6 +534,7 @@ async def _submit_agent_input_after_admission(
     *,
     thread_id: uuid.UUID,
     payload: AgentInputRequest,
+    request: Request,
     principal: AgentPrincipal,
     service: AgentService,
     runtime: AgentRuntime,
@@ -467,9 +557,8 @@ async def _submit_agent_input_after_admission(
             graph_kind=AgentGraphKind.DIET_PLANNING,
         )
         if run.status == "accepted":
-            await _execute(
-                service=service,
-                runtime=runtime,
+            await _start_execution(
+                request=request, service=service, runtime=runtime,
                 run_id=run.id,
                 user_id=principal,
                 resume_payload=resume_payload,
@@ -480,9 +569,8 @@ async def _submit_agent_input_after_admission(
         if resume_payload is None:
             return AgentCommandAcceptedResponse(thread_id=thread_id, status=AgentThreadStatus.WAITING)
         run = latest
-        await _execute(
-            service=service,
-            runtime=runtime,
+        await _start_execution(
+            request=request, service=service, runtime=runtime,
             run_id=run.id,
             user_id=principal,
             resume_payload=resume_payload,
@@ -501,9 +589,8 @@ async def _submit_agent_input_after_admission(
             command_key=f"correction-{uuid.uuid4()}",
             canonical_command=_command_hash(payload.text),
         )
-        await _execute(
-            service=service,
-            runtime=runtime,
+        await _start_execution(
+            request=request, service=service, runtime=runtime,
             run_id=run.id,
             user_id=principal,
             resume_payload=resume_payload,
@@ -515,7 +602,10 @@ async def _submit_agent_input_after_admission(
         command_key=f"input-{uuid.uuid4()}",
         canonical_command=_command_hash(payload.text),
     )
-    await _execute(service=service, runtime=runtime, run_id=run.id, user_id=principal, text=payload.text)
+    await _start_execution(
+        request=request, service=service, runtime=runtime,
+        run_id=run.id, user_id=principal, text=payload.text,
+    )
     return AgentCommandAcceptedResponse(thread_id=thread_id, status=_status(run.status))
 
 
@@ -535,13 +625,42 @@ def stream_agent_events(thread_id: uuid.UUID, request: Request, principal: Agent
     except (AgentThreadUnavailable, ValueError):
         raise _unavailable() from None
 
-    def replay() -> Iterator[str]:
-        for event in events:
-            body = _safe_stream_event(event)
-            if body is not None:
-                yield f"id: {event.seq}\nevent: agent\ndata: {body}\n\n"
+    runtime = _runtime(request)
 
-    return StreamingResponse(replay(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+    async def replay_and_follow() -> AsyncIterator[str]:
+        sequence = after_seq
+        pending = events
+        while True:
+            for event in pending:
+                sequence = max(sequence, event.seq)
+                body = _safe_stream_event(event)
+                if body is not None:
+                    yield f"id: {event.seq}\nevent: agent\ndata: {body}\n\n"
+            if await request.is_disconnected():
+                return
+            session = cast(Any, runtime.session_factory())
+            try:
+                follow_service = _build_agent_service(session)
+                _thread, run, pending = follow_service.latest_run_and_events(
+                    thread_id=thread_id, user_id=principal, after_seq=sequence
+                )
+                terminal = run is None or run.status in {
+                    "waiting_input", "completed", "failed", "limit_reached"
+                }
+            finally:
+                session.close()
+            if pending:
+                continue
+            if terminal:
+                return
+            yield ": keep-alive\n\n"
+            await asyncio.sleep(0.2)
+
+    return StreamingResponse(
+        replay_and_follow(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/threads/{thread_id}/retry", operation_id="retryAgentRun", response_model=AgentCommandAcceptedResponse, status_code=status.HTTP_202_ACCEPTED, responses=_ERROR_RESPONSES)

@@ -167,8 +167,8 @@ class _ObservedTools(SessionNutritionToolAdapter):
         super().__init__(session_factory=session_factory)
         self.trace: list[str] = []
 
-    def search_food_catalog(self, request: Any) -> Any:
-        result = super().search_food_catalog(request)
+    async def search_food_catalog(self, request: Any) -> Any:
+        result = await super().search_food_catalog(request)
         self.trace.append(f"search_food_catalog:{result.action.value}")
         return result
 

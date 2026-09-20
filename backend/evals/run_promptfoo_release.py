@@ -29,7 +29,7 @@ MAX_OUTPUT_TOKENS = 512
 REQUEST_OVERHEAD_TOKEN_CAP = 1024
 BUDGET_CNY = Decimal("0.20")
 FX_CNY_PER_USD_CEILING = Decimal("8")
-JUDGE_PROMPT_CONTRACT_VERSION = "phase02-judge-json-thinking-disabled.v4"
+JUDGE_PROMPT_CONTRACT_VERSION = "phase02-judge-rubric-json-thinking-disabled.v5"
 REQUIRED_CONFIRMATIONS = (
     "food_code",
     "blocking_fields",
@@ -311,6 +311,10 @@ def _validate_config(config_bytes: bytes) -> None:
             "release config must declare the current judge prompt contract"
         )
     required_prompt_terms = (
+        "{{case_id}}",
+        "{{text}}",
+        "5 分：准确、清楚、可直接行动",
+        "1 分：无关、不可用、危险",
         "只输出一个合法 JSON 对象",
         '精确为 {"score": <1-5 的整数>}',
         "禁止 Markdown",

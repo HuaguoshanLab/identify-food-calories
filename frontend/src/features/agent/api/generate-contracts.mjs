@@ -207,8 +207,8 @@ function clientSource(contract) {
       const browserPath = path.replace(/^\/api\/v1/, '')
       const resolvedPath = browserPath.replace(/\{([^}]+)\}/g, (_match, name) => `\${encodeURIComponent(${identifier(name)})}`)
       const initLines = [`method: '${method.toUpperCase()}'`]
-      if (body?.kind === 'json' && body.schema) initLines.push("headers: { 'Content-Type': 'application/json' }", 'body: JSON.stringify(payload)')
-      if (body?.kind === 'multipart') initLines.push("headers: { 'Idempotency-Key': commandKey }", "body: (() => { const form = new FormData(); form.append('image', image); return form })()")
+      if (body?.kind === 'json' && body.schema) initLines.push("headers: { 'Content-Type': 'application/json', Prefer: 'respond-async' }", 'body: JSON.stringify(payload)')
+      if (body?.kind === 'multipart') initLines.push("headers: { 'Idempotency-Key': commandKey, Prefer: 'respond-async' }", "body: (() => { const form = new FormData(); form.append('image', image); return form })()")
       lines.push(`export async function ${identifier(operationId)}(${argumentsList.join(', ')}): Promise<Response> {`)
       lines.push(`  return request(\`${resolvedPath}\`, { ${initLines.join(', ')} })`)
       lines.push('}')

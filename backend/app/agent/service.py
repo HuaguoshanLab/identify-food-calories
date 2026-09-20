@@ -511,6 +511,22 @@ class AgentService:
         )
         return run
 
+    async def fail_dispatched_run(
+        self, *, run_id: uuid.UUID, user_id: uuid.UUID, code: str
+    ) -> AgentRun | None:
+        """Ensure a detached infrastructure failure cannot strand an accepted run."""
+
+        run = self._repository.get_run_for_user(
+            run_id=run_id, user_id=user_id, for_update=True
+        )
+        if run is None or run.status in {"completed", "waiting_input", "limit_reached"}:
+            self._commit_or_rollback()
+            return run
+        return await self._fail_run(
+            run=run, user_id=user_id, code=code,
+            stage="dispatch", error_class="DetachedExecutionFailure",
+        )
+
     async def _fail_run(
         self, *, run: AgentRun, user_id: uuid.UUID, code: str,
         stage: str | None = None, error_class: str | None = None,
@@ -1025,7 +1041,9 @@ class AgentService:
             raise AgentThreadUnavailable("agent run is unavailable")
         now = self._now()
         lease = self._repository.get_lease_for_run_for_update(run_id=run_id, user_id=user_id)
-        if lease is not None and lease.expires_at > now and lease.holder_id != holder_id:
+        # A claim is an execution attempt, not a renewal. No second caller may enter while
+        # ownership is live, even if a process accidentally reuses the same holder label.
+        if lease is not None and lease.expires_at > now:
             raise AgentLeaseUnavailable("agent run is leased")
         if lease is None:
             lease = self._repository.add_lease(
@@ -1043,6 +1061,20 @@ class AgentService:
             lease.expires_at = now + duration
         self._commit_or_rollback()
         return lease
+
+    def release_lease(
+        self, *, run_id: uuid.UUID, user_id: uuid.UUID, holder_id: str
+    ) -> None:
+        """Release only the exact attempt that acquired the live lease."""
+
+        lease = self._repository.get_lease_for_run_for_update(
+            run_id=run_id, user_id=user_id
+        )
+        if lease is None or lease.holder_id != holder_id:
+            self._commit_or_rollback()
+            return
+        self._repository.delete_lease(lease)
+        self._commit_or_rollback()
 
     def request_thread_deletion(
         self,

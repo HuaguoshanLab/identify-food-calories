@@ -238,6 +238,10 @@ class SqlAlchemyAgentRepository:
         self._session.flush()
         return lease
 
+    def delete_lease(self, lease: AgentLease) -> None:
+        self._session.delete(lease)
+        self._session.flush()
+
     def add_deletion_intent(self, intent: AgentDeletionIntent) -> AgentDeletionIntent:
         self._session.add(intent)
         self._session.flush()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -55,6 +55,7 @@ class PostgresLeaseSupervisor:
         self._retention_worker: RetentionWorker | None = None
         self._embedding_worker_task: asyncio.Task[None] | None = None
         self._embedding_worker_stop = asyncio.Event()
+        self._execution_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def started(self) -> bool:
@@ -77,6 +78,8 @@ class PostgresLeaseSupervisor:
 
     async def stop(self) -> None:
         try:
+            if self._execution_tasks:
+                await asyncio.gather(*tuple(self._execution_tasks), return_exceptions=True)
             if self._embedding_worker_task is not None:
                 self._embedding_worker_stop.set()
                 await self._embedding_worker_task
@@ -86,6 +89,26 @@ class PostgresLeaseSupervisor:
                 self._retention_worker = None
         finally:
             self._started = False
+
+    def submit_execution(self, work: Awaitable[None]) -> None:
+        """Own an accepted execution beyond the request lifetime and observe all failures."""
+
+        if not self._started:
+            raise RuntimeError("lease supervisor has not started")
+        task = asyncio.create_task(work, name="agent-execution")
+        self._execution_tasks.add(task)
+
+        def completed(finished: asyncio.Task[None]) -> None:
+            self._execution_tasks.discard(finished)
+            error = None if finished.cancelled() else finished.exception()
+            if error is not None:
+                logger.error(
+                    "",
+                    exc_info=(type(error), error, error.__traceback__),
+                    extra={"event": "agent_execution_failed"},
+                )
+
+        task.add_done_callback(completed)
 
     async def start_embedding_worker(
         self, *, worker: EmbeddingWorker, poll_interval: timedelta
@@ -193,6 +216,20 @@ class PostgresLeaseSupervisor:
             return service.claim_lease(
                 run_id=run_id,
                 user_id=user_id,
-                holder_id=self._holder_id,
+                # One holder is one attempt. A process-wide holder lets concurrent requests
+                # from the same worker bypass the live-lease check and duplicate provider cost.
+                holder_id=f"{self._holder_id}:{uuid.uuid4().hex}",
                 duration=self._lease_duration,
+            )
+
+    def release(self, *, run_id: uuid.UUID, user_id: uuid.UUID, holder_id: str) -> None:
+        with self._session_factory() as session:
+            service = AgentService(
+                repository=SqlAlchemyAgentRepository(session),
+                now=self._now,
+                commit=session.commit,
+                rollback=session.rollback,
+            )
+            service.release_lease(
+                run_id=run_id, user_id=user_id, holder_id=holder_id
             )

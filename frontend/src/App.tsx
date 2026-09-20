@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import {
@@ -11,25 +12,27 @@ import { LoginPage } from './auth/LoginPage'
 import { RegisterPage } from './auth/RegisterPage'
 import { RegisterVerifyPage } from './auth/RegisterVerifyPage'
 import { ResetPasswordPage } from './auth/ResetPasswordPage'
-import { AccountDetailsPage } from './app/AccountDetailsPage'
-import { MePage } from './app/MePage'
-import { SessionsDetailsPage } from './app/SessionsDetailsPage'
-import { AnalyzePage } from './features/agent/components/AnalyzePage'
-import { RecordsPage } from './features/records/components/RecordsPage'
-import { MealRecordDetailPage } from './features/records/components/MealRecordDetailPage'
-import { MealRecordEditPage } from './features/records/components/MealRecordEditPage'
-import { MemoryManagementPage } from './features/memory/components/MemoryManagementPage'
-import { MemoryEditPage } from './features/memory/components/MemoryEditPage'
-import { PersonalProfilePage } from './features/plans/components/PersonalProfilePage'
-import { PlanHistoryPage } from './features/plans/components/PlanHistoryPage'
-import { SavedPlanPage } from './features/plans/components/SavedPlanPage'
-import { PlanPage } from './features/plans/components/PlanPage'
 import { AppShell } from './layouts/AppShell'
 import { DetailLayout } from './layouts/DetailLayout'
 import { PublicAuthLayout } from './layouts/PublicAuthLayout'
 
+const AccountDetailsPage = lazy(() => import('./app/AccountDetailsPage').then((module) => ({ default: module.AccountDetailsPage })))
+const MePage = lazy(() => import('./app/MePage').then((module) => ({ default: module.MePage })))
+const SessionsDetailsPage = lazy(() => import('./app/SessionsDetailsPage').then((module) => ({ default: module.SessionsDetailsPage })))
+const AnalyzePage = lazy(() => import('./features/agent/components/AnalyzePage').then((module) => ({ default: module.AnalyzePage })))
+const RecordsPage = lazy(() => import('./features/records/components/RecordsPage').then((module) => ({ default: module.RecordsPage })))
+const MealRecordDetailPage = lazy(() => import('./features/records/components/MealRecordDetailPage').then((module) => ({ default: module.MealRecordDetailPage })))
+const MealRecordEditPage = lazy(() => import('./features/records/components/MealRecordEditPage').then((module) => ({ default: module.MealRecordEditPage })))
+const MemoryManagementPage = lazy(() => import('./features/memory/components/MemoryManagementPage').then((module) => ({ default: module.MemoryManagementPage })))
+const MemoryEditPage = lazy(() => import('./features/memory/components/MemoryEditPage').then((module) => ({ default: module.MemoryEditPage })))
+const PersonalProfilePage = lazy(() => import('./features/plans/components/PersonalProfilePage').then((module) => ({ default: module.PersonalProfilePage })))
+const PlanHistoryPage = lazy(() => import('./features/plans/components/PlanHistoryPage').then((module) => ({ default: module.PlanHistoryPage })))
+const SavedPlanPage = lazy(() => import('./features/plans/components/SavedPlanPage').then((module) => ({ default: module.SavedPlanPage })))
+const PlanPage = lazy(() => import('./features/plans/components/PlanPage').then((module) => ({ default: module.PlanPage })))
+
 export function App() {
   return (
+    <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">正在加载页面…</p>}>
     <Routes>
       <Route element={<PublicAuthLayout mode="entry" />}>
         <Route path="/" element={<LandingPage />} />
@@ -85,5 +88,6 @@ export function App() {
 
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
+    </Suspense>
   )
 }
