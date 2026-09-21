@@ -4,7 +4,10 @@ These annotations drive planning eligibility but never claim complete ingredient
 Ambiguous traditional names stay unknown instead of borrowing an invented recipe.
 """
 
+from typing import cast
+
 from app.admin.schemas import RecipeClassification
+from app.planning.classification import IngredientTag, RecipePurpose, RecipeRole
 
 PURPOSE_LABELS = {
     "whole_meal": "整餐候选",
@@ -372,8 +375,8 @@ def classify_recipe(name: str) -> RecipeClassification:
         evidence.append("暂无足够食材标签证据")
     return RecipeClassification(
         basis="name_only",
-        purpose=purpose,
-        role=role,
-        ingredient_tags=tuple(tags),
+        purpose=cast(RecipePurpose, purpose),
+        role=cast(RecipeRole, role),
+        ingredient_tags=cast(tuple[IngredientTag, ...], tuple(tags)),
         evidence="；".join(evidence),
     )

@@ -177,6 +177,19 @@ _PHASE063_RELEASE_SPACE = {
 }
 
 
+def _uuid_list(value: object) -> list[uuid.UUID]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise RecipeCandidateConflict("stored command result is malformed")
+    return [uuid.UUID(item) for item in value]
+
+
+def _diff_int(diff: dict[str, object], key: str) -> int:
+    value = diff.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise CatalogVectorSpaceBuildConflict("stored command result is malformed")
+    return value
+
+
 class AdminService:
     """Keeps RBAC truth and audit mutations inside one application transaction."""
 
@@ -534,9 +547,13 @@ class AdminService:
         """Read aggregate evidence with an explicit server-owned UTC window."""
 
         self.require_role(user_id=actor_user_id, required_role=UserRole.ADMIN)
-        upper = filters.get("occurred_before") or self._now()
-        lower = filters.get("occurred_after") or (upper - timedelta(hours=24))
-        if not isinstance(lower, datetime) or not isinstance(upper, datetime):
+        requested_upper = filters.get("occurred_before")
+        upper = requested_upper if isinstance(requested_upper, datetime) else self._now()
+        requested_lower = filters.get("occurred_after")
+        lower = requested_lower if isinstance(requested_lower, datetime) else upper - timedelta(hours=24)
+        if requested_upper is not None and not isinstance(requested_upper, datetime):
+            raise ValueError("run metric window must contain datetime values")
+        if requested_lower is not None and not isinstance(requested_lower, datetime):
             raise ValueError("run metric window must contain datetime values")
         normalized_filters = {
             **filters,
@@ -670,11 +687,9 @@ class AdminService:
                 raise RecipeCandidateConflict(
                     "Idempotency-Key was reused for a different command"
                 )
+            candidate_ids = _uuid_list(replay.after_diff.get("candidate_ids"))
             return RecipeCandidateImportResponse(
-                imported_count=len(replay.after_diff["candidate_ids"]),
-                candidate_ids=[
-                    uuid.UUID(value) for value in replay.after_diff["candidate_ids"]
-                ],
+                imported_count=len(candidate_ids), candidate_ids=candidate_ids
             )
         now = self._now()
         ids: list[uuid.UUID] = []
@@ -783,7 +798,9 @@ class AdminService:
         if replay is not None:
             if replay.after_diff.get("request_hash") != request_hash:
                 raise RecipeCandidateConflict("command changed")
-            return RecipeClassificationResponse(changed_count=len(replay.after_diff["candidate_ids"]))
+            return RecipeClassificationResponse(
+                changed_count=len(_uuid_list(replay.after_diff.get("candidate_ids")))
+            )
         try:
             pairs = [(entry, self._repository.get_recipe_candidate(entry.id, for_update=True))
                      for entry in sorted(command.entries, key=lambda entry: entry.id)]
@@ -801,7 +818,8 @@ class AdminService:
                     raise RecipeCandidateConflict("classification preview changed")
             now = self._now()
             for entry, row in pairs:
-                before = {"classification": row.classification, "revision": row.revision, "meal_slots": list(row.meal_slots)}
+                assert row is not None
+                before: dict[str, object] = {"classification": row.classification, "revision": row.revision, "meal_slots": list(row.meal_slots)}
                 if row.classification is not None:
                     before.update(classification_purpose=PURPOSE_LABELS[row.classification["purpose"]],
                                   classification_role=ROLE_LABELS[row.classification["role"]],
@@ -845,13 +863,12 @@ class AdminService:
                 raise RecipeCandidateConflict(
                     "Idempotency-Key was reused for a different command"
                 )
-            return [
-                self._recipe_candidate_response(
-                    self._repository.get_recipe_candidate(uuid.UUID(value))
-                )
-                for value in replay.after_diff["candidate_ids"]
-                if self._repository.get_recipe_candidate(uuid.UUID(value)) is not None
-            ]
+            responses: list[RecipeCandidateResponse] = []
+            for candidate_id in _uuid_list(replay.after_diff.get("candidate_ids")):
+                candidate = self._repository.get_recipe_candidate(candidate_id)
+                if candidate is not None:
+                    responses.append(self._recipe_candidate_response(candidate))
+            return responses
         now = self._now()
         changed = []
         try:
@@ -1359,7 +1376,12 @@ class AdminService:
             if replay.action != "catalog.search_index.backfill" or replay.actor_identifier != str(actor.id) or replay.reason != command.reason:
                 raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different search-index backfill")
             after = replay.after_diff
-            return CatalogSearchIndexBackfillResponse(audit_id=replay.id, publication_count=int(after["publication_count"]), name_count=int(after["name_count"]), embedding_job_count=int(after["embedding_job_count"]))
+            return CatalogSearchIndexBackfillResponse(
+                audit_id=replay.id,
+                publication_count=_diff_int(after, "publication_count"),
+                name_count=_diff_int(after, "name_count"),
+                embedding_job_count=_diff_int(after, "embedding_job_count"),
+            )
         now = self._now()
         spaces = self._repository.list_active_catalog_vector_spaces()
         publications = names = jobs_count = 0
@@ -1368,7 +1390,10 @@ class AdminService:
             if version is None:
                 version = self._repository.add_catalog_search_version(CatalogSearchVersion(id=uuid.uuid4(), publication_id=publication.id, content_hash=publication.content_hash, created_at=now))
             desired: dict[str, tuple[str, Literal["canonical", "controlled_alias"]]] = {}
-            for display_name, kind in [(str(publication.snapshot["canonical_name"]), "canonical"), *((str(alias), "controlled_alias") for alias in publication.snapshot["aliases"])]:
+            raw_aliases = publication.snapshot.get("aliases")
+            if not isinstance(raw_aliases, list):
+                raise CatalogVectorSpaceBuildConflict("publication aliases are malformed")
+            for display_name, kind in [(str(publication.snapshot["canonical_name"]), "canonical"), *((str(alias), "controlled_alias") for alias in raw_aliases)]:
                 normalized = " ".join(display_name.casefold().split())
                 if normalized:
                     desired.setdefault(normalized, (display_name, cast(Literal["canonical", "controlled_alias"], kind)))
@@ -1508,7 +1533,8 @@ class AdminService:
             raise CatalogVectorSpaceBuildConflict("vector space is missing")
         return CatalogVectorSpaceBuildResponse(
             id=build.id, vector_space_id=build.vector_space_id,
-            embedding_model=actual.embedding_model, embedding_dimension=actual.embedding_dimension,
+            embedding_model=actual.embedding_model,
+            embedding_dimension=cast(Literal[1024], actual.embedding_dimension),
             adapter_version=actual.adapter_version, retrieval_version=build.retrieval_version,
             snapshot_hash=build.snapshot_hash, expected_name_count=build.expected_name_count,
             pending_count=counts["pending_count"],
@@ -1576,7 +1602,9 @@ class AdminService:
                     or existing.actor_identifier != str(actor.id) or existing.reason != command.reason):
                 raise CatalogVectorSpaceBuildConflict("idempotency key was reused for a different vector-space retry")
             status = self._vector_space_build_status(build, is_active=False)
-            return CatalogVectorSpaceBuildRetryResponse(**status.model_dump(), reset_count=int(existing.after_diff["reset_count"]))
+            return CatalogVectorSpaceBuildRetryResponse(
+                **status.model_dump(), reset_count=_diff_int(existing.after_diff, "reset_count")
+            )
         name_ids = [uuid.UUID(item["name_id"]) for item in build.snapshot_manifest]
         jobs = self._repository.list_catalog_embedding_jobs_for_vector_space(build.vector_space_id, name_ids=name_ids)
         before = self._embedding_job_counts(jobs)
@@ -1652,25 +1680,31 @@ class AdminService:
         self._validate_activation_build(build=build, vector_space_id=vector_space_id)
 
         now = self._now()
+        input_hashes = release.get("input_hashes")
+        if not isinstance(input_hashes, dict):
+            raise CatalogVectorSpaceActivationConflict("release evidence is malformed")
         approval = CatalogVectorSpaceActivationApproval(
             id=uuid.uuid4(), build_id=build.id,
             release_hash=release["evidence_hash"],
-            dataset_hash=release["input_hashes"]["dataset_sha256"],
-            code_hash=release["input_hashes"]["evaluator_sha256"],
-            retrieval_hash=release["input_hashes"]["search_policy_sha256"],
+            dataset_hash=str(input_hashes["dataset_sha256"]),
+            code_hash=str(input_hashes["evaluator_sha256"]),
+            retrieval_hash=str(input_hashes["search_policy_sha256"]),
             embedding_hash=self._activation_embedding_hash(space),
             approver_identifier=str(actor.id), approved_at=now, command_key=normalized_key,
         )
         self._repository.activate_catalog_vector_space(
             approval=approval, vector_space_id=vector_space_id, now=now
         )
+        completion = self._repository.get_catalog_vector_space_build_completion(build.id)
+        if completion is None:
+            raise CatalogVectorSpaceActivationConflict("build completion is missing")
         self._repository.add_audit_event(AdminAuditEvent(
             id=uuid.uuid4(), actor_identifier=str(actor.id), occurred_at=now,
             action="catalog.vector_space.activate", object_type="catalog_vector_space",
             object_id=str(vector_space_id), reason=normalized_reason, before_diff={},
             after_diff={
                 "build_id": str(build.id), "snapshot_hash": build.snapshot_hash,
-                "completion_hash": self._repository.get_catalog_vector_space_build_completion(build.id).completion_hash,
+                "completion_hash": completion.completion_hash,
                 "release_hash": approval.release_hash,
             },
             related_version=space.retrieval_version, command_key=audit_key,
@@ -1793,7 +1827,7 @@ class AdminService:
                     "idempotency key was reused for a different embedding retry command"
                 )
             return self._catalog_embedding_retry_response(
-                publication_id, reset_count=int(existing.after_diff["reset_count"])
+                publication_id, reset_count=_diff_int(existing.after_diff, "reset_count")
             )
 
         jobs = self._repository.list_catalog_embedding_jobs(
@@ -2218,18 +2252,18 @@ class AdminService:
     def _recipe_candidate_response(
         candidate: ManagedRecipeCandidate,
     ) -> RecipeCandidateResponse:
-        return RecipeCandidateResponse(
-            id=candidate.id,
-            catalog_food_name=candidate.catalog_food_name,
-            meal_slots=tuple(candidate.meal_slots),
-            classification=candidate.classification,
-            portion_grams=candidate.portion_grams,
-            portion_description=candidate.portion_description,
-            method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),
-            flavour_tags=tuple(tag for tag in candidate.flavour_tags.split("|") if tag),
-            status=cast(Literal["pending", "enabled", "disabled"], candidate.status),
-            revision=candidate.revision,
-        )
+        return RecipeCandidateResponse.model_validate({
+            "id": candidate.id,
+            "catalog_food_name": candidate.catalog_food_name,
+            "meal_slots": tuple(candidate.meal_slots),
+            "classification": candidate.classification,
+            "portion_grams": candidate.portion_grams,
+            "portion_description": candidate.portion_description,
+            "method_tags": tuple(tag for tag in candidate.method_tags.split("|") if tag),
+            "flavour_tags": tuple(tag for tag in candidate.flavour_tags.split("|") if tag),
+            "status": candidate.status,
+            "revision": candidate.revision,
+        })
 
     @staticmethod
     def _content_hash(snapshot: dict[str, object]) -> str:
@@ -2284,11 +2318,14 @@ class AdminService:
                 created_at=self._now(),
             )
         )
+        aliases = publication.snapshot.get("aliases")
+        if not isinstance(aliases, list):
+            raise CatalogVectorSpaceBuildConflict("publication aliases are malformed")
         candidates = [
             (str(publication.snapshot["canonical_name"]), "canonical"),
             *(
                 (str(alias), "controlled_alias")
-                for alias in publication.snapshot["aliases"]
+                for alias in aliases
             ),
         ]
         unique_names: dict[str, tuple[str, Literal["canonical", "controlled_alias"]]] = {}

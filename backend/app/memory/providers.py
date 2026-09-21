@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any, cast
 
 from app.core.config import ConfigurationError, Settings
 from app.memory.ports import MemoryProvider, MemoryReplicaMissing, MemorySearchHit
@@ -104,9 +105,9 @@ class Mem0MemoryProvider:
     """Thin SDK adapter. Application-local ledger authorization always happens before this code."""
 
     def __init__(self, *, api_key: str, endpoint: str) -> None:
-        from mem0 import MemoryClient
+        from mem0 import MemoryClient  # type: ignore[import-untyped]
 
-        self._client = MemoryClient(api_key=api_key, host=endpoint)
+        self._client: Any = MemoryClient(api_key=api_key, host=endpoint)
 
     def create(self, *, user_id: uuid.UUID, category: str, canonical_text: str) -> str:
         result = self._client.add(
@@ -119,7 +120,7 @@ class Mem0MemoryProvider:
         ids = [entry["id"] for entry in entries if isinstance(entry.get("id"), str)]
         if len(ids) != 1:
             raise RuntimeError("Mem0 create must return exactly one id")
-        return ids[0]
+        return cast(str, ids[0])
 
     def resolve_direct_by_request_key(
         self, *, user_id: uuid.UUID, request_key: str
@@ -129,17 +130,16 @@ class Mem0MemoryProvider:
             page_size=2,
         )
         entries = self._result_entries(result)
-        matches = [
-            entry
-            for entry in entries
-            if isinstance(entry.get("metadata"), dict)
-            and entry["metadata"].get("request_key") == request_key
-        ]
+        matches: list[dict[str, object]] = []
+        for entry in entries:
+            metadata = entry.get("metadata")
+            if isinstance(metadata, dict) and metadata.get("request_key") == request_key:
+                matches.append(entry)
         if not matches:
             return None
         if len(matches) != 1 or not isinstance(matches[0].get("id"), str):
             raise RuntimeError("Mem0 direct request-key resolve must return exactly one id")
-        return matches[0]["id"]
+        return cast(str, matches[0]["id"])
 
     def create_direct(
         self,
@@ -163,7 +163,7 @@ class Mem0MemoryProvider:
         ids = [entry["id"] for entry in entries if isinstance(entry.get("id"), str)]
         if len(ids) != 1:
             raise RuntimeError("Mem0 direct create must return exactly one id")
-        return ids[0]
+        return cast(str, ids[0])
 
     def update(self, *, user_id: uuid.UUID, external_id: str, category: str, canonical_text: str) -> None:
         # Preserve the immutable request key used to resolve uncertain writes.

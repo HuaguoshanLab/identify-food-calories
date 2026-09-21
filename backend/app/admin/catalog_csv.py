@@ -48,7 +48,9 @@ def parse_catalog_csv(content: str) -> CatalogCsvPreview:
             if len(record) != len(header):
                 errors.append(CatalogCsvError(row=line, field="整行", message="列数与模板不一致。"))
                 continue
-            values = dict(zip(CSV_COLUMNS.values(), record, strict=True))
+            values: dict[str, object] = dict(
+                zip(CSV_COLUMNS.values(), record, strict=True)
+            )
             values["aliases"] = [alias.strip() for alias in str(values["aliases"]).split("|")]
             status = str(values["authorization_status"]).strip()
             values["authorization_status"] = {v: k for k, v in STATUS_LABELS.items()}.get(status, status)

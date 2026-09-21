@@ -69,7 +69,9 @@ def parse_recipe_candidate_csv(content: str) -> RecipeCandidateCsvPreview:
                     )
                 )
                 continue
-            raw = dict(zip(columns.values(), record, strict=True))
+            raw: dict[str, object] = dict(
+                zip(columns.values(), record, strict=True)
+            )
             raw["method_tags"] = tuple(
                 value.strip() for value in str(raw["method_tags"]).split("|")
             )

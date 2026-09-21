@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.exc import OperationalError
 
 from app.agent.graph import AgentRuntime
+from app.agent.models import AgentRun
 from app.agent.repository import SqlAlchemyAgentRepository
 from app.agent.schemas import (
     AgentCommandAcceptedResponse,
@@ -545,7 +546,7 @@ async def _submit_agent_input_after_admission(
     principal: AgentPrincipal,
     service: AgentService,
     runtime: AgentRuntime,
-    latest: object | None,
+    latest: AgentRun | None,
     planning_thread: bool,
     resume_payload: dict[str, object] | None,
     planning_key: str,

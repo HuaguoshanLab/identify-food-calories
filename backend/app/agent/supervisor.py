@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Callable, Coroutine, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -90,7 +90,7 @@ class PostgresLeaseSupervisor:
         finally:
             self._started = False
 
-    def submit_execution(self, work: Awaitable[None]) -> None:
+    def submit_execution(self, work: Coroutine[object, object, None]) -> None:
         """Own an accepted execution beyond the request lifetime and observe all failures."""
 
         if not self._started:

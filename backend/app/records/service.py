@@ -419,22 +419,24 @@ class MealRecordService:
                 raise MealRecordConfirmationUnavailable(
                     "report item lacks immutable references"
                 )
-            item = {
+            grams = cls._decimal(raw.get("grams"), field="grams")
+            item: dict[str, Any] = {
                 "name": name,
                 "food_reference": food_id,
                 "catalog_version": catalog_version,
-                "grams": cls._decimal(raw.get("grams"), field="grams"),
+                "grams": grams,
                 "is_estimated": bool(raw.get("is_estimated", False)),
             }
-            if item["grams"] <= 0:
+            if grams <= 0:
                 raise MealRecordConfirmationUnavailable(
                     "invalid completed report grams"
                 )
             for field in summed:
-                item[field] = cls._decimal(raw.get(field), field=field)
-                summed[field] += item[field]
-            catalog_versions.add(catalog_version)
-            calculation_versions.add(calculation_version)
+                nutrient = cls._decimal(raw.get(field), field=field)
+                item[field] = nutrient
+                summed[field] += nutrient
+            catalog_versions.add(str(catalog_version))
+            calculation_versions.add(str(calculation_version))
             items.append(item)
         if len(calculation_versions) != 1:
             raise MealRecordConfirmationUnavailable(

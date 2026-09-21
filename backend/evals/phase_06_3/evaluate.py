@@ -9,7 +9,7 @@ import asyncio
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -29,7 +29,11 @@ from app.agent.tools import CapturedPreferenceSummary
 from app.auth.models import User, UserRole
 from app.nutrition.models import FoodCatalogItem
 from app.nutrition.repository import SqlAlchemyNutritionRepository
-from app.nutrition.schemas import FoodRelation, FoodSearchEvidence, FoodSearchInput, NutritionAction
+from app.nutrition.schemas import (
+    FoodRelation, FoodSearchEvidence, FoodSearchInput, FoodSearchResult,
+    NutritionAction, NutritionCalculationInput, NutritionCalculationResult,
+    NutritionValidationInput, NutritionValidationResult,
+)
 from app.nutrition.search_models import (
     CatalogActiveVectorSpace,
     CatalogSearchEmbedding,
@@ -43,7 +47,13 @@ from app.providers.embedding.fake import FakeEmbeddingProvider
 from app.providers.reasoning.dto import ParsedMealDTO, ParsedMealItemDTO, ProviderFailureKind
 from app.providers.reasoning.fake import FakeReasoningModelProvider
 from app.planning.repository import SqlAlchemyPlanningProfileRepository
-from app.planning.schemas import MealCompositionResult, MealSlot, PlanValidationResult, PlanningProfileInput, PreferenceReview
+from app.planning.schemas import (
+    DailyTarget, ManagedRecipeCandidate as ManagedRecipeCandidateDTO,
+    MealCompositionResult, MealSlot, PlannedMeal, PlanValidationResult,
+    PlanningProfileInput, PreferenceReview, TargetCalculationResult,
+)
+from app.retrieval.ports import RetrievedContextItem
+from app.core.tracing import TracingRuntime
 from app.planning.models import ManagedRecipeCandidate
 from app.planning.service import PlanningService
 
@@ -219,7 +229,7 @@ def _publish(session: Session, actor: User, name: str, key: str, now: datetime, 
     service = AdminService(repository=SqlAlchemyAdminRepository(session), now=lambda: now, commit=session.flush, rollback=session.rollback)
     draft = service.create_catalog_draft(
         actor_user_id=actor.id,
-        command=CatalogDraftCreateCommand(canonical_name=name, aliases=[f"{name}评测"], energy_kcal_per_100g=Decimal("100"), protein_g_per_100g=Decimal("5"), fat_g_per_100g=Decimal("3.333333") if planning_baseline else Decimal("2"), carbohydrate_g_per_100g=Decimal("12.5") if planning_baseline else Decimal("20"), source_name="Synthetic frozen evaluation", source_url="https://example.test/frozen", authorization_status="authorized", reason="phase 06.3 synthetic evaluation fixture"),
+        command=CatalogDraftCreateCommand.model_validate({"canonical_name": name, "aliases": [f"{name}评测"], "energy_kcal_per_100g": Decimal("100"), "protein_g_per_100g": Decimal("5"), "fat_g_per_100g": Decimal("3.333333") if planning_baseline else Decimal("2"), "carbohydrate_g_per_100g": Decimal("12.5") if planning_baseline else Decimal("20"), "source_name": "Synthetic frozen evaluation", "source_url": "https://example.test/frozen", "authorization_status": "authorized", "reason": "phase 06.3 synthetic evaluation fixture"}),
         command_key=f"eval-create-{key}",
     )
     lifecycle = CatalogLifecycleCommand(reason="synthetic fixture approved", confirm=True)
@@ -349,11 +359,11 @@ def _seed_snapshot(session: Session) -> dict[str, uuid.UUID]:
         assert target is not None
         relation_service.create_catalog_relation_evidence(
             actor_user_id=actor.id,
-            command=CatalogRelationEvidenceCommand(
-                source_publication_id=publication_id, source_name_id=source.id,
-                target_publication_id=publication_id, target_name_id=target.id,
-                relation=relation, reason="phase 06.3 frozen relation fixture",
-            ),
+            command=CatalogRelationEvidenceCommand.model_validate({
+                "source_publication_id": publication_id, "source_name_id": source.id,
+                "target_publication_id": publication_id, "target_name_id": target.id,
+                "relation": relation, "reason": "phase 06.3 frozen relation fixture",
+            }),
             command_key=f"eval-relation-{actor.id}-{source.id}",
         )
     # Failure-mode queries intentionally differ from their canonical synthetic
@@ -415,21 +425,21 @@ class _EvaluationMealTools:
     def __init__(self, service: NutritionService) -> None:
         self._service = service
         self.search_calls = 0
-        self.search_results: list[object] = []
+        self.search_results: list[FoodSearchResult] = []
 
-    async def search_food_catalog(self, request: FoodSearchInput):
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
         self.search_calls += 1
         result = await self._service.search_food_catalog(request)
         self.search_results.append(result)
         return result
 
-    def calculate_nutrition(self, request):
+    def calculate_nutrition(self, request: NutritionCalculationInput) -> NutritionCalculationResult:
         return self._service.calculate_nutrition(request)
 
-    def validate_nutrition_result(self, request):
+    def validate_nutrition_result(self, request: NutritionValidationInput) -> NutritionValidationResult:
         return self._service.validate_nutrition_result(request)
 
-    def retrieve_personal_context(self, **_kwargs: object) -> list[object]:
+    def retrieve_personal_context(self, *, user_id: uuid.UUID, query: str, catalog_version: str | None = None) -> list[RetrievedContextItem]:
         return []
 
     def capture_explicit_preferences(self, **_kwargs: object) -> tuple[CapturedPreferenceSummary, ...]:
@@ -444,29 +454,39 @@ class _EvaluationPlanningTools:
         self._planning_service = PlanningService(repository=SqlAlchemyPlanningProfileRepository(session), nutrition_port=nutrition_service)
         self.target_calls = 0
         self.compose_calls = 0
-        self.search_results: list[object] = []
+        self.search_results: list[FoodSearchResult] = []
 
-    async def search_food_catalog(self, request: FoodSearchInput):
+    async def search_food_catalog(self, request: FoodSearchInput) -> FoodSearchResult:
         result = await self._nutrition_service.search_food_catalog(request)
         self.search_results.append(result)
         return result
 
-    def calculate_daily_target(self, *, profile: PlanningProfileInput, preferences: PreferenceReview):
+    def calculate_daily_target(self, *, profile: PlanningProfileInput, preferences: PreferenceReview) -> TargetCalculationResult:
         self.target_calls += 1
         return self._planning_service.calculate_daily_target(profile, preferences)
 
-    def compose_daily_plan(self, *, user_id: uuid.UUID, target: object, preferences: PreferenceReview, replan_count: int) -> MealCompositionResult:
+    def compose_daily_plan(self, *, user_id: uuid.UUID, target: DailyTarget, preferences: PreferenceReview, replan_count: int) -> MealCompositionResult:
         self.compose_calls += 1
         return self._planning_service.compose_daily_meals(user_id=user_id, catalog_version=None, preferences=preferences)
 
     def validate_daily_plan(
-        self, *, target: object, meals: tuple[object, ...],
+        self, *, target: DailyTarget, meals: tuple[PlannedMeal, ...],
         allow_target_relaxation: bool = False,
     ) -> PlanValidationResult:
         return self._planning_service.validate_plan(
             target=target, meals=meals,
             allow_target_relaxation=allow_target_relaxation,
-        )  # type: ignore[arg-type]
+        )
+
+    def list_replacement_recipes(
+        self, *, food_id: uuid.UUID, catalog_version: str, affected_slot: MealSlot,
+        current_recipe_id: uuid.UUID, preferences: PreferenceReview,
+    ) -> tuple[ManagedRecipeCandidateDTO, ...]:
+        return self._planning_service.list_replacement_recipes(
+            food_id=food_id, catalog_version=catalog_version,
+            affected_slot=affected_slot, exclude_recipe_ids=(current_recipe_id,),
+            preferences=preferences,
+        )
 
     def upsert_planning_profile(self, **_kwargs: object) -> None:
         raise AssertionError("frozen evaluation must not persist planning profiles")
@@ -587,11 +607,11 @@ def _search_service(*, nutrition_repository: SqlAlchemyNutritionRepository, sear
             fallback_exact_as_text=mode in {"embedding_timeout", "vector_index_missing"},
         ),
         embedding_provider=provider,
-        tracing=tracing,
+        tracing=cast(TracingRuntime | None, tracing),
     )
 
 
-def _semantic_projection(result: object, *, label_by_id: Mapping[str, str]) -> dict[str, object]:
+def _semantic_projection(result: FoodSearchResult, *, label_by_id: Mapping[str, str]) -> dict[str, object]:
     """Project only safe IDs and controlled relation labels at every boundary."""
 
     if not hasattr(result, "action") or not hasattr(result, "candidates") or not hasattr(result, "selected_food"):
@@ -712,7 +732,7 @@ def build_release(*, session: Session, output: Path | None = None, dataset: Path
         expected = case["expected"]
         mode = expected["execution_mode"]
         attempts = 3 if mode == "repeat_three_times" else 1
-        outcomes: list[tuple[object, _EvaluationTracing]] = []
+        outcomes: list[tuple[FoodSearchResult, _EvaluationTracing]] = []
         for _ in range(attempts):
             tracing = _EvaluationTracing()
             service = _search_service(

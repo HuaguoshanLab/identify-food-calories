@@ -218,7 +218,7 @@ def read_model_services(
             model_label=settings.deepseek_model or "未配置",
             enabled=settings.reasoning_provider_mode == "deepseek" and bool(settings.deepseek_model),
             configuration_source="admin_policy",
-            timeout_seconds=20,
+            timeout_seconds=Decimal("20"),
             output_token_cap=800,
         ),
         ModelServiceSummary(
@@ -475,13 +475,15 @@ def change_recipe_candidate_status(
     ),
     admin_service: AdminService = Depends(get_admin_service),
 ):
+    statuses: dict[
+        Literal["enable", "disable", "delete"],
+        Literal["enabled", "disabled", "deleted"],
+    ] = {"enable": "enabled", "disable": "disabled", "delete": "deleted"}
     try:
         return admin_service.change_recipe_candidate_status(
             actor_user_id=principal,
             command=command,
-            status={"enable": "enabled", "disable": "disabled", "delete": "deleted"}[
-                operation
-            ],
+            status=statuses[operation],
             command_key=idempotency_key,
         )
     except AdminPermissionDenied:

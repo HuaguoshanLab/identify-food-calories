@@ -97,9 +97,9 @@ class Settings(BaseSettings):
     planning_bundle_options_per_role: int = Field(default=4, ge=1, le=8)
     planning_bundle_max_combinations: int = Field(default=64, ge=1, le=512)
     planning_bundle_seconds: float = Field(default=0.5, gt=0, le=5, allow_inf_nan=False)
-    planning_bundle_staple_weight: Decimal = Field(default=45, gt=0, le=1000)
-    planning_bundle_protein_weight: Decimal = Field(default=35, gt=0, le=1000)
-    planning_bundle_vegetable_weight: Decimal = Field(default=20, gt=0, le=1000)
+    planning_bundle_staple_weight: Decimal = Field(default=Decimal("45"), gt=0, le=1000)
+    planning_bundle_protein_weight: Decimal = Field(default=Decimal("35"), gt=0, le=1000)
+    planning_bundle_vegetable_weight: Decimal = Field(default=Decimal("20"), gt=0, le=1000)
     planning_portion_adjustment_enabled: bool = True
     planning_portion_min_multiplier: Decimal = Field(default=Decimal("0.75"), ge=Decimal("0.5"), le=1)
     planning_portion_max_multiplier: Decimal = Field(default=Decimal("1.25"), ge=1, le=Decimal("1.5"))
@@ -178,19 +178,20 @@ class Settings(BaseSettings):
         # These caps are persisted by the cross-process ledger as NUMERIC(18, 8).
         # Validate them even outside production: local DashScope must not start
         # with a value that PostgreSQL would round into a different hard limit.
-        for variable, value in (
+        embedding_caps: tuple[tuple[str, Decimal | None], ...] = (
             ("EMBEDDING_SINGLE_CALL_CAP_CNY", self.embedding_single_call_cap_cny),
             ("EMBEDDING_PERIOD_CAP_CNY", self.embedding_period_cap_cny),
-        ):
-            if value is None:
+        )
+        for cap_name, cap_value in embedding_caps:
+            if cap_value is None:
                 continue
             try:
-                require_ledger_amount(value, variable=variable)
-                if variable == "EMBEDDING_SINGLE_CALL_CAP_CNY":
+                require_ledger_amount(cap_value, variable=cap_name)
+                if cap_name == "EMBEDDING_SINGLE_CALL_CAP_CNY":
                     # The provider reserves both bounded HTTP attempts before
                     # making the first vendor call.
                     require_ledger_amount(
-                        value * 2,
+                        cap_value * 2,
                         variable="EMBEDDING_SINGLE_CALL_CAP_CNY retry reservation",
                     )
             except ValueError as error:

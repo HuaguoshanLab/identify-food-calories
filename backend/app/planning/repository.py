@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import cast
 
-from sqlalchemy import Select, and_, exists, or_, select
+from sqlalchemy import Select, and_, exists, or_, select, true
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.agent.models import AgentRun, AgentThread
@@ -20,6 +21,7 @@ from app.planning.models import (
     PlanningCompletionProjection,
     PlanningProfile,
 )
+from app.planning.classification import RecipeClassification
 from app.planning.schemas import (
     ActivityLevel,
     ControlledRecipe,
@@ -226,7 +228,7 @@ class SqlAlchemyPlanningProfileRepository:
         component = classification["purpose"].astext.in_(("component", "both")) & classification["role"].astext.in_(("staple", "protein", "vegetable"))
         filters = [classification["role"].astext != "unknown", whole | component if include_components else whole]
         if meal_slot is not None:
-            filters.append(ManagedRecipeCandidateModel.meal_slots.any(meal_slot.value))
+            filters.append(ManagedRecipeCandidateModel.meal_slots.contains([meal_slot.value]))
         if after_id is not None:
             filters.append(ManagedRecipeCandidateModel.id > after_id)
         if food_ids is not None:
@@ -238,12 +240,12 @@ class SqlAlchemyPlanningProfileRepository:
             filters.append(ManagedRecipeCandidateModel.id == recipe_id)
         if recipe_revision is not None:
             filters.append(ManagedRecipeCandidateModel.revision == recipe_revision)
-        branches = []
-        for source in (imported_statement, publication_statement):
-            source = source.with_only_columns(ManagedRecipeCandidateModel.id).where(*filters)
+        branches: list[Select[tuple[uuid.UUID]]] = []
+        for candidate_source in (imported_statement, publication_statement):
+            source_ids = candidate_source.with_only_columns(ManagedRecipeCandidateModel.id).where(*filters)
             if limit is not None:
-                source = source.order_by(ManagedRecipeCandidateModel.id).limit(limit)
-            branches.append(select(source.subquery().c.id))
+                source_ids = source_ids.order_by(ManagedRecipeCandidateModel.id).limit(limit)
+            branches.append(select(source_ids.subquery().c.id))
         # Each source supplies at most one page before merging, so UNION does
         # not materialize the whole qualified catalog on every page request.
         qualified_ids = branches[0].union(branches[1])
@@ -256,15 +258,19 @@ class SqlAlchemyPlanningProfileRepository:
         return [
             ManagedRecipeCandidate(
                 id=candidate.id,
-                nutrition_item_id=(
+                nutrition_item_id=cast(uuid.UUID, (
                     candidate.food_catalog_item_id
                     if candidate.food_catalog_item_id is not None
                     else candidate.catalog_publication_id
-                ),
+                )),
                 catalog_version=candidate.nutrition_catalog_version,
                 display_name=candidate.catalog_food_name,
                 meal_slot=slot,
-                classification=candidate.classification,
+                classification=(
+                    RecipeClassification.model_validate(candidate.classification)
+                    if candidate.classification is not None
+                    else None
+                ),
                 portion_grams=candidate.portion_grams,
                 portion_description=candidate.portion_description,
                 method_tags=tuple(tag for tag in candidate.method_tags.split("|") if tag),
@@ -363,7 +369,7 @@ class SqlAlchemyPlanningProfileRepository:
                 ControlledRecipeModel.license_name == "LicenseRef-Project-Authored-v1",
                 ControlledRecipeModel.audit_status == "approved",
                 ControlledRecipeModel.audited_by_role == "nutrition_catalog_reviewer",
-                or_(catalog_version is None, ControlledRecipeModel.catalog_version == catalog_version),
+                true() if catalog_version is None else ControlledRecipeModel.catalog_version == catalog_version,
                 ControlledRecipeModel.recipe_version == recipe_version,
                 NutritionCatalogVersion.version == ControlledRecipeModel.catalog_version,
                 ~exists(invalid_ingredient),

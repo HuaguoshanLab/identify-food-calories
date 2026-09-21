@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import and_, case, exists, func, or_, select, text
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, text, true
 from sqlalchemy.orm import Session, aliased
 
 from app.admin.models import (
@@ -78,7 +78,7 @@ class SqlAlchemyAdminRepository:
         return int(self._session.scalar(select(func.count()).select_from(User).where(User.role == UserRole.ADMIN.value, User.is_active.is_(True))) or 0)
 
     def list_users(self, *, query: AdminUserQuery, limit: int, offset: int) -> tuple[list[User], int]:
-        predicates = []
+        predicates: list[ColumnElement[bool]] = []
         if query.search:
             escaped = query.search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             predicates.append(User.email.ilike(f"%{escaped}%", escape="\\"))
@@ -90,8 +90,12 @@ class SqlAlchemyAdminRepository:
             predicates.append(User.is_active.is_(False))
         elif query.status == "unverified":
             predicates.append(User.email_verified_at.is_(None))
-        where = and_(*predicates) if predicates else True
-        total = int(self._session.scalar(select(func.count()).select_from(User).where(where)) or 0)
+        where = and_(*predicates) if predicates else true()
+        total = int(
+            self._session.execute(
+                select(func.count()).select_from(User).where(where)
+            ).scalar_one()
+        )
         rows = list(self._session.scalars(select(User).where(where).order_by(User.created_at.desc(), User.id.desc()).limit(limit).offset(offset)))
         return rows, total
 
@@ -735,6 +739,10 @@ class SqlAlchemyAdminRepository:
             )
         ).one()
         terminal_count = int(count)
+        occurred_after = filters.get("occurred_after")
+        occurred_before = filters.get("occurred_before")
+        if not isinstance(occurred_after, datetime) or not isinstance(occurred_before, datetime):
+            raise ValueError("run metric window is invalid")
         return AdminRunMetricsResponse(
             terminal_count=terminal_count,
             failure_ratio=Decimal(int(failures)) / Decimal(terminal_count)
@@ -743,8 +751,8 @@ class SqlAlchemyAdminRepository:
             p50_elapsed_ms=round(p50) if p50 is not None else None,
             p95_elapsed_ms=round(p95) if p95 is not None else None,
             total_cost_usd=Decimal(str(cost)),
-            from_=filters["occurred_after"],
-            to=filters["occurred_before"],
+            from_=occurred_after,
+            to=occurred_before,
         )
 
     def list_runs(
@@ -838,14 +846,11 @@ class SqlAlchemyAdminRepository:
             # a false ambiguity.  A candidate's calculation uses these four values;
             # any difference between them remains an ambiguity and is rejected by the
             # service.  The chosen publication ID preserves the exact source record.
-            fingerprint = tuple(
-                str(snapshot.get(field, ""))
-                for field in (
-                    "energy_kcal_per_100g",
-                    "protein_g_per_100g",
-                    "fat_g_per_100g",
-                    "carbohydrate_g_per_100g",
-                )
+            fingerprint = (
+                str(snapshot.get("energy_kcal_per_100g", "")),
+                str(snapshot.get("protein_g_per_100g", "")),
+                str(snapshot.get("fat_g_per_100g", "")),
+                str(snapshot.get("carbohydrate_g_per_100g", "")),
             )
             reference = QualifiedRecipeFoodReference(
                 id=publication.id,
@@ -904,7 +909,7 @@ class SqlAlchemyAdminRepository:
                 ManagedRecipeCandidate.catalog_food_name.icontains(search, autoescape=True)
             )
         if meal_slot:
-            statement = statement.where(ManagedRecipeCandidate.meal_slots.any(meal_slot))
+            statement = statement.where(ManagedRecipeCandidate.meal_slots.contains([meal_slot]))
         if status:
             statement = statement.where(ManagedRecipeCandidate.status == status)
         total = int(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
-from typing import Callable
+from typing import Callable, cast
 
 from sqlalchemy import Engine, create_engine, text
 
@@ -31,7 +31,8 @@ def require_ledger_amount(value: Decimal, *, variable: str) -> Decimal:
     try:
         if not value.is_finite() or value <= 0:
             raise ValueError(f"{variable} must be a finite positive amount")
-        if value.as_tuple().exponent < -LEDGER_AMOUNT_SCALE:
+        exponent = cast(int, value.as_tuple().exponent)
+        if exponent < -LEDGER_AMOUNT_SCALE:
             raise ValueError(
                 f"{variable} must have at most {LEDGER_AMOUNT_SCALE} decimal places"
             )

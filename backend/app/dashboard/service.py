@@ -11,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Protocol
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.dashboard.ports import DashboardTimezoneReadPort, PlanningCompletionTargetPort
@@ -153,7 +153,7 @@ class DashboardService:
 class WeeklyReviewService:
     """Facts-first cache orchestration; model work begins only after deterministic coverage gates."""
 
-    def __init__(self, *, repository: DashboardRepository, cache_repository: object, provider, public_runner: Callable[[WeeklyReviewFacts, date], object] | None = None, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
+    def __init__(self, *, repository: DashboardRepository, cache_repository: Any, provider, public_runner: Callable[[WeeklyReviewFacts, date], object] | None = None, now: Callable[[], datetime] | None = None, graph_version: str = "weekly-review-graph-v1", prompt_version: str = "weekly-review-prompt-v1", schema_version: str = "weekly-review-schema-v1", runtime_config_version: str = "weekly-review-runtime-v1") -> None:
         self._repository, self._cache_repository, self._provider = repository, cache_repository, provider
         self._public_runner = public_runner
         self._now = now or (lambda: datetime.now(UTC))
@@ -199,15 +199,20 @@ class WeeklyReviewService:
         del refresh
         today, start = self._review_window(user_id=user_id, week_start=week_start)
         facts = self._facts(user_id=user_id, week_start=start)
-        base = dict(
-            week_start=start,
-            week_end=start + timedelta(days=6),
-            coverage_days=facts.coverage_days,
-            meal_count=facts.meal_count,
-            totals=facts.totals,
-        )
+        def response(status: str, suggestions: tuple[str, ...] = ()) -> WeeklyReviewPublicResponse:
+            return WeeklyReviewPublicResponse.model_validate(
+                {
+                    "status": status,
+                    "week_start": start,
+                    "week_end": start + timedelta(days=6),
+                    "coverage_days": facts.coverage_days,
+                    "meal_count": facts.meal_count,
+                    "totals": facts.totals,
+                    "suggestions": suggestions,
+                }
+            )
         if facts.coverage_days < 4 or facts.meal_count < 8:
-            return WeeklyReviewPublicResponse(status="insufficient_coverage", suggestions=(), **base)
+            return response("insufficient_coverage")
 
         key = WeeklyReviewCacheKey(
             user_id=user_id, week_start=start, facts_digest=_facts_digest(facts),
@@ -218,14 +223,14 @@ class WeeklyReviewService:
         if cached is not None:
             suggestions = _decode_suggestions(cached)
             if suggestions is not None:
-                return WeeklyReviewPublicResponse(status="success", suggestions=suggestions, **base)
+                return response("success", suggestions)
 
         if self._public_runner is None:
-            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
+            return response("retryable_error")
         try:
             result = self._public_runner(facts, today)
         except Exception:
-            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
+            return response("retryable_error")
 
         code = getattr(result, "code", "")
         suggestions = tuple(item for item in getattr(result, "suggestions", ()) if isinstance(item, str))
@@ -234,10 +239,10 @@ class WeeklyReviewService:
             saved = self._save_cached(key=key, advice=serialized)
             decoded = _decode_suggestions(saved)
             if decoded is not None:
-                return WeeklyReviewPublicResponse(status="success", suggestions=decoded, **base)
+                return response("success", decoded)
         if code in {"PROVIDER_FAILURE", "WEEKLY_REVIEW_TIMEOUT"}:
-            return WeeklyReviewPublicResponse(status="retryable_error", suggestions=(), **base)
-        return WeeklyReviewPublicResponse(status="safety_abstain", suggestions=(), **base)
+            return response("retryable_error")
+        return response("safety_abstain")
 
     def _facts(self, *, user_id: uuid.UUID, week_start: date) -> WeeklyReviewFacts:
         rows = self._repository.get_daily_aggregates(user_id=user_id, start_date=week_start, end_date=week_start + timedelta(days=6))

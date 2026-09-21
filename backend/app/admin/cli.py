@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from decimal import Decimal
 import sys
 import uuid
 from collections.abc import Callable
@@ -85,10 +86,10 @@ def main(
                         provider="deepseek",
                         model_alias="deepseek-v4-flash",
                         enabled=True,
-                        single_call_cap_usd="0.02",
-                        period_cap_usd="12",
-                        input_usd_per_m="0.14",
-                        output_usd_per_m="0.28",
+                        single_call_cap_usd=Decimal("0.02"),
+                        period_cap_usd=Decimal("12"),
+                        input_usd_per_m=Decimal("0.14"),
+                        output_usd_per_m=Decimal("0.28"),
                         reason=arguments.reason,
                         confirm=True,
                     ),
