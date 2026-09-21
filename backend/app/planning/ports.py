@@ -69,8 +69,9 @@ class PlanningCompletionProjectionWriter(Protocol):
     """Agent completion boundary writes a target fact without receiving planning ORM access."""
 
     def record_validated_completion(
-        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget
-    ) -> PlanningCompletionProjection: ...
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget,
+        source_profile: PlanningProfileInput,
+    ) -> PlanningCompletionProjection | None: ...
 
 
 class PlanningNutritionPort(Protocol):

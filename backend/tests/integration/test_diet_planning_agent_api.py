@@ -525,3 +525,39 @@ def test_adjustment_submission_keys_distinguish_new_intent_from_retries():
                 assert session.scalar(select(func.count()).select_from(DietPlanVersion).where(DietPlanVersion.user_id == owner.id)) == 3
     finally:
         engine.dispose()
+
+
+def test_saved_profile_plan_without_resaving_authorizes_dashboard_target() -> None:
+    settings = _settings()
+    test_url = validate_test_database_configuration(settings)
+    subprocess.run([sys.executable, "scripts/run_initialized_app.py", "--prepare-only"], cwd=BACKEND_ROOT, env=_test_env(settings), check=True)
+    engine = create_engine(test_url)
+    try:
+        with Session(engine) as session:
+            owner, token = _create_user(session, label="saved-profile-target")
+            authentication = AuthenticationService(repository=SqlAlchemyAuthRepository(session), secret_key=SECRET,
+                issuer="food-agent-api", audience="food-agent-h5", commit=session.commit, rollback=session.rollback)
+            app = create_app(settings)
+            app.dependency_overrides[get_authentication_service] = lambda: authentication
+            headers = {"Authorization": f"Bearer {token}"}
+            command = _command(save_profile=False)
+            with TestClient(app) as client:
+                saved = client.put("/api/v1/planning/profile", json=command["profile"], headers=headers)
+                assert saved.status_code == 200, saved.text
+                overview = "/api/v1/dashboard/overview"
+                assert client.get(overview, headers=headers).json()["target_eligibility"]["eligible"] is False
+                generated = client.post(PLANNING_PATH, json=command, headers={**headers, "Idempotency-Key": "existing-profile-plan-0001"})
+                assert generated.status_code == 201, generated.text
+                assert generated.json()["status"] == "completed", generated.text
+                eligibility = client.get(overview, headers=headers).json()["target_eligibility"]
+                assert eligibility["eligible"] is True
+                for bound in ("lower", "upper"):
+                    assert abs(Decimal(eligibility["target"]["protein_g"][bound]) - Decimal(generated.json()["report"]["target"]["protein_g"][bound])) <= Decimal("0.000001")
+                assert client.get("/api/v1/planning/profile", headers=headers).json() == saved.json()
+                session.expire_all()
+                assert session.query(PlanningProfile).filter_by(user_id=owner.id).one().revision == 1
+                changed = client.patch("/api/v1/planning/profile", json={"weight_kg": "66"}, headers=headers)
+                assert changed.status_code == 200
+                assert client.get(overview, headers=headers).json()["target_eligibility"]["eligible"] is False
+    finally:
+        engine.dispose()

@@ -135,7 +135,7 @@ test.describe('phase 3 multimodal image upload', () => {
 
     await expect(page.getByRole('heading', { name: '营养分析报告' })).toBeVisible()
     await expect(page.getByText('估算重量', { exact: true })).toBeVisible()
-    await expect(page.getByText('估算重量，可能与实际份量存在偏差。')).toBeVisible()
+    await expect(page.getByText('估算重量，可能与实际份量存在偏差。')).toHaveCount(0)
     expect(uploadCount).toBe(1)
   })
 })

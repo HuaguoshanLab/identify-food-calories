@@ -148,7 +148,7 @@ describe('AnalyzePage', () => {
     expect(screen.getByRole('button', { name: '从相册选择' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: '食物明细' })).toBeInTheDocument()
     expect(screen.getByText('估算重量')).toBeInTheDocument()
-    expect(screen.getByText('估算重量，可能与实际份量存在偏差。')).toBeInTheDocument()
+    expect(screen.queryByText('估算重量，可能与实际份量存在偏差。')).not.toBeInTheDocument()
     const upload = request.mock.calls.find(([path]) => String(path).endsWith('/images'))
     expect(upload?.[0]).toBe(`/agent/threads/${threadId}/images`)
     expect(upload?.[1]?.body).toBeInstanceOf(FormData)

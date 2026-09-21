@@ -55,6 +55,7 @@ def test_completion_projection_rejects_orphans_and_exposes_no_cross_user_target(
         user_id=user.id,
         run_id=run.id,
         thread_id=thread.id,
+        source_profile=repository.get_planning_profile(user_id=user.id),
         target=DailyTarget(
             energy_kcal=TargetRange(lower=Decimal("1800"), upper=Decimal("2000")),
             carbohydrate_g=TargetRange(lower=Decimal("200"), upper=Decimal("300")),

@@ -75,6 +75,24 @@ describe('saved plans', () => {
     expect(await screen.findByText(/还没有保存的计划/)).toBeVisible()
   })
 
+  it('keeps a single version simple and expands nutrition without hiding the meals', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn(async () => response({ ...saved, current_version: 1, version: 1 }))
+    renderPage(request, `/app/plans/detail?id=${id}`)
+    expect(await screen.findByText('存档breakfast')).toBeVisible()
+    expect(screen.getByText('最新版')).toBeVisible()
+    expect(screen.queryByRole('button', { name: '上一版' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '下一版' })).not.toBeInTheDocument()
+    const nutrition = screen.getByText('营养与目标').closest('details')!
+    expect(nutrition).not.toHaveAttribute('open')
+    await user.click(screen.getByText('营养与目标'))
+    expect(nutrition).toHaveAttribute('open')
+    expect(screen.getByRole('heading', { name: '每日目标概览' })).toBeVisible()
+    expect(screen.getByText('存档breakfast')).toBeVisible()
+    await user.click(screen.getByText('营养与目标'))
+    expect(nutrition).not.toHaveAttribute('open')
+  })
+
   it('shows recoverable history failures and an honest empty state', async () => {
     const user = userEvent.setup()
     let fail = true

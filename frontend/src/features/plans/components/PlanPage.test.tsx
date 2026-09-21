@@ -538,3 +538,30 @@ describe('PlanPage', () => {
     expect(request.mock.calls.filter(([path]) => path.endsWith('/input'))).toHaveLength(0)
   })
 })
+
+describe('regeneration navigation', () => {
+  it('opens a review step without submitting and restores the saved plan on cancel', async () => {
+    const user = userEvent.setup()
+    const saved = {
+      id: '44444444-4444-4444-8444-444444444444', plan_date: '2026-09-06', time_zone: 'Asia/Shanghai',
+      current_version: 1, version: 1, created_at: '2026-09-06T00:00:00Z', updated_at: '2026-09-06T00:00:00Z', saved_at: '2026-09-06T00:00:00Z',
+      report, totals: { energy_kcal: '1920', carbohydrate_g: '210', protein_g: '100', fat_g: '60' }, adjustment_thread_id: null,
+    }
+    const request = vi.fn(async (path: string, _init?: RequestInit) => {
+      void _init
+      if (path === '/planning/plans/today') return Response.json({ time_zone: 'Asia/Shanghai', today: '2026-09-06', plan: saved })
+      if (path === '/planning/profile') return Response.json(profile)
+      if (path === '/memories/preference-summary') return Response.json({ exclusions: [], taste_preferences: [] })
+      throw new Error(`Unexpected request: ${path}`)
+    })
+    renderPage(request)
+    await screen.findByText('燕麦鸡蛋早餐')
+    await user.click(screen.getByRole('button', { name: '重新生成今日计划' }))
+    expect(screen.getByRole('heading', { name: '重新生成今日计划' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '确认重新生成' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '取消重新生成' }))
+    expect(await screen.findByText('燕麦鸡蛋早餐')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '确认重新生成' })).not.toBeInTheDocument()
+    expect(request.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+})

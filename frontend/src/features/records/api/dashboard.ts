@@ -7,7 +7,7 @@ const daySummarySchema = z.object({ consumed_local_date: z.string().date(), tota
 const targetRangeSchema = z.object({ lower: z.string(), upper: z.string() }).strict()
 export const dashboardTargetEligibilitySchema = z.discriminatedUnion('eligible', [
   z.object({ eligible: z.literal(false) }).strict(),
-  z.object({ eligible: z.literal(true), target_version: z.string().min(1), target: z.object({ energy_kcal: targetRangeSchema, protein_g: targetRangeSchema, fat_g: targetRangeSchema, carbohydrate_g: targetRangeSchema }).strict() }).strict(),
+  z.object({ eligible: z.literal(true), target_version: z.string().min(1), target: z.object({ energy_kcal: targetRangeSchema, protein_g: targetRangeSchema, fat_g: targetRangeSchema, carbohydrate_g: targetRangeSchema, policy_version: z.string().min(1).optional(), formula_version: z.string().min(1).optional() }).strict() }).strict(),
 ])
 
 const dashboardOverviewPayloadSchema = z.object({ today: daySummarySchema, week: z.array(daySummarySchema).length(7), target_eligibility: z.unknown().optional() }).strict()

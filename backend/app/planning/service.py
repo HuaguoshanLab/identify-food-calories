@@ -837,16 +837,24 @@ class PlanningCompletionProjectionService:
         self._rollback = rollback or (lambda: None)
 
     def record_validated_completion(
-        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget
-    ) -> PlanningCompletionProjection:
+        self, *, user_id: uuid.UUID, run_id: uuid.UUID, thread_id: uuid.UUID, target: DailyTarget,
+        source_profile: PlanningProfileInput,
+    ) -> PlanningCompletionProjection | None:
         existing = self._repository.get_completion_projection_for_run_for_user(
             user_id=user_id, run_id=run_id, for_update=True
         )
         if existing is not None:
             return existing
         profile = self._repository.get_profile_for_user(user_id=user_id, for_update=True)
-        if profile is None:
-            raise PlanningProfileUnavailable("planning profile is unavailable for completed plan")
+        # A plan may use an unsaved or older profile. Only a matching current
+        # profile can authorize dashboard targets; completion never implicitly saves it.
+        if profile is None or any(
+            getattr(source_profile, field) != getattr(profile, field)
+            for field in PlanningProfileWrite.model_fields
+        ):
+            return None
+        if target.policy_version != profile.target_policy_version or target.formula_version != profile.formula_version:
+            return None
         projection = PlanningCompletionProjection(
             id=uuid.uuid4(), user_id=user_id, profile_id=profile.id, completed_run_id=run_id,
             completed_thread_id=thread_id, profile_revision=profile.revision,

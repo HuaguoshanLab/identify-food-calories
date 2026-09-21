@@ -25,7 +25,7 @@ export function TabHeader() {
         <h1 className="shell-heading min-w-0 truncate text-[22px] font-bold leading-7 tracking-tight" ref={headingRef} tabIndex={-1}>
           {current.title}
         </h1>
-        {pathname === routePaths.plans ? <Link aria-label="历史计划" title="历史计划" className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" to={routePaths.planHistory}><History aria-hidden="true" className="size-5" /></Link> : null}
+        {pathname === routePaths.plans ? <Link aria-label="历史计划" title="历史计划" className="ml-auto flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" to={routePaths.planHistory}><History aria-hidden="true" className="size-4" /><span>历史</span></Link> : null}
       </div>
     </header>
   )

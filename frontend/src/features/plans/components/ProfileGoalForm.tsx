@@ -24,6 +24,7 @@ const emptyValues: ProfileGoalFormValues = {
 export type PreferenceSummaries = { exclusions: string[]; tastePreferences: string[] }
 
 type ProfileGoalFormProps = {
+  submitLabel?: string
   initialValues?: PlanningProfile | null
   preferenceSummaries?: PreferenceSummaries
   isLoading?: boolean
@@ -32,7 +33,7 @@ type ProfileGoalFormProps = {
   onStarted?: (snapshot: DietPlanningStartResponse) => void
 }
 
-export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, profileLoadError = false, onStarted }: ProfileGoalFormProps) {
+export function ProfileGoalForm({ submitLabel = '生成今日餐单', initialValues, preferenceSummaries, isLoading = false, preferenceLoadError = false, profileLoadError = false, onStarted }: ProfileGoalFormProps) {
   const { request } = useAuth()
   const submitButtonRef = useRef<HTMLButtonElement>(null)
   const [pageError, setPageError] = useState('')
@@ -106,6 +107,6 @@ export function ProfileGoalForm({ initialValues, preferenceSummaries, isLoading 
     <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors has-[:checked]:border-primary/40 has-[:checked]:bg-accent/60"><input className="size-4" type="checkbox" {...form.register('preference_reviewed')} />我已复核以上饮食偏好</label>
     {pageError ? <Alert variant="destructive"><AlertDescription>{pageError}</AlertDescription></Alert> : null}
     {statusMessage ? <p aria-live="polite" className="text-sm text-muted-foreground">{statusMessage}</p> : null}
-    <Button className="h-11 w-full" disabled={!profile || profileLoadError || profileQuery.isError || loading || form.formState.isSubmitting || showPreferenceLoadError} ref={submitButtonRef} type="submit"><Sparkles aria-hidden="true" className="size-5" />{form.formState.isSubmitting ? '正在生成餐单…' : '生成今日餐单'}</Button>
+    <Button className="h-11 w-full" disabled={!profile || profileLoadError || profileQuery.isError || loading || form.formState.isSubmitting || showPreferenceLoadError} ref={submitButtonRef} type="submit"><Sparkles aria-hidden="true" className="size-5" />{form.formState.isSubmitting ? '正在生成餐单…' : submitLabel}</Button>
   </form>
 }

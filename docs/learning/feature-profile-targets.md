@@ -132,6 +132,20 @@ if current.save_profile and not current.profile_save_completed:
 
 本例 save_profile=False，直接进入餐单组合，不写资料。为真则调用 _call_profile_upsert，且用完成标记防止重复保存。
 
+### 4.4 已保存资料与记录页目标同步
+
+H5 在“我的”保存身体资料，再在计划页发送 `save_profile=False` 生成餐单。这个开关只决定是否写入资料，不决定记录页能否使用目标。
+
+流程：计划通过校验并完成 → `AgentService.execute_run` 将本次资料和确定性目标交给 `PlanningCompletionProjectionService.record_validated_completion` → 服务锁定当前用户的有效资料，比较身体参数、目标及计算版本 → 匹配时保存目标投影 → 记录页读取目标资格。前端完成生成后也会使记录页缓存失效。
+
+资料未保存、已删除或与本次计划不匹配时，餐单仍可完成，但不会产生新的记录页目标。资料后续变更会撤销旧资格；重复完成请求不能恢复已撤销目标。不会为了同步目标而隐式覆盖用户资料。旧版本曾漏写的目标不会自动补写，需要在修复后的服务上重新生成计划。
+
+本次验证：规划与图单测 241 项通过；隔离 PostgreSQL 规划接口和投影测试原有 10 项通过，新增目标同步回归 1 项通过（按数据库六位小数精度比较）；前端定向 22 项、类型检查、构建及后端定向 Ruff 通过。内置浏览器在 5182 完成测试账号注册、资料保存和计划页读取，但生成返回 503，临时环境未配置启用的推理服务，因此完整浏览器目标显示路径尚未验收。
+
+验证入口：`tests/planning/test_completion_projection_service.py` 覆盖资料匹配、删除、跨用户、版本不匹配与幂等；`tests/integration/test_diet_planning_agent_api.py::test_saved_profile_plan_without_resaving_authorizes_dashboard_target` 通过公开 API 验证先保存资料、生成而不重复保存、看板获得目标、修改资料后资格失效。
+
+记录页还必须接受后端 `DailyTarget` 返回的 `policy_version` 和 `formula_version`。此前前端严格校验未声明这两个字段，会把有效资格降级为 `undefined`，错误显示“尚未获得可用的营养目标”。现在显式校验这两个可选版本字段，同时保留对未知字段的拒绝。回归用例先复现有效目标被丢弃，再验证修复后完整保留；记录模块 31 项测试、类型检查和构建通过。用户当前 Chrome 的 `http://127.0.0.1:5178/app/records` 已实际验证：刷新后显示三个目标状态，无需再次生成计划。本次没有重新执行真实模型生成。
+
 ## 5. 换一种输入，会走哪条路
 
 | 情况 | 判断与处理 | 应观察的结果 |

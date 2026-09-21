@@ -434,7 +434,7 @@ class AgentService:
             )
             return run
         if finished.status is AgentRuntimeStatus.COMPLETED and finished.report is not None:
-            if graph_kind is AgentGraphKind.DIET_PLANNING and isinstance(finished, DietPlanningState) and finished.profile_save_completed:
+            if graph_kind is AgentGraphKind.DIET_PLANNING and isinstance(finished, DietPlanningState):
                 if not isinstance(finished, DietPlanningState) or finished.target is None:
                     return await self._fail_run(
                         run=run, user_id=user_id, code="PLANNING_COMPLETION_INVALID"
@@ -451,6 +451,7 @@ class AgentService:
                         run_id=run.id,
                         thread_id=run.thread_id,
                         target=finished.target,
+                        source_profile=finished.profile,
                     )
                 except Exception:
                     self._rollback()

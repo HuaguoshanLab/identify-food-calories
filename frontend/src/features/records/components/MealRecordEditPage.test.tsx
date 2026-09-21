@@ -8,8 +8,8 @@ import { MealRecordEditPage } from './MealRecordEditPage'
 
 const id = 'f2d9dbfc-2149-4d0e-bb36-b9d0cdb750f2'
 const record = { id, meal_slot: null, consumed_at: '2026-01-01T00:00:00Z', consumed_time_zone: 'UTC', consumed_local_date: '2026-01-01', local_date_source: 'submitted_time_zone', nutrition_catalog_version: 'v1', calculation_version: 'v1', energy_kcal: '130', protein_g: '2', fat_g: '1', carbohydrate_g: '28', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', items: [] }
-function setup(fail = false) {
-  const request = vi.fn(async (_path: string, init?: RequestInit) => new Response(JSON.stringify(record), { status: fail && init?.method === 'PATCH' ? 500 : 200 }))
+function setup(fail = false, withItems = false) {
+  const request = vi.fn(async (_path: string, init?: RequestInit) => new Response(JSON.stringify({ ...record, items: withItems ? [{ id: 'eec46591-722e-43ce-95ba-fcb8cb411d4f', position: 0, nutrition_catalog_version: 'v1', is_estimated: false, display_name: '米饭', grams: '300.000000', energy_kcal: '390', protein_g: '6', fat_g: '3', carbohydrate_g: '84' }] : [] }), { status: fail && init?.method === 'PATCH' ? 500 : 200 }))
   render(<QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ request, login: vi.fn(), logout: vi.fn(), retryBootstrap: vi.fn(), status: 'authenticated' }}><MemoryRouter initialEntries={[`/app/records/${id}/edit`]}><Routes><Route path="/app/records/:recordId/edit" element={<MealRecordEditPage />} /><Route path="/app/records/:recordId" element={<p>详情已更新</p>} /></Routes></MemoryRouter></AuthContext.Provider></QueryClientProvider>)
   return request
 }
@@ -27,6 +27,16 @@ describe('餐食编辑', () => {
     expect(await screen.findByText('详情已更新')).toBeInTheDocument()
     const sent = request.mock.calls.find(([, init]) => init?.method === 'PATCH')
     expect(JSON.parse(String(sent?.[1]?.body))).toEqual({ meal_slot: 'breakfast', consumed_at: new Date('2026-01-02T20:00').toISOString(), time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+  })
+  it('去除份量尾零后可直接保存，修改后的克数按原条目提交', async () => {
+    const user = userEvent.setup(); const request = setup(false, true)
+    const input = await screen.findByLabelText('米饭份量（克）')
+    expect(input).toHaveValue('300')
+    await user.clear(input); await user.type(input, '150.125')
+    await user.click(screen.getByRole('button', { name: '保存修改' }))
+    expect(await screen.findByText('详情已更新')).toBeInTheDocument()
+    const sent = request.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    expect(JSON.parse(String(sent?.[1]?.body)).items).toEqual([{ item_id: 'eec46591-722e-43ce-95ba-fcb8cb411d4f', grams: '150.125' }])
   })
   it('未来时间不发送请求，保存失败保留用户填写内容', async () => {
     const user = userEvent.setup(); const request = setup(true)

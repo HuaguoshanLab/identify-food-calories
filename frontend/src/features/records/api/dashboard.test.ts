@@ -62,3 +62,18 @@ describe('dashboard requests and cache keys', () => {
     expect(weeklyReviewQueryKeys.completed('2026-08-31')).toEqual(['dashboard', 'weekly-review', 'completed', '2026-08-31'])
   })
 })
+
+
+describe('dashboard target contract', () => {
+  it('保留后端带策略和公式版本的有效营养目标', async () => {
+    const day = { consumed_local_date: '2026-09-21', totals: { energy_kcal: '1082', protein_g: '125.6', fat_g: '46', carbohydrate_g: '43.6' }, meal_count: 3 }
+    const eligibility = { eligible: true, target_version: 'target-policy.v1', target: {
+      energy_kcal: { lower: '1339', upper: '1539' }, protein_g: { lower: '33', upper: '135' },
+      fat_g: { lower: '30', upper: '60' }, carbohydrate_g: { lower: '151', upper: '250' },
+      policy_version: 'target-policy.v1', formula_version: 'mifflin-st-jeor.v1',
+    } }
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ today: day, week: Array(7).fill(day), target_eligibility: eligibility })))
+    const result = await getDashboardOverview(request)
+    expect(result.target_eligibility).toEqual(eligibility)
+  })
+})

@@ -16,6 +16,8 @@ from app.planning.schemas import (
     FormulaVariant,
     PlanningGoal,
     PlanningProfilePatch,
+    PlanningProfileInput,
+    PlanningProfileWrite,
     TargetRange,
 )
 from app.planning.service import PlanningCompletionProjectionService, PlanningProfileService
@@ -77,6 +79,10 @@ def _profile(*, user_id: uuid.UUID) -> PlanningProfile:
     )
 
 
+def _input(profile: PlanningProfile) -> PlanningProfileInput:
+    return PlanningProfileInput(**{field: getattr(profile, field) for field in PlanningProfileWrite.model_fields})
+
+
 def _target() -> DailyTarget:
     return DailyTarget(
         energy_kcal=TargetRange(lower=Decimal("1800"), upper=Decimal("2000")),
@@ -94,7 +100,7 @@ def test_validated_completion_creates_owner_bound_projection_and_commits_once() 
     projection = PlanningCompletionProjectionService(
         repository=repository, now=lambda: NOW, commit=lambda: commits.append("commit")
     ).record_validated_completion(
-        user_id=user_id, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target()
+        user_id=user_id, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target(), source_profile=_input(repository.profile)
     )
 
     assert commits == ["commit"]
@@ -120,7 +126,7 @@ def test_projection_write_failure_rolls_back_without_granting_eligibility() -> N
     )
 
     with pytest.raises(RuntimeError, match="database unavailable"):
-        service.record_validated_completion(user_id=user_id, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target())
+        service.record_validated_completion(user_id=user_id, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target(), source_profile=_input(repository.profile))
     assert rollbacks == ["rollback"]
 
 
@@ -129,7 +135,7 @@ def test_profile_change_and_delete_revoke_only_the_owners_projection() -> None:
     other = uuid.uuid4()
     repository = FakeProjectionRepository(_profile(user_id=owner))
     completion = PlanningCompletionProjectionService(repository=repository, now=lambda: NOW)
-    completion.record_validated_completion(user_id=owner, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target())
+    completion.record_validated_completion(user_id=owner, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target(), source_profile=_input(repository.profile))
 
     profile_service = PlanningProfileService(repository=repository, completion_repository=repository, now=lambda: NOW)
     profile_service.update_profile(user_id=owner, payload=PlanningProfilePatch(goal=PlanningGoal.GAIN, goal_speed="gradual_gain"))
@@ -138,3 +144,35 @@ def test_profile_change_and_delete_revoke_only_the_owners_projection() -> None:
     assert eligibility.eligible is False and eligibility.target is None
     assert repository.projections[0].revocation_reason == "profile_revision_changed"
     assert repository.get_dashboard_target_eligibility(user_id=other).eligible is False
+
+
+@pytest.mark.parametrize("change", ["weight", "deleted", "foreign", "policy"])
+def test_unmatched_or_unavailable_profile_does_not_authorize_targets(change: str) -> None:
+    owner = uuid.uuid4()
+    repository = FakeProjectionRepository(_profile(user_id=owner))
+    source = _input(repository.profile)
+    if change == "weight":
+        repository.profile.weight_kg = Decimal("70")
+    elif change == "deleted":
+        repository.profile.deleted_at = NOW
+    elif change == "foreign":
+        repository.profile.user_id = uuid.uuid4()
+    else:
+        repository.profile.target_policy_version = "target-policy.v2"
+    result = PlanningCompletionProjectionService(repository=repository).record_validated_completion(
+        user_id=owner, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target(), source_profile=source,
+    )
+    assert result is None
+    assert repository.projections == []
+
+
+def test_repeated_completion_does_not_duplicate_or_revive_revoked_target() -> None:
+    owner = uuid.uuid4()
+    repository = FakeProjectionRepository(_profile(user_id=owner))
+    service = PlanningCompletionProjectionService(repository=repository)
+    command = dict(user_id=owner, run_id=uuid.uuid4(), thread_id=uuid.uuid4(), target=_target(), source_profile=_input(repository.profile))
+    first = service.record_validated_completion(**command)
+    repository.revoke_completion_projection_for_user(user_id=owner, reason="profile_revision_changed", revoked_at=NOW)
+    assert service.record_validated_completion(**command) is first
+    assert len(repository.projections) == 1
+    assert not repository.get_dashboard_target_eligibility(user_id=owner).eligible

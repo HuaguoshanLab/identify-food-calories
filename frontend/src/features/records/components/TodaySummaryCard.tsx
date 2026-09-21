@@ -8,6 +8,27 @@ type SummaryOverview = { today: DashboardOverview['today']; target_eligibility?:
 
 export function TodaySummaryCard({ overview }: { overview: SummaryOverview }) {
   const { today, target_eligibility: eligibility } = overview
-  const macros = eligibility?.eligible ? [['蛋白质', today.totals.protein_g, eligibility.target.protein_g], ['脂肪', today.totals.fat_g, eligibility.target.fat_g], ['碳水', today.totals.carbohydrate_g, eligibility.target.carbohydrate_g]] as const : null
-  return <Card className="gap-4 border-primary/15 bg-accent/60 py-5" aria-labelledby="today-summary-title"><CardHeader><CardTitle className="text-[13px] font-medium text-muted-foreground" id="today-summary-title">今日已记录摄入</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-2"><p className="tabular-nums text-[44px] font-semibold leading-[52px] tracking-tight">{formatEnergy(today.totals.energy_kcal)} <span className="text-[15px] font-medium text-muted-foreground">kcal</span></p><p className="mb-2 rounded-full bg-card/80 px-3 py-1 tabular-nums text-sm text-primary">{today.meal_count} 餐</p></div><dl aria-label="已记录营养素" className="grid grid-cols-3 gap-2 border-t border-primary/15 pt-4">{([['蛋白质', today.totals.protein_g], ['脂肪', today.totals.fat_g], ['碳水', today.totals.carbohydrate_g]] as const).map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{formatEnergy(value)} <span className="text-xs font-normal text-muted-foreground">g</span></dd></div>)}</dl>{macros ? <ul aria-label="宏量营养素相对目标状态" className="grid grid-cols-3 gap-2 text-center text-sm">{macros.map(([label, value, range]) => <li className="rounded-xl bg-card/70 px-2 py-2" key={label}><span className="sr-only">{label}目标状态</span><strong className="tabular-nums">{macroState(value, range)}</strong></li>)}</ul> : <p className="rounded-xl bg-card/70 px-3 py-2 text-[13px] leading-5 text-muted-foreground">尚未获得可用的营养目标</p>}</CardContent></Card>
+  const nutrients = [
+    ['蛋白质', 'protein_g'], ['脂肪', 'fat_g'], ['碳水', 'carbohydrate_g'],
+  ] as const
+  return <Card className="gap-3 border-primary/15 bg-accent/60 py-5 shadow-none" aria-labelledby="today-summary-title">
+    <CardHeader className="flex flex-row items-center justify-between gap-2">
+      <CardTitle className="text-[13px] font-medium text-muted-foreground" id="today-summary-title">今日已记录摄入</CardTitle>
+      <p className="text-xs tabular-nums text-muted-foreground">{today.meal_count} 餐</p>
+    </CardHeader>
+    <CardContent>
+      <p className="mb-5 tabular-nums text-[44px] font-semibold leading-[52px] tracking-tight">{formatEnergy(today.totals.energy_kcal)} <span className="text-sm font-normal tracking-normal text-muted-foreground">kcal</span></p>
+      <dl aria-label="已记录营养素" className="grid grid-cols-3 border-t border-primary/15 pt-4">
+        {nutrients.map(([label, key], index) => {
+          const state = eligibility?.eligible ? macroState(today.totals[key], eligibility.target[key]) : null
+          return <div className={`min-w-0 ${index ? 'border-l border-primary/10 pl-3' : ''}`} key={key}>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="mt-1 text-xl font-semibold tabular-nums">{formatEnergy(today.totals[key])}<span className="ml-1 text-xs font-normal text-muted-foreground">g</span></dd>
+            {state ? <dd aria-label={`${label}目标状态：${state}`} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${state === '适中' ? 'bg-primary' : 'bg-warning'}`} />{state}</dd> : null}
+          </div>
+        })}
+      </dl>
+      {!eligibility?.eligible ? <p className="mt-3 text-xs leading-5 text-muted-foreground">尚未获得可用的营养目标</p> : null}
+    </CardContent>
+  </Card>
 }
