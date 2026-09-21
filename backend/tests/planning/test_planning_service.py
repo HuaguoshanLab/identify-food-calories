@@ -188,7 +188,13 @@ def controlled_recipe(*, slot: MealSlot, food: QualifiedFood, name: str) -> Cont
 
 def managed_candidate(*, slot: MealSlot, food: QualifiedFood) -> ManagedRecipeCandidate:
     return ManagedRecipeCandidate(
-        classification=RecipeClassification(purpose="whole_meal", role="mixed_main", ingredient_tags=(), evidence="test"),
+        classification=RecipeClassification(
+            purpose="whole_meal",
+            role="mixed_main",
+            ingredient_tags=(),
+            evidence="synthetic candidate reviewed for planning tests",
+            basis="admin_review",
+        ),
         id=uuid.uuid4(), nutrition_item_id=food.id, catalog_version=food.catalog_version,
         display_name=food.canonical_name, meal_slot=slot, portion_grams=Decimal("180"),
         portion_description="一盘", method_tags=("炒",), flavour_tags=("家常",),

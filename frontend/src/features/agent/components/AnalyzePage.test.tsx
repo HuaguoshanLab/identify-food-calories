@@ -28,9 +28,14 @@ describe('AnalyzePage', () => {
       totals: { energy_kcal: '130.0' },
     } }
     let accepted = false
+    let correctionAccepted = false
+    let eventStreamRequests = 0
     const payloads: Array<Record<string, Record<string, { grams: string }>>> = []
     const request = vi.fn(async (path: string, init?: RequestInit) => {
-      if (path.endsWith('/events')) return new Response('')
+      if (path.endsWith('/events')) {
+        eventStreamRequests += 1
+        return new Response('')
+      }
       if (path.endsWith('/input')) {
         const payload = JSON.parse(JSON.parse(String(init?.body)).text)
         payloads.push(payload)
@@ -38,9 +43,12 @@ describe('AnalyzePage', () => {
           code: 'INVALID_WEIGHT', message: '换算后的单项重量必须大于 0 且不超过 2000 克，请更正后提交。', request_id: '22222222-2222-4222-8222-222222222222',
         } }), { status: 422 })
         accepted = true
+        correctionAccepted = Boolean(payload.corrections)
         return new Response(JSON.stringify({ thread_id: threadId, status: 'completed' }), { status: 202 })
       }
-      return new Response(JSON.stringify(accepted ? completed : waiting))
+      return new Response(JSON.stringify(correctionAccepted
+        ? { thread_id: threadId, status: 'partial', revision: 3 }
+        : accepted ? completed : waiting))
     })
     renderPage(request)
     await useTextInput(user)
@@ -60,6 +68,9 @@ describe('AnalyzePage', () => {
     await user.type(screen.getByLabelText('修正或排除项目'), '米饭改为1斤')
     await user.click(screen.getByRole('button', { name: '应用修正' }))
     await waitFor(() => expect(payloads[2].corrections['rice-1'].grams).toBe('1斤'))
+    await waitFor(() => expect(eventStreamRequests).toBeGreaterThanOrEqual(2))
+    expect(screen.getByLabelText('修正或排除项目')).toHaveValue('')
+    expect(screen.getByText('130.0', { exact: true })).toBeInTheDocument()
   })
 
   it('does not label a text analysis failure as an image recognition failure', async () => {
@@ -69,6 +80,16 @@ describe('AnalyzePage', () => {
     }))))
     expect(await screen.findByRole('alert')).toHaveTextContent('本次餐食分析未完成')
     expect(screen.queryByText('图片未能识别')).not.toBeInTheDocument()
+  })
+  it('offers recovery when a terminal-looking snapshot has not delivered its questions or report', async () => {
+    const threadId = '11111111-1111-4111-8111-111111111111'
+    window.history.replaceState({}, '', `/app/analyze?thread=${threadId}`)
+    renderPage(vi.fn(async (path: string) => path.endsWith('/events')
+      ? new Response('')
+      : new Response(JSON.stringify({ thread_id: threadId, status: 'waiting', revision: 2 }))))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('分析内容尚未同步')
+    expect(screen.getByRole('button', { name: '重新加载分析结果' })).toBeInTheDocument()
   })
   it('switches from image upload to a labelled text input without inventing a report', async () => {
     renderPage()
@@ -101,8 +122,13 @@ describe('AnalyzePage', () => {
       createObjectURL: { configurable: true, value: vi.fn(() => 'blob:meal-preview') },
       revokeObjectURL: { configurable: true, value: vi.fn() },
     })
+    let eventStreamRequests = 0
     const request = vi.fn(async (path: string, init?: RequestInit) => {
       void init
+      if (path.endsWith('/events')) {
+        eventStreamRequests += 1
+        return new Response('')
+      }
       if (path === '/agent/threads/image') return new Response(JSON.stringify({ thread_id: threadId, status: 'partial', revision: 0 }), { status: 201 })
       if (path.endsWith('/images')) return new Response(JSON.stringify({ thread_id: threadId, image_id: '22222222-2222-4222-8222-222222222222', status: 'completed' }), { status: 202 })
       if (path === `/agent/threads/${threadId}`) return new Response(JSON.stringify({
@@ -127,6 +153,7 @@ describe('AnalyzePage', () => {
     expect(upload?.[0]).toBe(`/agent/threads/${threadId}/images`)
     expect(upload?.[1]?.body).toBeInstanceOf(FormData)
     expect(new Headers(upload?.[1]?.headers).get('Idempotency-Key')).toMatch(/^image-/)
+    await waitFor(() => expect(eventStreamRequests).toBeGreaterThanOrEqual(1))
     Object.defineProperties(URL, {
       createObjectURL: { configurable: true, value: originalCreateObjectUrl },
       revokeObjectURL: { configurable: true, value: originalRevokeObjectUrl },

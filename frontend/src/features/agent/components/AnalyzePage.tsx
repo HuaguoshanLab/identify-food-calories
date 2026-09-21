@@ -123,6 +123,8 @@ export function AnalyzePage() {
   const [imageError, setImageError] = useState<string>()
   const [status, setStatus] = useState<AnalysisStatus>('idle')
   const [snapshot, setSnapshot] = useState<AgentThreadSnapshot>()
+  const [retainedReport, setRetainedReport] = useState<AnalysisReport>()
+  const [correctionPending, setCorrectionPending] = useState(false)
   const [progress, setProgress] = useState('')
   const [progressStage, setProgressStage] = useState<SafeStreamStage>()
   const [selectedImage, setSelectedImage] = useState<File>()
@@ -140,6 +142,7 @@ export function AnalyzePage() {
   const saveLock = useRef(false)
   const [saveError, setSaveError] = useState('')
   const [followupError, setFollowupError] = useState('')
+  const [streamGeneration, setStreamGeneration] = useState(0)
   const activeThreadRef = useRef<string | undefined>(undefined)
   const selectedMealSlot = saveForm.watch('mealSlot')
 
@@ -150,8 +153,15 @@ export function AnalyzePage() {
     if (activeThreadRef.current !== next.thread_id) {
       setSavedRecordId(undefined)
       setExpandedFoodItems({})
+      setRetainedReport(undefined)
+      setCorrectionPending(false)
       resetSaveForm({ mealSlot: suggestedMealSlot(), consumedAt: localMealTime() })
     }
+    if (next.status === 'completed' && next.report) {
+      setRetainedReport(next.report as AnalysisReport)
+      setCorrectionPending(false)
+    }
+    if (next.status === 'retryable' || next.status === 'terminal') setCorrectionPending(false)
     setSnapshot(next)
     setStatus(next.status === 'completed' ? 'completed' : next.status === 'retryable' || next.status === 'terminal' ? 'error' : 'idle')
     if (next.status === 'completed') { setProgress('分析报告已生成。'); setProgressStage('completed') }
@@ -191,16 +201,20 @@ export function AnalyzePage() {
     setImagePreviewUrl(previewUrl)
     return () => URL.revokeObjectURL(previewUrl)
   }, [selectedImage])
-  useAgentEventStream({ threadId: snapshot?.thread_id, request, onEvent: (event) => {
+  useAgentEventStream({ threadId: snapshot?.thread_id, streamGeneration, request, onEvent: (event) => {
     if (snapshot?.status === 'retryable' || snapshot?.status === 'terminal' || snapshot?.status === 'completed') return
     setProgressStage(event.stage)
   }, onInvalidEvent: () => { setStatus('error'); setProgressStage('retryable'); setProgress('分析进度暂时不可用，请重新尝试。') }, onSnapshot: applySnapshot })
 
   const isBusy = savingRecord || ['validating-image', 'uploading-image', 'submitting', 'deleting'].includes(status)
-  const report = snapshot?.report as AnalysisReport | undefined
+  const report = (snapshot?.report as AnalysisReport | undefined) ?? (correctionPending ? retainedReport : undefined)
   const hasCalculatedItems = Boolean(report?.items?.length)
   const canDisplayReport = !report?.is_partial || hasCalculatedItems
   const waiting = snapshot?.status === 'waiting' && report?.questions?.length
+  const missingExpectedContent = Boolean(snapshot && (
+    (snapshot.status === 'waiting' && !report?.questions?.length)
+    || (snapshot.status === 'completed' && !report?.totals)
+  ))
   const recoveryCode = typeof snapshot?.recovery_code === 'string' ? snapshot.recovery_code : undefined
   const recovery = snapshot?.status === 'retryable' || snapshot?.status === 'terminal' ? recoveryContent(recoveryCode) : undefined
 
@@ -235,6 +249,7 @@ export function AnalyzePage() {
         return
       }
       agentImageAcceptedResponseSchema.parse(await response.json())
+      setStreamGeneration((generation) => generation + 1)
       await refreshSnapshot(threadId)
     } catch {
       setStatus('error')
@@ -275,16 +290,22 @@ export function AnalyzePage() {
   async function submitFollowup(payload: Record<string, unknown>) {
     if (!snapshot) return
     setFollowupError('')
+    setProgress('正在应用补充信息')
+    setProgressStage('perception')
     setStatus('submitting')
     try {
       const response = await submitAgentInput(request, snapshot.thread_id, { kind: 'description', text: JSON.stringify(payload) })
       if (!response.ok) {
         setFollowupError(await safeErrorMessage(response, '这次补充没有生效，请检查后重试。'))
         setStatus(snapshot.status === 'completed' ? 'completed' : 'idle')
+        setProgressStage(snapshot.status === 'completed' ? 'completed' : undefined)
         return
       }
+      setCorrection('')
+      if ('corrections' in payload) setCorrectionPending(true)
+      setStreamGeneration((generation) => generation + 1)
       await refreshSnapshot(snapshot.thread_id)
-    } catch { setStatus(snapshot.status === 'completed' ? 'completed' : 'idle'); setFollowupError('这次补充没有生效，请检查后重试。') }
+    } catch { setCorrectionPending(false); setStatus(snapshot.status === 'completed' ? 'completed' : 'idle'); setProgressStage(snapshot.status === 'completed' ? 'completed' : undefined); setFollowupError('这次补充没有生效，请检查后重试。') }
   }
 
   function submitClarification() {
@@ -360,10 +381,11 @@ export function AnalyzePage() {
         </> : <form className="space-y-3" noValidate onSubmit={handleSubmit}><div className="space-y-2"><Label htmlFor="meal-description">餐食描述</Label><textarea aria-describedby={fieldError ? 'meal-description-error' : undefined} aria-invalid={Boolean(fieldError)} className="min-h-28 w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" disabled={isBusy} id="meal-description" onChange={(event) => setDescription(event.target.value)} placeholder="例如：米饭 100 克" ref={textInputRef} value={description} />{fieldError ? <p id="meal-description-error" className="text-[13px] leading-5 text-destructive">{fieldError}</p> : null}</div><Button className="h-11 w-full" disabled={isBusy} ref={submitButtonRef} type="submit">{status === 'submitting' ? '正在分析…' : '开始分析'}</Button><Button className="h-9 w-full" disabled={isBusy} onClick={() => setInputMode('image')} type="button" variant="outline"><ImagePlus aria-hidden="true" className="size-4" />改为上传图片</Button></form>}
       </CardContent></Card>
       {progressStage ? <SafeProgressStages onRetry={retryAnalysis} stage={progressStage} /> : <Alert aria-live="polite" role="status"><RefreshCw aria-hidden="true" className={isBusy ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} /><AlertTitle>{progress || '等待分析'}</AlertTitle><AlertDescription>阶段状态只显示安全摘要，最终结果以报告卡片为准。</AlertDescription></Alert>}
+      {missingExpectedContent ? <Alert variant="destructive"><CircleAlert aria-hidden="true" /><AlertTitle>分析内容尚未同步</AlertTitle><AlertDescription className="space-y-3"><p>系统状态已更新，但问题或报告尚未加载。请重新加载本次分析。</p><Button className="h-11 w-full" onClick={() => { setStreamGeneration((generation) => generation + 1); if (snapshot) void refreshSnapshot(snapshot.thread_id) }} type="button" variant="outline"><RefreshCw aria-hidden="true" className="size-4" />重新加载分析结果</Button></AlertDescription></Alert> : null}
       {recovery ? <Alert variant={recoveryCode === 'OUTCOME_UNKNOWN' ? 'default' : 'destructive'}><CircleAlert aria-hidden="true" /><AlertTitle>{recovery.title}</AlertTitle><AlertDescription className="space-y-3"><p>{recovery.body}</p>{recoveryCode === 'OUTCOME_UNKNOWN' ? <Button className="h-11 w-full" onClick={startNewImageAnalysis} type="button" variant="outline">{recovery.action}</Button> : <Button className="h-11 w-full" onClick={focusTextFallback} type="button" variant="outline">{recovery.action}</Button>}</AlertDescription></Alert> : null}
       {waiting ? <Card aria-label="集中补充信息" className="space-y-3"><CardHeader><h2 className="flex items-center gap-2 text-xl font-semibold"><CircleAlert aria-hidden="true" className="size-5" />需要补充的信息</h2></CardHeader><CardContent className="space-y-3">{report.understood_items?.length ? <div className="space-y-1 text-sm"><h3 className="font-semibold">已理解的项目</h3>{report.understood_items.map((item) => <p key={item.item_id}>{displayFoodName(item.name)}{item.grams ? ` · ${item.grams}g` : ' · 份量待确认'}</p>)}</div> : null}{report.questions?.map((question) => <fieldset className="space-y-2" key={`${question.item_id}-${question.field}`}><legend className="text-sm font-medium">{question.message}</legend>{question.field === 'grams' ? <div className="space-y-1"><Label htmlFor={`${question.item_id}-grams`}>克数</Label><Input className="h-11" id={`${question.item_id}-grams`} aria-describedby="meal-weight-help" onChange={(event) => setGramAnswers((current) => ({ ...current, [question.item_id]: event.target.value }))} placeholder="例如：100 克" value={gramAnswers[question.item_id] ?? ''} /></div> : null}{question.field === 'food' ? <div className="grid gap-2">{question.candidates.slice(0, 3).map((candidate) => <button aria-pressed={selectedCandidates[question.item_id] === candidate.food_id} className="min-h-11 cursor-pointer rounded-lg border border-input px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary/10" key={candidate.food_id} onClick={() => setSelectedCandidates((current) => ({ ...current, [question.item_id]: candidate.food_id }))} type="button">{displayFoodCandidate(candidate.label)}</button>)}</div> : null}</fieldset>)}<p className="text-[13px] text-muted-foreground" id="meal-weight-help">数字默认克；支持 g、kg、克、公斤、千克、公克、斤、市斤、两、市两。1 市斤＝500 克，1 市两＝50 克；每项最多 2000 克。</p>{followupError ? <p className="text-sm text-destructive" role="alert">{followupError}</p> : null}<Button className="h-11 w-full" disabled={isBusy} onClick={submitClarification} type="button">提交补充信息</Button></CardContent></Card> : null}
       {report?.is_partial ? <Alert><CircleAlert aria-hidden="true" /><AlertTitle>{hasCalculatedItems ? '当前总量不完整' : '无法生成营养报告'}</AlertTitle><AlertDescription>{hasCalculatedItems ? <>以下项目未计入总量：{displayUnaccountedItems(report.unaccounted_items, report.understood_items)}。</> : <>未匹配菜品：{displayUnaccountedItems(report.unaccounted_items, report.understood_items)}。</>} 请补充信息或改用目录中的菜品后重新分析。</AlertDescription></Alert> : null}
-      {snapshot?.status === 'completed' && report?.totals && canDisplayReport ? <div className="space-y-4">
+      {(snapshot?.status === 'completed' || correctionPending) && report?.totals && canDisplayReport ? <div className="space-y-4">
         <Card aria-label="估算总热量" className="gap-3 py-3 [--card-spacing:--spacing(3)]"><CardContent className="px-4"><p className="text-sm font-medium text-muted-foreground">{report.is_partial ? '已计入项目的估算总热量' : '估算总热量'}</p><p className="mt-0.5 flex items-baseline gap-1 tabular-nums"><span className="text-3xl font-bold leading-9 text-foreground">{report.totals.energy_kcal}</span><span className="text-[13px] font-medium text-muted-foreground">kcal</span></p><p className="mt-1 text-[13px] leading-5 text-muted-foreground">数值由受控营养目录计算，实际份量可能有偏差。</p></CardContent></Card>
         <Card aria-label="食物明细"><CardHeader className="pb-2"><h2 className="text-base font-semibold leading-6">食物明细</h2></CardHeader><CardContent className="space-y-2">{report.items?.map((item) => {
           const foodKey = item.item_id ?? `${item.name}-${item.grams}`

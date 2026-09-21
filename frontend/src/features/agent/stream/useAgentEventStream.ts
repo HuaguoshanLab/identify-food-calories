@@ -9,6 +9,7 @@ type RequestWithSession = (path: string, init?: RequestInit) => Promise<Response
 
 type AgentEventStreamOptions = {
   threadId?: string
+  streamGeneration?: number
   request: RequestWithSession
   onEvent: (event: AgentProgressEvent) => void
   onInvalidEvent?: () => void
@@ -19,7 +20,7 @@ type AgentEventStreamOptions = {
  * Replays safe events only after reading the ledger-owned snapshot. `request` comes from
  * AuthProvider, whose one-refresh/one-replay rule is the sole 401 recovery authority.
  */
-export function useAgentEventStream({ threadId, request, onEvent, onInvalidEvent, onSnapshot }: AgentEventStreamOptions) {
+export function useAgentEventStream({ threadId, streamGeneration = 0, request, onEvent, onInvalidEvent, onSnapshot }: AgentEventStreamOptions) {
   const eventCallbackRef = useRef(onEvent)
   const invalidEventCallbackRef = useRef(onInvalidEvent)
   const snapshotCallbackRef = useRef(onSnapshot)
@@ -109,5 +110,5 @@ export function useAgentEventStream({ threadId, request, onEvent, onInvalidEvent
 
     void connect()
     return () => controller.abort()
-  }, [request, threadId])
+  }, [request, streamGeneration, threadId])
 }
