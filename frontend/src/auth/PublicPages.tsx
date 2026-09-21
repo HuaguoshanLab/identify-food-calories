@@ -19,7 +19,7 @@ function PublicPage({ children, description, progress, title }: PublicPageProps)
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col py-8">
-      <div className="rounded-xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
+      <div className="rounded-3xl bg-card p-6 shadow-sm ring-1 ring-border/60">
         {progress ? <p className="mb-2 text-sm text-muted-foreground">{progress}</p> : null}
         <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">
           {title}
@@ -40,7 +40,7 @@ export function LandingPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8 py-8">
-      <section className="flex flex-col gap-4">
+      <section className="flex flex-col gap-4"><p className="text-xs font-semibold tracking-[0.2em] text-primary">好好吃饭，从了解一餐开始</p><div aria-hidden="true" className="mb-2 flex h-36 items-center justify-center rounded-[32px] bg-accent"><span className="flex size-24 items-center justify-center rounded-full border-[12px] border-card bg-primary/10"><span className="size-9 rounded-full bg-primary/70" /></span></div>
         <h1 ref={headingRef} tabIndex={-1} className="text-[28px] leading-9 font-semibold tracking-tight">
           拍下或描述一餐，获得可追问的饮食分析
         </h1>

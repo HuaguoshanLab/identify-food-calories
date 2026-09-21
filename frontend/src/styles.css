@@ -55,21 +55,21 @@
   font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  /* h5-forest-v1：沿用设计稿色相，小字与状态色加深以保持可读性。 */
-  --radius: 0.5rem;
-  --background: hsl(140 20% 97%);
-  --foreground: hsl(150 35% 12%);
+  /* h5-journal-v2：暖纸底色与松绿强调，状态及营养语义保持独立。 */
+  --radius: 0.75rem;
+  --background: hsl(45 33% 96%);
+  --foreground: hsl(155 20% 17%);
   --card: hsl(0 0% 100%);
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
-  --primary: hsl(152 40% 30%);
+  --primary: hsl(158 32% 27%);
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(145 25% 94%);
+  --secondary: hsl(45 20% 91%);
   --secondary-foreground: var(--foreground);
   --muted: var(--secondary);
-  --muted-foreground: hsl(150 15% 38%);
-  --accent: hsl(148 32% 90%);
+  --muted-foreground: hsl(150 7% 39%);
+  --accent: hsl(145 24% 90%);
   --accent-foreground: hsl(152 40% 25%);
   --destructive: hsl(0 65% 44%);
   --destructive-foreground: hsl(0 0% 100%);
@@ -79,7 +79,7 @@
   --warning-foreground: hsl(0 0% 100%);
   --info: hsl(205 70% 36%);
   --info-foreground: hsl(0 0% 100%);
-  --border: hsl(145 20% 88%);
+  --border: hsl(45 15% 85%);
   --input: var(--border);
   --ring: var(--primary);
   /* 图表只映射服务端数据；这些 token 不承担数值计算。 */

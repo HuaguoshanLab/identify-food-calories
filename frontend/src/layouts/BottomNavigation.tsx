@@ -17,8 +17,8 @@ export function BottomNavigation() {
           <NavLink
             key={to}
             className={({ isActive }) => [
-              'inline-flex min-h-11 flex-col items-center justify-center gap-1 text-[11px] leading-4 transition-colors hover:text-foreground',
-              isActive ? 'font-semibold text-primary' : 'font-normal text-muted-foreground',
+              'relative inline-flex min-h-11 flex-col items-center justify-center gap-1 text-[11px] leading-4 transition-colors hover:text-foreground',
+              isActive ? 'font-semibold text-primary before:absolute before:top-0 before:h-0.5 before:w-6 before:rounded-full before:bg-primary' : 'font-normal text-muted-foreground',
             ].join(' ')}
             end
             to={to}

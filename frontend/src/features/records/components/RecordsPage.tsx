@@ -43,15 +43,16 @@ export function RecordsPage() {
   const confirmationFailed = !timeZone || confirmation.isError
   const confirmationConflict = confirmation.error instanceof DashboardTimezoneConflictError
 
-  return <section className="mx-auto w-full max-w-xl space-y-3 pb-4">
-    <div><p className="text-[13px] leading-5 text-muted-foreground">查看你已确认保存的餐食。</p></div>
+  return <section className="mx-auto w-full max-w-xl space-y-5 pb-4">
+    <div className="px-1 pb-2"><p className="mb-2 text-xs font-semibold tracking-[0.18em] text-primary">饮食手账</p><h2 className="text-[28px] font-semibold leading-9 tracking-tight">看见每一天的积累</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">查看你已确认保存的餐食。</p></div>
     {!confirmationFailed && !dashboardEnabled ? <p className="animate-pulse text-sm text-muted-foreground motion-reduce:animate-none">正在确认统计口径…</p> : null}
     {confirmationFailed ? <Alert variant="destructive"><AlertTitle>{confirmationConflict ? '统计时区不一致' : '暂时无法确认统计时区'}</AlertTitle><AlertDescription><p>{confirmationConflict ? '当前浏览器时区与已确认的统计时区不一致。请使用已确认的浏览器设置后重试。' : '暂时无法确认统计时区。请检查浏览器设置后重试。'}</p>{timeZone ? <Button className="mt-3" onClick={() => confirmation.mutate()} type="button" variant="outline">重新尝试</Button> : null}</AlertDescription></Alert> : null}
     {dashboardEnabled && overview.isLoading ? <p className="animate-pulse text-sm text-muted-foreground motion-reduce:animate-none">正在加载今日摘要…</p> : null}
     {dashboardEnabled && overview.isError ? <Alert variant="destructive"><AlertTitle>加载失败</AlertTitle><AlertDescription>暂时无法加载记录。请检查网络后重新加载记录。</AlertDescription></Alert> : null}
-    {dashboardEnabled && overview.data ? <><TodaySummaryCard overview={overview.data} /><WeeklyTrend week={overview.data.week} /></> : null}
+    {dashboardEnabled && overview.data ? <TodaySummaryCard overview={overview.data} /> : null}
     {dashboardEnabled && history.isError ? <Alert variant="destructive"><AlertTitle>加载失败</AlertTitle><AlertDescription>暂时无法加载记录。请检查网络后重新加载记录。</AlertDescription></Alert> : null}
     {dashboardEnabled && !history.isLoading && !history.isError ? <HistoryMealList isLoadingMore={history.isFetchingNextPage} onLoadMore={() => { void history.fetchNextPage() }} page={historyPage} /> : null}
+    {dashboardEnabled && overview.data ? <WeeklyTrend week={overview.data.week} /> : null}
     {dashboardEnabled && weeklyReview.isError ? <Alert variant="destructive"><AlertTitle>加载失败</AlertTitle><AlertDescription>暂时无法加载周复盘。请检查网络后重试。</AlertDescription></Alert> : null}
     {dashboardEnabled && weeklyReview.data ? <WeeklyReview isRefreshing={refreshReview.isPending} onRefresh={() => refreshReview.mutate()} review={weeklyReview.data} /> : null}
   </section>

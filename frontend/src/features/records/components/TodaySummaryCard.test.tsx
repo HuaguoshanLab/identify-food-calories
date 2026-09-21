@@ -40,7 +40,9 @@ describe('TodaySummaryCard', () => {
 
     expect(screen.getByText('612').closest('p')).toBeInTheDocument()
     expect(screen.getByText('2 餐')).toBeInTheDocument()
-    expect(screen.queryByText('蛋白质')).not.toBeInTheDocument()
+    expect(screen.getByText('蛋白质')).toBeInTheDocument()
+    expect(screen.getByText('31.5')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: '宏量营养素相对目标状态' })).not.toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
     expect(screen.getByText('尚未获得可用的营养目标')).toBeInTheDocument()
   })

@@ -56,9 +56,9 @@ describe('RecordsPage timezone confirmation gate', () => {
     const trend = screen.getByRole('heading', { name: '本周趋势' })
     const history = screen.getByRole('heading', { name: '历史记录' })
     const weeklyReview = screen.getByRole('heading', { name: '周复盘' })
-    expect(today.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(trend.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(history.compareDocumentPosition(weeklyReview) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(today.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(history.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(trend.compareDocumentPosition(weeklyReview) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('different-zone 409 显示安全冲突，并关闭所有 dashboard reads', async () => {

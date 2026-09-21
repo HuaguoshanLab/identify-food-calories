@@ -19,10 +19,10 @@ export function TabHeader() {
   const Icon = current.icon
 
   return (
-    <header className="z-20 shrink-0 border-b border-border/60 bg-background pt-[env(safe-area-inset-top)]">
-      <div className="flex h-14 items-center gap-2.5 px-4">
-        <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-        <h1 className="shell-heading min-w-0 truncate text-[20px] font-bold leading-6" ref={headingRef} tabIndex={-1}>
+    <header className="z-20 shrink-0 bg-background pt-[env(safe-area-inset-top)]">
+      <div className="flex h-20 items-center gap-3 px-5">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Icon aria-hidden="true" className="size-5" /></span>
+        <h1 className="shell-heading min-w-0 truncate text-[22px] font-bold leading-7 tracking-tight" ref={headingRef} tabIndex={-1}>
           {current.title}
         </h1>
         {pathname === routePaths.plans ? <Link aria-label="历史计划" title="历史计划" className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" to={routePaths.planHistory}><History aria-hidden="true" className="size-5" /></Link> : null}

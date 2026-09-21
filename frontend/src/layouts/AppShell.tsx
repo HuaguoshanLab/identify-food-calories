@@ -27,7 +27,7 @@ export function AppShell() {
         跳到主要内容
       </a>
       <TabHeader />
-      <PageScrollArea className="min-[375px]:px-7" contentId="main-content" ref={scrollRef}>
+      <PageScrollArea className="min-[375px]:px-5" contentId="main-content" ref={scrollRef}>
         <Outlet />
       </PageScrollArea>
       <BottomNavigation />
