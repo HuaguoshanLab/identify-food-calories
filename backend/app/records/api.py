@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.auth.api import AuthenticatedPrincipal
 from app.core.database import get_session
 from app.records.repository import SqlAlchemyMealRecordRepository
+from app.nutrition.repository import SqlAlchemyNutritionRepository
+from app.nutrition.service import NutritionService
 from app.records.schemas import (
     DashboardTimezoneConfirmationRequest,
     DashboardTimezoneConfirmationResponse,
@@ -36,7 +38,10 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 
 def get_meal_record_service(session: SessionDependency) -> Generator[MealRecordService, None, None]:
     yield MealRecordService(
-        repository=SqlAlchemyMealRecordRepository(session), commit=session.commit, rollback=session.rollback
+        repository=SqlAlchemyMealRecordRepository(session),
+        nutrition_calculator=NutritionService(repository=SqlAlchemyNutritionRepository(session)),
+        commit=session.commit,
+        rollback=session.rollback,
     )
 
 
@@ -98,11 +103,16 @@ def update_meal_record(
     record_id: uuid.UUID, payload: MealRecordUpdateRequest, principal: AuthenticatedPrincipal, service: ServiceDependency
 ) -> MealRecordResponse:
     try:
+        item_update = (
+            {"item_corrections": tuple((item.item_id, item.grams) for item in payload.items)}
+            if payload.items is not None else {}
+        )
         return MealRecordResponse.model_validate(
             service.update_record(
                 record_id=record_id, user_id=principal, consumed_at=payload.consumed_at,
                 time_zone=payload.time_zone, meal_slot=payload.meal_slot,
                 update_meal_slot="meal_slot" in payload.model_fields_set,
+                **item_update,
             )
         )
     except InvalidTimeZone:
@@ -111,6 +121,8 @@ def update_meal_record(
         raise _validation("consumed_at 必须是当前或过去的带时区时间。") from None
     except MealRecordUnavailable:
         raise _unavailable() from None
+    except MealRecordConfirmationUnavailable:
+        raise _validation("餐食项目已变化或无法按当前目录重新计算。") from None
 
 
 @router.delete("/{record_id}", operation_id="deleteMealRecord", status_code=status.HTTP_204_NO_CONTENT)

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.repository import SqlAlchemyAdminRepository
 from app.admin.service import AdminRoleChangeDenied, AdminService, CatalogVectorSpaceBuildConflict
-from app.admin.schemas import CatalogVectorSpaceBuildCommand
+from app.admin.schemas import CatalogVectorSpaceBuildCommand, RuntimeConfigCommand
 from app.core.database import create_session_factory
 
 
@@ -52,7 +52,7 @@ def main(
                     target_user_id=target.id,
                     reason=arguments.reason,
                 )
-            else:
+            elif arguments.command == "vector-build":
                 if arguments.actor_user_id is not None:
                     actor_user_id = arguments.actor_user_id
                 else:
@@ -74,11 +74,32 @@ def main(
                     ),
                     command_key=arguments.idempotency_key,
                 )
+            else:
+                actor = repository.get_user_by_email(_normalize_email(arguments.actor_email))
+                if actor is None:
+                    return _denied("actor user was not found")
+                runtime_config = service.configure_runtime(
+                    actor_user_id=actor.id,
+                    command_key=arguments.idempotency_key,
+                    command=RuntimeConfigCommand(
+                        provider="deepseek",
+                        model_alias="deepseek-v4-flash",
+                        enabled=True,
+                        single_call_cap_usd="0.02",
+                        period_cap_usd="12",
+                        input_usd_per_m="0.14",
+                        output_usd_per_m="0.28",
+                        reason=arguments.reason,
+                        confirm=True,
+                    ),
+                )
         except (AdminRoleChangeDenied, CatalogVectorSpaceBuildConflict, PermissionError) as error:
             return _denied(str(error))
 
     if arguments.command == "vector-build":
         print(f"{build.id} {build.vector_space_id}")
+    elif arguments.command == "runtime-config":
+        print(f"runtime configuration recorded: {runtime_config.id}")
     else:
         print(f"admin role change recorded: {audit.id}")
     return 0
@@ -102,6 +123,12 @@ def _parser() -> argparse.ArgumentParser:
     build_actor.add_argument("--actor-email", help="resolve the local operator to a UUID before service RBAC")
     build.add_argument("--reason", required=True)
     build.add_argument("--idempotency-key", required=True)
+    runtime_config = commands.add_parser(
+        "runtime-config", help="create an enabled, non-secret DeepSeek runtime policy"
+    )
+    runtime_config.add_argument("--actor-email", required=True)
+    runtime_config.add_argument("--reason", required=True)
+    runtime_config.add_argument("--idempotency-key", required=True)
     return parser
 
 

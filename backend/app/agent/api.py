@@ -634,6 +634,16 @@ def stream_agent_events(thread_id: uuid.UUID, request: Request, principal: Agent
 
     runtime = _runtime(request)
 
+    def read_followup(sequence: int):
+        """Own the synchronous Session inside its worker thread."""
+        session = cast(Any, runtime.session_factory())
+        try:
+            return _build_agent_service(session).latest_run_and_events(
+                thread_id=thread_id, user_id=principal, after_seq=sequence
+            )
+        finally:
+            session.close()
+
     async def replay_and_follow() -> AsyncIterator[str]:
         sequence = after_seq
         pending = events
@@ -645,17 +655,10 @@ def stream_agent_events(thread_id: uuid.UUID, request: Request, principal: Agent
                     yield f"id: {event.seq}\nevent: agent\ndata: {body}\n\n"
             if await request.is_disconnected():
                 return
-            session = cast(Any, runtime.session_factory())
-            try:
-                follow_service = _build_agent_service(session)
-                _thread, run, pending = follow_service.latest_run_and_events(
-                    thread_id=thread_id, user_id=principal, after_seq=sequence
-                )
-                terminal = run is None or run.status in {
-                    "waiting_input", "completed", "failed", "limit_reached"
-                }
-            finally:
-                session.close()
+            _thread, run, pending = await asyncio.to_thread(read_followup, sequence)
+            terminal = run is None or run.status in {
+                "waiting_input", "completed", "failed", "limit_reached"
+            }
             if pending:
                 continue
             if terminal:

@@ -40,6 +40,9 @@ jobs:
       - name: Check backend source
         working-directory: backend
         run: uv run ruff check app
+      - name: Prevent backend type debt growth
+        working-directory: backend
+        run: uv run python scripts/check_mypy_baseline.py
       - name: Run all backend tests through the database guard
         working-directory: backend
         run: uv run python tests/run_pg.py --env-file .env.test.example -- uv run pytest -q
@@ -83,6 +86,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - app: frontend
+            spec: records-dashboard.spec.ts
           - app: frontend
             spec: plans.spec.ts
           - app: admin-frontend

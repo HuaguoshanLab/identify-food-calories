@@ -164,10 +164,16 @@ def build_release(
         "medium_judge_average_at_least_4": judge_average >= RELEASE_THRESHOLDS["medium_average"],
         "no_score_one": 1 not in paired_human and 1 not in paired_judge,
     }
+    correlation_status = "available"
     try:
         correlation = spearman(paired_human, paired_judge)
-    except EvaluationContractError:
+    except EvaluationContractError as error:
         correlation = None
+        correlation_status = (
+            "insufficient_score_variance"
+            if "constant" in str(error).lower()
+            else "invalid_paired_scores"
+        )
         checks["spearman_at_least_0_70"] = False
     else:
         checks["spearman_at_least_0_70"] = correlation >= RELEASE_THRESHOLDS["spearman"]
@@ -196,6 +202,8 @@ def build_release(
             "medium_judge_average": judge_average,
             "paired_score_count": len(paired_human),
             "spearman": correlation,
+            "spearman_status": correlation_status,
+            "judge_distinct_score_count": len(set(paired_judge)),
         },
         "checks": checks,
     }

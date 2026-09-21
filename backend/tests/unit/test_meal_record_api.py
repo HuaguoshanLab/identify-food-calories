@@ -68,6 +68,7 @@ class StubMealRecordService:
     def __init__(self, record: MealRecord) -> None:
         self.record = record
         self.confirm_calls: list[tuple[uuid.UUID, uuid.UUID, str]] = []
+        self.item_corrections: tuple[tuple[uuid.UUID, Decimal], ...] | None = None
 
     def confirm_from_completed_run(
         self,
@@ -102,9 +103,11 @@ class StubMealRecordService:
         time_zone: str,
         meal_slot: str | None = None,
         update_meal_slot: bool = False,
+        item_corrections: tuple[tuple[uuid.UUID, Decimal], ...] | None = None,
     ) -> MealRecord:
         if time_zone in {"/invalid-timezone", "../Etc/UTC"}:
             raise InvalidTimeZone()
+        self.item_corrections = item_corrections
         return self.get_record(record_id=record_id, user_id=user_id)
 
     def confirm_dashboard_time_zone(self, *, user_id: uuid.UUID, time_zone: str):
@@ -125,6 +128,23 @@ def _client(*, principal: uuid.UUID, service: StubMealRecordService) -> TestClie
     app.dependency_overrides[get_authenticated_principal] = lambda: principal
     app.dependency_overrides[get_meal_record_service] = lambda: service
     return TestClient(app)
+
+
+def test_patch_forwards_only_item_identity_and_grams_for_server_recalculation() -> None:
+    user_id = uuid.uuid4()
+    record = _record(user_id=user_id)
+    service = StubMealRecordService(record)
+    with _client(principal=user_id, service=service) as client:
+        response = client.patch(
+            f"/api/v1/meal-records/{record.id}",
+            json={
+                "consumed_at": NOW.isoformat(),
+                "time_zone": "UTC",
+                "items": [{"item_id": str(record.items[0].id), "grams": "150"}],
+            },
+        )
+    assert response.status_code == 200
+    assert service.item_corrections == ((record.items[0].id, Decimal("150")),)
 
 
 def test_meal_record_openapi_and_schema_reject_client_nutrition_values() -> None:

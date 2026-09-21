@@ -23,13 +23,22 @@ class MealRecordConfirmRequest(BaseModel):
     time_zone: str = Field(min_length=1, max_length=64)
 
 
+class MealRecordItemCorrection(BaseModel):
+    """A user-corrected amount; nutrition values remain server calculated."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    item_id: uuid.UUID
+    grams: Decimal = Field(gt=0, le=2000, max_digits=10, decimal_places=3)
+
+
 class MealRecordUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     meal_slot: MealSlot | None = None
-
     consumed_at: datetime
     time_zone: str = Field(min_length=1, max_length=64)
+    items: tuple[MealRecordItemCorrection, ...] | None = Field(default=None, min_length=1, max_length=20)
 
 
 class DashboardTimezoneConfirmationRequest(BaseModel):

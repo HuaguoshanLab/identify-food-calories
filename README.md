@@ -2,7 +2,7 @@
 
 本仓库承载一个前后端分离、可追问、可校验、可追溯的饮食健康 Agent。当前已交付认证、分析与确认保存、长期偏好、饮食规划、用户 records 看板及独立管理员后台。未经过冻结评测和安全测试的能力不会在这里宣称达到生产指标；用户看板与后台的历史浏览器证据、自动化门禁与仍待复验边界见 [`docs/verification/2026-09-04-dashboard-admin-browser.md`](docs/verification/2026-09-04-dashboard-admin-browser.md)。
 
-当前编排实现是 Python 业务状态机，使用 LangGraph 的 PostgreSQL Checkpointer 保存与恢复状态；尚未采用原生 `StateGraph` 节点、条件边和 `interrupt()`。餐单由确定性规则生成：目标驱动候选组合、受控标签约束调整、目录重算与最终校验。真实模型效果与原生图编排能力不能从这些流程测试中推导。
+当前餐食分析、饮食规划与周总结均使用原生 LangGraph `StateGraph`；餐食分析和饮食规划通过 PostgreSQL Checkpointer 保存状态，并使用 `interrupt()` / `Command(resume=...)` 完成追问恢复。餐单由确定性规则生成：目标驱动候选组合、受控标签约束调整、目录重算与最终校验。流程测试仍不能替代真实模型效果评测。
 
 日常变更门禁见 [Application quality](.github/workflows/quality.yml)：完整后端测试、两个前端的类型检查/单测/构建，以及餐单生成调整、后台运行配置和权限两组公开浏览器流程。其余历史 E2E 套件与 macOS 专用截图不在此门禁范围，真实模型评测独立于 CI。
 
@@ -42,6 +42,20 @@ docker compose ps
 ### 可选的本地追踪
 
 Langfuse 是默认关闭的开发辅助栈，不影响主应用启动。需要时复制 `.env.langfuse.example`，生成独立强密钥，再使用 `docker-compose.langfuse.yml` 启动。完整配置、安全字段和排错方法见 [`docs/learning/feature-observability.md`](docs/learning/feature-observability.md)。
+
+### 容器化应用启动
+
+`docker-compose.app.yml` 构建并运行 FastAPI、用户端、管理端和独立 PostgreSQL。先创建生产环境使用的 `backend/.env`，至少设置强随机认证密钥、显式 CORS、Secure Cookie、邮件与实际启用的 Provider 配置；再设置数据库密码并执行迁移：
+
+```bash
+export POSTGRES_PASSWORD='replace-with-a-strong-random-password'
+docker compose -f docker-compose.app.yml build
+docker compose -f docker-compose.app.yml run --rm migrate
+docker compose -f docker-compose.app.yml up -d backend frontend admin-frontend
+docker compose -f docker-compose.app.yml ps
+```
+
+用户端和后台分别绑定本机 `5178`、`5179`。回滚应用版本时切回上一 immutable image 并重新启动；数据库迁移只能在确认对应 revision 支持降级后单独执行 `alembic downgrade`，不能把清库当作回滚。该 Compose 提供可重复的单机交付路径，不等于完成公网 TLS、备份恢复、密钥托管和生产安全验收。
 
 ## 启动、迁移与验收
 

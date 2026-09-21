@@ -17,6 +17,11 @@ class RecipeClassification(BaseModel):
     # Name-based annotations are not a complete ingredient or allergen list.
     basis: Literal["name_only", "name_and_legacy_role", "admin_review"] = "name_only"
 
+    @property
+    def supports_user_exclusions(self) -> bool:
+        """Only reviewed ingredient evidence may enforce an exclusion."""
+        return self.basis == "admin_review"
+
     @field_validator("ingredient_tags")
     @classmethod
     def unique_tags(cls, value):

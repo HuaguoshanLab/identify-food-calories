@@ -31,7 +31,7 @@
 ## 当前实现边界
 
 1. **模型负责理解，工具负责计算。** DeepSeek 文本 Provider 与 Qwen 视觉 Provider 输出受校验的结构化信息；营养、身体目标和餐单校验来自确定性规则。Fake Provider 验证流程，不代表真实模型效果。
-2. **编排是业务状态机。** [Agent 图实现](../backend/app/agent/graph.py)包含餐食分析、饮食规划与统一路由；应用服务读写 LangGraph PostgreSQL Checkpointer。当前不能描述为原生 `StateGraph`、条件边与 `interrupt()` 编排。
+2. **编排是原生 StateGraph。** [Agent 图实现](../backend/app/agent/graph.py)把餐食分析和饮食规划拆成独立节点与条件边；应用服务通过 LangGraph PostgreSQL Checkpointer 恢复状态，等待态使用 `interrupt()`，恢复使用 `Command(resume=...)`。周总结使用非持久化 `StateGraph`。
 3. **餐单来自受控候选和规则。** 生成与调整经工具进入规划领域服务，不是模型自由编造食谱与营养值。有限候选可能无法满足所有目标，必须保留失败和缺口解释。
 4. **存储各有职责。** PostgreSQL 保存权威业务数据；Checkpoint 保存短期运行状态；长期偏好由本地账本控制，Mem0 保存受控副本，不能覆盖业务事实。
 5. **三个应用保持独立。** 用户端与管理端分别构建，共用 FastAPI 模块化单体。后台菜单和页面守卫不能替代后端权限校验。

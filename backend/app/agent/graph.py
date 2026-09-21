@@ -242,7 +242,9 @@ class MealAnalysisGraph:
             retrieve = getattr(self._tools, "retrieve_personal_context", None)
             if callable(retrieve):
                 try:
-                    hints = retrieve(user_id=state.user_id, query=state.messages[-1])
+                    hints = await asyncio.to_thread(
+                        retrieve, user_id=state.user_id, query=state.messages[-1]
+                    )
                 except Exception as error:
                     raise AgentRuntimeStageError.from_exception(stage="context_retrieval", error=error) from None
                 state = state.model_copy(update={"context_hints": tuple(

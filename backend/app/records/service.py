@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +19,11 @@ from app.records.models import (
 )
 from app.records.ports import MealRecordRepository
 from app.records.schemas import DashboardTimezoneConfirmationResponse
+from app.nutrition.schemas import NutritionAction, NutritionCalculationInput, NutritionCalculationResult
+
+
+class RecordNutritionCalculator(Protocol):
+    def calculate_nutrition(self, request: NutritionCalculationInput) -> NutritionCalculationResult: ...
 
 
 class MealRecordUnavailable(LookupError):
@@ -57,11 +62,13 @@ class MealRecordService:
         now: Callable[[], datetime] | None = None,
         commit: Callable[[], None] | None = None,
         rollback: Callable[[], None] | None = None,
+        nutrition_calculator: RecordNutritionCalculator | None = None,
     ) -> None:
         self._repository = repository
         self._now = now or (lambda: datetime.now(UTC))
         self._commit = commit or (lambda: None)
         self._rollback = rollback or (lambda: None)
+        self._nutrition_calculator = nutrition_calculator
 
     def confirm_from_completed_run(
         self,
@@ -170,6 +177,7 @@ class MealRecordService:
         time_zone: str,
         meal_slot: str | None = None,
         update_meal_slot: bool = False,
+        item_corrections: tuple[tuple[uuid.UUID, Decimal], ...] | None = None,
     ) -> MealRecord:
         now = self._now()
         self._validate_meal_slot(meal_slot)
@@ -188,12 +196,53 @@ class MealRecordService:
             record.consumed_time_zone = zone.key
             record.consumed_local_date = self._local_date(consumed_at, zone)
             record.local_date_source = "submitted_time_zone"
+            if item_corrections is not None:
+                self._apply_item_corrections(record, item_corrections, now)
             record.updated_at = now
             self._commit()
             return record
         except Exception:
             self._rollback()
             raise
+
+    def _apply_item_corrections(
+        self,
+        record: MealRecord,
+        corrections: tuple[tuple[uuid.UUID, Decimal], ...],
+        now: datetime,
+    ) -> None:
+        if self._nutrition_calculator is None:
+            raise MealRecordConfirmationUnavailable("nutrition calculator is unavailable")
+        if len({item_id for item_id, _grams in corrections}) != len(corrections):
+            raise MealRecordConfirmationUnavailable("duplicate corrected item")
+        by_id = {item.id: item for item in record.items if item.deleted_at is None}
+        if set(by_id) != {item_id for item_id, _grams in corrections}:
+            raise MealRecordConfirmationUnavailable("correction must include every active item")
+        for item_id, grams in corrections:
+            item = by_id[item_id]
+            try:
+                food_id = uuid.UUID(item.food_reference)
+            except ValueError:
+                raise MealRecordConfirmationUnavailable("record item cannot be recalculated") from None
+            result = self._nutrition_calculator.calculate_nutrition(
+                NutritionCalculationInput(
+                    food_id=food_id,
+                    catalog_version=item.nutrition_catalog_version,
+                    grams=grams,
+                )
+            )
+            if result.action is not NutritionAction.PASS or result.food is None or result.nutrients is None:
+                raise MealRecordConfirmationUnavailable("record item is no longer calculable")
+            item.display_name = result.food.canonical_name
+            item.grams = grams
+            item.energy_kcal = result.nutrients.energy_kcal
+            item.protein_g = result.nutrients.protein_g
+            item.fat_g = result.nutrients.fat_g
+            item.carbohydrate_g = result.nutrients.carbohydrate_g
+            item.is_estimated = False
+            item.updated_at = now
+        for metric in ("energy_kcal", "protein_g", "fat_g", "carbohydrate_g"):
+            setattr(record, metric, sum((getattr(item, metric) for item in by_id.values()), Decimal(0)))
 
     def confirm_dashboard_time_zone(
         self, *, user_id: uuid.UUID, time_zone: str

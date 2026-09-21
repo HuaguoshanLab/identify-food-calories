@@ -77,3 +77,16 @@ describe('confirmDashboardTimeZone', () => {
     expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({ meal_slot: 'breakfast', consumed_at: record.consumed_at, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     expect(saved.meal_slot).toBeNull()
   })
+
+ it('份量纠错只提交项目标识和克数，不接受客户端营养值', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify(record), { status: 200 }))
+    await updateMealRecord(
+      request,
+      record.id,
+      { mealSlot: null, consumedAt: record.consumed_at },
+      [{ itemId: '9f6e499d-cbeb-4f7b-8fc8-0777d912b8df', grams: '150' }],
+    )
+    expect(JSON.parse(String(request.mock.calls[0][1]?.body)).items).toEqual([
+      { item_id: '9f6e499d-cbeb-4f7b-8fc8-0777d912b8df', grams: '150' },
+    ])
+  })

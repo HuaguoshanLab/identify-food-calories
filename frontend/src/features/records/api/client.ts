@@ -61,12 +61,18 @@ export async function confirmDashboardTimeZone(
   if (response.status !== 200) throw new Error('dashboard time zone confirmation failed')
   return dashboardTimezoneConfirmationSchema.parse(await response.json())
 }
-export async function updateMealRecord(request: ApiRequest, id: string, metadata: MealMetadata): Promise<MealRecord> {
+export type MealItemCorrection = { itemId: string; grams: string }
+export async function updateMealRecord(request: ApiRequest, id: string, metadata: MealMetadata, items?: MealItemCorrection[]): Promise<MealRecord> {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   if (!timeZone) throw new Error('browser time zone is unavailable')
   const response = await request(`/meal-records/${id}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ consumed_at: metadata.consumedAt, meal_slot: metadata.mealSlot, time_zone: timeZone }),
+    body: JSON.stringify({
+      consumed_at: metadata.consumedAt,
+      meal_slot: metadata.mealSlot,
+      time_zone: timeZone,
+      ...(items ? { items: items.map((item) => ({ item_id: item.itemId, grams: item.grams })) } : {}),
+    }),
   })
   if (!response.ok) throw new Error('record update failed')
   return parsed(response)

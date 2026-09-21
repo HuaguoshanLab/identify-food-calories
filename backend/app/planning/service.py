@@ -633,6 +633,12 @@ class PlanningService:
         ):
             stats.filtered += 1
             return None
+        # A name-derived classification can rank ordinary meals, but it is not
+        # sufficient evidence for a user's exclusion. Only an administrator-reviewed
+        # ingredient classification may participate when exclusions are active.
+        if preferences.exclusions and not classification.supports_user_exclusions:
+            stats.filtered += 1
+            return None
         # Cheap known-label exclusions precede nutrition I/O. Canonical aliases
         # are still checked after the authoritative catalog lookup below.
         if matches_exclusion(preferences.exclusions, (candidate.display_name, *candidate.method_tags, *candidate.flavour_tags, *ingredient_exclusion_labels(classification.ingredient_tags))):
