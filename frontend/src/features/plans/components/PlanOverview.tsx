@@ -1,6 +1,4 @@
-import { Sparkles } from 'lucide-react'
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatPlanNumber, formatTargetGap } from '../format'
 import type { PlanReport } from './PlanPage'
 
@@ -27,7 +25,6 @@ export function PlanOverview({ report }: { report: PlanReport }) {
   return <section aria-labelledby="plan-overview-title" className="space-y-3">
     <h2 className="text-base font-semibold leading-6" id="plan-overview-title">每日目标概览</h2>
     <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles aria-hidden="true" className="size-5 text-primary" />今日餐单已生成</CardTitle></CardHeader>
       <CardContent className="space-y-5">
         <p className={allInRange ? 'text-sm text-primary' : 'text-sm text-destructive'}>
           {allInRange ? '全部指标在目标范围内' : '部分指标未达到原目标，请查看差距'}

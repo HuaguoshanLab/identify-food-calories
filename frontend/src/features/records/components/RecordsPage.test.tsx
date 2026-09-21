@@ -51,7 +51,6 @@ describe('RecordsPage timezone confirmation gate', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/dashboard/overview'))
     expect(request).toHaveBeenCalledWith('/dashboard/weekly-review')
     expect(request.mock.calls.filter(([path]) => String(path).startsWith('/dashboard/')).map(([path]) => String(path))).not.toContainEqual(expect.stringMatching(/(?:week_start|time_zone)/))
-    expect(screen.getByText('查看你已确认保存的餐食。')).toBeInTheDocument()
     const today = screen.getByText('今日已记录摄入')
     const trend = screen.getByRole('heading', { name: '本周趋势' })
     const history = screen.getByRole('heading', { name: '历史记录' })

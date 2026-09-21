@@ -2,7 +2,7 @@ import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 type SettingsLinkRowProps = {
-  description: string
+  description?: string
   icon: LucideIcon
   title: string
   to: string
@@ -21,7 +21,7 @@ export function SettingsLinkRow({ description, icon: Icon, title, to }: Settings
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/60"><Icon aria-hidden="true" className="size-5 text-primary" strokeWidth={1.7} /></span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium leading-6">{title}</span>
-        <span className="block text-[13px] leading-5 text-muted-foreground">{description}</span>
+        {description ? <span className="block text-[13px] leading-5 text-muted-foreground">{description}</span> : null}
       </span>
       <ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
     </Link>
