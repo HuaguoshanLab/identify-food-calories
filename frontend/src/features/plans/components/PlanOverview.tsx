@@ -44,17 +44,28 @@ export function PlanOverview({ report }: { report: PlanReport }) {
           const target = report.target[macro.field]
           return <div key={macro.field}><dt className="flex items-center justify-center gap-1.5 text-sm font-semibold"><span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: macro.color }} />{macro.label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">{totals[macro.field].toFixed(1)}g</dd><dd className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">（{formatPlanNumber(target.lower)}–{formatPlanNumber(target.upper)}g）</dd></div>
         })}</dl>
-        <div className="space-y-2" aria-label="营养目标对照">
-          <h3 className="text-sm font-semibold">目标与实际差距</h3>
-          {metrics.map(([field, label]) => {
-            const bounds = report.target[field]
-            const unit = field === 'energy_kcal' ? 'kcal' : 'g'
-            const gap = formatTargetGap(totals[field], bounds.lower, bounds.upper, unit)
-            return <div key={field} className="border-t border-border pt-2 text-sm">
-              <div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span className="font-medium">{label}</span><span className={gap.inRange ? 'text-primary' : 'text-destructive'}>{gap.label}</span></div>
-              <p className="mt-1 text-xs tabular-nums text-muted-foreground">目标 {formatPlanNumber(bounds.lower)}–{formatPlanNumber(bounds.upper)} {unit} · 实际 {Number(totals[field].toFixed(1))} {unit}</p>
-            </div>
-          })}
+        <div className="rounded-xl bg-muted/50 p-3" aria-label="营养目标对照">
+          <h3 className="mb-3 text-sm font-semibold">目标对照</h3>
+          <table className="w-full table-fixed text-xs tabular-nums">
+            <caption className="sr-only">目标与实际差距</caption>
+            <thead className="text-muted-foreground"><tr><th className="w-[22%] pb-2 text-left font-normal" scope="col">营养</th><th className="w-[22%] pb-2 text-right font-normal" scope="col">计划值</th><th className="w-[36%] pb-2 text-right font-normal" scope="col">目标范围</th><th className="w-[20%] pb-2 text-right font-normal" scope="col">状态</th></tr></thead>
+            <tbody>{metrics.map(([field, label]) => {
+              const bounds = report.target[field]
+              const unit = field === 'energy_kcal' ? 'kcal' : 'g'
+              const gap = formatTargetGap(totals[field], bounds.lower, bounds.upper, unit)
+              const status = gap.inRange ? '范围内' : totals[field] < Number(bounds.lower) ? '偏低' : '偏高'
+              return <tr key={field} className="border-t border-border/50 align-top">
+                <th className="py-3 text-left font-medium" scope="row">{label}<span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">{unit}</span></th>
+                <td className="py-3 text-right font-semibold">{Number(totals[field].toFixed(1)).toLocaleString('zh-CN')}</td>
+                <td className="py-3 text-right text-muted-foreground">{formatPlanNumber(bounds.lower)}–{formatPlanNumber(bounds.upper)}</td>
+                <td className={`py-3 text-right font-medium ${gap.inRange ? 'text-primary' : 'text-destructive'}`}><span>{status}</span></td>
+              </tr>
+            })}</tbody>
+          </table>
+          {!allInRange ? <ul className="space-y-1 border-t border-border/50 pt-2 text-xs text-destructive" aria-label="超出目标的差距">{metrics.map(([field, label]) => {
+            const gap = formatTargetGap(totals[field], report.target[field].lower, report.target[field].upper, field === 'energy_kcal' ? 'kcal' : 'g')
+            return gap.inRange ? null : <li key={field}>{label}：<span>{gap.label}</span></li>
+          })}</ul> : null}
         </div>
       </CardContent>
     </Card>

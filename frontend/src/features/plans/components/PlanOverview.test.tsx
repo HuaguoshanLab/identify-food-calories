@@ -22,8 +22,8 @@ describe('PlanOverview target comparison', () => {
     render(<PlanOverview report={report()} />)
     expect(screen.getByText('全部指标在目标范围内')).toBeInTheDocument()
     const comparison = screen.getByLabelText('营养目标对照')
-    expect(within(comparison).getByText('目标 1,800–2,000 kcal · 实际 1800 kcal')).toBeInTheDocument()
-    expect(within(comparison).getAllByText('在目标范围内')).toHaveLength(4)
+    expect(within(comparison).getByRole('row', { name: /能量/ })).toHaveTextContent('1,8001,800–2,000范围内')
+    expect(within(comparison).getAllByText('范围内')).toHaveLength(4)
   })
 
   it('shows every deviation, including old saved plans without a relaxation marker', () => {
