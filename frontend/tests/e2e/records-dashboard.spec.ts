@@ -10,6 +10,8 @@ const forbiddenTerms = /provider|node|stack|reasoning|raw payload|api[_ -]?key|p
 const dashboardPath = '/api/v1/dashboard/'
 const timezoneContexts = ['Asia/Shanghai'] as const
 
+test.use({ timezoneId: 'Asia/Shanghai' })
+
 type ObservedRequest = {
   url: string
   method: string
