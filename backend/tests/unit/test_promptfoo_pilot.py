@@ -115,20 +115,19 @@ def test_release_prompt_uses_a_new_strict_json_contract() -> None:
 
 def test_release_json_mode_is_transmitted_by_local_promptfoo_openai_provider() -> None:
     package = BACKEND_ROOT.parent / "frontend/node_modules/promptfoo/package.json"
-    provider_source = next(
-        (BACKEND_ROOT.parent / "frontend/node_modules/promptfoo/dist/src").glob(
-            "providers-*.js"
-        )
-    )
-
     assert json.loads(package.read_text(encoding="utf-8"))["version"] == "0.122.0"
-    source = provider_source.read_text(encoding="utf-8")
-    assert (
-        "config.response_format ? { response_format: maybeLoadResponseFormatFromExternalFile"
-        in source
+    provider_sources = (
+        BACKEND_ROOT.parent / "frontend/node_modules/promptfoo/dist/src"
+    ).glob("providers-*.js")
+    required_fragments = (
+        "config.response_format ? { response_format: maybeLoadResponseFormatFromExternalFile",
+        "...responseFormat,",
+        "...config.passthrough || {}",
     )
-    assert "...responseFormat," in source
-    assert "...config.passthrough || {}" in source
+    assert any(
+        all(fragment in source for fragment in required_fragments)
+        for source in (path.read_text(encoding="utf-8") for path in provider_sources)
+    )
 
 
 @pytest.mark.parametrize(

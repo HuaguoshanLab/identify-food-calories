@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { AdminAuthProvider, useAdminAuth } from './AdminAuthProvider'
@@ -16,7 +16,9 @@ function renderLogin(path = '/admin/login?returnTo=%2Fadmin%2Foverview') {
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[path]}>
         <AdminAuthProvider>
-          <AdminLoginPage />
+          <Routes>
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+          </Routes>
           <SessionProbe />
         </AdminAuthProvider>
       </MemoryRouter>

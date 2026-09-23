@@ -69,7 +69,7 @@ test.describe('daily planning archive H5', () => {
     await page.getByLabel('我已复核以上饮食偏好').check()
     await page.getByRole('button', { name: '生成今日餐单' }).click()
     await expect(page.getByRole('heading', { name: '今日饮食计划' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: '目标与实际差距' })).toBeVisible()
+    await expect(page.getByRole('table', { name: '目标与实际差距' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '早餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '午餐' })).toBeVisible()
     await expect(page.getByRole('heading', { name: '晚餐' })).toBeVisible()
