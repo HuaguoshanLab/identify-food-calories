@@ -57,14 +57,16 @@ docker compose -f docker-compose.app.yml ps
 
 用户端和后台分别绑定本机 `5178`、`5179`。正式发布若要回滚应用，需预先保存上一版本的 immutable image；数据库迁移只能在确认对应 revision 支持降级后单独执行 `alembic downgrade`，不能把清库当作回滚。该 Compose 提供可重复的单机交付路径，不等于完成公网 TLS、备份恢复、密钥托管和生产安全验收。
 
-上线前先在隔离环境演练数据库备份与恢复，并确认应用版本和数据库 revision 匹配。备份示例（在仓库根目录执行，输出文件按敏感数据保护）：
+上线前先在隔离环境演练数据库备份与恢复，并确认应用版本和数据库 revision 匹配。备份示例（在仓库根目录执行，归档放在仓库外并按敏感数据保护）：
 
 ```bash
 umask 077
+mkdir -p ../food-agent-backups
+chmod 700 ../food-agent-backups
 docker compose -f docker-compose.app.yml exec -T postgres \
-  pg_dump -U postgres -d food_agent -Fc > food_agent.dump
+  pg_dump -U postgres -d food_agent -Fc > ../food-agent-backups/food_agent.dump
 docker compose -f docker-compose.app.yml exec -T postgres \
-  pg_restore --list < food_agent.dump > /dev/null
+  pg_restore --list < ../food-agent-backups/food_agent.dump > /dev/null
 ```
 
 `pg_restore --list` 只检查归档目录；必须在独立数据库中实际恢复，并通过公开 API 验证数据和业务路径，才能认定备份可用。恢复不得覆盖正在运行的业务库。应用回退时使用已保存的上一版本镜像，先核对 Alembic revision 与兼容性；不兼容时需要已验证的迁移降级或隔离恢复方案。当前 Compose 使用本地构建，未定义 immutable image 发布流程，因此此处尚不能宣称生产回退已通过。

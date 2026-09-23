@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -99,7 +99,8 @@ describe('App', () => {
     stubAuthenticatedIdentity()
     renderApp(['/app/me/profile'])
 
-    expect(await screen.findByRole('heading', { level: 1, name: '个人资料' })).toHaveFocus()
+    const heading = await screen.findByRole('heading', { level: 1, name: '个人资料' })
+    await waitFor(() => expect(heading).toHaveFocus())
     expect(screen.getByRole('button', { name: '返回上一页' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '主要导航' })).not.toBeInTheDocument()
   })
@@ -126,19 +127,23 @@ describe('App', () => {
 
     await screen.findByRole('heading', { name: '分析这餐' })
     await user.click(screen.getByRole('link', { name: '我的' }))
-    expect(await screen.findByRole('heading', { name: '我的' })).toHaveFocus()
+    const myHeading = await screen.findByRole('heading', { name: '我的' })
+    await waitFor(() => expect(myHeading).toHaveFocus())
 
     await user.click(screen.getByRole('link', { name: /账号资料/ }))
-    expect(await screen.findByRole('heading', { level: 1, name: '账号资料' })).toHaveFocus()
+    const accountHeading = await screen.findByRole('heading', { level: 1, name: '账号资料' })
+    await waitFor(() => expect(accountHeading).toHaveFocus())
     analyzeRoute.unmount()
 
     const meRoute = renderApp(['/app/me'])
     await screen.findByRole('heading', { name: '我的' })
     await user.click(screen.getByRole('link', { name: /登录会话/ }))
-    expect(await screen.findByRole('heading', { level: 1, name: '登录会话' })).toHaveFocus()
+    const sessionsHeading = await screen.findByRole('heading', { level: 1, name: '登录会话' })
+    await waitFor(() => expect(sessionsHeading).toHaveFocus())
     meRoute.unmount()
 
     renderApp(['/app/me/account'])
-    expect(await screen.findByRole('heading', { level: 1, name: '账号资料' })).toHaveFocus()
+    const directHeading = await screen.findByRole('heading', { level: 1, name: '账号资料' })
+    await waitFor(() => expect(directHeading).toHaveFocus())
   })
 })
